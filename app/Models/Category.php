@@ -24,6 +24,10 @@ class Category extends Model implements HasMedia
         'status' => 'boolean',
     ];
 
+    protected $appends = [
+        'image',
+    ];
+
     public function registerMediaCollections(): void
     {
         $this->addMediaCollection('category_image')->singleFile();
@@ -51,6 +55,12 @@ class Category extends Model implements HasMedia
 
     public function getImageAttribute(): string
     {
-        return $this->getFirstMediaUrlOrPlaceholder('category_image');
+        $media = $this->getFirstMedia('category_image');
+
+        if ($media) {
+            return $media->getUrl();
+        }
+
+        return asset('vendor/adminlte/dist/img/no-image.png');
     }
 }

@@ -2,31 +2,21 @@
 
 namespace App\Models;
 
+use App\Services\OrderAssignmentService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Order extends Model
 {
     use SoftDeletes;
 
-    public const STATUS_PENDING = 'pending';
-    public const STATUS_CONFIRMED = 'confirmed';
-    public const STATUS_PROCESSING = 'processing';
-    public const STATUS_SHIPPED = 'shipped';
-    public const STATUS_DELIVERED = 'delivered';
-    public const STATUS_CANCELLED = 'cancelled';
-    public const STATUS_FAKE = 'fake';
-
-    public const PAYMENT_COD = 'cash_on_delivery';
-
-    public const PAYMENT_STATUS_UNPAID = 'unpaid';
-    public const PAYMENT_STATUS_COD_PENDING = 'cod_pending';
-    public const PAYMENT_STATUS_COLLECTED = 'collected';
-    public const PAYMENT_STATUS_FAILED = 'failed';
-
     protected $fillable = [
         'invoice_id',
         'campaign_id',
+        'assigned_employee_id',
         'customer_name',
         'phone',
         'address',
@@ -44,97 +34,115 @@ class Order extends Model
         'source_ip',
         'user_agent',
         'source_url',
-        'confirmed_at',
-        'delivered_at',
-        'cancelled_at',
-        'marked_fake_at',
     ];
 
     protected $casts = [
-        'sub_total' => 'integer',
-        'shipping_charge' => 'integer',
-        'cod_charge' => 'integer',
-        'total_amount' => 'integer',
+        'campaign_id' => 'integer',
+        'assigned_employee_id' => 'integer',
+        'sub_total' => 'decimal:2',
+        'shipping_charge' => 'decimal:2',
+        'cod_charge' => 'decimal:2',
+        'total_amount' => 'decimal:2',
         'is_fake' => 'boolean',
-        'confirmed_at' => 'datetime',
-        'delivered_at' => 'datetime',
-        'cancelled_at' => 'datetime',
-        'marked_fake_at' => 'datetime',
     ];
 
-    public function campaign()
+    protected static function booted(): void
+    {
+        static::created(function (Order $order) {
+            if (! $order->assigned_employee_id) {
+                app(OrderAssignmentService::class)->assign($order);
+            }
+        });
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Relationships
+    |--------------------------------------------------------------------------
+    */
+
+    public function campaign(): BelongsTo
     {
         return $this->belongsTo(Campaign::class);
     }
 
-    public function items()
+    public function assignedEmployee(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'assigned_employee_id');
+    }
+
+    public function items(): HasMany
     {
         return $this->hasMany(OrderItem::class);
     }
 
-    public function statusLogs()
+    public function statusLogs(): HasMany
     {
         return $this->hasMany(OrderStatusLog::class);
     }
 
-    public function fakeLog()
+    public function fakeLogs(): HasMany
     {
-        return $this->hasOne(FakeOrderLog::class);
+        return $this->hasMany(FakeOrderLog::class);
     }
 
-    public function scopePending($query)
+    /*
+    |--------------------------------------------------------------------------
+    | Scopes
+    |--------------------------------------------------------------------------
+    */
+
+    public function scopeForLoggedInUser(Builder $query): Builder
     {
-        return $query->where('order_status', self::STATUS_PENDING);
+        $user = auth()->user();
+
+        if ($user && $user->isEmployee()) {
+            return $query->where('assigned_employee_id', $user->id);
+        }
+
+        return $query;
     }
 
-    public function scopeConfirmed($query)
+    public function scopeAssignedToEmployee(Builder $query, int $employeeId): Builder
     {
-        return $query->where('order_status', self::STATUS_CONFIRMED);
+        return $query->where('assigned_employee_id', $employeeId);
     }
 
-    public function scopeProcessing($query)
+    public function scopeFake(Builder $query): Builder
     {
-        return $query->where('order_status', self::STATUS_PROCESSING);
+        return $query->where(function ($q) {
+            $q->where('is_fake', true)
+                ->orWhere('order_status', 'Fake');
+        });
     }
 
-    public function scopeDelivered($query)
+    public function scopePending(Builder $query): Builder
     {
-        return $query->where('order_status', self::STATUS_DELIVERED);
+        return $query->where('order_status', 'Pending');
     }
 
-    public function scopeCancelled($query)
+    public function scopeConfirmed(Builder $query): Builder
     {
-        return $query->where('order_status', self::STATUS_CANCELLED);
+        return $query->where('order_status', 'Confirmed');
     }
 
-    public function scopeFake($query)
+    public function scopeProcessing(Builder $query): Builder
     {
-        return $query->where('is_fake', true)->orWhere('order_status', self::STATUS_FAKE);
+        return $query->where('order_status', 'Processing');
     }
 
-    public function markAsFake(?string $reason = null): void
+    public function scopeShipped(Builder $query): Builder
     {
-        $this->update([
-            'is_fake' => true,
-            'order_status' => self::STATUS_FAKE,
-            'marked_fake_at' => now(),
-        ]);
-
-        $this->fakeLog()->updateOrCreate(
-            ['order_id' => $this->id],
-            [
-                'fake_reason' => $reason ?: 'Marked as fake by admin',
-                'detected_by' => 'admin',
-            ]
-        );
+        return $query->where('order_status', 'Shipped');
     }
 
-    public function restoreFromFake(): void
+    public function scopeDelivered(Builder $query): Builder
     {
-        $this->update([
-            'is_fake' => false,
-            'order_status' => self::STATUS_PENDING,
-            'marked_fake_at' => null,
-        ]);
+        return $query->where('order_status', 'Delivered');
+    }
+
+    public function scopeCancelled(Builder $query): Builder
+    {
+        return $query->where('order_status', 'Cancelled');
     }
 }

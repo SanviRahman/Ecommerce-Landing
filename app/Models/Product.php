@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Models;
 
 use App\Traits\HasMediaTrait;
@@ -37,14 +36,21 @@ class Product extends Model implements HasMedia
 
     protected $casts = [
         'purchase_price' => 'integer',
-        'old_price' => 'integer',
-        'new_price' => 'integer',
-        'stock' => 'integer',
-        'sold_quantity' => 'integer',
-        'is_top_sale' => 'boolean',
-        'is_feature' => 'boolean',
-        'is_flash_sale' => 'boolean',
-        'status' => 'boolean',
+        'old_price'      => 'integer',
+        'new_price'      => 'integer',
+        'stock'          => 'integer',
+        'sold_quantity'  => 'integer',
+        'is_top_sale'    => 'boolean',
+        'is_feature'     => 'boolean',
+        'is_flash_sale'  => 'boolean',
+        'status'         => 'boolean',
+    ];
+
+    protected $appends = [
+        'thumbnail',
+        'final_price',
+        'discount_amount',
+        'discount_percent',
     ];
 
     public function registerMediaCollections(): void
@@ -102,7 +108,13 @@ class Product extends Model implements HasMedia
 
     public function getThumbnailAttribute(): string
     {
-        return $this->getFirstMediaUrlOrPlaceholder('product_thumbnail');
+        $media = $this->getFirstMedia('product_thumbnail');
+
+        if ($media) {
+            return url('storage/' . $media->id . '/' . $media->file_name);
+        }
+
+        return asset('vendor/adminlte/dist/img/no-image.png');
     }
 
     public function getFinalPriceAttribute(): int
@@ -112,7 +124,7 @@ class Product extends Model implements HasMedia
 
     public function getDiscountAmountAttribute(): int
     {
-        if (!$this->old_price || $this->old_price <= $this->new_price) {
+        if (! $this->old_price || $this->old_price <= $this->new_price) {
             return 0;
         }
 
@@ -121,7 +133,7 @@ class Product extends Model implements HasMedia
 
     public function getDiscountPercentAttribute(): int
     {
-        if (!$this->old_price || $this->old_price <= $this->new_price) {
+        if (! $this->old_price || $this->old_price <= $this->new_price) {
             return 0;
         }
 
