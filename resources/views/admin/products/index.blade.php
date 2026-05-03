@@ -398,9 +398,10 @@
                     if (result.isConfirmed) {
                         $.ajax({
                             url: url,
-                            type: isRestore ? 'POST' : 'DELETE',
+                            type: 'POST',
                             data: {
-                                _token: '{{ csrf_token() }}'
+                                _token: '{{ csrf_token() }}',
+                                _method: isRestore ? 'POST' : 'DELETE'
                             },
                             success: function (res) {
                                 if (res.status) {
