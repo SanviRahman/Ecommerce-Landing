@@ -26,6 +26,7 @@ return new class extends Migration
             $table->string('working_hours')->nullable();
             $table->boolean('status')->default(true);
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 

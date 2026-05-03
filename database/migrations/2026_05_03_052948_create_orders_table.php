@@ -34,10 +34,8 @@ return new class extends Migration
 
             $table->string('payment_method')->default('cash_on_delivery');
             $table->string('payment_status')->default('cod_pending');
-            // unpaid, cod_pending, collected, failed
 
             $table->string('order_status')->default('pending');
-            // pending, confirmed, processing, shipped, delivered, cancelled, fake
 
             $table->boolean('is_fake')->default(false);
             $table->text('admin_note')->nullable();
@@ -53,6 +51,7 @@ return new class extends Migration
             $table->timestamp('marked_fake_at')->nullable();
 
             $table->timestamps();
+            $table->softDeletes();
 
             $table->index(['campaign_id', 'order_status']);
             $table->index(['phone', 'order_status']);

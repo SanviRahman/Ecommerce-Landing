@@ -34,7 +34,7 @@ return new class extends Migration
             $table->unsignedInteger('stock')->default(0);
             $table->unsignedInteger('sold_quantity')->default(0);
 
-            $table->string('weight_size')->nullable(); // 500g, 1kg
+            $table->string('weight_size')->nullable();
 
             $table->text('short_description')->nullable();
             $table->longText('full_description')->nullable();
@@ -49,6 +49,7 @@ return new class extends Migration
             $table->text('meta_description')->nullable();
 
             $table->timestamps();
+            $table->softDeletes();
 
             $table->index(['category_id', 'status']);
             $table->index(['is_top_sale', 'status']);

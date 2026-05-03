@@ -17,7 +17,7 @@ return new class extends Migration
             $table->foreignId('campaign_id')
                 ->nullable()
                 ->constrained('campaigns')
-                ->cascadeOnDelete();
+                ->nullOnDelete();
 
             $table->string('question');
             $table->longText('answer')->nullable();
@@ -25,6 +25,7 @@ return new class extends Migration
             $table->boolean('status')->default(true);
 
             $table->timestamps();
+            $table->softDeletes();
 
             $table->index(['campaign_id', 'status']);
         });

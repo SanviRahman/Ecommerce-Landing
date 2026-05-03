@@ -18,6 +18,7 @@ return new class extends Migration
             $table->boolean('is_front_view')->default(false);
             $table->boolean('status')->default(true);
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 

@@ -17,7 +17,7 @@ return new class extends Migration
             $table->string('title');
             $table->string('slug')->unique();
 
-            $table->string('campaign_type')->default('single'); // single, multiple
+            $table->string('campaign_type')->default('single');
 
             $table->text('short_description')->nullable();
             $table->longText('full_description')->nullable();
@@ -43,6 +43,7 @@ return new class extends Migration
             $table->text('meta_description')->nullable();
 
             $table->timestamps();
+            $table->softDeletes();
 
             $table->index(['slug', 'status']);
         });

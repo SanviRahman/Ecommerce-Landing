@@ -18,6 +18,7 @@ return new class extends Migration
             $table->string('pixel_id');
             $table->boolean('status')->default(true);
             $table->timestamps();
+            $table->softDeletes();
 
             $table->index(['platform', 'status']);
         });
