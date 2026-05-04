@@ -157,14 +157,22 @@ class User extends Authenticatable implements HasMedia
         return $this->hasMany(Order::class, 'assigned_employee_id');
     }
 
+    /**
+     * Active assigned orders used for employee workload calculation.
+     *
+     * Important:
+     * Order status must be lowercase because orders table default is "pending"
+     * and OrderController also uses lowercase statuses.
+     */
     public function activeAssignedOrders(): HasMany
     {
         return $this->hasMany(Order::class, 'assigned_employee_id')
+            ->where('is_fake', false)
             ->whereIn('order_status', [
-                'Pending',
-                'Confirmed',
-                'Processing',
-                'Shipped',
+                Order::STATUS_PENDING,
+                Order::STATUS_CONFIRMED,
+                Order::STATUS_PROCESSING,
+                Order::STATUS_SHIPPED,
             ]);
     }
 

@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Order;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 
 class OrderAssignmentService
 {
@@ -11,36 +12,58 @@ class OrderAssignmentService
      * Assign order to an active employee.
      *
      * Logic:
-     * - Only active employee users will receive orders.
-     * - Employee with lowest active order count gets priority.
-     * - If multiple employees have same count, one will be selected randomly.
+     * - Only active employees receive orders.
+     * - Employee with the lowest active order count gets priority.
+     * - If multiple employees have same count, one is selected randomly.
+     * - Transaction + lock reduces wrong assignment during simultaneous orders.
      */
     public function assign(Order $order): ?User
     {
-        if ($order->assigned_employee_id) {
-            return $order->assignedEmployee;
-        }
+        return DB::transaction(function () use ($order) {
+            $lockedOrder = Order::query()
+                ->whereKey($order->id)
+                ->lockForUpdate()
+                ->first();
 
-        $employees = User::activeEmployees()
-            ->withCount([
-                'activeAssignedOrders as active_orders_count',
-            ])
-            ->get();
+            if (! $lockedOrder) {
+                return null;
+            }
 
-        if ($employees->isEmpty()) {
-            return null;
-        }
+            if ($lockedOrder->assigned_employee_id) {
+                return $lockedOrder->assignedEmployee;
+            }
 
-        $minimumOrderCount = $employees->min('active_orders_count');
+            $employees = User::activeEmployees()
+                ->withCount([
+                    'activeAssignedOrders as active_orders_count',
+                ])
+                ->lockForUpdate()
+                ->get();
 
-        $employee = $employees
-            ->where('active_orders_count', $minimumOrderCount)
-            ->random();
+            if ($employees->isEmpty()) {
+                return null;
+            }
 
-        $order->forceFill([
-            'assigned_employee_id' => $employee->id,
-        ])->saveQuietly();
+            $minimumOrderCount = $employees->min('active_orders_count');
 
-        return $employee;
+            $employee = $employees
+                ->where('active_orders_count', $minimumOrderCount)
+                ->shuffle()
+                ->first();
+
+            if (! $employee) {
+                return null;
+            }
+
+            $lockedOrder->forceFill([
+                'assigned_employee_id' => $employee->id,
+            ])->saveQuietly();
+
+            $order->forceFill([
+                'assigned_employee_id' => $employee->id,
+            ]);
+
+            return $employee;
+        });
     }
 }

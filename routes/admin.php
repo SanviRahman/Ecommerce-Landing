@@ -16,6 +16,7 @@ use App\Http\Controllers\Admin\SiteSettingController;
 use App\Http\Controllers\Admin\SocialMediaController;
 use App\Http\Controllers\Admin\TrackingPixelController;
 use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\Admin\BrandController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth'])->group(function () {
@@ -202,22 +203,22 @@ Route::middleware(['auth'])->group(function () {
         Route::prefix('brands')
             ->as('brands.')
             ->group(function () {
-                Route::get('/create', [App\Http\Controllers\Admin\BrandController::class, 'create'])->name('create');
-                Route::post('/', [App\Http\Controllers\Admin\BrandController::class, 'store'])->name('store');
+                Route::get('/create', [BrandController::class, 'create'])->name('create');
+                Route::post('/', [BrandController::class, 'store'])->name('store');
 
-                Route::get('/trash/list', [App\Http\Controllers\Admin\BrandController::class, 'trash'])->name('trashed');
-                Route::post('/restore/{id}', [App\Http\Controllers\Admin\BrandController::class, 'restore'])->name('restore');
-                Route::delete('/force-delete/{id}', [App\Http\Controllers\Admin\BrandController::class, 'forceDelete'])->name('force_delete');
-                Route::post('/multiple-action', [App\Http\Controllers\Admin\BrandController::class, 'multipleAction'])->name('multiple_action');
+                Route::get('/trash/list', [BrandController::class, 'trash'])->name('trashed');
+                Route::post('/restore/{id}', [BrandController::class, 'restore'])->name('restore');
+                Route::delete('/force-delete/{id}', [BrandController::class, 'forceDelete'])->name('force_delete');
+                Route::post('/multiple-action', [BrandController::class, 'multipleAction'])->name('multiple_action');
 
-                Route::get('/', [App\Http\Controllers\Admin\BrandController::class, 'index'])->name('index');
+                Route::get('/', [BrandController::class, 'index'])->name('index');
 
-                Route::get('/{brand}/edit', [App\Http\Controllers\Admin\BrandController::class, 'edit'])->name('edit');
-                Route::put('/{brand}', [App\Http\Controllers\Admin\BrandController::class, 'update'])->name('update');
-                Route::patch('/{brand}', [App\Http\Controllers\Admin\BrandController::class, 'update']);
-                Route::delete('/{brand}', [App\Http\Controllers\Admin\BrandController::class, 'destroy'])->name('destroy');
+                Route::get('/{brand}/edit', [BrandController::class, 'edit'])->name('edit');
+                Route::put('/{brand}', [BrandController::class, 'update'])->name('update');
+                Route::patch('/{brand}', [BrandController::class, 'update']);
+                Route::delete('/{brand}', [BrandController::class, 'destroy'])->name('destroy');
 
-                Route::get('/{brand}', [App\Http\Controllers\Admin\BrandController::class, 'show'])->name('show');
+                Route::get('/{brand}', [BrandController::class, 'show'])->name('show');
             });
 
         /*
@@ -414,14 +415,19 @@ Route::middleware(['auth'])->group(function () {
             });
 
         /*
-    |--------------------------------------------------------------------------
-    | Bulk Orders
-    |--------------------------------------------------------------------------
-    */
+        |--------------------------------------------------------------------------
+        | Bulk Orders
+        |--------------------------------------------------------------------------
+        */
         Route::prefix('bulk-orders')
             ->as('bulk-orders.')
             ->group(function () {
                 Route::get('/', [BulkOrderController::class, 'index'])->name('index');
+                Route::get('/trash', [BulkOrderController::class, 'trash'])->name('trashed');
+                Route::post('/restore/{id}', [BulkOrderController::class, 'restore'])->name('restore');
+                Route::delete('/force-delete/{id}', [BulkOrderController::class, 'forceDelete'])->name('force_delete');
+                Route::post('/multiple-action', [BulkOrderController::class, 'multipleAction'])->name('multiple_action');
+
                 Route::get('/new', [BulkOrderController::class, 'newRequests'])->name('new');
                 Route::get('/contacted', [BulkOrderController::class, 'contacted'])->name('contacted');
                 Route::get('/quoted', [BulkOrderController::class, 'quoted'])->name('quoted');

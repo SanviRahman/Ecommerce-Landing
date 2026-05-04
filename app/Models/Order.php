@@ -13,6 +13,14 @@ class Order extends Model
 {
     use SoftDeletes;
 
+    public const STATUS_PENDING = 'pending';
+    public const STATUS_CONFIRMED = 'confirmed';
+    public const STATUS_PROCESSING = 'processing';
+    public const STATUS_SHIPPED = 'shipped';
+    public const STATUS_DELIVERED = 'delivered';
+    public const STATUS_CANCELLED = 'cancelled';
+    public const STATUS_FAKE = 'fake';
+
     protected $fillable = [
         'invoice_id',
         'campaign_id',
@@ -34,16 +42,24 @@ class Order extends Model
         'source_ip',
         'user_agent',
         'source_url',
+        'confirmed_at',
+        'delivered_at',
+        'cancelled_at',
+        'marked_fake_at',
     ];
 
     protected $casts = [
-        'campaign_id' => 'integer',
+        'campaign_id'          => 'integer',
         'assigned_employee_id' => 'integer',
-        'sub_total' => 'decimal:2',
-        'shipping_charge' => 'decimal:2',
-        'cod_charge' => 'decimal:2',
-        'total_amount' => 'decimal:2',
-        'is_fake' => 'boolean',
+        'sub_total'            => 'decimal:2',
+        'shipping_charge'      => 'decimal:2',
+        'cod_charge'           => 'decimal:2',
+        'total_amount'         => 'decimal:2',
+        'is_fake'              => 'boolean',
+        'confirmed_at'         => 'datetime',
+        'delivered_at'         => 'datetime',
+        'cancelled_at'         => 'datetime',
+        'marked_fake_at'       => 'datetime',
     ];
 
     protected static function booted(): void
@@ -112,37 +128,37 @@ class Order extends Model
     {
         return $query->where(function ($q) {
             $q->where('is_fake', true)
-                ->orWhere('order_status', 'Fake');
+                ->orWhere('order_status', self::STATUS_FAKE);
         });
     }
 
     public function scopePending(Builder $query): Builder
     {
-        return $query->where('order_status', 'Pending');
+        return $query->where('order_status', self::STATUS_PENDING);
     }
 
     public function scopeConfirmed(Builder $query): Builder
     {
-        return $query->where('order_status', 'Confirmed');
+        return $query->where('order_status', self::STATUS_CONFIRMED);
     }
 
     public function scopeProcessing(Builder $query): Builder
     {
-        return $query->where('order_status', 'Processing');
+        return $query->where('order_status', self::STATUS_PROCESSING);
     }
 
     public function scopeShipped(Builder $query): Builder
     {
-        return $query->where('order_status', 'Shipped');
+        return $query->where('order_status', self::STATUS_SHIPPED);
     }
 
     public function scopeDelivered(Builder $query): Builder
     {
-        return $query->where('order_status', 'Delivered');
+        return $query->where('order_status', self::STATUS_DELIVERED);
     }
 
     public function scopeCancelled(Builder $query): Builder
     {
-        return $query->where('order_status', 'Cancelled');
+        return $query->where('order_status', self::STATUS_CANCELLED);
     }
 }
