@@ -9,10 +9,7 @@
     </div>
 @endif
 
-<form action="{{ $action }}"
-      method="POST"
-      enctype="multipart/form-data">
-
+<form action="{{ $action }}" method="POST" enctype="multipart/form-data">
     @csrf
 
     @if ($isEdit)
@@ -59,7 +56,7 @@
             <span class="invalid-feedback">{{ $message }}</span>
         @enderror
 
-        @if ($isEdit && $campaign?->banner_image_url)
+        @if ($isEdit && !empty($campaign?->banner_image_url))
             <div class="mt-2">
                 <img src="{{ $campaign->banner_image_url }}" width="140" class="img-thumbnail">
             </div>
@@ -80,20 +77,22 @@
 
         <select name="products[]"
                 id="products"
-                class="form-control @error('products') is-invalid @enderror"
-                multiple
+                class="form-control select2-products @error('products') is-invalid @enderror"
+                multiple="multiple"
                 required
-                size="8">
+                style="width: 100%;">
+
             @foreach ($products as $product)
                 <option value="{{ $product->id }}"
                     @selected(in_array($product->id, old('products', $selectedProducts ?? [])))>
                     {{ $product->name }} — ৳{{ number_format($product->new_price) }}
                 </option>
             @endforeach
+
         </select>
 
         <small class="form-text text-muted">
-            Product Management থেকে active products এখানে auto show করবে। Multiple product select করতে Ctrl চেপে select করো।
+            Click this field to show all active products. You can select multiple products.
         </small>
 
         @error('products')
@@ -147,7 +146,7 @@
                        class="form-control"
                        accept="image/*">
 
-                @if ($isEdit && $campaign?->image_one_url)
+                @if ($isEdit && !empty($campaign?->image_one_url))
                     <div class="mt-2">
                         <img src="{{ $campaign->image_one_url }}" width="120" class="img-thumbnail">
                     </div>
@@ -163,7 +162,7 @@
                        class="form-control"
                        accept="image/*">
 
-                @if ($isEdit && $campaign?->image_two_url)
+                @if ($isEdit && !empty($campaign?->image_two_url))
                     <div class="mt-2">
                         <img src="{{ $campaign->image_two_url }}" width="120" class="img-thumbnail">
                     </div>
@@ -179,7 +178,7 @@
                        class="form-control"
                        accept="image/*">
 
-                @if ($isEdit && $campaign?->image_three_url)
+                @if ($isEdit && !empty($campaign?->image_three_url))
                     <div class="mt-2">
                         <img src="{{ $campaign->image_three_url }}" width="120" class="img-thumbnail">
                     </div>
@@ -195,7 +194,7 @@
                class="form-control"
                accept="image/*">
 
-        @if ($isEdit && $campaign?->review_image_url)
+        @if ($isEdit && !empty($campaign?->review_image_url))
             <div class="mt-2">
                 <img src="{{ $campaign->review_image_url }}" width="120" class="img-thumbnail">
             </div>
@@ -277,12 +276,14 @@
         </div>
     </div>
 
-    <button type="submit" class="btn btn-success px-4">
-        <i class="fas fa-save mr-1"></i>
-        {{ $isEdit ? 'Update Campaign' : 'Create Campaign' }}
-    </button>
+    <div class="border-top pt-3">
+        <button type="submit" class="btn btn-success px-4">
+            <i class="fas fa-save mr-1"></i>
+            {{ $isEdit ? 'Update Campaign' : 'Create Campaign' }}
+        </button>
 
-    <a href="{{ route('admin.campaigns.index') }}" class="btn btn-secondary px-4">
-        Cancel
-    </a>
+        <a href="{{ route('admin.campaigns.index') }}" class="btn btn-secondary px-4">
+            <i class="fas fa-times mr-1"></i> Cancel
+        </a>
+    </div>
 </form>
