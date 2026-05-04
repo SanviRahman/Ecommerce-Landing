@@ -167,34 +167,60 @@ Route::middleware(['auth'])->group(function () {
                 Route::get('/{user}', [UserController::class, 'show'])->name('show');
             });
 
-    /*
+        /*
 |--------------------------------------------------------------------------
 | Categories
 |--------------------------------------------------------------------------
 */
-Route::prefix('categories')
-    ->as('categories.')
-    ->group(function () {
-        Route::get('/create', [CategoryController::class, 'create'])->name('create');
-        Route::post('/', [CategoryController::class, 'store'])->name('store');
+        Route::prefix('categories')
+            ->as('categories.')
+            ->group(function () {
+                Route::get('/create', [CategoryController::class, 'create'])->name('create');
+                Route::post('/', [CategoryController::class, 'store'])->name('store');
 
-        Route::get('/trash', [CategoryController::class, 'trash'])->name('trashed');
-        Route::post('/restore/{id}', [CategoryController::class, 'restore'])->name('restore');
-        Route::delete('/force-delete/{id}', [CategoryController::class, 'forceDelete'])->name('force_delete');
-        Route::post('/multiple-action', [CategoryController::class, 'multipleAction'])->name('multiple_action');
-        Route::delete('/media/{id}', [CategoryController::class, 'deleteMedia'])->name('delete_media');
+                Route::get('/trash', [CategoryController::class, 'trash'])->name('trashed');
+                Route::post('/restore/{id}', [CategoryController::class, 'restore'])->name('restore');
+                Route::delete('/force-delete/{id}', [CategoryController::class, 'forceDelete'])->name('force_delete');
+                Route::post('/multiple-action', [CategoryController::class, 'multipleAction'])->name('multiple_action');
+                Route::delete('/media/{id}', [CategoryController::class, 'deleteMedia'])->name('delete_media');
 
-        Route::get('/', [CategoryController::class, 'index'])->name('index');
+                Route::get('/', [CategoryController::class, 'index'])->name('index');
 
-        Route::get('/{category}/edit', [CategoryController::class, 'edit'])->name('edit');
-        Route::put('/{category}', [CategoryController::class, 'update'])->name('update');
-        Route::patch('/{category}', [CategoryController::class, 'update']);
-        Route::delete('/{category}', [CategoryController::class, 'destroy'])->name('destroy');
+                Route::get('/{category}/edit', [CategoryController::class, 'edit'])->name('edit');
+                Route::put('/{category}', [CategoryController::class, 'update'])->name('update');
+                Route::patch('/{category}', [CategoryController::class, 'update']);
+                Route::delete('/{category}', [CategoryController::class, 'destroy'])->name('destroy');
 
-        Route::get('/{category}', [CategoryController::class, 'show'])->name('show');
-    });
-    
-    /*
+                Route::get('/{category}', [CategoryController::class, 'show'])->name('show');
+            });
+
+/*
+        |--------------------------------------------------------------------------
+        | Brands
+        |--------------------------------------------------------------------------
+        */
+        Route::prefix('brands')
+            ->as('brands.')
+            ->group(function () {
+                Route::get('/create', [App\Http\Controllers\Admin\BrandController::class, 'create'])->name('create');
+                Route::post('/', [App\Http\Controllers\Admin\BrandController::class, 'store'])->name('store');
+
+                Route::get('/trash/list', [App\Http\Controllers\Admin\BrandController::class, 'trash'])->name('trashed');
+                Route::post('/restore/{id}', [App\Http\Controllers\Admin\BrandController::class, 'restore'])->name('restore');
+                Route::delete('/force-delete/{id}', [App\Http\Controllers\Admin\BrandController::class, 'forceDelete'])->name('force_delete');
+                Route::post('/multiple-action', [App\Http\Controllers\Admin\BrandController::class, 'multipleAction'])->name('multiple_action');
+
+                Route::get('/', [App\Http\Controllers\Admin\BrandController::class, 'index'])->name('index');
+
+                Route::get('/{brand}/edit', [App\Http\Controllers\Admin\BrandController::class, 'edit'])->name('edit');
+                Route::put('/{brand}', [App\Http\Controllers\Admin\BrandController::class, 'update'])->name('update');
+                Route::patch('/{brand}', [App\Http\Controllers\Admin\BrandController::class, 'update']);
+                Route::delete('/{brand}', [App\Http\Controllers\Admin\BrandController::class, 'destroy'])->name('destroy');
+
+                Route::get('/{brand}', [App\Http\Controllers\Admin\BrandController::class, 'show'])->name('show');
+            });
+
+        /*
     |--------------------------------------------------------------------------
     | Pages
     |--------------------------------------------------------------------------

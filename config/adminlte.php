@@ -458,10 +458,17 @@ return [
                     'icon' => 'far fa-fw fa-circle',
                     'can'  => 'admin-only',
                 ],
+            ],
+        ],
+        [
+            'text'    => 'Brands',
+            'icon'    => 'fas fa-fw fa-tags',
+            'can'     => 'admin-only',
+            'submenu' => [
                 [
-                    'text' => 'Trashed Categories',
-                    'url'  => 'admin/categories/trash',
-                    'icon' => 'far fa-fw fa-trash-alt',
+                    'text' => 'All Brands',
+                    'url'  => 'admin/brands',
+                    'icon' => 'far fa-fw fa-circle',
                     'can'  => 'admin-only',
                 ],
             ],
@@ -476,12 +483,6 @@ return [
                     'url'  => 'admin/products',
                     'icon' => 'far fa-fw fa-circle',
                     'can'  => 'admin-or-employee',
-                ],
-                [
-                    'text' => 'Trashed Products',
-                    'url'  => 'admin/products/trash/list',
-                    'icon' => 'far fa-fw fa-trash-alt',
-                    'can'  => 'admin-only',
                 ],
             ],
         ],
