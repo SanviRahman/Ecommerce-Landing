@@ -447,7 +447,7 @@ return [
             'header' => 'PRODUCT MANAGEMENT',
             'can'    => 'admin-or-employee',
         ],
-         [
+        [
             'text'    => 'Categories',
             'icon'    => 'fas fa-fw fa-list',
             'can'     => 'admin-only',
@@ -487,35 +487,35 @@ return [
             ],
         ],
 
-        /*
-    |--------------------------------------------------------------------------
-    | Landing Page Management
-    |--------------------------------------------------------------------------
-    */
+/*
+|--------------------------------------------------------------------------
+| Landing Page Management
+|--------------------------------------------------------------------------
+*/
         [
             'header' => 'LANDING PAGE',
             'can'    => 'admin-only',
         ],
         [
-            'text'    => 'Campaigns',
+            'text'    => 'Landing Pages',
             'icon'    => 'fas fa-fw fa-bullhorn',
             'can'     => 'admin-only',
             'submenu' => [
                 [
-                    'text' => 'All Campaigns',
+                    'text' => 'Landing Page Manage',
                     'url'  => 'admin/campaigns',
                     'icon' => 'far fa-fw fa-circle',
                     'can'  => 'admin-only',
                 ],
                 [
-                    'text' => 'Create Campaign',
+                    'text' => 'Landing Page Create',
                     'url'  => 'admin/campaigns/create',
                     'icon' => 'far fa-fw fa-circle',
                     'can'  => 'admin-only',
                 ],
                 [
-                    'text' => 'Trashed Campaigns',
-                    'url'  => 'admin/campaigns/trash',
+                    'text' => 'Trashed Landing Pages',
+                    'url'  => 'admin/campaigns/trash/list',
                     'icon' => 'far fa-fw fa-trash-alt',
                     'can'  => 'admin-only',
                 ],

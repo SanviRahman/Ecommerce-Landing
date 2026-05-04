@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\BannerController;
+use App\Http\Controllers\Admin\BrandController;
 use App\Http\Controllers\Admin\BulkOrderController;
 use App\Http\Controllers\Admin\CampaignController;
 use App\Http\Controllers\Admin\CategoryController;
@@ -16,7 +17,6 @@ use App\Http\Controllers\Admin\SiteSettingController;
 use App\Http\Controllers\Admin\SocialMediaController;
 use App\Http\Controllers\Admin\TrackingPixelController;
 use App\Http\Controllers\Admin\UserController;
-use App\Http\Controllers\Admin\BrandController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth'])->group(function () {
@@ -249,13 +249,14 @@ Route::middleware(['auth'])->group(function () {
             });
 
         /*
-    |--------------------------------------------------------------------------
-    | Campaigns
-    |--------------------------------------------------------------------------
-    */
+|--------------------------------------------------------------------------
+| Campaigns
+|--------------------------------------------------------------------------
+*/
         Route::prefix('campaigns')
             ->as('campaigns.')
             ->group(function () {
+                Route::get('/', [CampaignController::class, 'index'])->name('index');
                 Route::get('/create', [CampaignController::class, 'create'])->name('create');
                 Route::post('/', [CampaignController::class, 'store'])->name('store');
 
@@ -266,7 +267,6 @@ Route::middleware(['auth'])->group(function () {
 
                 Route::delete('/media/{id}', [CampaignController::class, 'deleteMedia'])->name('delete_media');
 
-                Route::get('/', [CampaignController::class, 'index'])->name('index');
 
                 Route::get('/{campaign}/edit', [CampaignController::class, 'edit'])->name('edit');
                 Route::put('/{campaign}', [CampaignController::class, 'update'])->name('update');
@@ -279,6 +279,18 @@ Route::middleware(['auth'])->group(function () {
                 Route::get('/{campaign}', [CampaignController::class, 'show'])->name('show');
             });
 
+/*
+|--------------------------------------------------------------------------
+| Old Singular Campaign URL Redirects
+|--------------------------------------------------------------------------
+*/
+        Route::get('/campaign/create', function () {
+            return redirect()->route('admin.campaigns.create');
+        })->name('campaign.create.redirect');
+
+        Route::get('/campaign/manage', function () {
+            return redirect()->route('admin.campaigns.index');
+        })->name('campaign.manage.redirect');
         /*
     |--------------------------------------------------------------------------
     | Banners
