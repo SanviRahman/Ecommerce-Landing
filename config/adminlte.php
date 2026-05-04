@@ -513,12 +513,6 @@ return [
                     'icon' => 'far fa-fw fa-circle',
                     'can'  => 'admin-only',
                 ],
-                [
-                    'text' => 'Trashed Landing Pages',
-                    'url'  => 'admin/campaigns/trash/list',
-                    'icon' => 'far fa-fw fa-trash-alt',
-                    'can'  => 'admin-only',
-                ],
             ],
         ],
         [
@@ -819,7 +813,7 @@ return [
             ],
         ],
         'Select2'     => [
-            'active' => false,
+            'active' => true,
             'files'  => [
                 [
                     'type'     => 'js',

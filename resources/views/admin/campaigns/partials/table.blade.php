@@ -1,7 +1,16 @@
 <div class="table-responsive">
-    <table class="table table-bordered table-striped table-hover">
+    <table class="table table-hover mb-0">
         <thead class="thead-light">
             <tr>
+                <th style="width: 45px;">
+                    <div class="custom-control custom-checkbox">
+                        <input type="checkbox"
+                               class="custom-control-input"
+                               id="check_all">
+                        <label class="custom-control-label" for="check_all"></label>
+                    </div>
+                </th>
+
                 <th style="width: 70px;">SL</th>
                 <th>Landing Page Title</th>
                 <th>Slug</th>
@@ -14,6 +23,16 @@
         <tbody>
             @forelse ($campaigns as $campaign)
                 <tr>
+                    <td>
+                        <div class="custom-control custom-checkbox">
+                            <input type="checkbox"
+                                   class="custom-control-input row-checkbox"
+                                   id="campaign_check_{{ $campaign->id }}"
+                                   value="{{ $campaign->id }}">
+                            <label class="custom-control-label" for="campaign_check_{{ $campaign->id }}"></label>
+                        </div>
+                    </td>
+
                     <td>{{ $campaigns->firstItem() + $loop->index }}</td>
 
                     <td>
@@ -21,7 +40,7 @@
                     </td>
 
                     <td>
-                        <span class="badge badge-light">
+                        <span class="badge badge-light border">
                             {{ $campaign->slug }}
                         </span>
                     </td>
@@ -74,23 +93,23 @@
                             </a>
 
                             <button type="button"
-                                    class="btn btn-sm btn-danger delete-btn"
+                                    class="btn btn-sm btn-danger btnDelete"
                                     data-url="{{ route('admin.campaigns.destroy', $campaign->id) }}"
-                                    title="Delete">
-                                <i class="fas fa-times"></i>
+                                    title="Move to Trash">
+                                <i class="fas fa-trash-alt"></i>
                             </button>
                         @else
                             <button type="button"
-                                    class="btn btn-sm btn-success restore-btn"
+                                    class="btn btn-sm btn-success btnRestore"
                                     data-url="{{ route('admin.campaigns.restore', $campaign->id) }}"
                                     title="Restore">
                                 <i class="fas fa-trash-restore"></i>
                             </button>
 
                             <button type="button"
-                                    class="btn btn-sm btn-danger delete-btn"
+                                    class="btn btn-sm btn-danger btnForceDelete"
                                     data-url="{{ route('admin.campaigns.force_delete', $campaign->id) }}"
-                                    title="Permanent Delete">
+                                    title="Purge Permanently">
                                 <i class="fas fa-times"></i>
                             </button>
                         @endif
@@ -98,7 +117,7 @@
                 </tr>
             @empty
                 <tr>
-                    <td colspan="6" class="text-center text-muted py-4">
+                    <td colspan="7" class="text-center text-muted py-4">
                         No campaigns found.
                     </td>
                 </tr>
@@ -107,6 +126,8 @@
     </table>
 </div>
 
-<div class="mt-3">
-    {{ $campaigns->withQueryString()->links() }}
-</div>
+@if ($campaigns->hasPages())
+    <div class="px-4 py-3 border-top bg-white">
+        {{ $campaigns->withQueryString()->links() }}
+    </div>
+@endif
