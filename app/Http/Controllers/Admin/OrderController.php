@@ -1,11 +1,12 @@
 <?php
-
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Order;
+use App\Models\SiteSetting;
 use App\Models\User;
 use App\Services\OrderAssignmentService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -157,28 +158,28 @@ class OrderController extends Controller
         if ($isTrash) {
             $breadcrumb[] = [
                 'text' => 'Trash',
-                'url' => route('admin.orders.trashed'),
+                'url'  => route('admin.orders.trashed'),
             ];
         }
 
         if ($request->ajax()) {
             return response()->json([
                 'status' => true,
-                'html' => view('admin.orders.partials.table', [
-                    'orders' => $orders,
+                'html'   => view('admin.orders.partials.table', [
+                    'orders'  => $orders,
                     'isTrash' => $isTrash,
                 ])->render(),
             ]);
         }
 
         return view('admin.orders.index', [
-            'orders' => $orders,
-            'employees' => $employees,
-            'title' => $title,
-            'breadcrumb' => $breadcrumb,
-            'orderStatuses' => $this->orderStatuses,
+            'orders'          => $orders,
+            'employees'       => $employees,
+            'title'           => $title,
+            'breadcrumb'      => $breadcrumb,
+            'orderStatuses'   => $this->orderStatuses,
             'paymentStatuses' => $this->paymentStatuses,
-            'isTrash' => $isTrash,
+            'isTrash'         => $isTrash,
         ]);
     }
 
@@ -335,10 +336,10 @@ class OrderController extends Controller
         ];
 
         return view('admin.orders.show', [
-            'order' => $order,
-            'title' => 'Order Details',
-            'breadcrumb' => $breadcrumb,
-            'orderStatuses' => $this->orderStatuses,
+            'order'           => $order,
+            'title'           => 'Order Details',
+            'breadcrumb'      => $breadcrumb,
+            'orderStatuses'   => $this->orderStatuses,
             'paymentStatuses' => $this->paymentStatuses,
         ]);
     }
@@ -371,13 +372,13 @@ class OrderController extends Controller
 
         $request->validate([
             'order_status' => ['required', Rule::in($this->orderStatuses)],
-            'note' => ['nullable', 'string', 'max:1000'],
+            'note'         => ['nullable', 'string', 'max:1000'],
         ]);
 
         return DB::transaction(function () use ($request, $order) {
             $updateData = [
                 'order_status' => $request->order_status,
-                'is_fake' => $request->order_status === 'fake',
+                'is_fake'      => $request->order_status === 'fake',
             ];
 
             if ($request->order_status === 'confirmed') {
@@ -400,14 +401,14 @@ class OrderController extends Controller
 
             if (method_exists($order, 'statusLogs')) {
                 $order->statusLogs()->create([
-                    'status' => $request->order_status,
-                    'note' => $request->note,
+                    'status'     => $request->order_status,
+                    'note'       => $request->note,
                     'created_by' => auth()->id(),
                 ]);
             }
 
             return response()->json([
-                'status' => true,
+                'status'  => true,
                 'message' => 'Order status updated successfully.',
             ]);
         });
@@ -429,7 +430,7 @@ class OrderController extends Controller
         ]);
 
         return response()->json([
-            'status' => true,
+            'status'  => true,
             'message' => 'Payment status updated successfully.',
         ]);
     }
@@ -447,8 +448,8 @@ class OrderController extends Controller
 
         return DB::transaction(function () use ($request, $order) {
             $order->update([
-                'is_fake' => true,
-                'order_status' => 'fake',
+                'is_fake'        => true,
+                'order_status'   => 'fake',
                 'marked_fake_at' => now(),
             ]);
 
@@ -460,7 +461,7 @@ class OrderController extends Controller
             }
 
             return response()->json([
-                'status' => true,
+                'status'  => true,
                 'message' => 'Order marked as fake successfully.',
             ]);
         });
@@ -474,13 +475,13 @@ class OrderController extends Controller
         $this->checkOrderAccess($order);
 
         $order->update([
-            'is_fake' => false,
-            'order_status' => 'pending',
+            'is_fake'        => false,
+            'order_status'   => 'pending',
             'marked_fake_at' => null,
         ]);
 
         return response()->json([
-            'status' => true,
+            'status'  => true,
             'message' => 'Fake order restored successfully.',
         ]);
     }
@@ -497,7 +498,7 @@ class OrderController extends Controller
         $order->delete();
 
         return response()->json([
-            'status' => true,
+            'status'  => true,
             'message' => 'Order moved to trash successfully.',
         ]);
     }
@@ -514,7 +515,7 @@ class OrderController extends Controller
         Order::onlyTrashed()->findOrFail($id)->restore();
 
         return response()->json([
-            'status' => true,
+            'status'  => true,
             'message' => 'Order restored successfully.',
         ]);
     }
@@ -532,7 +533,7 @@ class OrderController extends Controller
         $order->forceDelete();
 
         return response()->json([
-            'status' => true,
+            'status'  => true,
             'message' => 'Order permanently deleted successfully.',
         ]);
     }
@@ -548,18 +549,18 @@ class OrderController extends Controller
 
         $request->validate([
             'action' => ['required', 'in:delete,restore,force_delete,mark_fake,restore_fake'],
-            'ids' => ['required', 'array'],
-            'ids.*' => ['integer'],
+            'ids'    => ['required', 'array'],
+            'ids.*'  => ['integer'],
         ]);
 
         $action = $request->action;
-        $ids = $request->ids;
+        $ids    = $request->ids;
 
         if ($action === 'delete') {
             Order::whereIn('id', $ids)->delete();
 
             return response()->json([
-                'status' => true,
+                'status'  => true,
                 'message' => 'Selected orders moved to trash successfully.',
             ]);
         }
@@ -568,7 +569,7 @@ class OrderController extends Controller
             Order::onlyTrashed()->whereIn('id', $ids)->restore();
 
             return response()->json([
-                'status' => true,
+                'status'  => true,
                 'message' => 'Selected orders restored successfully.',
             ]);
         }
@@ -577,39 +578,39 @@ class OrderController extends Controller
             Order::onlyTrashed()->whereIn('id', $ids)->forceDelete();
 
             return response()->json([
-                'status' => true,
+                'status'  => true,
                 'message' => 'Selected orders permanently deleted successfully.',
             ]);
         }
 
         if ($action === 'mark_fake') {
             Order::whereIn('id', $ids)->update([
-                'is_fake' => true,
-                'order_status' => 'fake',
+                'is_fake'        => true,
+                'order_status'   => 'fake',
                 'marked_fake_at' => now(),
             ]);
 
             return response()->json([
-                'status' => true,
+                'status'  => true,
                 'message' => 'Selected orders marked as fake successfully.',
             ]);
         }
 
         if ($action === 'restore_fake') {
             Order::whereIn('id', $ids)->update([
-                'is_fake' => false,
-                'order_status' => 'pending',
+                'is_fake'        => false,
+                'order_status'   => 'pending',
                 'marked_fake_at' => null,
             ]);
 
             return response()->json([
-                'status' => true,
+                'status'  => true,
                 'message' => 'Selected fake orders restored successfully.',
             ]);
         }
 
         return response()->json([
-            'status' => false,
+            'status'  => false,
             'message' => 'Invalid bulk action selected.',
         ], 422);
     }
@@ -642,8 +643,37 @@ class OrderController extends Controller
         }
 
         return response()->json([
-            'status' => true,
+            'status'  => true,
             'message' => "{$assignedCount} unassigned orders assigned successfully.",
         ]);
+    }
+
+    /**
+     * Download invoice as PDF.
+     */
+    public function downloadInvoice(Order $order)
+    {
+        $this->checkOrderAccess($order);
+
+        $order->load([
+            'campaign',
+            'assignedEmployee',
+            'items.product',
+        ]);
+
+        $siteSetting = SiteSetting::query()
+            ->where('status', true)
+            ->latest()
+            ->first();
+
+        $fileName = 'invoice-' . $order->invoice_id . '.pdf';
+
+        $pdf = Pdf::loadView('admin.orders.invoice-pdf', [
+            'order'       => $order,
+            'siteSetting' => $siteSetting,
+            'title'       => 'Order Invoice',
+        ])->setPaper('a4', 'portrait');
+
+        return $pdf->download($fileName);
     }
 }

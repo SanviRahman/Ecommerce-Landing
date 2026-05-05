@@ -35,7 +35,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/password', [ProfileController::class, 'password'])->name('change-password');
     Route::post('/password', [ProfileController::class, 'updatePassword'])->name('change-password.update');
 
-    /*
+/*
 |--------------------------------------------------------------------------
 | Orders: Admin + Employee
 |--------------------------------------------------------------------------
@@ -72,8 +72,8 @@ Route::middleware(['auth'])->group(function () {
         | Single Order Routes
         |--------------------------------------------------------------------------
         */
-            Route::get('/{order}', [OrderController::class, 'show'])->name('show');
             Route::get('/{order}/invoice', [OrderController::class, 'invoice'])->name('invoice');
+            Route::get('/{order}/invoice/download', [OrderController::class, 'downloadInvoice'])->name('invoice.download');
 
             Route::patch('/{order}/status', [OrderController::class, 'updateStatus'])->name('update_status');
             Route::patch('/{order}/payment-status', [OrderController::class, 'updatePaymentStatus'])->name('update_payment_status');
@@ -84,8 +84,14 @@ Route::middleware(['auth'])->group(function () {
             Route::delete('/{order}', [OrderController::class, 'destroy'])
                 ->middleware('role:admin')
                 ->name('destroy');
-        });
 
+            /*
+        |--------------------------------------------------------------------------
+        | Show route must be last
+        |--------------------------------------------------------------------------
+        */
+            Route::get('/{order}', [OrderController::class, 'show'])->name('show');
+        });
     /*
 |--------------------------------------------------------------------------
 | Products: Admin full access, Employee view only
@@ -346,15 +352,18 @@ Route::middleware(['auth'])->group(function () {
             });
 
         /*
-    |--------------------------------------------------------------------------
-    | Site Settings
-    |--------------------------------------------------------------------------
-    */
+|--------------------------------------------------------------------------
+| Site Settings
+|--------------------------------------------------------------------------
+*/
         Route::prefix('site-settings')
             ->as('site-settings.')
             ->group(function () {
                 Route::get('/', [SiteSettingController::class, 'index'])->name('index');
-                Route::post('/', [SiteSettingController::class, 'update'])->name('update');
+                Route::post('/', [SiteSettingController::class, 'store'])->name('store');
+                Route::put('/{siteSetting}', [SiteSettingController::class, 'update'])->name('update');
+                Route::patch('/{siteSetting}', [SiteSettingController::class, 'update']);
+
                 Route::delete('/media/{id}', [SiteSettingController::class, 'deleteMedia'])->name('delete_media');
             });
 
@@ -463,19 +472,32 @@ Route::middleware(['auth'])->group(function () {
                 Route::delete('/{bulkOrder}', [BulkOrderController::class, 'destroy'])->name('destroy');
             });
 
-        /*
-    |--------------------------------------------------------------------------
-    | Reports
-    |--------------------------------------------------------------------------
-    */
+/*
+|--------------------------------------------------------------------------
+| Reports
+|--------------------------------------------------------------------------
+*/
         Route::prefix('reports')
             ->as('reports.')
             ->group(function () {
-                Route::get('/orders', [ReportController::class, 'orders'])->name('orders');
-                Route::get('/sales', [ReportController::class, 'sales'])->name('sales');
-                Route::get('/campaigns', [ReportController::class, 'campaigns'])->name('campaigns');
-                Route::get('/bulk-orders', [ReportController::class, 'bulkOrders'])->name('bulk_orders');
-                Route::get('/fake-orders', [ReportController::class, 'fakeOrders'])->name('fake_orders');
+                Route::post('/multiple-action', [ReportController::class, 'multipleAction'])->name('multiple_action');
+
+                Route::get('/create', [ReportController::class, 'create'])->name('create');
+                Route::post('/', [ReportController::class, 'store'])->name('store');
+
+                Route::get('/trash/list', [ReportController::class, 'trash'])->name('trashed');
+                Route::post('/restore/{id}', [ReportController::class, 'restore'])->name('restore');
+                Route::delete('/force-delete/{id}', [ReportController::class, 'forceDelete'])->name('force_delete');
+
+                Route::get('/', [ReportController::class, 'index'])->name('index');
+
+                Route::get('/{report}/edit', [ReportController::class, 'edit'])->name('edit');
+                Route::put('/{report}', [ReportController::class, 'update'])->name('update');
+                Route::patch('/{report}', [ReportController::class, 'update']);
+
+                Route::get('/{report}/download', [ReportController::class, 'download'])->name('download');
+                Route::delete('/{report}', [ReportController::class, 'destroy'])->name('destroy');
+                Route::get('/{report}', [ReportController::class, 'show'])->name('show');
             });
     });
 });

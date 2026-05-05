@@ -603,7 +603,7 @@ return [
                 ],
             ],
         ],
-       [
+        [
             'text'    => 'Social Media',
             'icon'    => 'fas fa-fw fa-share-alt',
             'can'     => 'admin-only',
@@ -628,36 +628,18 @@ return [
         ],
         [
             'text'    => 'Reports',
-            'icon'    => 'fas fa-fw fa-chart-bar',
+            'icon'    => 'fas fa-fw fa-chart-line',
             'can'     => 'admin-only',
             'submenu' => [
                 [
-                    'text' => 'Order Reports',
-                    'url'  => 'admin/reports/orders',
+                    'text' => 'Report Manage',
+                    'url'  => 'admin/reports',
                     'icon' => 'far fa-fw fa-circle',
                     'can'  => 'admin-only',
                 ],
                 [
-                    'text' => 'Sales Reports',
-                    'url'  => 'admin/reports/sales',
-                    'icon' => 'far fa-fw fa-circle',
-                    'can'  => 'admin-only',
-                ],
-                [
-                    'text' => 'Campaign Reports',
-                    'url'  => 'admin/reports/campaigns',
-                    'icon' => 'far fa-fw fa-circle',
-                    'can'  => 'admin-only',
-                ],
-                [
-                    'text' => 'Bulk Order Reports',
-                    'url'  => 'admin/reports/bulk-orders',
-                    'icon' => 'far fa-fw fa-circle',
-                    'can'  => 'admin-only',
-                ],
-                [
-                    'text' => 'Fake Order Reports',
-                    'url'  => 'admin/reports/fake-orders',
+                    'text' => 'Generate Report',
+                    'url'  => 'admin/reports/create',
                     'icon' => 'far fa-fw fa-circle',
                     'can'  => 'admin-only',
                 ],
@@ -787,7 +769,7 @@ return [
             ],
         ],
         'Chartjs'     => [
-            'active' => false,
+            'active' => true,
             'files'  => [
                 [
                     'type'     => 'js',

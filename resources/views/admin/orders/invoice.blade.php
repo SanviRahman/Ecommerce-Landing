@@ -3,7 +3,7 @@
 @section('title', $title ?? 'Order Invoice')
 
 @section('content_header')
-    <div class="d-flex justify-content-between align-items-center flex-wrap">
+    <div class="d-flex justify-content-between align-items-center flex-wrap no-print">
         <h1 class="mb-0">Invoice</h1>
 
         <div>
@@ -20,111 +20,219 @@
 
 @section('content')
 
-    <div class="card shadow-sm border-0" id="invoiceArea">
-        <div class="card-header bg-white d-flex justify-content-between align-items-center">
-            <div>
-                <h4 class="mb-0 font-weight-bold">Invoice</h4>
-                <small class="text-muted">#{{ $order->invoice_id }}</small>
-            </div>
+@php
+    $siteSetting = \App\Models\SiteSetting::query()
+        ->where('status', true)
+        ->latest()
+        ->first();
 
-            <div class="text-right">
-                <strong>Status:</strong>
-                {{ ucfirst(str_replace('_', ' ', $order->order_status)) }} <br>
+    $deliveryArea = $order->delivery_area
+        ? ucwords(str_replace('_', ' ', $order->delivery_area))
+        : '-';
 
-                <strong>Payment:</strong>
-                {{ ucfirst(str_replace('_', ' ', $order->payment_status)) }}
-            </div>
-        </div>
+    $paymentMethod = $order->payment_method
+        ? ucwords(str_replace('_', ' ', $order->payment_method))
+        : 'Cash On Delivery';
 
-        <div class="card-body">
-            <div class="row mb-4">
-                <div class="col-md-6">
-                    <h5 class="font-weight-bold">Customer</h5>
-                    <p class="mb-0">
-                        <strong>Name:</strong> {{ $order->customer_name }} <br>
-                        <strong>Phone:</strong> {{ $order->phone }} <br>
-                        <strong>Address:</strong> {{ $order->address }} <br>
-                        <strong>Area:</strong> {{ $order->delivery_area ?? '-' }}
-                    </p>
-                </div>
+    $paymentStatus = $order->payment_status
+        ? ucwords(str_replace('_', ' ', $order->payment_status))
+        : '-';
 
-                <div class="col-md-6 text-md-right">
-                    <h5 class="font-weight-bold">Order</h5>
-                    <p class="mb-0">
-                        <strong>Invoice:</strong> #{{ $order->invoice_id }} <br>
-                        <strong>Date:</strong> {{ $order->created_at ? $order->created_at->format('d M, Y h:i A') : '-' }} <br>
-                        <strong>Employee:</strong> {{ $order->assignedEmployee->name ?? 'Unassigned' }} <br>
-                        <strong>Payment Method:</strong> {{ ucfirst(str_replace('_', ' ', $order->payment_method)) }}
-                    </p>
-                </div>
-            </div>
+    $orderStatus = $order->order_status
+        ? ucwords(str_replace('_', ' ', $order->order_status))
+        : '-';
+@endphp
 
-            <table class="table table-bordered">
-                <thead>
+<div id="invoiceArea">
+    <div class="invoice-section">
+
+        {{-- Header Info Table --}}
+        <table class="invoice-table table table-striped" cellspacing="0" cellpadding="0">
+            <tr>
+                <td style="width: 35%;">
+                    @if ($siteSetting && $siteSetting->getFirstMedia('site_logo'))
+                        <img src="{{ $siteSetting->logo }}"
+                             style="max-height:45px;display:block;margin-bottom:6px;"
+                             alt="{{ $siteSetting->website_name }}">
+                    @else
+                        <h3 class="mb-1">{{ config('app.name') }}</h3>
+                    @endif
+
+                    <strong>
+                        {{ $siteSetting->website_name ?? config('app.name') }}
+                    </strong>
+
+                    @if ($siteSetting?->address)
+                        <br>
+                        <small>{{ $siteSetting->address }}</small>
+                    @endif
+
+                    @if ($siteSetting?->phone)
+                        <br>
+                        <small>Phone: {{ $siteSetting->phone }}</small>
+                    @endif
+
+                    @if ($siteSetting?->email)
+                        <br>
+                        <small>Email: {{ $siteSetting->email }}</small>
+                    @endif
+                </td>
+
+                <td style="width: 35%;">
+                    <h4 class="invoice-title">CUSTOMER INFO</h4>
+
+                    <strong>{{ $order->customer_name }}</strong><br>
+
+                    <h3 class="customer-phone">
+                        {{ $order->phone }}
+                    </h3>
+
+                    {{ $order->address }} <br>
+
+                    <strong>Area:</strong> {{ $deliveryArea }}
+                </td>
+
+                <td style="width: 30%;">
+                    <h4 class="invoice-title">
+                        Invoice #{{ $order->invoice_id }}
+                    </h4>
+
+                    <strong>Order Date:</strong>
+                    {{ $order->created_at ? $order->created_at->format('d M, Y h:i A') : '-' }}
+                    <br>
+
+                    <strong>Payment Method:</strong>
+                    {{ $paymentMethod }}
+                    <br>
+
+                    <strong>Payment Status:</strong>
+                    {{ $paymentStatus }}
+                    <br>
+
+                    <strong>Order Status:</strong>
+                    {{ $orderStatus }}
+                    <br>
+
+                    <strong>Employee:</strong>
+                    {{ $order->assignedEmployee->name ?? 'Unassigned' }}
+                    <br>
+
+                    <h4 class="order-note">
+                        Order Note:
+                        {{ $order->customer_note ?? '-' }}
+                    </h4>
+                </td>
+            </tr>
+        </table>
+
+        {{-- Product Table --}}
+        <table class="invoice-table table table-striped">
+            <thead>
                 <tr>
-                    <th>Product</th>
-                    <th width="15%" class="text-center">Qty</th>
-                    <th width="20%" class="text-right">Unit Price</th>
-                    <th width="20%" class="text-right">Total</th>
+                    <th style="width: 60%;">Product</th>
+                    <th style="width: 15%;">Quantity</th>
+                    <th style="width: 25%;">Price</th>
                 </tr>
-                </thead>
+            </thead>
 
-                <tbody>
+            <tbody>
                 @forelse($order->items as $item)
                     <tr>
-                        <td>{{ $item->product_name }}</td>
-                        <td class="text-center">{{ $item->quantity }}</td>
-                        <td class="text-right">{{ number_format($item->unit_price ?? 0, 2) }}</td>
-                        <td class="text-right">{{ number_format($item->total_price ?? 0, 2) }}</td>
+                        <td>
+                            <span class="d-block">
+                                <h3 class="product-name">
+                                    {{ $item->product_name }}
+                                </h3>
+                            </span>
+
+                            @if (!empty($item->product_code))
+                                <small class="text-muted">
+                                    Code: {{ $item->product_code }}
+                                </small>
+                            @endif
+                        </td>
+
+                        <td>
+                            <h3 class="quantity-text">
+                                {{ $item->quantity }}
+                            </h3>
+                        </td>
+
+                        <td>
+                            {{ number_format($item->total_price ?? 0) }} Tk
+
+                            @if (!empty($item->unit_price))
+                                <br>
+                                <small>
+                                    Unit: {{ number_format($item->unit_price) }} Tk
+                                </small>
+                            @endif
+                        </td>
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="4" class="text-center text-muted">
+                        <td colspan="3" class="text-center text-muted">
                             No order items found.
                         </td>
                     </tr>
                 @endforelse
-                </tbody>
+            </tbody>
 
-                <tfoot>
+            <tfoot>
                 <tr>
-                    <th colspan="3" class="text-right">Sub Total</th>
-                    <th class="text-right">{{ number_format($order->sub_total ?? 0, 2) }}</th>
+                    <td style="border: none !important;"></td>
+                    <th>Sub Total:</th>
+                    <td>{{ number_format($order->sub_total ?? 0) }} Tk</td>
                 </tr>
 
                 <tr>
-                    <th colspan="3" class="text-right">Shipping Charge</th>
-                    <th class="text-right">{{ number_format($order->shipping_charge ?? 0, 2) }}</th>
+                    <td style="border: none !important;"></td>
+                    <th>Delivery:</th>
+                    <td>{{ number_format($order->shipping_charge ?? 0) }} Tk</td>
                 </tr>
+
+                @if (($order->cod_charge ?? 0) > 0)
+                    <tr>
+                        <td style="border: none !important;"></td>
+                        <th>COD Charge:</th>
+                        <td>{{ number_format($order->cod_charge ?? 0) }} Tk</td>
+                    </tr>
+                @endif
 
                 <tr>
-                    <th colspan="3" class="text-right">COD Charge</th>
-                    <th class="text-right">{{ number_format($order->cod_charge ?? 0, 2) }}</th>
+                    <td style="border: none !important;"></td>
+                    <th>Total:</th>
+                    <td>
+                        <strong>{{ number_format($order->total_amount ?? 0) }} Tk</strong>
+                    </td>
                 </tr>
+            </tfoot>
+        </table>
 
-                <tr>
-                    <th colspan="3" class="text-right">Total Amount</th>
-                    <th class="text-right">{{ number_format($order->total_amount ?? 0, 2) }}</th>
-                </tr>
-                </tfoot>
-            </table>
+        {{-- Notes --}}
+        <table class="invoice-table table table-striped">
+            <tr>
+                <td style="width: 50%;">
+                    <strong>Customer Note:</strong><br>
+                    {{ $order->customer_note ?? '-' }}
+                </td>
 
-            <div class="mt-4">
-                <p class="mb-1">
-                    <strong>Customer Note:</strong> {{ $order->customer_note ?? '-' }}
-                </p>
+                <td style="width: 50%;">
+                    <strong>Admin Note:</strong><br>
+                    {{ $order->admin_note ?? '-' }}
+                </td>
+            </tr>
+        </table>
 
-                <p class="mb-0">
-                    <strong>Admin Note:</strong> {{ $order->admin_note ?? '-' }}
-                </p>
-            </div>
-        </div>
+        <hr>
+
     </div>
+</div>
 
 @endsection
 
 @section('footer')
-    <strong>
+    <strong class="no-print">
         © Copyright 2026 All rights reserved |
         This website developed by
         <a href="https://sfashanto.netlify.app/" target="_blank">SFA Shanto</a>
@@ -132,33 +240,142 @@
 @endsection
 
 @section('css')
-    <style>
-        @media print {
-            body * {
-                visibility: hidden;
-            }
+<style>
+    * {
+        margin: 0;
+        padding: 0;
+    }
 
-            #invoiceArea,
-            #invoiceArea * {
-                visibility: visible;
-            }
+    #invoiceArea {
+        background: #ffffff;
+        color: #000000;
+        padding: 12px;
+    }
 
-            #invoiceArea {
-                position: absolute;
-                left: 0;
-                top: 0;
-                width: 100%;
-                box-shadow: none !important;
-                border: none !important;
-            }
+    .invoice-section {
+        width: 100%;
+        background: #ffffff;
+    }
 
-            .main-footer,
-            .main-header,
-            .main-sidebar,
-            .content-header,
-            .btn {
-                display: none !important;
-            }
+    .invoice-table {
+        width: 100%;
+        color: #000000 !important;
+        margin-bottom: 10px;
+        background: #ffffff;
+    }
+
+    .invoice-table,
+    .invoice-table th,
+    .invoice-table td {
+        border: 1px solid #6c757d !important;
+    }
+
+    .invoice-table th,
+    .invoice-table td {
+        padding: 4px !important;
+        text-align: left;
+        vertical-align: top;
+    }
+
+    .invoice-table thead tr th {
+        background-color: #6c757d !important;
+        color: #ffffff !important;
+        font-weight: 700;
+    }
+
+    .invoice-title {
+        font-size: 18px;
+        font-weight: 700;
+        margin-bottom: 5px;
+    }
+
+    .customer-phone {
+        font-size: 22px;
+        font-weight: 700;
+        margin: 3px 0;
+    }
+
+    .product-name {
+        font-size: 20px;
+        font-weight: 700;
+        margin-bottom: 2px;
+    }
+
+    .quantity-text {
+        font-size: 22px;
+        font-weight: 700;
+        margin: 0;
+    }
+
+    .order-note {
+        font-size: 16px;
+        font-weight: 700;
+        margin-top: 5px;
+        margin-bottom: 0;
+    }
+
+    hr {
+        border-top: 1px dashed red;
+        margin: 12px 0;
+    }
+
+    @media print {
+        @page {
+            size: A4;
+            margin: 8mm;
         }
-    </style>
+
+        body {
+            background: #ffffff !important;
+        }
+
+        body * {
+            visibility: hidden;
+        }
+
+        #invoiceArea,
+        #invoiceArea * {
+            visibility: visible;
+        }
+
+        #invoiceArea {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            box-shadow: none !important;
+            border: none !important;
+            padding: 0 !important;
+        }
+
+        .invoice-section {
+            width: 100%;
+            background: #ffffff !important;
+        }
+
+        .invoice-table thead tr th {
+            background-color: #6c757d !important;
+            color: #ffffff !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+
+        .content-wrapper,
+        .content,
+        .container-fluid {
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #ffffff !important;
+        }
+
+        .main-footer,
+        .main-header,
+        .main-sidebar,
+        .content-header,
+        .btn,
+        .no-print {
+            display: none !important;
+        }
+    }
+</style>
 @endsection
