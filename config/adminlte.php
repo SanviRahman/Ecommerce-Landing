@@ -603,7 +603,7 @@ return [
                 ],
             ],
         ],
-        [
+       [
             'text'    => 'Social Media',
             'icon'    => 'fas fa-fw fa-share-alt',
             'can'     => 'admin-only',
@@ -611,12 +611,6 @@ return [
                 [
                     'text' => 'All Social Media',
                     'url'  => 'admin/social-media',
-                    'icon' => 'far fa-fw fa-circle',
-                    'can'  => 'admin-only',
-                ],
-                [
-                    'text' => 'Create Social Media',
-                    'url'  => 'admin/social-media/create',
                     'icon' => 'far fa-fw fa-circle',
                     'can'  => 'admin-only',
                 ],

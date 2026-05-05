@@ -23,6 +23,8 @@ class DatabaseSeeder extends Seeder
             BannerSeeder::class,
             ReviewSeeder::class,
             FaqSeeder::class,
+            SocialMediaSeeder::class,
+            BulkOrderSeeder::class,
         ]);
     }
 }

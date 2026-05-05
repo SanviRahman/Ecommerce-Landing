@@ -359,13 +359,17 @@ Route::middleware(['auth'])->group(function () {
             });
 
         /*
-    |--------------------------------------------------------------------------
-    | Social Media
-    |--------------------------------------------------------------------------
-    */
+        |--------------------------------------------------------------------------
+        | Social Media
+        |--------------------------------------------------------------------------
+        */
         Route::prefix('social-media')
             ->as('social-media.')
             ->group(function () {
+                // Bulk and Trash routes MUST be defined BEFORE the resource/dynamic routes
+                Route::get('/trash/list', [SocialMediaController::class, 'trash'])->name('trashed');
+                Route::post('/restore/{id}', [SocialMediaController::class, 'restore'])->name('restore');
+                Route::delete('/force-delete/{id}', [SocialMediaController::class, 'forceDelete'])->name('force_delete');
                 Route::post('/multiple-action', [SocialMediaController::class, 'multipleAction'])->name('multiple_action');
 
                 Route::get('/', [SocialMediaController::class, 'index'])->name('index');
@@ -380,7 +384,6 @@ Route::middleware(['auth'])->group(function () {
 
                 Route::get('/{socialMedia}', [SocialMediaController::class, 'show'])->name('show');
             });
-
         /*
         |--------------------------------------------------------------------------
         | Reviews
@@ -408,8 +411,7 @@ Route::middleware(['auth'])->group(function () {
                 Route::get('/{review}', [ReviewController::class, 'show'])->name('show');
             });
 
-
-   /*
+        /*
         |--------------------------------------------------------------------------
         | FAQ
         |--------------------------------------------------------------------------
