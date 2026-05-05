@@ -289,17 +289,16 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/campaign/manage', function () {
             return redirect()->route('admin.campaigns.index');
         })->name('campaign.manage.redirect');
-        /*
-    |--------------------------------------------------------------------------
-    | Banners
-    |--------------------------------------------------------------------------
-    */
+
+/*
+        |--------------------------------------------------------------------------
+        | Banners
+        |--------------------------------------------------------------------------
+        */
         Route::prefix('banners')
             ->as('banners.')
             ->group(function () {
-                Route::get('/create', [BannerController::class, 'create'])->name('create');
-                Route::post('/', [BannerController::class, 'store'])->name('store');
-
+                // Bulk and Trash routes should be defined BEFORE the resource/CRUD routes
                 Route::get('/trash/list', [BannerController::class, 'trash'])->name('trashed');
                 Route::post('/restore/{id}', [BannerController::class, 'restore'])->name('restore');
                 Route::delete('/force-delete/{id}', [BannerController::class, 'forceDelete'])->name('force_delete');
@@ -307,6 +306,8 @@ Route::middleware(['auth'])->group(function () {
                 Route::delete('/media/{id}', [BannerController::class, 'deleteMedia'])->name('delete_media');
 
                 Route::get('/', [BannerController::class, 'index'])->name('index');
+                Route::get('/create', [BannerController::class, 'create'])->name('create');
+                Route::post('/', [BannerController::class, 'store'])->name('store');
 
                 Route::get('/{banner}/edit', [BannerController::class, 'edit'])->name('edit');
                 Route::put('/{banner}', [BannerController::class, 'update'])->name('update');
@@ -381,22 +382,23 @@ Route::middleware(['auth'])->group(function () {
             });
 
         /*
-    |--------------------------------------------------------------------------
-    | Reviews
-    |--------------------------------------------------------------------------
-    */
+        |--------------------------------------------------------------------------
+        | Reviews
+        |--------------------------------------------------------------------------
+        */
         Route::prefix('reviews')
             ->as('reviews.')
             ->group(function () {
-                Route::get('/create', [ReviewController::class, 'create'])->name('create');
-                Route::post('/', [ReviewController::class, 'store'])->name('store');
-
+                // Bulk and Trash routes should be defined BEFORE the resource routes
                 Route::get('/trash/list', [ReviewController::class, 'trash'])->name('trashed');
                 Route::post('/restore/{id}', [ReviewController::class, 'restore'])->name('restore');
                 Route::delete('/force-delete/{id}', [ReviewController::class, 'forceDelete'])->name('force_delete');
+                Route::post('/multiple-action', [ReviewController::class, 'multipleAction'])->name('multiple_action');
                 Route::delete('/media/{id}', [ReviewController::class, 'deleteMedia'])->name('delete_media');
 
                 Route::get('/', [ReviewController::class, 'index'])->name('index');
+                Route::get('/create', [ReviewController::class, 'create'])->name('create');
+                Route::post('/', [ReviewController::class, 'store'])->name('store');
 
                 Route::get('/{review}/edit', [ReviewController::class, 'edit'])->name('edit');
                 Route::put('/{review}', [ReviewController::class, 'update'])->name('update');
@@ -406,14 +408,19 @@ Route::middleware(['auth'])->group(function () {
                 Route::get('/{review}', [ReviewController::class, 'show'])->name('show');
             });
 
-        /*
-    |--------------------------------------------------------------------------
-    | FAQ
-    |--------------------------------------------------------------------------
-    */
+
+   /*
+        |--------------------------------------------------------------------------
+        | FAQ
+        |--------------------------------------------------------------------------
+        */
         Route::prefix('faqs')
             ->as('faqs.')
             ->group(function () {
+                // Bulk and Trash routes MUST be defined BEFORE the resource/dynamic routes
+                Route::get('/trash/list', [FaqController::class, 'trash'])->name('trashed');
+                Route::post('/restore/{id}', [FaqController::class, 'restore'])->name('restore');
+                Route::delete('/force-delete/{id}', [FaqController::class, 'forceDelete'])->name('force_delete');
                 Route::post('/multiple-action', [FaqController::class, 'multipleAction'])->name('multiple_action');
 
                 Route::get('/', [FaqController::class, 'index'])->name('index');

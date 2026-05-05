@@ -20,6 +20,9 @@ class DatabaseSeeder extends Seeder
             CampaignSeeder::class,
             TrackingPixelSeeder::class,
             PageSeeder::class,
+            BannerSeeder::class,
+            ReviewSeeder::class,
+            FaqSeeder::class,
         ]);
     }
 }

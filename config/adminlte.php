@@ -545,18 +545,6 @@ return [
                     'icon' => 'far fa-fw fa-circle',
                     'can'  => 'admin-only',
                 ],
-                [
-                    'text' => 'Create Banner',
-                    'url'  => 'admin/banners/create',
-                    'icon' => 'far fa-fw fa-circle',
-                    'can'  => 'admin-only',
-                ],
-                [
-                    'text' => 'Trashed Banners',
-                    'url'  => 'admin/banners/trash',
-                    'icon' => 'far fa-fw fa-trash-alt',
-                    'can'  => 'admin-only',
-                ],
             ],
         ],
         [
@@ -570,18 +558,7 @@ return [
                     'icon' => 'far fa-fw fa-circle',
                     'can'  => 'admin-only',
                 ],
-                [
-                    'text' => 'Create Review',
-                    'url'  => 'admin/reviews/create',
-                    'icon' => 'far fa-fw fa-circle',
-                    'can'  => 'admin-only',
-                ],
-                [
-                    'text' => 'Trashed Reviews',
-                    'url'  => 'admin/reviews/trash',
-                    'icon' => 'far fa-fw fa-trash-alt',
-                    'can'  => 'admin-only',
-                ],
+
             ],
         ],
         [
@@ -592,12 +569,6 @@ return [
                 [
                     'text' => 'All FAQ',
                     'url'  => 'admin/faqs',
-                    'icon' => 'far fa-fw fa-circle',
-                    'can'  => 'admin-only',
-                ],
-                [
-                    'text' => 'Create FAQ',
-                    'url'  => 'admin/faqs/create',
                     'icon' => 'far fa-fw fa-circle',
                     'can'  => 'admin-only',
                 ],
@@ -751,7 +722,7 @@ return [
         ],
     ],
 
-    /*
+/*
     |--------------------------------------------------------------------------
     | Menu Filters
     |--------------------------------------------------------------------------
@@ -773,7 +744,7 @@ return [
         JeroenNoten\LaravelAdminLte\Menu\Filters\DataFilter::class,
     ],
 
-    /*
+/*
     |--------------------------------------------------------------------------
     | Plugins Initialization
     |--------------------------------------------------------------------------
@@ -858,7 +829,7 @@ return [
         ],
     ],
 
-    /*
+/*
     |--------------------------------------------------------------------------
     | IFrame
     |--------------------------------------------------------------------------
@@ -891,7 +862,7 @@ return [
         ],
     ],
 
-    /*
+/*
     |--------------------------------------------------------------------------
     | Livewire
     |--------------------------------------------------------------------------
