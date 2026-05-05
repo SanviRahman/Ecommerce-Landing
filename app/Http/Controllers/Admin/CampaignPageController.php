@@ -18,7 +18,7 @@ class CampaignPageController extends Controller
             },
         ]);
 
-        return view('admin.frontend.campaigns.show', [
+        return view('frontend.campaigns.show', [
             'campaign' => $campaign,
             'products' => $campaign->products,
         ]);

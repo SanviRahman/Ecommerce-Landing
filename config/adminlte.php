@@ -532,12 +532,6 @@ return [
                     'icon' => 'far fa-fw fa-circle',
                     'can'  => 'admin-only',
                 ],
-                [
-                    'text' => 'Trashed Pages',
-                    'url'  => 'admin/pages/trash',
-                    'icon' => 'far fa-fw fa-trash-alt',
-                    'can'  => 'admin-only',
-                ],
             ],
         ],
         [

@@ -13,6 +13,7 @@ class TrackingPixel extends Model
         'platform',
         'name',
         'pixel_id',
+        'script_code',
         'status',
     ];
 

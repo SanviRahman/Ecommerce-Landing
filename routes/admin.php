@@ -222,16 +222,13 @@ Route::middleware(['auth'])->group(function () {
             });
 
         /*
-    |--------------------------------------------------------------------------
-    | Pages
-    |--------------------------------------------------------------------------
-    */
+        |--------------------------------------------------------------------------
+        | Pages Management
+        |--------------------------------------------------------------------------
+        */
         Route::prefix('pages')
             ->as('pages.')
             ->group(function () {
-                Route::get('/create', [CreatePageController::class, 'create'])->name('create');
-                Route::post('/', [CreatePageController::class, 'store'])->name('store');
-
                 Route::get('/trash/list', [CreatePageController::class, 'trash'])->name('trashed');
                 Route::post('/restore/{id}', [CreatePageController::class, 'restore'])->name('restore');
                 Route::delete('/force-delete/{id}', [CreatePageController::class, 'forceDelete'])->name('force_delete');
@@ -239,6 +236,8 @@ Route::middleware(['auth'])->group(function () {
                 Route::delete('/media/{id}', [CreatePageController::class, 'deleteMedia'])->name('delete_media');
 
                 Route::get('/', [CreatePageController::class, 'index'])->name('index');
+                Route::get('/create', [CreatePageController::class, 'create'])->name('create');
+                Route::post('/', [CreatePageController::class, 'store'])->name('store');
 
                 Route::get('/{page}/edit', [CreatePageController::class, 'edit'])->name('edit');
                 Route::put('/{page}', [CreatePageController::class, 'update'])->name('update');
@@ -248,7 +247,7 @@ Route::middleware(['auth'])->group(function () {
                 Route::get('/{page}', [CreatePageController::class, 'show'])->name('show');
             });
 
-        /*
+/*
 |--------------------------------------------------------------------------
 | Campaigns
 |--------------------------------------------------------------------------
@@ -266,7 +265,6 @@ Route::middleware(['auth'])->group(function () {
                 Route::post('/multiple-action', [CampaignController::class, 'multipleAction'])->name('multiple_action');
 
                 Route::delete('/media/{id}', [CampaignController::class, 'deleteMedia'])->name('delete_media');
-
 
                 Route::get('/{campaign}/edit', [CampaignController::class, 'edit'])->name('edit');
                 Route::put('/{campaign}', [CampaignController::class, 'update'])->name('update');
@@ -318,19 +316,24 @@ Route::middleware(['auth'])->group(function () {
                 Route::get('/{banner}', [BannerController::class, 'show'])->name('show');
             });
 
-        /*
-    |--------------------------------------------------------------------------
-    | Tracking Pixels
-    |--------------------------------------------------------------------------
-    */
+/*
+|--------------------------------------------------------------------------
+| Tracking Pixels
+|--------------------------------------------------------------------------
+*/
         Route::prefix('tracking-pixels')
             ->as('tracking-pixels.')
             ->group(function () {
                 Route::post('/multiple-action', [TrackingPixelController::class, 'multipleAction'])->name('multiple_action');
 
-                Route::get('/', [TrackingPixelController::class, 'index'])->name('index');
                 Route::get('/create', [TrackingPixelController::class, 'create'])->name('create');
                 Route::post('/', [TrackingPixelController::class, 'store'])->name('store');
+
+                Route::get('/trash/list', [TrackingPixelController::class, 'trash'])->name('trashed');
+                Route::post('/restore/{id}', [TrackingPixelController::class, 'restore'])->name('restore');
+                Route::delete('/force-delete/{id}', [TrackingPixelController::class, 'forceDelete'])->name('force_delete');
+
+                Route::get('/', [TrackingPixelController::class, 'index'])->name('index');
 
                 Route::patch('/{trackingPixel}/status', [TrackingPixelController::class, 'updateStatus'])->name('update_status');
                 Route::get('/{trackingPixel}/edit', [TrackingPixelController::class, 'edit'])->name('edit');

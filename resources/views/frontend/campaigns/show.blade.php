@@ -9,6 +9,10 @@
         <meta name="description" content="{{ $campaign->meta_description }}">
     @endif
 
+    {{-- Dynamic Tracking Scripts --}}
+    {{-- Meta Pixel / GTM / TikTok / Google Analytics scripts will render from database --}}
+    @include('frontend.partials.tracking-pixels')
+
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css">
 
     <style>
@@ -264,7 +268,7 @@
             </div>
 
             <div class="text-center mt-3">
-                <a href="#order-form" class="cta-btn">
+                <a href="#order-form" class="cta-btn order-cta-btn">
                     {{ $campaign->button_text ?: 'অর্ডার করুন' }}
                 </a>
             </div>
@@ -305,7 +309,7 @@
                     </p>
                 @endif
 
-                <form action="{{ route('campaign.order.store', $campaign->slug) }}" method="POST">
+                <form action="{{ route('campaign.order.store', $campaign->slug) }}" method="POST" id="campaignOrderForm">
                     @csrf
 
                     <div class="row">
@@ -463,6 +467,39 @@
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
+
+{{-- Optional Tracking Events --}}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const orderCtaButtons = document.querySelectorAll('.order-cta-btn');
+
+        orderCtaButtons.forEach(function (button) {
+            button.addEventListener('click', function () {
+                if (typeof fbq !== 'undefined') {
+                    fbq('track', 'Lead');
+                }
+            });
+        });
+
+        const campaignOrderForm = document.getElementById('campaignOrderForm');
+
+        if (campaignOrderForm) {
+            campaignOrderForm.addEventListener('submit', function () {
+                if (typeof fbq !== 'undefined') {
+                    fbq('track', 'InitiateCheckout');
+                }
+            });
+        }
+    });
+</script>
+
+@if (session('success'))
+    <script>
+        if (typeof fbq !== 'undefined') {
+            fbq('track', 'Lead');
+        }
+    </script>
+@endif
 
 </body>
 </html>

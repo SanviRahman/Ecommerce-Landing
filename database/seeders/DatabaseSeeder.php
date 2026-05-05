@@ -18,6 +18,8 @@ class DatabaseSeeder extends Seeder
             OrderSeeder::class,
             ProductSeeder::class,
             CampaignSeeder::class,
+            TrackingPixelSeeder::class,
+            PageSeeder::class,
         ]);
     }
 }
