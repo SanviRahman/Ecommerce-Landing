@@ -1,33 +1,39 @@
 <div class="table-responsive">
     <table class="table table-hover align-middle mb-0">
         <thead class="bg-light small text-uppercase font-weight-bold text-muted">
-            <tr>
-                @if(auth()->user()->isAdmin())
+        <tr>
+            @if(auth()->user()->isAdmin())
                 <th width="40" class="text-center px-4">
                     <input type="checkbox" id="check_all" class="shadow-none cursor-pointer">
                 </th>
-                @endif
+            @endif
 
-                <th>Order Info</th>
-                <th>Customer</th>
-                <th>Amount</th>
-                <th>Status</th>
-                <th>Payment</th>
-                <th>Employee</th>
-                <th>Date</th>
-                <th width="160" class="text-right px-4">Actions</th>
-            </tr>
+            <th>Order Info</th>
+            <th>Customer</th>
+            <th>Products</th>
+            <th>Amount</th>
+            <th>Courier</th>
+            <th>Status</th>
+            <th>Payment</th>
+            <th>Admin Note</th>
+            <th>Employee</th>
+            <th>Date</th>
+            <th width="165" class="text-right px-4">Actions</th>
+        </tr>
         </thead>
 
         <tbody>
-            @forelse($orders as $order)
-            <tr class="{{ isset($isTrash) && $isTrash ? 'bg-light-red' : '' }}">
+        @forelse($orders as $order)
+            <tr class="{{ !empty($isTrash) ? 'bg-light-red' : '' }}">
                 @if(auth()->user()->isAdmin())
-                <td class="text-center px-4">
-                    <input type="checkbox" class="row-checkbox shadow-none cursor-pointer" value="{{ $order->id }}">
-                </td>
+                    <td class="text-center px-4">
+                        <input type="checkbox"
+                               class="row-checkbox shadow-none cursor-pointer"
+                               value="{{ $order->id }}">
+                    </td>
                 @endif
 
+                {{-- Order Info --}}
                 <td>
                     <div class="font-weight-bold text-dark">
                         #{{ $order->invoice_id }}
@@ -36,165 +42,224 @@
                     <div class="small text-muted">
                         Source:
                         <span title="{{ $order->source_url }}">
-                            {{ $order->source_url ? Str::limit($order->source_url, 35) : '-' }}
+                            {{ $order->source_url ? \Illuminate\Support\Str::limit($order->source_url, 28) : '-' }}
                         </span>
                     </div>
 
-                    @if($order->is_fake || $order->order_status === 'fake')
-                    <span class="badge badge-danger mt-1">
-                        <i class="fas fa-exclamation-triangle mr-1"></i> Fake
-                    </span>
+                    @if($order->campaign)
+                        <span class="badge badge-light border mt-1">
+                            {{ \Illuminate\Support\Str::limit($order->campaign->title, 22) }}
+                        </span>
                     @endif
                 </td>
 
+                {{-- Customer --}}
                 <td>
-                    <div class="font-weight-bold text-dark">
-                        {{ $order->customer_name }}
-                    </div>
-
-                    <div class="small text-muted">
-                        <i class="fas fa-phone-alt mr-1"></i> {{ $order->phone }}
-                    </div>
+                    <div class="font-weight-bold">{{ $order->customer_name }}</div>
+                    <div class="small">{{ $order->phone }}</div>
 
                     <div class="small text-muted" title="{{ $order->address }}">
-                        <i class="fas fa-map-marker-alt mr-1"></i>
-                        {{ Str::limit($order->address, 35) }}
-                    </div>
-                </td>
-
-                <td>
-                    <div class="font-weight-bold">
-                        {{ number_format($order->total_amount ?? 0, 2) }}
+                        {{ \Illuminate\Support\Str::limit($order->address, 35) }}
                     </div>
 
-                    <div class="small text-muted">
-                        Sub: {{ number_format($order->sub_total ?? 0, 2) }}
-                    </div>
-
-                    <div class="small text-muted">
-                        Delivery: {{ number_format($order->shipping_charge ?? 0, 2) }}
-                    </div>
-                </td>
-
-                <td>
-                    @php
-                    $statusClass = match($order->order_status) {
-                    'pending' => 'badge-warning',
-                    'confirmed' => 'badge-primary',
-                    'processing' => 'badge-info',
-                    'shipped' => 'badge-secondary',
-                    'delivered' => 'badge-success',
-                    'cancelled' => 'badge-danger',
-                    'fake' => 'badge-danger',
-                    default => 'badge-light',
-                    };
-                    @endphp
-
-                    <span class="badge {{ $statusClass }} px-3">
-                        {{ ucfirst(str_replace('_', ' ', $order->order_status)) }}
-                    </span>
-                </td>
-
-                <td>
-                    @php
-                    $paymentClass = match($order->payment_status) {
-                    'unpaid' => 'badge-warning',
-                    'cod_pending' => 'badge-info',
-                    'collected' => 'badge-success',
-                    'failed' => 'badge-danger',
-                    default => 'badge-light',
-                    };
-                    @endphp
-
-                    <span class="badge {{ $paymentClass }} px-3">
-                        {{ ucfirst(str_replace('_', ' ', $order->payment_status)) }}
-                    </span>
-                </td>
-
-                <td>
-                    @if($order->assignedEmployee)
-                    <div class="font-weight-bold small text-dark">
-                        {{ $order->assignedEmployee->name }}
-                    </div>
-
-                    <div class="small text-muted">
-                        {{ $order->assignedEmployee->email }}
-                    </div>
-                    @else
-                    <span class="badge badge-light border text-muted">
-                        Unassigned
-                    </span>
+                    @if($order->delivery_area)
+                        <span class="badge badge-light border">
+                            {{ ucwords(str_replace('_', ' ', $order->delivery_area)) }}
+                        </span>
                     @endif
                 </td>
 
+                {{-- Products --}}
                 <td>
-                    <div class="small font-weight-bold">
-                        {{ $order->created_at ? $order->created_at->format('d M, Y') : '-' }}
-                    </div>
-
-                    <div class="small text-muted">
-                        {{ $order->created_at ? $order->created_at->format('h:i A') : '-' }}
-                    </div>
+                    @forelse($order->items as $item)
+                        <div class="small">
+                            {{ $item->quantity }} x {{ \Illuminate\Support\Str::limit($item->product_name, 28) }}
+                        </div>
+                    @empty
+                        <span class="text-muted small">No items</span>
+                    @endforelse
                 </td>
 
+                {{-- Amount --}}
+                <td>
+                    <div class="font-weight-bold">
+                        ৳{{ number_format($order->total_amount ?? 0) }}
+                    </div>
+
+                    <small class="text-muted">
+                        Sub: ৳{{ number_format($order->sub_total ?? 0) }}
+                    </small>
+                </td>
+
+                {{-- Courier --}}
+                <td>
+                    @if($order->courier_service)
+                        <span class="badge badge-info">
+                            {{ $courierServices[$order->courier_service] ?? $order->courier_service }}
+                        </span>
+                    @else
+                        <span class="badge badge-light border">Not selected</span>
+                    @endif
+                </td>
+
+                {{-- Status --}}
+                <td>
+                    @if($order->order_status === 'pending')
+                        <span class="badge badge-warning">Pending</span>
+                    @elseif($order->order_status === 'confirmed')
+                        <span class="badge badge-primary">Confirmed</span>
+                    @elseif($order->order_status === 'processing')
+                        <span class="badge badge-secondary">Processing</span>
+                    @elseif($order->order_status === 'shipped')
+                        <span class="badge badge-info">Shipped</span>
+                    @elseif($order->order_status === 'delivered')
+                        <span class="badge badge-success">Delivered</span>
+                    @elseif($order->order_status === 'cancelled')
+                        <span class="badge badge-danger">Cancelled</span>
+                    @elseif($order->order_status === 'fake')
+                        <span class="badge badge-danger">Fake</span>
+                    @else
+                        <span class="badge badge-light border">
+                            {{ ucfirst($order->order_status) }}
+                        </span>
+                    @endif
+
+                    @if($order->is_fake)
+                        <div>
+                            <span class="badge badge-danger mt-1">Fake Order</span>
+                        </div>
+                    @endif
+                </td>
+
+                {{-- Payment --}}
+                <td>
+                    @if($order->payment_status === 'cod_pending')
+                        <span class="badge badge-warning">COD Pending</span>
+                    @elseif($order->payment_status === 'collected')
+                        <span class="badge badge-success">Collected</span>
+                    @elseif($order->payment_status === 'failed')
+                        <span class="badge badge-danger">Failed</span>
+                    @elseif($order->payment_status === 'unpaid')
+                        <span class="badge badge-secondary">Unpaid</span>
+                    @else
+                        <span class="badge badge-light border">
+                            {{ ucfirst(str_replace('_', ' ', $order->payment_status)) }}
+                        </span>
+                    @endif
+                </td>
+
+                {{-- Admin Note Auto Save --}}
+                <td style="min-width: 240px;">
+                    @if(auth()->user()->isAdmin() && empty($isTrash))
+                        <textarea class="form-control form-control-sm admin-note-input"
+                                  rows="2"
+                                  data-url="{{ route('admin.orders.update_admin_note', $order->id) }}"
+                                  data-order-id="{{ $order->id }}"
+                                  data-original="{{ e($order->admin_note ?? '') }}"
+                                  placeholder="Write admin note...">{{ $order->admin_note }}</textarea>
+
+                        <div class="admin-note-status small text-muted mt-1" data-order-id="{{ $order->id }}">
+                            Auto save enabled
+                        </div>
+                    @else
+                        <span class="small text-muted">
+                            {{ $order->admin_note ?: '-' }}
+                        </span>
+                    @endif
+                </td>
+
+                {{-- Employee --}}
+                <td>
+                    @if($order->assignedEmployee)
+                        <div class="font-weight-bold">
+                            {{ $order->assignedEmployee->name }}
+                        </div>
+
+                        <small class="text-muted">
+                            {{ $order->assignedEmployee->email }}
+                        </small>
+                    @else
+                        <span class="badge badge-light border">Unassigned</span>
+                    @endif
+                </td>
+
+                {{-- Date --}}
+                <td>
+                    <div class="small">
+                        {{ $order->created_at ? $order->created_at->format('d M Y') : '-' }}
+                    </div>
+
+                    <small class="text-muted">
+                        {{ $order->created_at ? $order->created_at->format('h:i A') : '' }}
+                    </small>
+                </td>
+
+                {{-- Actions --}}
                 <td class="text-right px-4">
                     <div class="btn-group shadow-sm rounded border bg-white overflow-hidden">
-                        @if(isset($isTrash) && $isTrash)
-                        @if(auth()->user()->isAdmin())
-                        <button type="button" class="btn btn-sm btn-white text-success btnRestore"
-                            data-url="{{ route('admin.orders.restore', $order->id) }}" title="Restore">
-                            <i class="fas fa-trash-restore"></i>
-                        </button>
+                        @if(!empty($isTrash))
+                            @if(auth()->user()->isAdmin())
+                                <button type="button"
+                                        class="btn btn-sm btn-white text-success btnRestore"
+                                        data-url="{{ route('admin.orders.restore', $order->id) }}"
+                                        title="Restore">
+                                    <i class="fas fa-trash-restore"></i>
+                                </button>
 
-                        <button type="button" class="btn btn-sm btn-white text-danger btnForceDelete"
-                            data-url="{{ route('admin.orders.force_delete', $order->id) }}" title="Delete Forever">
-                            <i class="fas fa-skull-crossbones"></i>
-                        </button>
-                        @endif
+                                <button type="button"
+                                        class="btn btn-sm btn-white text-danger btnForceDelete"
+                                        data-url="{{ route('admin.orders.force_delete', $order->id) }}"
+                                        title="Delete Forever">
+                                    <i class="fas fa-skull-crossbones"></i>
+                                </button>
+                            @endif
                         @else
-                        <a href="{{ route('admin.orders.show', $order->id) }}" class="btn btn-sm btn-white text-info"
-                            title="View">
-                            <i class="fas fa-eye"></i>
-                        </a>
+                            <a href="{{ route('admin.orders.show', $order->id) }}"
+                               class="btn btn-sm btn-white text-info"
+                               title="View">
+                                <i class="fas fa-eye"></i>
+                            </a>
 
-                        <a href="{{ route('admin.orders.invoice', $order->id) }}"
-                            class="btn btn-sm btn-white text-secondary" title="Invoice Print">
-                            <i class="fas fa-file-invoice"></i>
-                        </a>
+                            <a href="{{ route('admin.orders.invoice', $order->id) }}"
+                               class="btn btn-sm btn-white text-secondary"
+                               title="Invoice Print">
+                                <i class="fas fa-file-invoice"></i>
+                            </a>
 
-                        <a href="{{ route('admin.orders.invoice.download', $order->id) }}"
-                            class="btn btn-sm btn-white text-success" title="Download Invoice PDF">
-                            <i class="fas fa-file-download"></i>
-                        </a>
+                            <a href="{{ route('admin.orders.invoice.download', $order->id) }}"
+                               class="btn btn-sm btn-white text-success"
+                               title="Download Invoice PDF">
+                                <i class="fas fa-file-download"></i>
+                            </a>
 
-                        @if(auth()->user()->isAdmin())
-                        <button type="button" class="btn btn-sm btn-white text-danger btnDelete"
-                            data-url="{{ route('admin.orders.destroy', $order->id) }}" title="Move to Trash">
-                            <i class="fas fa-trash-alt"></i>
-                        </button>
-                        @endif
+                            @if(auth()->user()->isAdmin())
+                                <button type="button"
+                                        class="btn btn-sm btn-white text-danger btnDelete"
+                                        data-url="{{ route('admin.orders.destroy', $order->id) }}"
+                                        title="Move to Trash">
+                                    <i class="fas fa-trash-alt"></i>
+                                </button>
+                            @endif
                         @endif
                     </div>
                 </td>
             </tr>
-            @empty
+        @empty
             <tr>
-                <td colspan="{{ auth()->user()->isAdmin() ? 9 : 8 }}" class="text-center py-5">
-                    <div class="py-4">
-                        <i class="fas fa-shopping-cart fa-3x text-light mb-3"></i>
-                        <h6 class="text-muted">No orders found matching your criteria.</h6>
-                    </div>
+                <td colspan="{{ auth()->user()->isAdmin() ? 12 : 11 }}" class="text-center text-muted py-5">
+                    <i class="fas fa-inbox fa-2x mb-2"></i>
+                    <div>No orders found.</div>
                 </td>
             </tr>
-            @endforelse
+        @endforelse
         </tbody>
     </table>
 </div>
 
 @if($orders->hasPages())
-<div class="px-4 py-3 border-top bg-white d-flex justify-content-center">
-    {!! $orders->appends(request()->all())->links('pagination::bootstrap-4') !!}
-</div>
+    <div class="px-4 py-3 border-top bg-white">
+        {{ $orders->withQueryString()->links() }}
+    </div>
 @endif
 
 <style>
@@ -234,5 +299,28 @@
     color: #6c757d;
     border-radius: 5px !important;
     margin: 0 2px;
+}
+
+.admin-note-input {
+    min-width: 210px;
+    font-size: 12px;
+    resize: vertical;
+}
+
+.admin-note-status {
+    font-size: 11px;
+    min-height: 15px;
+}
+
+.admin-note-status.saving {
+    color: #2563eb !important;
+}
+
+.admin-note-status.saved {
+    color: #16a34a !important;
+}
+
+.admin-note-status.error {
+    color: #dc2626 !important;
 }
 </style>

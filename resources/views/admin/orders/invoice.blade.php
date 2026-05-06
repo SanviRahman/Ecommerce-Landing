@@ -21,7 +21,7 @@
 @section('content')
 
 @php
-    $siteSetting = \App\Models\SiteSetting::query()
+    $siteSetting = $siteSetting ?? \App\Models\SiteSetting::query()
         ->where('status', true)
         ->latest()
         ->first();
@@ -41,12 +41,13 @@
     $orderStatus = $order->order_status
         ? ucwords(str_replace('_', ' ', $order->order_status))
         : '-';
+
+    $courierName = ($courierServices ?? config('couriers.list'))[$order->courier_service] ?? 'Not Selected';
 @endphp
 
 <div id="invoiceArea">
     <div class="invoice-section">
 
-        {{-- Header Info Table --}}
         <table class="invoice-table table table-striped" cellspacing="0" cellpadding="0">
             <tr>
                 <td style="width: 35%;">
@@ -113,6 +114,10 @@
                     {{ $orderStatus }}
                     <br>
 
+                    <strong>Courier:</strong>
+                    {{ $courierName }}
+                    <br>
+
                     <strong>Employee:</strong>
                     {{ $order->assignedEmployee->name ?? 'Unassigned' }}
                     <br>
@@ -125,7 +130,6 @@
             </tr>
         </table>
 
-        {{-- Product Table --}}
         <table class="invoice-table table table-striped">
             <thead>
                 <tr>
@@ -209,7 +213,6 @@
             </tfoot>
         </table>
 
-        {{-- Notes --}}
         <table class="invoice-table table table-striped">
             <tr>
                 <td style="width: 50%;">

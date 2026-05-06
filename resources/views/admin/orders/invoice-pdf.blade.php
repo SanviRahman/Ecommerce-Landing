@@ -117,6 +117,8 @@
         ? ucwords(str_replace('_', ' ', $order->order_status))
         : '-';
 
+    $courierName = ($courierServices ?? config('couriers.list'))[$order->courier_service] ?? 'Not Selected';
+
     $logoPath = null;
 
     if ($siteSetting && $siteSetting->getFirstMedia('site_logo')) {
@@ -184,6 +186,10 @@
 
             <strong>Order Status:</strong>
             {{ $orderStatus }}
+            <br>
+
+            <strong>Courier:</strong>
+            {{ $courierName }}
             <br>
 
             <strong>Employee:</strong>

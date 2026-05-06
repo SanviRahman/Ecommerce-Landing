@@ -446,9 +446,11 @@ $(document).ready(function() {
             title: 'Apply Bulk Action?',
             text: `Action: ${action} on ${ids.length} products.`,
             icon: 'warning',
-            showCancelButton: true
+            type: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, Proceed'
         }).then((result) => {
-            if (result.isConfirmed) {
+            if (result.isConfirmed || result.value) {
                 $.ajax({
                     url: "{{ route('admin.products.multiple_action') }}",
                     type: "POST",

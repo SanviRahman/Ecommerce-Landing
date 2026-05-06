@@ -21,6 +21,12 @@ class Order extends Model
     public const STATUS_CANCELLED = 'cancelled';
     public const STATUS_FAKE = 'fake';
 
+    public const PAYMENT_COD = 'cash_on_delivery';
+    public const PAYMENT_STATUS_UNPAID = 'unpaid';
+    public const PAYMENT_STATUS_COD_PENDING = 'cod_pending';
+    public const PAYMENT_STATUS_COLLECTED = 'collected';
+    public const PAYMENT_STATUS_FAILED = 'failed';
+
     protected $fillable = [
         'invoice_id',
         'campaign_id',
@@ -29,6 +35,7 @@ class Order extends Model
         'phone',
         'address',
         'delivery_area',
+        'courier_service',
         'sub_total',
         'shipping_charge',
         'cod_charge',
@@ -100,6 +107,17 @@ class Order extends Model
     public function fakeLogs(): HasMany
     {
         return $this->hasMany(FakeOrderLog::class);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Accessors
+    |--------------------------------------------------------------------------
+    */
+
+    public function getCourierNameAttribute(): string
+    {
+        return config('couriers.list.' . $this->courier_service, 'Not Selected');
     }
 
     /*

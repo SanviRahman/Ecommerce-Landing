@@ -63,8 +63,10 @@ Route::middleware(['auth'])->group(function () {
                 Route::get('/trash', [OrderController::class, 'trash'])->name('trashed');
                 Route::post('/restore/{id}', [OrderController::class, 'restore'])->name('restore');
                 Route::delete('/force-delete/{id}', [OrderController::class, 'forceDelete'])->name('force_delete');
+
                 Route::post('/multiple-action', [OrderController::class, 'multipleAction'])->name('multiple_action');
                 Route::post('/assign-unassigned', [OrderController::class, 'assignUnassignedOrders'])->name('assign_unassigned');
+                Route::post('/selected-invoices', [OrderController::class, 'selectedInvoices'])->name('selected_invoices');
             });
 
             /*
@@ -77,6 +79,7 @@ Route::middleware(['auth'])->group(function () {
 
             Route::patch('/{order}/status', [OrderController::class, 'updateStatus'])->name('update_status');
             Route::patch('/{order}/payment-status', [OrderController::class, 'updatePaymentStatus'])->name('update_payment_status');
+            Route::patch('/{order}/admin-note', [OrderController::class, 'updateAdminNote'])->name('update_admin_note');
 
             Route::patch('/{order}/mark-as-fake', [OrderController::class, 'markAsFake'])->name('mark_as_fake');
             Route::patch('/{order}/restore-fake', [OrderController::class, 'restoreFake'])->name('restore_fake');

@@ -38,6 +38,14 @@ class OrderController extends Controller
     ];
 
     /**
+     * Courier service list.
+     */
+    private function courierServices(): array
+    {
+        return config('couriers.list', []);
+    }
+
+    /**
      * Base query.
      *
      * Admin can see all orders.
@@ -75,7 +83,7 @@ class OrderController extends Controller
     /**
      * Apply search/filter.
      */
-    private function applyFilters(Builder $query, Request $request): Builder
+    private function applyFilters(Builder $query, Request $request, bool $ignoreOrderStatus = false): Builder
     {
         if ($request->filled('search')) {
             $search = trim($request->search);
@@ -86,6 +94,7 @@ class OrderController extends Controller
                     ->orWhere('phone', 'like', "%{$search}%")
                     ->orWhere('address', 'like', "%{$search}%")
                     ->orWhere('delivery_area', 'like', "%{$search}%")
+                    ->orWhere('courier_service', 'like', "%{$search}%")
                     ->orWhere('customer_note', 'like', "%{$search}%")
                     ->orWhere('admin_note', 'like', "%{$search}%")
                     ->orWhereHas('assignedEmployee', function ($employeeQuery) use ($search) {
@@ -95,12 +104,16 @@ class OrderController extends Controller
             });
         }
 
-        if ($request->filled('order_status') && $request->order_status !== 'all') {
+        if (! $ignoreOrderStatus && $request->filled('order_status') && $request->order_status !== 'all') {
             $query->where('order_status', $request->order_status);
         }
 
         if ($request->filled('payment_status') && $request->payment_status !== 'all') {
             $query->where('payment_status', $request->payment_status);
+        }
+
+        if ($request->filled('courier_service') && $request->courier_service !== 'all') {
+            $query->where('courier_service', $request->courier_service);
         }
 
         if ($request->filled('fake_status') && $request->fake_status !== 'all') {
@@ -137,10 +150,42 @@ class OrderController extends Controller
     }
 
     /**
+     * Top small stats.
+     */
+    private function orderStats(Builder $query): array
+    {
+        return [
+            'all'        => (clone $query)->count(),
+
+            'processing' => (clone $query)
+                ->where('order_status', 'processing')
+                ->count(),
+
+            'delivered'  => (clone $query)
+                ->where('order_status', 'delivered')
+                ->count(),
+
+            'cancelled'  => (clone $query)
+                ->where('order_status', 'cancelled')
+                ->count(),
+
+            'fake'       => (clone $query)
+                ->where(function ($q) {
+                    $q->where('is_fake', true)
+                        ->orWhere('order_status', 'fake');
+                })
+                ->count(),
+        ];
+    }
+
+    /**
      * Shared list response.
      */
     private function listResponse(Request $request, Builder $query, string $title, bool $isTrash = false)
     {
+        $statsQuery = $this->applyFilters($this->orderQuery($isTrash), $request, true);
+        $stats      = $this->orderStats($statsQuery);
+
         $query = $this->applyFilters($query, $request);
 
         $orders = $query->latest()->paginate(10);
@@ -165,9 +210,11 @@ class OrderController extends Controller
         if ($request->ajax()) {
             return response()->json([
                 'status' => true,
+                'stats'  => $stats,
                 'html'   => view('admin.orders.partials.table', [
-                    'orders'  => $orders,
-                    'isTrash' => $isTrash,
+                    'orders'          => $orders,
+                    'isTrash'         => $isTrash,
+                    'courierServices' => $this->courierServices(),
                 ])->render(),
             ]);
         }
@@ -179,7 +226,9 @@ class OrderController extends Controller
             'breadcrumb'      => $breadcrumb,
             'orderStatuses'   => $this->orderStatuses,
             'paymentStatuses' => $this->paymentStatuses,
+            'courierServices' => $this->courierServices(),
             'isTrash'         => $isTrash,
+            'stats'           => $stats,
         ]);
     }
 
@@ -341,6 +390,7 @@ class OrderController extends Controller
             'breadcrumb'      => $breadcrumb,
             'orderStatuses'   => $this->orderStatuses,
             'paymentStatuses' => $this->paymentStatuses,
+            'courierServices' => $this->courierServices(),
         ]);
     }
 
@@ -357,9 +407,16 @@ class OrderController extends Controller
             'items.product',
         ]);
 
+        $siteSetting = SiteSetting::query()
+            ->where('status', true)
+            ->latest()
+            ->first();
+
         return view('admin.orders.invoice', [
-            'order' => $order,
-            'title' => 'Order Invoice',
+            'order'           => $order,
+            'siteSetting'     => $siteSetting,
+            'title'           => 'Order Invoice',
+            'courierServices' => $this->courierServices(),
         ]);
     }
 
@@ -432,6 +489,29 @@ class OrderController extends Controller
         return response()->json([
             'status'  => true,
             'message' => 'Payment status updated successfully.',
+        ]);
+    }
+
+    /**
+     * Update admin note from index page.
+     */
+    public function updateAdminNote(Request $request, Order $order)
+    {
+        if (! auth()->user()->isAdmin()) {
+            abort(403, 'Unauthorized access.');
+        }
+
+        $request->validate([
+            'admin_note' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        $order->update([
+            'admin_note' => $request->admin_note,
+        ]);
+
+        return response()->json([
+            'status'  => true,
+            'message' => 'Admin note updated successfully.',
         ]);
     }
 
@@ -547,79 +627,140 @@ class OrderController extends Controller
             abort(403, 'Unauthorized access.');
         }
 
-        $request->validate([
-            'action' => ['required', 'in:delete,restore,force_delete,mark_fake,restore_fake'],
-            'ids'    => ['required', 'array'],
-            'ids.*'  => ['integer'],
+        $validated = $request->validate([
+            'action' => [
+                'required',
+                'string',
+                'in:delete,restore,force_delete,mark_fake,restore_fake,status_pending,status_confirmed,status_processing,status_shipped,status_delivered,status_cancelled,status_fake',
+            ],
+            'ids'    => ['required', 'array', 'min:1'],
+            'ids.*'  => ['required', 'integer'],
         ]);
 
-        $action = $request->action;
-        $ids    = $request->ids;
+        $action = $validated['action'];
+        $ids    = $validated['ids'];
 
-        if ($action === 'delete') {
-            Order::whereIn('id', $ids)->delete();
+        return DB::transaction(function () use ($action, $ids) {
+            if ($action === 'delete') {
+                $updated = Order::query()
+                    ->whereIn('id', $ids)
+                    ->delete();
+
+                return response()->json([
+                    'status'  => true,
+                    'message' => $updated . ' selected orders moved to trash successfully.',
+                ]);
+            }
+
+            if ($action === 'restore') {
+                $updated = Order::onlyTrashed()
+                    ->whereIn('id', $ids)
+                    ->restore();
+
+                return response()->json([
+                    'status'  => true,
+                    'message' => $updated . ' selected orders restored successfully.',
+                ]);
+            }
+
+            if ($action === 'force_delete') {
+                $updated = Order::onlyTrashed()
+                    ->whereIn('id', $ids)
+                    ->forceDelete();
+
+                return response()->json([
+                    'status'  => true,
+                    'message' => $updated . ' selected orders permanently deleted successfully.',
+                ]);
+            }
+
+            if ($action === 'mark_fake') {
+                $updated = Order::query()
+                    ->whereIn('id', $ids)
+                    ->update([
+                        'is_fake'        => true,
+                        'order_status'   => 'fake',
+                        'marked_fake_at' => now(),
+                        'updated_at'     => now(),
+                    ]);
+
+                return response()->json([
+                    'status'  => true,
+                    'message' => $updated . ' selected orders marked as fake successfully.',
+                ]);
+            }
+
+            if ($action === 'restore_fake') {
+                $updated = Order::query()
+                    ->whereIn('id', $ids)
+                    ->update([
+                        'is_fake'        => false,
+                        'order_status'   => 'pending',
+                        'marked_fake_at' => null,
+                        'updated_at'     => now(),
+                    ]);
+
+                return response()->json([
+                    'status'  => true,
+                    'message' => $updated . ' selected fake orders restored successfully.',
+                ]);
+            }
+
+            $statusMap = [
+                'status_pending'    => 'pending',
+                'status_confirmed'  => 'confirmed',
+                'status_processing' => 'processing',
+                'status_shipped'    => 'shipped',
+                'status_delivered'  => 'delivered',
+                'status_cancelled'  => 'cancelled',
+                'status_fake'       => 'fake',
+            ];
+
+            if (array_key_exists($action, $statusMap)) {
+                $status = $statusMap[$action];
+
+                $updateData = [
+                    'order_status' => $status,
+                    'is_fake'      => $status === 'fake',
+                    'updated_at'   => now(),
+                ];
+
+                if ($status === 'confirmed') {
+                    $updateData['confirmed_at'] = now();
+                }
+
+                if ($status === 'delivered') {
+                    $updateData['delivered_at'] = now();
+                }
+
+                if ($status === 'cancelled') {
+                    $updateData['cancelled_at'] = now();
+                }
+
+                if ($status === 'fake') {
+                    $updateData['marked_fake_at'] = now();
+                } else {
+                    $updateData['marked_fake_at'] = null;
+                }
+
+                $updated = Order::query()
+                    ->whereIn('id', $ids)
+                    ->update($updateData);
+
+                return response()->json([
+                    'status'  => true,
+                    'message' => $updated . ' selected orders status updated successfully.',
+                ]);
+            }
 
             return response()->json([
-                'status'  => true,
-                'message' => 'Selected orders moved to trash successfully.',
-            ]);
-        }
-
-        if ($action === 'restore') {
-            Order::onlyTrashed()->whereIn('id', $ids)->restore();
-
-            return response()->json([
-                'status'  => true,
-                'message' => 'Selected orders restored successfully.',
-            ]);
-        }
-
-        if ($action === 'force_delete') {
-            Order::onlyTrashed()->whereIn('id', $ids)->forceDelete();
-
-            return response()->json([
-                'status'  => true,
-                'message' => 'Selected orders permanently deleted successfully.',
-            ]);
-        }
-
-        if ($action === 'mark_fake') {
-            Order::whereIn('id', $ids)->update([
-                'is_fake'        => true,
-                'order_status'   => 'fake',
-                'marked_fake_at' => now(),
-            ]);
-
-            return response()->json([
-                'status'  => true,
-                'message' => 'Selected orders marked as fake successfully.',
-            ]);
-        }
-
-        if ($action === 'restore_fake') {
-            Order::whereIn('id', $ids)->update([
-                'is_fake'        => false,
-                'order_status'   => 'pending',
-                'marked_fake_at' => null,
-            ]);
-
-            return response()->json([
-                'status'  => true,
-                'message' => 'Selected fake orders restored successfully.',
-            ]);
-        }
-
-        return response()->json([
-            'status'  => false,
-            'message' => 'Invalid bulk action selected.',
-        ], 422);
+                'status'  => false,
+                'message' => 'Invalid bulk action selected.',
+            ], 422);
+        });
     }
-
     /**
      * Assign old unassigned orders to employees.
-     *
-     * New orders auto assign হবে Order model booted event দিয়ে.
-     * এই method শুধু পুরনো unassigned orders assign করার জন্য।
      */
     public function assignUnassignedOrders()
     {
@@ -649,6 +790,43 @@ class OrderController extends Controller
     }
 
     /**
+     * Selected invoice print.
+     */
+    public function selectedInvoices(Request $request)
+    {
+        if (! auth()->user()->isAdmin()) {
+            abort(403, 'Unauthorized access.');
+        }
+
+        $request->validate([
+            'ids'   => ['required', 'array'],
+            'ids.*' => ['integer'],
+        ]);
+
+        $orders = Order::query()
+            ->with([
+                'campaign',
+                'assignedEmployee',
+                'items.product',
+            ])
+            ->whereIn('id', $request->ids)
+            ->latest()
+            ->get();
+
+        $siteSetting = SiteSetting::query()
+            ->where('status', true)
+            ->latest()
+            ->first();
+
+        return view('admin.orders.multiple-invoices', [
+            'orders'          => $orders,
+            'siteSetting'     => $siteSetting,
+            'title'           => 'Selected Order Invoices',
+            'courierServices' => $this->courierServices(),
+        ]);
+    }
+
+    /**
      * Download invoice as PDF.
      */
     public function downloadInvoice(Order $order)
@@ -669,9 +847,10 @@ class OrderController extends Controller
         $fileName = 'invoice-' . $order->invoice_id . '.pdf';
 
         $pdf = Pdf::loadView('admin.orders.invoice-pdf', [
-            'order'       => $order,
-            'siteSetting' => $siteSetting,
-            'title'       => 'Order Invoice',
+            'order'           => $order,
+            'siteSetting'     => $siteSetting,
+            'title'           => 'Order Invoice',
+            'courierServices' => $this->courierServices(),
         ])->setPaper('a4', 'portrait');
 
         return $pdf->download($fileName);

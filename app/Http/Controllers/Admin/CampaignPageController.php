@@ -19,8 +19,9 @@ class CampaignPageController extends Controller
         ]);
 
         return view('frontend.campaigns.show', [
-            'campaign' => $campaign,
-            'products' => $campaign->products,
+            'campaign'        => $campaign,
+            'products'        => $campaign->products,
+            'courierServices' => config('couriers.list', []),
         ]);
     }
 }

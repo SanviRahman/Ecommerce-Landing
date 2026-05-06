@@ -28,53 +28,54 @@ class OrderManagementService
                 $data['shipping_charge_id'] ?? null
             );
 
-            if (!$product->isInStock($pricing['quantity'])) {
+            if (! $product->isInStock($pricing['quantity'])) {
                 throw new Exception('Product stock is not available.');
             }
 
             $fakeCheck = $this->fakeOrderDetectionService->detect([
                 'customer_name' => $data['customer_name'],
-                'phone' => $data['phone'],
-                'address' => $data['address'],
-                'quantity' => $pricing['quantity'],
+                'phone'         => $data['phone'],
+                'address'       => $data['address'],
+                'quantity'      => $pricing['quantity'],
             ], $request);
 
             $order = Order::create([
-                'invoice_id' => $this->generateInvoiceId(),
-                'campaign_id' => $data['campaign_id'] ?? null,
-                'customer_name' => $data['customer_name'],
-                'phone' => $data['phone'],
-                'address' => $data['address'],
-                'delivery_area' => $data['delivery_area'] ?? null,
-                'sub_total' => $pricing['sub_total'],
-                'shipping_charge' => $pricing['shipping_charge'],
-                'cod_charge' => $pricing['cod_charge'],
-                'total_amount' => $pricing['total_amount'],
-                'payment_method' => Order::PAYMENT_COD,
-                'payment_status' => Order::PAYMENT_STATUS_COD_PENDING,
-                'order_status' => $fakeCheck['is_fake'] ? Order::STATUS_FAKE : Order::STATUS_PENDING,
-                'is_fake' => $fakeCheck['is_fake'],
-                'customer_note' => $data['customer_note'] ?? null,
-                'source_ip' => $request->ip(),
-                'user_agent' => $request->userAgent(),
-                'source_url' => $request->headers->get('referer'),
-                'marked_fake_at' => $fakeCheck['is_fake'] ? now() : null,
+                'invoice_id'       => $this->generateInvoiceId(),
+                'campaign_id'      => $data['campaign_id'] ?? null,
+                'customer_name'    => $data['customer_name'],
+                'phone'            => $data['phone'],
+                'address'          => $data['address'],
+                'delivery_area'    => $data['delivery_area'] ?? null,
+                'courier_service'  => $data['courier_service'] ?? null,
+                'sub_total'        => $pricing['sub_total'],
+                'shipping_charge'  => $pricing['shipping_charge'],
+                'cod_charge'       => $pricing['cod_charge'],
+                'total_amount'     => $pricing['total_amount'],
+                'payment_method'   => Order::PAYMENT_COD,
+                'payment_status'   => Order::PAYMENT_STATUS_COD_PENDING,
+                'order_status'     => $fakeCheck['is_fake'] ? Order::STATUS_FAKE : Order::STATUS_PENDING,
+                'is_fake'          => $fakeCheck['is_fake'],
+                'customer_note'    => $data['customer_note'] ?? null,
+                'source_ip'        => $request->ip(),
+                'user_agent'       => $request->userAgent(),
+                'source_url'       => $request->headers->get('referer'),
+                'marked_fake_at'   => $fakeCheck['is_fake'] ? now() : null,
             ]);
 
             OrderItem::create([
-                'order_id' => $order->id,
-                'product_id' => $product->id,
+                'order_id'     => $order->id,
+                'product_id'   => $product->id,
                 'product_name' => $product->name,
-                'quantity' => $pricing['quantity'],
-                'unit_price' => $pricing['unit_price'],
-                'total_price' => $pricing['sub_total'],
+                'quantity'     => $pricing['quantity'],
+                'unit_price'   => $pricing['unit_price'],
+                'total_price'  => $pricing['sub_total'],
             ]);
 
             if ($fakeCheck['is_fake']) {
                 FakeOrderLog::create([
-                    'order_id' => $order->id,
-                    'fake_reason' => $fakeCheck['reason_text'],
-                    'detected_by' => 'system',
+                    'order_id'     => $order->id,
+                    'fake_reason'  => $fakeCheck['reason_text'],
+                    'detected_by'  => 'system',
                 ]);
             } else {
                 $product->decrement('stock', $pricing['quantity']);

@@ -25,7 +25,6 @@ class DatabaseSeeder extends Seeder
             FaqSeeder::class,
             SocialMediaSeeder::class,
             BulkOrderSeeder::class,
-            DailyReportSummarySeeder::class,
             ReportExportSeeder::class,
         ]);
     }

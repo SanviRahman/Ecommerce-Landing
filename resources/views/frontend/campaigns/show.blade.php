@@ -142,6 +142,23 @@
             width: 75px;
         }
 
+        .order-info-box {
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            background: #ffffff;
+            padding: 16px;
+        }
+
+        .form-control {
+            min-height: 42px;
+        }
+
+        .courier-help {
+            font-size: 13px;
+            color: #6b7280;
+            margin-top: 5px;
+        }
+
         @media (max-width: 768px) {
             .campaign-header h1 {
                 font-size: 24px;
@@ -349,7 +366,7 @@
                                         <td>
                                             <input type="number"
                                                    name="products[{{ $loop->index }}][quantity]"
-                                                   value="1"
+                                                   value="{{ old('products.' . $loop->index . '.quantity', 1) }}"
                                                    min="1"
                                                    class="form-control quantity-input">
                                         </td>
@@ -379,7 +396,7 @@
                         <div class="col-md-6">
                             <h5 class="border p-2 mb-0">আপনার ইনফরমেশন দিন</h5>
 
-                            <div class="border p-3 bg-white">
+                            <div class="order-info-box">
                                 <div class="form-group">
                                     <label>আপনার নাম লিখুন <span class="text-danger">*</span></label>
                                     <input type="text"
@@ -436,6 +453,29 @@
                                     </select>
 
                                     @error('delivery_area')
+                                        <span class="invalid-feedback">{{ $message }}</span>
+                                    @enderror
+                                </div>
+
+                                <div class="form-group">
+                                    <label>কুরিয়ার সার্ভিস সিলেক্ট করুন <span class="text-danger">*</span></label>
+                                    <select name="courier_service"
+                                            class="form-control @error('courier_service') is-invalid @enderror"
+                                            required>
+                                        <option value="">কুরিয়ার সার্ভিস নির্বাচন করুন</option>
+
+                                        @foreach(config('couriers.list', []) as $key => $label)
+                                            <option value="{{ $key }}" @selected(old('courier_service') === $key)>
+                                                {{ $label }}
+                                            </option>
+                                        @endforeach
+                                    </select>
+
+                                    <div class="courier-help">
+                                        আপনি যে কুরিয়ার সার্ভিস সিলেক্ট করবেন, সেটি আপনার অর্ডারের সাথে সেভ হবে।
+                                    </div>
+
+                                    @error('courier_service')
                                         <span class="invalid-feedback">{{ $message }}</span>
                                     @enderror
                                 </div>
