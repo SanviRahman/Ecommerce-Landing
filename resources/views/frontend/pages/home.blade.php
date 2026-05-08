@@ -11,8 +11,24 @@
         ?: $siteSetting?->business_short_description
         ?: 'Premium ecommerce landing page.';
 
-    $imageOf = function ($model, $fallback = null) {
-        $fallback = $fallback ?: asset('vendor/adminlte/dist/img/no-image.png');
+    /*
+    |--------------------------------------------------------------------------
+    | Safe No Image Fallback
+    |--------------------------------------------------------------------------
+    | public/frontend/images/no-image.svg file create kore rakhbe.
+    | no-image.png use korle 404 ashchilo, tai SVG fallback use kora holo.
+    */
+    $noImage = asset('frontend/images/no-image.svg');
+
+    /*
+    |--------------------------------------------------------------------------
+    | Universal Image Helper
+    |--------------------------------------------------------------------------
+    | Product, Campaign, Review, Category, Brand - sob model-er image safely show korbe.
+    | Spatie Media Library collection review_customer_image support kora hoyeche.
+    */
+    $imageOf = function ($model, $fallback = null) use ($noImage) {
+        $fallback = $fallback ?: $noImage;
 
         if (! $model) {
             return $fallback;
@@ -20,13 +36,18 @@
 
         foreach ([
             'image_url',
+            'photo_url',
+            'avatar_url',
+            'customer_image',
+            'customer_image_url',
+            'customer_photo_url',
+            'review_image_url',
             'thumbnail',
             'thumbnail_url',
             'banner_image_url',
             'image_one_url',
             'image_two_url',
             'image_three_url',
-            'review_image_url',
             'logo',
         ] as $attribute) {
             try {
@@ -38,8 +59,47 @@
             }
         }
 
+        foreach ([
+            'image',
+            'photo',
+            'avatar',
+            'customer_photo',
+            'review_image',
+            'profile_photo',
+        ] as $attribute) {
+            try {
+                if (! empty($model->{$attribute})) {
+                    $value = $model->{$attribute};
+
+                    if (\Illuminate\Support\Str::startsWith($value, ['http://', 'https://'])) {
+                        return $value;
+                    }
+
+                    $value = ltrim($value, '/');
+
+                    if (\Illuminate\Support\Str::startsWith($value, ['storage/'])) {
+                        return asset($value);
+                    }
+
+                    if (\Illuminate\Support\Str::startsWith($value, ['public/'])) {
+                        return \Illuminate\Support\Facades\Storage::url(str_replace('public/', '', $value));
+                    }
+
+                    return \Illuminate\Support\Facades\Storage::url($value);
+                }
+            } catch (\Throwable $e) {
+                //
+            }
+        }
+
         if (method_exists($model, 'getFirstMediaUrl')) {
             foreach ([
+                'review_customer_image',
+                'review_image',
+                'customer_image',
+                'customer_photo',
+                'avatar',
+                'photo',
                 'image',
                 'images',
                 'product_image',
@@ -51,13 +111,12 @@
                 'image_one',
                 'image_two',
                 'image_three',
-                'review_image',
                 'site_logo',
             ] as $collection) {
                 try {
                     $url = $model->getFirstMediaUrl($collection);
 
-                    if ($url) {
+                    if (! empty($url)) {
                         return $url;
                     }
                 } catch (\Throwable $e) {
@@ -70,8 +129,8 @@
     };
 
     $heroImage = $campaign
-        ? ($campaign->banner_image_url ?: $campaign->image_one_url)
-        : asset('vendor/adminlte/dist/img/no-image.png');
+        ? ($campaign->banner_image_url ?: ($campaign->image_one_url ?: $noImage))
+        : $noImage;
 
     $heroTitle = $campaign?->title ?: 'খুলনার বিখ্যাত চুইঝাল!';
 
@@ -430,6 +489,7 @@
         border-radius: 50%;
         object-fit: cover;
         margin-right: 15px;
+        background: #e2e8f0;
     }
 
     .review-user strong {
@@ -527,6 +587,7 @@
         height: 220px;
         border-radius: 8px;
         object-fit: cover;
+        background: #f8fafc;
     }
 
     .order-section {
@@ -559,6 +620,7 @@
         object-fit: cover;
         border-radius: 7px;
         margin-right: 12px;
+        background: #e2e8f0;
     }
 
     .order-product-card h5 {
@@ -633,6 +695,7 @@
         object-fit: cover;
         border-radius: 7px;
         margin-right: 12px;
+        background: #e2e8f0;
     }
 
     .summary-product-info h5 {
@@ -805,6 +868,15 @@
     </div>
 @endif
 
+@if (session('error'))
+    <div class="container mt-3">
+        <div class="alert alert-danger alert-dismissible fade show">
+            <strong>Error!</strong> {{ session('error') }}
+            <button type="button" class="close" data-dismiss="alert">&times;</button>
+        </div>
+    </div>
+@endif
+
 @if ($errors->any())
     <div class="container mt-3">
         <div class="alert alert-danger">
@@ -876,7 +948,10 @@
 
             <div class="col-lg-5">
                 <div class="hero-video-box">
-                    <img src="{{ $heroImage }}" alt="{{ $heroTitle }}">
+                    <img src="{{ $heroImage }}"
+                         alt="{{ $heroTitle }}"
+                         onerror="this.onerror=null;this.src='{{ $noImage }}';">
+
                     <div class="play-btn">
                         <i class="fas fa-play"></i>
                     </div>
@@ -978,7 +1053,10 @@
                      data-category="{{ $product->category_id }}"
                      data-brand="{{ $product->brand_id ?: 'none' }}">
                     <div class="product-card">
-                        <img src="{{ $productImage }}" class="product-image" alt="{{ $product->name }}">
+                        <img src="{{ $productImage }}"
+                             class="product-image"
+                             alt="{{ $product->name }}"
+                             onerror="this.onerror=null;this.src='{{ $noImage }}';">
 
                         <div class="product-body">
                             <h4>{{ \Illuminate\Support\Str::limit($product->name, 35) }}</h4>
@@ -1022,7 +1100,10 @@
 
         <div class="row align-items-center">
             <div class="col-lg-3 mb-4 mb-lg-0">
-                <img src="{{ $campaign ? $campaign->image_one_url : $heroImage }}" class="side-product-img" alt="Product">
+                <img src="{{ $campaign ? ($campaign->image_one_url ?: $heroImage) : $heroImage }}"
+                     class="side-product-img"
+                     alt="Product"
+                     onerror="this.onerror=null;this.src='{{ $noImage }}';">
             </div>
 
             <div class="col-lg-6">
@@ -1055,7 +1136,10 @@
             </div>
 
             <div class="col-lg-3">
-                <img src="{{ $campaign ? $campaign->image_two_url : $heroImage }}" class="side-product-img" alt="Product">
+                <img src="{{ $campaign ? ($campaign->image_two_url ?: $heroImage) : $heroImage }}"
+                     class="side-product-img"
+                     alt="Product"
+                     onerror="this.onerror=null;this.src='{{ $noImage }}';">
             </div>
         </div>
     </div>
@@ -1106,7 +1190,9 @@
 <section class="pb-5">
     <div class="container">
         <div class="wide-banner">
-            <img src="{{ $campaign ? $campaign->image_three_url : $heroImage }}" alt="Banner">
+            <img src="{{ $campaign ? ($campaign->image_three_url ?: $heroImage) : $heroImage }}"
+                 alt="Banner"
+                 onerror="this.onerror=null;this.src='{{ $noImage }}';">
         </div>
     </div>
 </section>
@@ -1127,7 +1213,7 @@
                                         @php
                                             $rating = (int) ($review->rating ?: 5);
                                             $rating = $rating < 1 ? 5 : ($rating > 5 ? 5 : $rating);
-                                            $reviewImage = $imageOf($review, asset('vendor/adminlte/dist/img/user2-160x160.jpg'));
+                                            $reviewImage = $imageOf($review, $noImage);
                                         @endphp
 
                                         <div class="col-lg-4 mb-4">
@@ -1143,10 +1229,12 @@
                                                 </p>
 
                                                 <div class="review-user">
-                                                    <img src="{{ $reviewImage }}" alt="{{ $review->customer_name }}">
+                                                    <img src="{{ $reviewImage }}"
+                                                         alt="{{ $review->customer_name ?? 'Customer' }}"
+                                                         onerror="this.onerror=null;this.src='{{ $noImage }}';">
 
                                                     <div>
-                                                        <strong>{{ $review->customer_name }}</strong>
+                                                        <strong>{{ $review->customer_name ?? 'Customer' }}</strong>
                                                         <span>{{ $review->location ?: 'ঢাকা' }}</span>
                                                     </div>
 
@@ -1203,7 +1291,10 @@
                                                 <p>প্রোডাক্টের কোয়ালিটি ভালো ছিল এবং ডেলিভারিও দ্রুত হয়েছে। ধন্যবাদ।</p>
 
                                                 <div class="review-user">
-                                                    <img src="{{ asset('vendor/adminlte/dist/img/user2-160x160.jpg') }}" alt="Customer">
+                                                    <img src="{{ $noImage }}"
+                                                         alt="Customer"
+                                                         onerror="this.onerror=null;this.src='{{ $noImage }}';">
+
                                                     <div>
                                                         <strong>সন্তুষ্ট গ্রাহক</strong>
                                                         <span>ঢাকা</span>
@@ -1279,24 +1370,34 @@
         <div class="gallery-grid">
             @if($campaign)
                 @if($campaign->image_one_url)
-                    <img src="{{ $campaign->image_one_url }}" alt="Gallery">
+                    <img src="{{ $campaign->image_one_url }}"
+                         alt="Gallery"
+                         onerror="this.onerror=null;this.src='{{ $noImage }}';">
                 @endif
 
                 @if($campaign->image_two_url)
-                    <img src="{{ $campaign->image_two_url }}" alt="Gallery">
+                    <img src="{{ $campaign->image_two_url }}"
+                         alt="Gallery"
+                         onerror="this.onerror=null;this.src='{{ $noImage }}';">
                 @endif
 
                 @if($campaign->image_three_url)
-                    <img src="{{ $campaign->image_three_url }}" alt="Gallery">
+                    <img src="{{ $campaign->image_three_url }}"
+                         alt="Gallery"
+                         onerror="this.onerror=null;this.src='{{ $noImage }}';">
                 @endif
 
                 @if($campaign->banner_image_url)
-                    <img src="{{ $campaign->banner_image_url }}" alt="Gallery">
+                    <img src="{{ $campaign->banner_image_url }}"
+                         alt="Gallery"
+                         onerror="this.onerror=null;this.src='{{ $noImage }}';">
                 @endif
             @endif
 
             @foreach($products->take(8) as $product)
-                <img src="{{ $imageOf($product) }}" alt="{{ $product->name }}">
+                <img src="{{ $imageOf($product) }}"
+                     alt="{{ $product->name }}"
+                     onerror="this.onerror=null;this.src='{{ $noImage }}';">
             @endforeach
         </div>
     </div>
@@ -1320,8 +1421,8 @@
                         <div class="row">
                             @foreach($orderProducts as $product)
                                 @php
-                                    $unitPrice = (int) ($product->pivot->campaign_price ?? 0);
-                                    $unitPrice = $unitPrice > 0 ? $unitPrice : (int) $product->new_price;
+                                    $campaignPrice = (int) optional($product->pivot)->campaign_price;
+                                    $unitPrice = $campaignPrice > 0 ? $campaignPrice : (int) $product->new_price;
                                     $weight = $product->weight_size ?: '৫০০ গ্রাম';
                                     $productImage = $imageOf($product);
                                 @endphp
@@ -1337,7 +1438,9 @@
                                             <i class="fas fa-check"></i>
                                         </span>
 
-                                        <img src="{{ $productImage }}" alt="{{ $product->name }}">
+                                        <img src="{{ $productImage }}"
+                                             alt="{{ $product->name }}"
+                                             onerror="this.onerror=null;this.src='{{ $noImage }}';">
 
                                         <div>
                                             <h5>{{ \Illuminate\Support\Str::limit($product->name, 22) }}</h5>
@@ -1443,7 +1546,7 @@
             </form>
         @else
             <div class="alert alert-warning text-center">
-                কোনো active campaign product পাওয়া যায়নি। আগে admin panel থেকে active campaign এবং product attach করুন।
+                কোনো active campaign/product পাওয়া যায়নি। আগে admin panel থেকে active campaign এবং active product তৈরি করুন।
             </div>
         @endif
     </div>
@@ -1485,6 +1588,8 @@
 @push('js')
 <script>
 $(document).ready(function () {
+    const noImage = @json($noImage);
+
     const deliveryCharges = {
         inside_dhaka: 70,
         outside_dhaka: 130
@@ -1511,7 +1616,7 @@ $(document).ready(function () {
             name: card.data('name'),
             price: Number(card.data('price') || 0),
             weight: card.data('weight'),
-            image: card.data('image'),
+            image: card.data('image') || noImage,
             quantity: selectedProducts[id] ? selectedProducts[id].quantity : 1
         };
     }
@@ -1533,7 +1638,7 @@ $(document).ready(function () {
             itemsHtml += `
                 <div class="summary-product" data-id="${item.id}">
                     <div class="summary-product-info">
-                        <img src="${item.image}" alt="${item.name}">
+                        <img src="${item.image}" alt="${item.name}" onerror="this.onerror=null;this.src='${noImage}';">
                         <div>
                             <h5>${item.name}</h5>
                             <span>${item.weight}</span><br>
@@ -1644,7 +1749,7 @@ $(document).ready(function () {
         const card = $('.order-product-card[data-id="' + productId + '"]');
 
         if (!card.length) {
-            alert('এই প্রোডাক্টটি campaign order product হিসেবে attach করা নেই। Admin panel থেকে campaign-এর সাথে product attach করুন।');
+            alert('এই প্রোডাক্টটি order section-এ পাওয়া যায়নি। Page reload করে আবার চেষ্টা করুন।');
             return;
         }
 
