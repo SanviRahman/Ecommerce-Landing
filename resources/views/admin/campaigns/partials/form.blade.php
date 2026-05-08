@@ -64,6 +64,39 @@
     </div>
 
     <div class="form-group">
+        <label>Hero Video</label>
+
+        <input type="file"
+               name="campaign_video"
+               class="form-control @error('campaign_video') is-invalid @enderror"
+               accept="video/mp4,video/webm,video/ogg">
+
+        <small class="form-text text-muted">
+            Supported video: mp4, webm, ogg. Maximum size: 50MB.
+        </small>
+
+        @error('campaign_video')
+            <span class="invalid-feedback d-block">{{ $message }}</span>
+        @enderror
+
+        @if ($isEdit && !empty($campaign?->campaign_video_url))
+            <div class="mt-3">
+                <video width="280" controls style="border-radius: 8px; background: #111;">
+                    <source src="{{ $campaign->campaign_video_url }}" type="video/mp4">
+                    Your browser does not support the video tag.
+                </video>
+
+                <div class="mt-2">
+                    <a href="{{ $campaign->campaign_video_url }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-play mr-1"></i>
+                        View Current Video
+                    </a>
+                </div>
+            </div>
+        @endif
+    </div>
+
+    <div class="form-group">
         <label>Banner Title / Offer Text</label>
         <input type="text"
                name="offer_text"

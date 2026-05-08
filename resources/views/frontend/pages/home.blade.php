@@ -16,7 +16,6 @@
     | Safe No Image Fallback
     |--------------------------------------------------------------------------
     | public/frontend/images/no-image.svg file create kore rakhbe.
-    | no-image.png use korle 404 ashchilo, tai SVG fallback use kora holo.
     */
     $noImage = asset('frontend/images/no-image.svg');
 
@@ -24,8 +23,6 @@
     |--------------------------------------------------------------------------
     | Universal Image Helper
     |--------------------------------------------------------------------------
-    | Product, Campaign, Review, Category, Brand - sob model-er image safely show korbe.
-    | Spatie Media Library collection review_customer_image support kora hoyeche.
     */
     $imageOf = function ($model, $fallback = null) use ($noImage) {
         $fallback = $fallback ?: $noImage;
@@ -128,15 +125,158 @@
         return $fallback;
     };
 
+    /*
+    |--------------------------------------------------------------------------
+    | Safe Attribute Value Helper
+    |--------------------------------------------------------------------------
+    */
+    $valueOf = function ($model, array $attributes, $fallback = null) {
+        foreach ($attributes as $attribute) {
+            try {
+                if ($model && ! empty($model->{$attribute})) {
+                    return $model->{$attribute};
+                }
+            } catch (\Throwable $e) {
+                //
+            }
+        }
+
+        return $fallback;
+    };
+
+    /*
+    |--------------------------------------------------------------------------
+    | Social Media Data
+    |--------------------------------------------------------------------------
+    | Controller theke $socialMedias pass na korleo model theke active data nibe.
+    */
+    $socialMedias = $socialMedias ?? collect();
+
+    try {
+        if ($socialMedias->isEmpty() && class_exists(\App\Models\SocialMedia::class)) {
+            $socialMedias = \App\Models\SocialMedia::active()->get();
+        }
+    } catch (\Throwable $e) {
+        $socialMedias = collect();
+    }
+
+    $socialLinkByPlatform = function (array $platforms) use ($socialMedias) {
+        foreach ($platforms as $platform) {
+            $social = $socialMedias->first(function ($item) use ($platform) {
+                return \Illuminate\Support\Str::contains(
+                    \Illuminate\Support\Str::lower($item->platform_name ?? ''),
+                    \Illuminate\Support\Str::lower($platform)
+                );
+            });
+
+            if ($social && ! empty($social->link)) {
+                return $social->link;
+            }
+        }
+
+        return null;
+    };
+
+    /*
+    |--------------------------------------------------------------------------
+    | URL Makers
+    |--------------------------------------------------------------------------
+    */
+    $makePhoneUrl = function ($phone) {
+        if (! $phone) {
+            return null;
+        }
+
+        $cleanPhone = preg_replace('/[^\d+]/', '', $phone);
+
+        return $cleanPhone ? 'tel:' . $cleanPhone : null;
+    };
+
+    $makeWhatsappUrl = function ($value) {
+        if (! $value) {
+            return null;
+        }
+
+        if (\Illuminate\Support\Str::startsWith($value, ['http://', 'https://'])) {
+            return $value;
+        }
+
+        $number = preg_replace('/\D+/', '', $value);
+
+        if (! $number) {
+            return null;
+        }
+
+        return 'https://wa.me/' . $number;
+    };
+
+    /*
+    |--------------------------------------------------------------------------
+    | Hero Image Data
+    |--------------------------------------------------------------------------
+    */
     $heroImage = $campaign
         ? ($campaign->banner_image_url ?: ($campaign->image_one_url ?: $noImage))
         : $noImage;
+
+    /*
+    |--------------------------------------------------------------------------
+    | Hero Video Data
+    |--------------------------------------------------------------------------
+    | First priority: Spatie Media Library collection campaign_video
+    | Fallback: database/accessor fields if available.
+    */
+    $heroVideoUrl = null;
+
+    try {
+        if ($campaign && method_exists($campaign, 'getFirstMediaUrl')) {
+            $heroVideoUrl = $campaign->getFirstMediaUrl('campaign_video') ?: null;
+        }
+    } catch (\Throwable $e) {
+        $heroVideoUrl = null;
+    }
+
+    $heroVideoUrl = $heroVideoUrl ?: $valueOf($campaign, [
+        'campaign_video_url',
+        'video_url',
+        'video_link',
+        'youtube_url',
+        'youtube_link',
+        'video',
+    ]);
+
+    $heroVideoPoster = $heroImage;
+
+    $videoEmbedUrl = null;
+    $videoFileUrl = null;
+
+    if ($heroVideoUrl) {
+        if (\Illuminate\Support\Str::contains($heroVideoUrl, ['youtube.com/watch', 'youtu.be/', 'youtube.com/shorts'])) {
+            preg_match('/(?:v=|youtu\.be\/|shorts\/)([^&?\/]+)/', $heroVideoUrl, $matches);
+            $youtubeId = $matches[1] ?? null;
+
+            $videoEmbedUrl = $youtubeId
+                ? 'https://www.youtube.com/embed/' . $youtubeId . '?rel=0&autoplay=0'
+                : $heroVideoUrl;
+        } elseif (\Illuminate\Support\Str::contains($heroVideoUrl, ['youtube.com/embed', 'facebook.com/plugins/video'])) {
+            $videoEmbedUrl = $heroVideoUrl;
+        } else {
+            $videoFileUrl = \Illuminate\Support\Str::startsWith($heroVideoUrl, ['http://', 'https://', '/'])
+                ? $heroVideoUrl
+                : \Illuminate\Support\Facades\Storage::url($heroVideoUrl);
+        }
+    }
 
     $heroTitle = $campaign?->title ?: 'খুলনার বিখ্যাত চুইঝাল!';
 
     $heroSubtitle = $campaign?->short_description
         ?: 'ঘরে বসেই অর্ডার করুন পছন্দের প্রিমিয়াম পণ্য। ক্যাশ অন ডেলিভারি এবং দ্রুত ডেলিভারি সুবিধা।';
 
+    /*
+    |--------------------------------------------------------------------------
+    | Collections
+    |--------------------------------------------------------------------------
+    */
     $categories = $categories ?? collect();
     $brands = $brands ?? collect();
     $products = $products ?? collect();
@@ -146,6 +286,42 @@
     $courierServices = $courierServices ?? config('couriers.list', []);
 
     $reviewChunks = $reviews->chunk(3);
+
+    /*
+    |--------------------------------------------------------------------------
+    | Contact Links For Hero + Help CTA
+    |--------------------------------------------------------------------------
+    | site_settings table অথবা social_media table থেকে auto detect করবে.
+    */
+    $phoneNumber = $valueOf($siteSetting, [
+            'phone',
+            'hotline',
+            'phone_number',
+            'mobile',
+            'mobile_number',
+            'helpline',
+            'contact_number',
+        ])
+        ?: $socialLinkByPlatform(['phone', 'call', 'mobile', 'helpline', 'hotline']);
+
+    $whatsappNumber = $valueOf($siteSetting, [
+            'whatsapp_number',
+            'whatsapp',
+            'whats_app',
+            'whatsapp_phone',
+        ])
+        ?: $socialLinkByPlatform(['whatsapp', 'whats app']);
+
+    $messengerLink = $valueOf($siteSetting, [
+            'messenger_link',
+            'facebook_messenger',
+            'messenger',
+        ])
+        ?: $socialLinkByPlatform(['messenger', 'facebook messenger']);
+
+    $phoneUrl = $makePhoneUrl($phoneNumber);
+    $whatsappUrl = $makeWhatsappUrl($whatsappNumber);
+    $messengerUrl = $messengerLink;
 @endphp
 
 @section('title', $pageTitle)
@@ -188,6 +364,10 @@
         text-align: center;
         margin-bottom: 42px;
     }
+
+    /* =========================
+       Hero Section
+    ========================= */
 
     .hero-section {
         padding: 70px 0 55px;
@@ -243,18 +423,51 @@
         font-weight: 800;
     }
 
+    .side-action-btn {
+        width: 48px;
+        height: 48px;
+        border-radius: 8px !important;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0 !important;
+        background: #475569;
+        border: 1px solid #475569;
+        color: #ffffff !important;
+        font-size: 19px;
+        text-decoration: none !important;
+        transition: 0.25s ease;
+    }
+
+    .side-action-btn:hover,
+    .side-action-btn:focus {
+        background: var(--front-green) !important;
+        border-color: var(--front-green) !important;
+        color: #ffffff !important;
+        transform: translateY(-2px);
+    }
+
     .hero-video-box {
         position: relative;
         overflow: hidden;
         max-width: 430px;
         margin-left: auto;
         border-radius: 0;
+        background: #f8fafc;
     }
 
-    .hero-video-box img {
+    .hero-video-box img,
+    .hero-video-box video,
+    .hero-video-box iframe {
         width: 100%;
         height: 342px;
         object-fit: cover;
+        border: 0;
+        display: block;
+    }
+
+    .hero-video-box iframe {
+        object-fit: unset;
     }
 
     .play-btn {
@@ -272,7 +485,17 @@
         align-items: center;
         justify-content: center;
         font-size: 34px;
+        z-index: 2;
+        cursor: pointer;
     }
+
+    .hero-video-link:hover .play-btn {
+        background: rgba(34, 197, 94, .70);
+    }
+
+    /* =========================
+       Filter / Product
+    ========================= */
 
     .filter-card {
         background: #ffffff;
@@ -367,6 +590,10 @@
         font-weight: 800;
     }
 
+    /* =========================
+       Category / Brand
+    ========================= */
+
     .brand-strip,
     .category-strip {
         background: #ffffff;
@@ -390,6 +617,10 @@
         margin-right: 7px;
     }
 
+    /* =========================
+       Difference Section
+    ========================= */
+
     .difference-table {
         color: #64748b;
         font-size: 16px;
@@ -408,6 +639,10 @@
         border-radius: 8px;
         box-shadow: 0 18px 40px rgba(15, 23, 42, .08);
     }
+
+    /* =========================
+       Service Section
+    ========================= */
 
     .service-card {
         text-align: center;
@@ -439,6 +674,10 @@
         line-height: 1.7;
     }
 
+    /* =========================
+       Wide Banner
+    ========================= */
+
     .wide-banner {
         background: #f8fafc;
         border-radius: 8px;
@@ -453,34 +692,44 @@
         object-fit: cover;
     }
 
+    /* =========================
+       Review Slider
+    ========================= */
+
     .review-carousel-wrapper {
         position: relative;
-        padding-bottom: 45px;
+        padding-bottom: 36px;
     }
 
     .review-card {
         background: #f8fafc;
         border-radius: 8px;
-        padding: 32px;
-        min-height: 245px;
+        padding: 34px 32px 30px;
+        min-height: 255px;
         height: 100%;
+        border: 1px solid transparent;
+        box-shadow: 0 10px 24px rgba(15, 23, 42, .02);
     }
 
     .review-card .stars {
         color: #f59e0b;
         margin-bottom: 20px;
+        letter-spacing: 2px;
+        font-size: 15px;
     }
 
     .review-card p {
         color: #94a3b8;
-        line-height: 1.8;
+        line-height: 1.85;
         font-size: 16px;
+        min-height: 78px;
+        margin-bottom: 0;
     }
 
     .review-user {
         display: flex;
         align-items: center;
-        margin-top: 22px;
+        margin-top: 26px;
     }
 
     .review-user img {
@@ -495,17 +744,23 @@
     .review-user strong {
         display: block;
         color: #334155;
+        font-size: 16px;
+        font-weight: 900;
     }
 
     .review-user span {
         color: #94a3b8;
-        font-size: 14px;
+        font-size: 15px;
     }
 
     .review-social {
         margin-left: auto;
         color: #94a3b8;
         font-size: 20px;
+    }
+
+    .review-social:hover {
+        color: var(--front-green);
     }
 
     .review-dots {
@@ -529,23 +784,39 @@
         background: var(--front-green);
     }
 
-    .carousel-control-prev,
-    .carousel-control-next {
-        width: 42px;
-        height: 42px;
+    .review-control {
+        width: 30px;
+        height: 30px;
         border-radius: 50%;
-        background: #e2e8f0;
-        top: 45%;
+        background: #e9eef5;
+        top: 44%;
+        opacity: 1;
+        color: #ffffff;
+    }
+
+    .review-control:hover,
+    .review-control:focus {
+        background: var(--front-green);
         opacity: 1;
     }
 
-    .carousel-control-prev {
-        left: -10px;
+    .review-control .carousel-control-prev-icon,
+    .review-control .carousel-control-next-icon {
+        width: 12px;
+        height: 12px;
     }
 
-    .carousel-control-next {
-        right: -10px;
+    .carousel-control-prev.review-control {
+        left: -13px;
     }
+
+    .carousel-control-next.review-control {
+        right: -13px;
+    }
+
+    /* =========================
+       FAQ
+    ========================= */
 
     .faq-wrapper {
         max-width: 900px;
@@ -576,6 +847,10 @@
         padding-bottom: 22px;
     }
 
+    /* =========================
+       Gallery
+    ========================= */
+
     .gallery-grid {
         display: grid;
         grid-template-columns: repeat(4, 1fr);
@@ -589,6 +864,10 @@
         object-fit: cover;
         background: #f8fafc;
     }
+
+    /* =========================
+       Order Section
+    ========================= */
 
     .order-section {
         background: #ffffff;
@@ -755,27 +1034,154 @@
         border-color: var(--front-green);
     }
 
+    /* =========================
+       Help CTA Section Updated
+    ========================= */
+
+    .help-cta-section {
+        padding: 30px 0 70px;
+        background: #ffffff;
+    }
+
     .help-box {
-        background: linear-gradient(90deg, rgba(240,253,244,.95), rgba(255,255,255,.92)), url('{{ $heroImage }}');
+        position: relative;
+        overflow: hidden;
+        border-radius: 8px;
+        min-height: 300px;
+        padding: 66px 20px 60px;
+        text-align: center;
+        background:
+            linear-gradient(rgba(255,255,255,0.78), rgba(255,255,255,0.78)),
+            radial-gradient(ellipse at 9% 8%, rgba(34,197,94,0.18) 0, rgba(34,197,94,0.13) 95px, transparent 98px),
+            radial-gradient(ellipse at 20% 52%, rgba(34,197,94,0.10) 0, rgba(34,197,94,0.08) 120px, transparent 124px),
+            radial-gradient(ellipse at 88% 18%, rgba(34,197,94,0.16) 0, rgba(34,197,94,0.12) 110px, transparent 114px),
+            radial-gradient(ellipse at 82% 78%, rgba(34,197,94,0.12) 0, rgba(34,197,94,0.09) 100px, transparent 104px),
+            #f7fbf7;
         background-size: cover;
         background-position: center;
-        border-radius: 8px;
-        padding: 55px 20px;
-        text-align: center;
+        border: 1px solid #eef2f7;
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
     }
 
+    .help-box::before {
+        content: '';
+        position: absolute;
+        width: 210px;
+        height: 210px;
+        left: -54px;
+        top: -34px;
+        background: rgba(34, 197, 94, 0.10);
+        border-radius: 65% 35% 60% 40%;
+        transform: rotate(-28deg);
+        z-index: 0;
+        pointer-events: none;
+    }
+
+    .help-box::after {
+        content: '';
+        position: absolute;
+        width: 250px;
+        height: 250px;
+        right: -72px;
+        bottom: -70px;
+        background: rgba(34, 197, 94, 0.10);
+        border-radius: 45% 55% 40% 60%;
+        transform: rotate(28deg);
+        z-index: 0;
+        pointer-events: none;
+    }
+
+    .help-box > * {
+        position: relative;
+        z-index: 2;
+    }
+
+    .help-title,
     .help-box h2 {
+        font-size: 32px;
         font-weight: 900;
         color: #334155;
-        margin-bottom: 15px;
+        margin-bottom: 18px;
     }
 
+    .help-text,
     .help-box p {
-        color: #94a3b8;
         max-width: 780px;
-        margin: 0 auto 25px;
-        line-height: 1.8;
+        margin: 0 auto 28px;
+        color: #94a3b8;
+        font-size: 16px;
+        line-height: 1.85;
+        font-weight: 500;
     }
+
+    .help-actions {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 9px;
+        flex-wrap: wrap;
+    }
+
+    .help-main-btn {
+        min-width: 130px;
+        height: 48px;
+        padding: 0 24px;
+        border-radius: 8px;
+        background: var(--front-green);
+        border: 1px solid var(--front-green);
+        color: #ffffff !important;
+        font-size: 16px;
+        font-weight: 900;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        text-decoration: none !important;
+        transition: 0.25s ease;
+    }
+
+    .help-main-btn i {
+        margin-right: 8px;
+    }
+
+    .help-main-btn:hover,
+    .help-main-btn:focus {
+        background: var(--front-green-dark);
+        border-color: var(--front-green-dark);
+        color: #ffffff !important;
+        transform: translateY(-2px);
+    }
+
+    .help-icon-btn {
+        width: 48px;
+        height: 48px;
+        border-radius: 8px !important;
+        background: #475569;
+        border: 1px solid #475569;
+        color: #ffffff !important;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        text-decoration: none !important;
+        transition: 0.25s ease;
+        font-size: 19px;
+        padding: 0 !important;
+    }
+
+    .help-icon-btn:hover,
+    .help-icon-btn:focus {
+        background: var(--front-green) !important;
+        border-color: var(--front-green) !important;
+        color: #ffffff !important;
+        transform: translateY(-2px);
+    }
+
+    /* =========================
+       Responsive
+    ========================= */
 
     @media (max-width: 991px) {
         .hero-section {
@@ -792,7 +1198,9 @@
             border-radius: 18px;
         }
 
-        .hero-video-box img {
+        .hero-video-box img,
+        .hero-video-box video,
+        .hero-video-box iframe {
             height: 490px;
             border-radius: 18px;
         }
@@ -814,9 +1222,42 @@
             grid-template-columns: repeat(2, 1fr);
         }
 
-        .carousel-control-prev,
-        .carousel-control-next {
+        .review-control {
             display: none;
+        }
+    }
+
+    @media (max-width: 767px) {
+        .help-cta-section {
+            padding: 20px 0 55px;
+        }
+
+        .help-box {
+            min-height: 260px;
+            padding: 45px 16px;
+        }
+
+        .help-title,
+        .help-box h2 {
+            font-size: 27px;
+        }
+
+        .help-text,
+        .help-box p {
+            font-size: 15px;
+            line-height: 1.75;
+        }
+
+        .help-main-btn {
+            height: 46px;
+            padding: 0 20px;
+            font-size: 15px;
+        }
+
+        .help-icon-btn,
+        .side-action-btn {
+            width: 46px;
+            height: 46px;
         }
     }
 
@@ -826,7 +1267,9 @@
             padding-right: 16px;
         }
 
-        .hero-video-box img {
+        .hero-video-box img,
+        .hero-video-box video,
+        .hero-video-box iframe {
             height: 490px;
         }
 
@@ -852,6 +1295,14 @@
 
         .summary-product-info {
             max-width: 68%;
+        }
+
+        .review-card {
+            padding: 28px 24px;
+        }
+
+        .help-box {
+            min-height: 280px;
         }
     }
 </style>
@@ -932,14 +1383,14 @@
                         অর্ডার করুন
                     </a>
 
-                    @if($siteSetting?->whatsapp_number)
-                        <a href="https://wa.me/{{ preg_replace('/\D+/', '', $siteSetting->whatsapp_number) }}" class="btn btn-secondary mr-2">
+                    @if($whatsappUrl)
+                        <a href="{{ $whatsappUrl }}" target="_blank" class="btn side-action-btn mr-2" aria-label="WhatsApp">
                             <i class="fab fa-whatsapp"></i>
                         </a>
                     @endif
 
-                    @if($siteSetting?->phone)
-                        <a href="tel:{{ $siteSetting->phone }}" class="btn btn-secondary">
+                    @if($phoneUrl)
+                        <a href="{{ $phoneUrl }}" class="btn side-action-btn" aria-label="Phone">
                             <i class="fas fa-phone-alt"></i>
                         </a>
                     @endif
@@ -947,16 +1398,27 @@
             </div>
 
             <div class="col-lg-5">
-                <div class="hero-video-box">
-                    <img src="{{ $heroImage }}"
-                         alt="{{ $heroTitle }}"
-                         onerror="this.onerror=null;this.src='{{ $noImage }}';">
-
-                    <div class="play-btn">
-                        <i class="fas fa-play"></i>
-                    </div>
-                </div>
-            </div>
+    <div class="hero-video-box">
+        @if($videoEmbedUrl)
+            <iframe src="{{ $videoEmbedUrl }}" title="{{ $heroTitle }}" allowfullscreen></iframe>
+        @elseif($videoFileUrl)
+            <video controls preload="metadata" poster="{{ $heroVideoPoster }}">
+                <source src="{{ $videoFileUrl }}" type="video/mp4">
+            </video>
+        @elseif($heroVideoUrl)
+            <a href="{{ $heroVideoUrl }}" target="_blank" class="hero-video-link">
+                <img src="{{ $heroVideoPoster }}"
+                     alt="{{ $heroTitle }}"
+                     onerror="this.onerror=null;this.src='{{ $noImage }}';">
+                <div class="play-btn"><i class="fas fa-play"></i></div>
+            </a>
+        @else
+            <img src="{{ $heroVideoPoster }}"
+                 alt="{{ $heroTitle }}"
+                 onerror="this.onerror=null;this.src='{{ $noImage }}';">
+        @endif
+    </div>
+</div>
         </div>
     </div>
 </section>
@@ -1253,11 +1715,11 @@
                     </div>
 
                     @if($reviewChunks->count() > 1)
-                        <a class="carousel-control-prev" href="#reviewCarousel" role="button" data-slide="prev">
+                        <a class="carousel-control-prev review-control" href="#reviewCarousel" role="button" data-slide="prev">
                             <span class="carousel-control-prev-icon"></span>
                         </a>
 
-                        <a class="carousel-control-next" href="#reviewCarousel" role="button" data-slide="next">
+                        <a class="carousel-control-next review-control" href="#reviewCarousel" role="button" data-slide="next">
                             <span class="carousel-control-next-icon"></span>
                         </a>
 
@@ -1553,32 +2015,36 @@
 </section>
 
 {{-- Help CTA --}}
-<section class="pb-5">
+<section class="help-cta-section">
     <div class="container">
         <div class="help-box">
-            <h2>সাহায্য প্রয়োজন?</h2>
-            <p>
-                কোনো জিজ্ঞাসা বা অর্ডার সংক্রান্ত সমস্যা হলে আমাদের হেল্পলাইনে কল করুন অথবা মেসেজ করুন।
+            <h2 class="help-title">সাহায্য প্রয়োজন?</h2>
+
+            <p class="help-text">
+                যেকোনো জিজ্ঞাসা ও অর্ডারজনিত সমস্যায় কল করুন আমাদের হেল্পলাইনে অথবা নক করুন আমাদের হোয়াটসঅ্যাপ বা ফেসবুক পেজে।
+                আমরা আছি সকাল ১০ টা থেকে রাত ৮ টা পর্যন্ত আপনার সেবায়।
             </p>
 
-            @if($siteSetting?->phone)
-                <a href="tel:{{ $siteSetting->phone }}" class="btn btn-success px-4 mr-2">
-                    <i class="fas fa-phone-alt mr-2"></i>
-                    হেল্পলাইন
-                </a>
-            @endif
+            <div class="help-actions">
+                @if($phoneUrl)
+                    <a href="{{ $phoneUrl }}" class="help-main-btn">
+                        <i class="fas fa-phone-alt"></i>
+                        হেল্পলাইন
+                    </a>
+                @endif
 
-            @if($siteSetting?->whatsapp_number)
-                <a href="https://wa.me/{{ preg_replace('/\D+/', '', $siteSetting->whatsapp_number) }}" class="btn btn-dark px-4 mr-2">
-                    <i class="fab fa-whatsapp"></i>
-                </a>
-            @endif
+                @if($whatsappUrl)
+                    <a href="{{ $whatsappUrl }}" target="_blank" class="help-icon-btn" aria-label="WhatsApp">
+                        <i class="fab fa-whatsapp"></i>
+                    </a>
+                @endif
 
-            @if($siteSetting?->messenger_link)
-                <a href="{{ $siteSetting->messenger_link }}" class="btn btn-dark px-4">
-                    <i class="fab fa-facebook-messenger"></i>
-                </a>
-            @endif
+                @if($messengerUrl)
+                    <a href="{{ $messengerUrl }}" target="_blank" class="help-icon-btn" aria-label="Messenger">
+                        <i class="fab fa-facebook-messenger"></i>
+                    </a>
+                @endif
+            </div>
         </div>
     </div>
 </section>

@@ -136,7 +136,6 @@ class CampaignController extends Controller
 
     public function index(Request $request)
     {
-
         $this->adminOnly();
 
         return $this->listResponse(
@@ -191,6 +190,9 @@ class CampaignController extends Controller
             'image_two' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
             'image_three' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
             'review_image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
+
+            // Hero video
+            'campaign_video' => ['nullable', 'file', 'mimes:mp4,webm,ogg', 'max:51200'],
         ]);
 
         return DB::transaction(function () use ($request) {
@@ -299,6 +301,9 @@ class CampaignController extends Controller
             'image_two' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
             'image_three' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
             'review_image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
+
+            // Hero video
+            'campaign_video' => ['nullable', 'file', 'mimes:mp4,webm,ogg', 'max:51200'],
         ]);
 
         return DB::transaction(function () use ($request, $campaign) {
@@ -386,6 +391,7 @@ class CampaignController extends Controller
         $campaign->clearMediaCollection('image_two');
         $campaign->clearMediaCollection('image_three');
         $campaign->clearMediaCollection('review_image');
+        $campaign->clearMediaCollection('campaign_video');
 
         $campaign->forceDelete();
 
@@ -432,6 +438,7 @@ class CampaignController extends Controller
                 $campaign->clearMediaCollection('image_two');
                 $campaign->clearMediaCollection('image_three');
                 $campaign->clearMediaCollection('review_image');
+                $campaign->clearMediaCollection('campaign_video');
                 $campaign->forceDelete();
             }
 
@@ -534,6 +541,7 @@ class CampaignController extends Controller
             'image_two',
             'image_three',
             'review_image',
+            'campaign_video',
         ];
 
         foreach ($mediaFields as $field) {

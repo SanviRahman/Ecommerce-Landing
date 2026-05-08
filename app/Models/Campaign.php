@@ -47,6 +47,7 @@ class Campaign extends Model implements HasMedia
         'image_two_url',
         'image_three_url',
         'review_image_url',
+        'campaign_video_url',
     ];
 
     public function registerMediaCollections(): void
@@ -56,6 +57,9 @@ class Campaign extends Model implements HasMedia
         $this->addMediaCollection('image_two')->singleFile();
         $this->addMediaCollection('image_three')->singleFile();
         $this->addMediaCollection('review_image')->singleFile();
+
+        // Hero video for frontend landing page
+        $this->addMediaCollection('campaign_video')->singleFile();
     }
 
     public function products(): BelongsToMany
@@ -88,6 +92,11 @@ class Campaign extends Model implements HasMedia
     public function getReviewImageUrlAttribute(): string
     {
         return $this->getFirstMediaUrl('review_image') ?: asset('vendor/adminlte/dist/img/no-image.png');
+    }
+
+    public function getCampaignVideoUrlAttribute(): ?string
+    {
+        return $this->getFirstMediaUrl('campaign_video') ?: null;
     }
 
     public function scopeActive($query)
