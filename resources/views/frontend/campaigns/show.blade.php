@@ -139,7 +139,9 @@
         }
 
         .quantity-input {
-            width: 75px;
+            width: 80px;
+            text-align: center;
+            font-weight: 700;
         }
 
         .order-info-box {
@@ -159,6 +161,56 @@
             margin-top: 5px;
         }
 
+        .summary-row th {
+            background: #f8fafc;
+            font-size: 15px;
+        }
+
+        .grand-total-row th {
+            background: #008b25 !important;
+            color: #ffffff;
+            font-size: 18px;
+        }
+
+        .line-total {
+            font-weight: 800;
+            color: #008b25;
+        }
+
+        .live-summary-box {
+            border: 2px solid #008b25;
+            border-radius: 8px;
+            background: #f8fff9;
+            padding: 14px;
+            margin-bottom: 18px;
+        }
+
+        .live-summary-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px dashed #b7d9bd;
+            padding: 7px 0;
+            font-size: 15px;
+        }
+
+        .live-summary-item:last-child {
+            border-bottom: none;
+        }
+
+        .live-summary-item strong {
+            font-size: 18px;
+        }
+
+        .live-total {
+            color: #008b25;
+            font-size: 24px !important;
+        }
+
+        .submit-total-text {
+            font-weight: 800;
+        }
+
         @media (max-width: 768px) {
             .campaign-header h1 {
                 font-size: 24px;
@@ -176,6 +228,14 @@
             .cta-btn {
                 font-size: 22px;
                 padding: 12px 25px;
+            }
+
+            .product-table {
+                font-size: 13px;
+            }
+
+            .quantity-input {
+                width: 70px;
             }
         }
     </style>
@@ -338,26 +398,39 @@
                                 <tr>
                                     <th>প্রোডাক্ট</th>
                                     <th width="95">পরিমাণ</th>
-                                    <th width="120">মূল্য</th>
+                                    <th width="130">মূল্য</th>
                                 </tr>
                                 </thead>
 
                                 <tbody>
                                 @php
                                     $subtotal = 0;
+                                    $totalQty = 0;
                                 @endphp
 
-                                @foreach ($products as $product)
+                                @forelse ($products as $product)
                                     @php
-                                        $price = $product->pivot->campaign_price ?: $product->new_price;
-                                        $subtotal += $price;
+                                        $price = (int) ($product->pivot->campaign_price ?: $product->new_price);
+                                        $qty = (int) old('products.' . $loop->index . '.quantity', 1);
+                                        $qty = $qty < 1 ? 1 : $qty;
+                                        $lineTotal = $price * $qty;
+
+                                        $subtotal += $lineTotal;
+                                        $totalQty += $qty;
                                     @endphp
 
-                                    <tr>
+                                    <tr class="product-row" data-unit-price="{{ $price }}">
                                         <td>
                                             <div class="d-flex align-items-center">
                                                 <img src="{{ $product->thumbnail }}" class="mr-2" alt="{{ $product->name }}">
-                                                <span>{{ \Illuminate\Support\Str::limit($product->name, 35) }}</span>
+                                                <div>
+                                                    <span>{{ \Illuminate\Support\Str::limit($product->name, 35) }}</span>
+                                                    <br>
+                                                    <small class="text-muted">
+                                                        Unit Price:
+                                                        <strong>৳{{ number_format($price) }}</strong>
+                                                    </small>
+                                                </div>
                                             </div>
 
                                             <input type="hidden" name="products[{{ $loop->index }}][id]" value="{{ $product->id }}">
@@ -366,37 +439,95 @@
                                         <td>
                                             <input type="number"
                                                    name="products[{{ $loop->index }}][quantity]"
-                                                   value="{{ old('products.' . $loop->index . '.quantity', 1) }}"
+                                                   value="{{ $qty }}"
                                                    min="1"
+                                                   step="1"
+                                                   inputmode="numeric"
+                                                   data-unit-price="{{ $price }}"
                                                    class="form-control quantity-input">
                                         </td>
 
-                                        <td>৳{{ number_format($price) }}</td>
+                                        <td>
+                                            <span class="line-total">৳{{ number_format($lineTotal) }}</span>
+                                        </td>
                                     </tr>
-                                @endforeach
+                                @empty
+                                    <tr>
+                                        <td colspan="3" class="text-center text-danger">
+                                            কোনো প্রোডাক্ট পাওয়া যায়নি।
+                                        </td>
+                                    </tr>
+                                @endforelse
 
-                                <tr>
+                                @php
+                                    $oldDeliveryArea = old('delivery_area');
+                                    $shippingCharge = $oldDeliveryArea === 'inside_dhaka'
+                                        ? 70
+                                        : ($oldDeliveryArea === 'outside_dhaka' ? 130 : 0);
+
+                                    $grandTotal = $subtotal + $shippingCharge;
+                                @endphp
+
+                                <tr class="summary-row">
+                                    <th colspan="2">মোট পণ্য</th>
+                                    <th>
+                                        <span id="summaryTotalQty">{{ $totalQty }}</span> pcs
+                                    </th>
+                                </tr>
+
+                                <tr class="summary-row">
                                     <th colspan="2">পণ্যের মোট</th>
-                                    <th>৳{{ number_format($campaign->new_price ?: $subtotal) }}</th>
+                                    <th id="summarySubTotal">৳{{ number_format($subtotal) }}</th>
                                 </tr>
 
-                                <tr>
-                                    <th colspan="2">ঢাকার ভিতরে ডেলিভারি</th>
-                                    <th>৳70</th>
+                                <tr class="summary-row">
+                                    <th colspan="2">ডেলিভারি চার্জ</th>
+                                    <th id="summaryShippingCharge">
+                                        {{ $shippingCharge > 0 ? '৳' . number_format($shippingCharge) : 'এরিয়া সিলেক্ট করুন' }}
+                                    </th>
                                 </tr>
 
-                                <tr>
-                                    <th colspan="2">ঢাকার বাইরে ডেলিভারি</th>
-                                    <th>৳130</th>
+                                <tr class="grand-total-row">
+                                    <th colspan="2">সর্বমোট</th>
+                                    <th id="summaryGrandTotal">৳{{ number_format($grandTotal) }}</th>
                                 </tr>
                                 </tbody>
                             </table>
+
+                            <div class="alert alert-info mb-0">
+                                <i class="fas fa-info-circle mr-1"></i>
+                                পরিমাণ বা ডেলিভারি এরিয়া পরিবর্তন করলে মোট টাকা সাথে সাথে আপডেট হবে।
+                            </div>
                         </div>
 
                         <div class="col-md-6">
                             <h5 class="border p-2 mb-0">আপনার ইনফরমেশন দিন</h5>
 
                             <div class="order-info-box">
+                                <div class="live-summary-box">
+                                    <div class="live-summary-item">
+                                        <span>পণ্যের মোট</span>
+                                        <strong id="sideSubTotal">৳{{ number_format($subtotal) }}</strong>
+                                    </div>
+
+                                    <div class="live-summary-item">
+                                        <span>ডেলিভারি চার্জ</span>
+                                        <strong id="sideShippingCharge">
+                                            {{ $shippingCharge > 0 ? '৳' . number_format($shippingCharge) : '৳0' }}
+                                        </strong>
+                                    </div>
+
+                                    <div class="live-summary-item">
+                                        <span>মোট পরিমাণ</span>
+                                        <strong><span id="sideTotalQty">{{ $totalQty }}</span> pcs</strong>
+                                    </div>
+
+                                    <div class="live-summary-item">
+                                        <span>সর্বমোট</span>
+                                        <strong class="live-total" id="sideGrandTotal">৳{{ number_format($grandTotal) }}</strong>
+                                    </div>
+                                </div>
+
                                 <div class="form-group">
                                     <label>আপনার নাম লিখুন <span class="text-danger">*</span></label>
                                     <input type="text"
@@ -441,6 +572,7 @@
                                 <div class="form-group">
                                     <label>আপনার এরিয়া সিলেক্ট করুন <span class="text-danger">*</span></label>
                                     <select name="delivery_area"
+                                            id="deliveryAreaSelect"
                                             class="form-control @error('delivery_area') is-invalid @enderror"
                                             required>
                                         <option value="">Select Area</option>
@@ -464,7 +596,7 @@
                                             required>
                                         <option value="">কুরিয়ার সার্ভিস নির্বাচন করুন</option>
 
-                                        @foreach(config('couriers.list', []) as $key => $label)
+                                        @foreach(($courierServices ?? config('couriers.list', [])) as $key => $label)
                                             <option value="{{ $key }}" @selected(old('courier_service') === $key)>
                                                 {{ $label }}
                                             </option>
@@ -488,8 +620,11 @@
                                               placeholder="পছন্দের কালার/সাইজ লিখুন">{{ old('customer_note') }}</textarea>
                                 </div>
 
-                                <button type="submit" class="btn btn-success btn-block btn-lg">
-                                    অর্ডার কনফার্ম করুন
+                                <button type="submit" class="btn btn-success btn-block btn-lg" id="orderSubmitBtn">
+                                    <span class="submit-label">অর্ডার কনফার্ম করুন</span>
+                                    <span class="submit-total-text">
+                                        - <span id="buttonGrandTotal">৳{{ number_format($grandTotal) }}</span>
+                                    </span>
                                 </button>
 
                                 <p class="text-center mt-3 mb-0">
@@ -507,6 +642,94 @@
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+    $(document).ready(function () {
+        const deliveryCharges = {
+            inside_dhaka: 70,
+            outside_dhaka: 130
+        };
+
+        function money(amount) {
+            amount = Number(amount || 0);
+
+            return '৳' + amount.toLocaleString('en-US', {
+                maximumFractionDigits: 0
+            });
+        }
+
+        function safeQuantity(input) {
+            let qty = parseInt($(input).val(), 10);
+
+            if (isNaN(qty) || qty < 1) {
+                qty = 1;
+            }
+
+            $(input).val(qty);
+
+            return qty;
+        }
+
+        function calculateOrderTotal() {
+            let subTotal = 0;
+            let totalQty = 0;
+
+            $('.quantity-input').each(function () {
+                const input = $(this);
+                const qty = safeQuantity(input);
+                const unitPrice = parseInt(input.data('unit-price'), 10) || 0;
+                const lineTotal = qty * unitPrice;
+
+                subTotal += lineTotal;
+                totalQty += qty;
+
+                input.closest('tr').find('.line-total').text(money(lineTotal));
+            });
+
+            const deliveryArea = $('#deliveryAreaSelect').val();
+            const shippingCharge = deliveryCharges[deliveryArea] || 0;
+            const grandTotal = subTotal + shippingCharge;
+
+            $('#summaryTotalQty').text(totalQty);
+            $('#sideTotalQty').text(totalQty);
+
+            $('#summarySubTotal').text(money(subTotal));
+            $('#sideSubTotal').text(money(subTotal));
+
+            if (shippingCharge > 0) {
+                $('#summaryShippingCharge').text(money(shippingCharge));
+            } else {
+                $('#summaryShippingCharge').text('এরিয়া সিলেক্ট করুন');
+            }
+
+            $('#sideShippingCharge').text(money(shippingCharge));
+            $('#summaryGrandTotal').text(money(grandTotal));
+            $('#sideGrandTotal').text(money(grandTotal));
+            $('#buttonGrandTotal').text(money(grandTotal));
+        }
+
+        $(document).on('input change keyup', '.quantity-input', function () {
+            calculateOrderTotal();
+        });
+
+        $('#deliveryAreaSelect').on('change', function () {
+            calculateOrderTotal();
+        });
+
+        $('#campaignOrderForm').on('submit', function () {
+            calculateOrderTotal();
+
+            const button = $('#orderSubmitBtn');
+
+            button.prop('disabled', true);
+            button.html(
+                '<span class="spinner-border spinner-border-sm mr-2"></span> অর্ডার সাবমিট হচ্ছে...'
+            );
+        });
+
+        calculateOrderTotal();
+    });
+</script>
 
 {{-- Optional Tracking Events --}}
 <script>

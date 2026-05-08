@@ -67,6 +67,8 @@ Route::middleware(['auth'])->group(function () {
                 Route::post('/multiple-action', [OrderController::class, 'multipleAction'])->name('multiple_action');
                 Route::post('/assign-unassigned', [OrderController::class, 'assignUnassignedOrders'])->name('assign_unassigned');
                 Route::post('/selected-invoices', [OrderController::class, 'selectedInvoices'])->name('selected_invoices');
+                Route::post('/send-steadfast-bulk', [OrderController::class, 'bulkSendToSteadfast'])->name('send_steadfast_bulk');
+                Route::get('/steadfast/balance', [OrderController::class, 'steadfastBalance'])->name('steadfast.balance');
             });
 
             /*
@@ -87,6 +89,9 @@ Route::middleware(['auth'])->group(function () {
             Route::delete('/{order}', [OrderController::class, 'destroy'])
                 ->middleware('role:admin')
                 ->name('destroy');
+
+            Route::post('/{order}/send-steadfast', [OrderController::class, 'sendToSteadfast'])->name('send_steadfast');
+            Route::post('/{order}/sync-steadfast-status', [OrderController::class, 'syncSteadfastStatus'])->name('sync_steadfast_status');
 
             /*
         |--------------------------------------------------------------------------

@@ -111,8 +111,25 @@ class ReportController extends Controller
         return $query;
     }
 
+    private function getReportSummaryStats(): array
+    {
+        return [
+            'todays_order'        => Order::whereDate('created_at', today())->count(),
+            'pending_order'       => Order::where('order_status', Order::STATUS_PENDING)->count(),
+            'completed_order'     => Order::where('order_status', Order::STATUS_DELIVERED)->count(),
+            'incompleted_order'   => Order::whereNotIn('order_status', [Order::STATUS_DELIVERED, Order::STATUS_CANCELLED, Order::STATUS_FAKE])->count(),
+            'completed_invoice'   => Order::where('payment_status', Order::PAYMENT_STATUS_COLLECTED)->count(),
+            'incompleted_invoice' => Order::where('payment_status', '!=', Order::PAYMENT_STATUS_COLLECTED)->count(),
+            'checkout'            => Order::count(),
+            'delivery'            => Order::whereIn('order_status', [Order::STATUS_SHIPPED, Order::STATUS_DELIVERED])->count(),
+            'cancelled'           => Order::where('order_status', Order::STATUS_CANCELLED)->count(),
+        ];
+    }
+
     private function listResponse(Request $request, Builder $query, string $title, bool $isTrash = false)
     {
+        $summaryStats = $this->getReportSummaryStats();
+
         $query = $this->applyFilters($query, $request);
 
         $reports = $query->paginate(10);
@@ -148,6 +165,7 @@ class ReportController extends Controller
             'reportTypes'    => $this->reportTypes(),
             'formats'        => $this->formats(),
             'groupByOptions' => $this->groupByOptions(),
+            'summaryStats'   => $summaryStats,
         ]);
     }
 

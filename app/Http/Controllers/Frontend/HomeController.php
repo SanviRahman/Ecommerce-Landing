@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Admin;
+namespace App\Http\Controllers\Frontend;
 
 use App\Http\Controllers\Controller;
 use App\Models\Brand;
@@ -12,25 +12,10 @@ use App\Models\Review;
 use App\Models\SiteSetting;
 use App\Models\SocialMedia;
 
-class CampaignPageController extends Controller
+class HomeController extends Controller
 {
-    public function show(Campaign $campaign)
+    public function index()
     {
-        abort_if(! $campaign->status, 404);
-
-        /*
-        |--------------------------------------------------------------------------
-        | Load Campaign Attached Products
-        |--------------------------------------------------------------------------
-        | Campaign price priority dewar jonno attached products load kore rakha holo.
-        */
-        $campaign->load([
-            'products' => function ($query) {
-                $query->where('products.status', true)
-                    ->orderByPivot('sort_order');
-            },
-        ]);
-
         $siteSetting = SiteSetting::query()
             ->where('status', true)
             ->latest()
@@ -38,9 +23,27 @@ class CampaignPageController extends Controller
 
         /*
         |--------------------------------------------------------------------------
+        | Main Active Campaign
+        |--------------------------------------------------------------------------
+        | Homepage-e latest active campaign load hobe.
+        | Campaign na thakleo category/brand/product show hobe.
+        */
+        $campaign = Campaign::query()
+            ->where('status', true)
+            ->with([
+                'products' => function ($query) {
+                    $query->where('products.status', true)
+                        ->orderByPivot('sort_order');
+                },
+            ])
+            ->latest()
+            ->first();
+
+        /*
+        |--------------------------------------------------------------------------
         | All Active Categories / Brands / Products
         |--------------------------------------------------------------------------
-        | Campaign page-eo user panel-er moto all category, brand, product show hobe.
+        | User panel-e all category, all brand, all product show hobe.
         */
         $categories = Category::query()
             ->where('status', true)
@@ -62,16 +65,17 @@ class CampaignPageController extends Controller
         |--------------------------------------------------------------------------
         | Order Products
         |--------------------------------------------------------------------------
-        | Multiple active product order kora jabe.
-        | Attached product hole CampaignOrderController campaign_price use korbe.
+        | Customer jeno all active product theke multiple product select kore order korte pare.
         */
         $orderProducts = $products;
 
         $reviews = Review::query()
             ->where('status', true)
-            ->where(function ($query) use ($campaign) {
-                $query->whereNull('campaign_id')
-                    ->orWhere('campaign_id', $campaign->id);
+            ->when($campaign, function ($query) use ($campaign) {
+                $query->where(function ($q) use ($campaign) {
+                    $q->whereNull('campaign_id')
+                        ->orWhere('campaign_id', $campaign->id);
+                });
             })
             ->latest()
             ->take(12)
@@ -79,9 +83,11 @@ class CampaignPageController extends Controller
 
         $faqs = Faq::query()
             ->where('status', true)
-            ->where(function ($query) use ($campaign) {
-                $query->whereNull('campaign_id')
-                    ->orWhere('campaign_id', $campaign->id);
+            ->when($campaign, function ($query) use ($campaign) {
+                $query->where(function ($q) use ($campaign) {
+                    $q->whereNull('campaign_id')
+                        ->orWhere('campaign_id', $campaign->id);
+                });
             })
             ->orderBy('sort_order')
             ->latest()

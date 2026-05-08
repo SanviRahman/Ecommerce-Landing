@@ -32,6 +32,22 @@
             <a href="{{ route('admin.orders.invoice.download', $order->id) }}" class="btn btn-success btn-sm">
                 <i class="fas fa-file-download mr-1"></i> Download PDF
             </a>
+
+            @if(auth()->user()->isAdmin() && $order->courier_service === 'steadfast')
+                @if(empty($order->steadfast_consignment_id))
+                    <button type="button"
+                            class="btn btn-info btn-sm btnSendSteadfast"
+                            data-url="{{ route('admin.orders.send_steadfast', $order->id) }}">
+                        <i class="fas fa-paper-plane mr-1"></i> Send SteadFast
+                    </button>
+                @else
+                    <button type="button"
+                            class="btn btn-warning btn-sm btnSyncSteadfast"
+                            data-url="{{ route('admin.orders.sync_steadfast_status', $order->id) }}">
+                        <i class="fas fa-sync-alt mr-1"></i> Sync SteadFast
+                    </button>
+                @endif
+            @endif
         </div>
     </div>
 @endsection
@@ -40,6 +56,7 @@
 
 @php
     $courierList = $courierServices ?? config('couriers.list', []);
+
     $courierName = $order->courier_service
         ? ($courierList[$order->courier_service] ?? $order->courier_service)
         : 'Not Selected';
@@ -48,8 +65,13 @@
         ? ucwords(str_replace('_', ' ', $order->delivery_area))
         : '-';
 
-    $orderStatusText = ucfirst(str_replace('_', ' ', $order->order_status));
-    $paymentStatusText = ucfirst(str_replace('_', ' ', $order->payment_status));
+    $orderStatusText = $order->order_status
+        ? ucfirst(str_replace('_', ' ', $order->order_status))
+        : '-';
+
+    $paymentStatusText = $order->payment_status
+        ? ucfirst(str_replace('_', ' ', $order->payment_status))
+        : '-';
 
     $orderStatusClass = match ($order->order_status) {
         'pending' => 'badge-warning',
@@ -68,6 +90,26 @@
         'failed' => 'badge-danger',
         default => 'badge-info',
     };
+
+    $steadfastStatusText = $order->steadfast_status
+        ? ucwords(str_replace('_', ' ', $order->steadfast_status))
+        : 'Not Synced';
+
+    $steadfastStatusClass = match ($order->steadfast_status) {
+        'delivered' => 'badge-success',
+        'cancelled', 'partial_delivered_cancelled' => 'badge-danger',
+        'in_review', 'hold', 'pending' => 'badge-warning',
+        'in_transit', 'picked_up', 'assigned' => 'badge-info',
+        default => 'badge-light border',
+    };
+
+    $steadfastSentAt = $order->steadfast_sent_at
+        ? \Illuminate\Support\Carbon::parse($order->steadfast_sent_at)->format('d M, Y h:i A')
+        : '-';
+
+    $steadfastSyncedAt = $order->steadfast_synced_at
+        ? \Illuminate\Support\Carbon::parse($order->steadfast_synced_at)->format('d M, Y h:i A')
+        : '-';
 @endphp
 
 <div class="row">
@@ -195,6 +237,99 @@
             </div>
         </div>
 
+        {{-- SteadFast Courier Information --}}
+        @if($order->courier_service === 'steadfast')
+            <div class="card shadow-sm border-0 mb-4 order-card">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0 font-weight-bold">
+                        <i class="fas fa-truck text-info mr-2"></i>
+                        SteadFast Courier Information
+                    </h5>
+
+                    @if(auth()->user()->isAdmin())
+                        <div>
+                            @if(empty($order->steadfast_consignment_id))
+                                <button type="button"
+                                        class="btn btn-info btn-sm btnSendSteadfast"
+                                        data-url="{{ route('admin.orders.send_steadfast', $order->id) }}">
+                                    <i class="fas fa-paper-plane mr-1"></i> Send Now
+                                </button>
+                            @else
+                                <button type="button"
+                                        class="btn btn-warning btn-sm btnSyncSteadfast"
+                                        data-url="{{ route('admin.orders.sync_steadfast_status', $order->id) }}">
+                                    <i class="fas fa-sync-alt mr-1"></i> Sync Status
+                                </button>
+                            @endif
+                        </div>
+                    @endif
+                </div>
+
+                <div class="card-body">
+                    <table class="table table-bordered table-striped mb-0">
+                        <tbody>
+                        <tr>
+                            <th width="30%">Consignment ID</th>
+                            <td>{{ $order->steadfast_consignment_id ?? '-' }}</td>
+                        </tr>
+
+                        <tr>
+                            <th>Tracking Code</th>
+                            <td>
+                                @if($order->steadfast_tracking_code)
+                                    <span class="font-weight-bold text-success">
+                                        {{ $order->steadfast_tracking_code }}
+                                    </span>
+                                @else
+                                    <span class="badge badge-warning">Not Sent Yet</span>
+                                @endif
+                            </td>
+                        </tr>
+
+                        <tr>
+                            <th>SteadFast Status</th>
+                            <td>
+                                <span class="badge {{ $steadfastStatusClass }}">
+                                    {{ $steadfastStatusText }}
+                                </span>
+                            </td>
+                        </tr>
+
+                        <tr>
+                            <th>SteadFast Note</th>
+                            <td>{{ $order->steadfast_note ?? '-' }}</td>
+                        </tr>
+
+                        <tr>
+                            <th>Sent At</th>
+                            <td>{{ $steadfastSentAt }}</td>
+                        </tr>
+
+                        <tr>
+                            <th>Last Synced At</th>
+                            <td>{{ $steadfastSyncedAt }}</td>
+                        </tr>
+
+                        @if(!empty($order->steadfast_response))
+                            <tr>
+                                <th>API Response</th>
+                                <td>
+                                    <details>
+                                        <summary class="cursor-pointer text-primary font-weight-bold">
+                                            View Raw Response
+                                        </summary>
+
+                                        <pre class="bg-light border rounded p-2 mt-2 mb-0 small response-box">{{ json_encode($order->steadfast_response, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</pre>
+                                    </details>
+                                </td>
+                            </tr>
+                        @endif
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        @endif
+
         {{-- Customer Information --}}
         <div class="card shadow-sm border-0 mb-4 order-card">
             <div class="card-header bg-white">
@@ -233,6 +368,13 @@
                         <th>Courier Service</th>
                         <td>{{ $courierName }}</td>
                     </tr>
+
+                    @if($order->courier_service === 'steadfast')
+                        <tr>
+                            <th>SteadFast Tracking</th>
+                            <td>{{ $order->steadfast_tracking_code ?? 'Not Sent Yet' }}</td>
+                        </tr>
+                    @endif
 
                     <tr>
                         <th>Customer Note</th>
@@ -442,12 +584,60 @@
                     <strong>{{ $courierName }}</strong>
                 </div>
 
+                @if($order->courier_service === 'steadfast')
+                    <div class="summary-item">
+                        <span>Tracking</span>
+                        <strong>{{ $order->steadfast_tracking_code ?? 'Not Sent' }}</strong>
+                    </div>
+
+                    <div class="summary-item">
+                        <span>SF Status</span>
+                        <span class="badge {{ $steadfastStatusClass }}">{{ $steadfastStatusText }}</span>
+                    </div>
+                @endif
+
                 <div class="summary-item">
                     <span>Status</span>
                     <span class="badge {{ $orderStatusClass }}">{{ $orderStatusText }}</span>
                 </div>
             </div>
         </div>
+
+        {{-- SteadFast Action --}}
+        @if(auth()->user()->isAdmin() && $order->courier_service === 'steadfast')
+            <div class="card shadow-sm border-0 mb-4 order-card">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0 font-weight-bold">
+                        <i class="fas fa-truck text-info mr-2"></i>
+                        SteadFast Action
+                    </h5>
+                </div>
+
+                <div class="card-body">
+                    @if(empty($order->steadfast_consignment_id))
+                        <p class="text-muted">
+                            This order is selected for SteadFast courier but not sent yet.
+                        </p>
+
+                        <button type="button"
+                                class="btn btn-info btn-block btnSendSteadfast"
+                                data-url="{{ route('admin.orders.send_steadfast', $order->id) }}">
+                            <i class="fas fa-paper-plane mr-1"></i> Send To SteadFast
+                        </button>
+                    @else
+                        <p class="text-muted">
+                            This order already sent to SteadFast. You can sync latest delivery status.
+                        </p>
+
+                        <button type="button"
+                                class="btn btn-warning btn-block btnSyncSteadfast"
+                                data-url="{{ route('admin.orders.sync_steadfast_status', $order->id) }}">
+                            <i class="fas fa-sync-alt mr-1"></i> Sync SteadFast Status
+                        </button>
+                    @endif
+                </div>
+            </div>
+        @endif
 
         {{-- Status Update --}}
         <div class="card shadow-sm border-0 mb-4 order-card">
@@ -610,9 +800,14 @@
 @section('js')
 <script>
 $(document).ready(function () {
+    function swalConfirmed(result) {
+        return result.isConfirmed || result.value;
+    }
+
     function showToast(type, message) {
         Swal.fire({
             icon: type,
+            type: type,
             title: message,
             position: 'top-end',
             showConfirmButton: false,
@@ -678,6 +873,106 @@ $(document).ready(function () {
     ajaxForm('#markFakeForm');
     ajaxForm('#restoreFakeForm');
     ajaxForm('#adminNoteForm', false);
+
+    /*
+    |--------------------------------------------------------------------------
+    | Send Single Order To SteadFast
+    |--------------------------------------------------------------------------
+    */
+    $(document).on('click', '.btnSendSteadfast', function () {
+        let button = $(this);
+        let url = button.data('url');
+
+        Swal.fire({
+            title: 'Send this order to SteadFast?',
+            text: 'A new SteadFast consignment will be created.',
+            icon: 'warning',
+            type: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, Send',
+            confirmButtonColor: '#2563eb'
+        }).then((result) => {
+            if (swalConfirmed(result)) {
+                $.ajax({
+                    url: url,
+                    type: 'POST',
+                    data: {
+                        _token: '{{ csrf_token() }}'
+                    },
+                    beforeSend: function () {
+                        button.prop('disabled', true);
+                    },
+                    complete: function () {
+                        button.prop('disabled', false);
+                    },
+                    success: function (res) {
+                        if (res.status) {
+                            showToast('success', res.message || 'Order sent to SteadFast.');
+
+                            setTimeout(function () {
+                                window.location.reload();
+                            }, 900);
+                        } else {
+                            showToast('error', res.message || 'SteadFast send failed.');
+                        }
+                    },
+                    error: function (xhr) {
+                        let message = 'SteadFast send failed.';
+
+                        if (xhr.responseJSON && xhr.responseJSON.message) {
+                            message = xhr.responseJSON.message;
+                        }
+
+                        showToast('error', message);
+                    }
+                });
+            }
+        });
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Sync Single SteadFast Status
+    |--------------------------------------------------------------------------
+    */
+    $(document).on('click', '.btnSyncSteadfast', function () {
+        let button = $(this);
+        let url = button.data('url');
+
+        $.ajax({
+            url: url,
+            type: 'POST',
+            data: {
+                _token: '{{ csrf_token() }}'
+            },
+            beforeSend: function () {
+                button.prop('disabled', true);
+            },
+            complete: function () {
+                button.prop('disabled', false);
+            },
+            success: function (res) {
+                if (res.status) {
+                    showToast('success', res.message || 'SteadFast status synced.');
+
+                    setTimeout(function () {
+                        window.location.reload();
+                    }, 900);
+                } else {
+                    showToast('error', res.message || 'SteadFast sync failed.');
+                }
+            },
+            error: function (xhr) {
+                let message = 'SteadFast sync failed.';
+
+                if (xhr.responseJSON && xhr.responseJSON.message) {
+                    message = xhr.responseJSON.message;
+                }
+
+                showToast('error', message);
+            }
+        });
+    });
 });
 </script>
 @endsection
@@ -736,6 +1031,17 @@ $(document).ready(function () {
     }
 
     .break-text {
+        word-break: break-word;
+    }
+
+    .cursor-pointer {
+        cursor: pointer;
+    }
+
+    .response-box {
+        max-height: 260px;
+        overflow: auto;
+        white-space: pre-wrap;
         word-break: break-word;
     }
 </style>

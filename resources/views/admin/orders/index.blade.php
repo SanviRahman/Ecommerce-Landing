@@ -98,6 +98,10 @@
 
             <div class="col-md-6 mt-2 mt-md-0 text-md-right">
                 @if(auth()->user()->isAdmin())
+                    <button class="btn btn-outline-info btn-sm px-3 shadow-none mr-1" id="btnSteadfastBalance">
+                        <i class="fas fa-wallet mr-1"></i> SteadFast Balance
+                    </button>
+
                     <button class="btn btn-outline-success btn-sm px-3 shadow-none mr-1" id="btnAssignUnassigned">
                         <i class="fas fa-random mr-1"></i> Assign Unassigned
                     </button>
@@ -214,6 +218,12 @@
                                 class="btn btn-secondary btn-sm mr-2"
                                 id="btnPrintSelectedInvoice">
                             <i class="fas fa-print mr-1"></i> Print Selected Invoice
+                        </button>
+
+                        <button type="button"
+                                class="btn btn-primary btn-sm mr-2"
+                                id="btnSendSelectedSteadfast">
+                            <i class="fas fa-paper-plane mr-1"></i> Send SteadFast
                         </button>
 
                         <button type="button"
@@ -362,6 +372,8 @@ $(document).ready(function () {
                 .html('<i class="fas fa-list mr-1"></i> Active List')
                 .removeClass('btn-outline-danger')
                 .addClass('btn-outline-primary');
+
+            $('#btnSendSelectedSteadfast').prop('disabled', true).addClass('disabled');
         } else {
             $('#view-label')
                 .text('Active List')
@@ -371,6 +383,8 @@ $(document).ready(function () {
                 .html('<i class="fas fa-trash-alt mr-1"></i> Trash Bin')
                 .removeClass('btn-outline-primary')
                 .addClass('btn-outline-danger');
+
+            $('#btnSendSelectedSteadfast').prop('disabled', false).removeClass('disabled');
         }
     }
 
@@ -656,6 +670,198 @@ $(document).ready(function () {
         $('body').append(form);
         form.submit();
         form.remove();
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Send Selected Orders To SteadFast
+    |--------------------------------------------------------------------------
+    */
+    $('#btnSendSelectedSteadfast').on('click', function () {
+        let ids = selectedIds();
+
+        if (!ids.length) {
+            Swal.fire('Notice', 'Please select at least one order.', 'info');
+            return;
+        }
+
+        Swal.fire({
+            title: 'Send selected orders to SteadFast?',
+            text: `Only orders where courier service is SteadFast will be sent. Selected orders: ${ids.length}`,
+            icon: 'warning',
+            type: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, Send',
+            confirmButtonColor: '#2563eb'
+        }).then((result) => {
+            if (swalConfirmed(result)) {
+                $.ajax({
+                    url: "{{ route('admin.orders.send_steadfast_bulk') }}",
+                    type: "POST",
+                    data: {
+                        _token: '{{ csrf_token() }}',
+                        ids: ids
+                    },
+                    beforeSend: function () {
+                        $('#content-wrapper').css('opacity', '0.6');
+                    },
+                    success: function (res) {
+                        if (res.status) {
+                            showToast('success', res.message || 'Orders sent to SteadFast successfully.');
+                            reloadTable();
+                        } else {
+                            $('#content-wrapper').css('opacity', '1');
+                            showToast('error', res.message || 'SteadFast send failed.');
+                        }
+                    },
+                    error: function (xhr) {
+                        $('#content-wrapper').css('opacity', '1');
+
+                        let message = 'SteadFast send failed.';
+
+                        if (xhr.responseJSON && xhr.responseJSON.message) {
+                            message = xhr.responseJSON.message;
+                        }
+
+                        if (xhr.status === 422 && xhr.responseJSON && xhr.responseJSON.errors) {
+                            message = Object.values(xhr.responseJSON.errors)[0][0];
+                        }
+
+                        showToast('error', message);
+                    }
+                });
+            }
+        });
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Send Single Order To SteadFast
+    |--------------------------------------------------------------------------
+    */
+    $(document).on('click', '.btnSendSteadfast', function () {
+        let url = $(this).data('url');
+
+        Swal.fire({
+            title: 'Send this order to SteadFast?',
+            text: 'A new SteadFast consignment will be created.',
+            icon: 'warning',
+            type: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, Send',
+            confirmButtonColor: '#2563eb'
+        }).then((result) => {
+            if (swalConfirmed(result)) {
+                $.ajax({
+                    url: url,
+                    type: 'POST',
+                    data: {
+                        _token: '{{ csrf_token() }}'
+                    },
+                    beforeSend: function () {
+                        $('#content-wrapper').css('opacity', '0.6');
+                    },
+                    success: function (res) {
+                        if (res.status) {
+                            showToast('success', res.message || 'Order sent to SteadFast.');
+                            reloadTable();
+                        } else {
+                            $('#content-wrapper').css('opacity', '1');
+                            showToast('error', res.message || 'SteadFast send failed.');
+                        }
+                    },
+                    error: function (xhr) {
+                        $('#content-wrapper').css('opacity', '1');
+
+                        let message = 'SteadFast send failed.';
+
+                        if (xhr.responseJSON && xhr.responseJSON.message) {
+                            message = xhr.responseJSON.message;
+                        }
+
+                        showToast('error', message);
+                    }
+                });
+            }
+        });
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Sync Single SteadFast Status
+    |--------------------------------------------------------------------------
+    */
+    $(document).on('click', '.btnSyncSteadfast', function () {
+        let url = $(this).data('url');
+
+        $.ajax({
+            url: url,
+            type: 'POST',
+            data: {
+                _token: '{{ csrf_token() }}'
+            },
+            beforeSend: function () {
+                $('#content-wrapper').css('opacity', '0.6');
+            },
+            success: function (res) {
+                if (res.status) {
+                    showToast('success', res.message || 'SteadFast status synced.');
+                    reloadTable();
+                } else {
+                    $('#content-wrapper').css('opacity', '1');
+                    showToast('error', res.message || 'SteadFast sync failed.');
+                }
+            },
+            error: function (xhr) {
+                $('#content-wrapper').css('opacity', '1');
+
+                let message = 'SteadFast sync failed.';
+
+                if (xhr.responseJSON && xhr.responseJSON.message) {
+                    message = xhr.responseJSON.message;
+                }
+
+                showToast('error', message);
+            }
+        });
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | SteadFast Balance Check
+    |--------------------------------------------------------------------------
+    */
+    $('#btnSteadfastBalance').on('click', function () {
+        $.ajax({
+            url: "{{ route('admin.orders.steadfast.balance') }}",
+            type: "GET",
+            success: function (res) {
+                if (res.status) {
+                    let balance = res.data.current_balance
+                        ?? res.data.balance
+                        ?? res.data.data
+                        ?? JSON.stringify(res.data);
+
+                    Swal.fire({
+                        icon: 'success',
+                        type: 'success',
+                        title: 'SteadFast Balance',
+                        text: 'Balance: ' + balance
+                    });
+                } else {
+                    showToast('error', res.message || 'Balance fetch failed.');
+                }
+            },
+            error: function (xhr) {
+                let message = 'Balance fetch failed.';
+
+                if (xhr.responseJSON && xhr.responseJSON.message) {
+                    message = xhr.responseJSON.message;
+                }
+
+                showToast('error', message);
+            }
+        });
     });
 
     /*

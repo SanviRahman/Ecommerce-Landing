@@ -18,7 +18,7 @@
             <th>Admin Note</th>
             <th>Employee</th>
             <th>Date</th>
-            <th width="165" class="text-right px-4">Actions</th>
+            <th width="190" class="text-right px-4">Actions</th>
         </tr>
         </thead>
 
@@ -99,6 +99,43 @@
                         </span>
                     @else
                         <span class="badge badge-light border">Not selected</span>
+                    @endif
+
+                    @if($order->courier_service === 'steadfast')
+                        <div class="mt-1 sf-courier-box">
+                            @if($order->steadfast_tracking_code)
+                                <small class="d-block text-success font-weight-bold">
+                                    <i class="fas fa-barcode mr-1"></i>
+                                    Tracking: {{ $order->steadfast_tracking_code }}
+                                </small>
+                            @else
+                                <small class="d-block text-warning font-weight-bold">
+                                    <i class="fas fa-exclamation-circle mr-1"></i>
+                                    Not sent yet
+                                </small>
+                            @endif
+
+                            @if($order->steadfast_status)
+                                <small class="d-block text-muted">
+                                    <i class="fas fa-truck-loading mr-1"></i>
+                                    SF Status:
+                                    {{ ucwords(str_replace('_', ' ', $order->steadfast_status)) }}
+                                </small>
+                            @endif
+
+                            @if($order->steadfast_consignment_id)
+                                <small class="d-block text-muted">
+                                    CID: {{ $order->steadfast_consignment_id }}
+                                </small>
+                            @endif
+
+                            @if($order->steadfast_synced_at)
+                                <small class="d-block text-muted">
+                                    Sync:
+                                    {{ $order->steadfast_synced_at->format('d M, h:i A') }}
+                                </small>
+                            @endif
+                        </div>
                     @endif
                 </td>
 
@@ -232,6 +269,24 @@
                                 <i class="fas fa-file-download"></i>
                             </a>
 
+                            @if(auth()->user()->isAdmin() && $order->courier_service === 'steadfast')
+                                @if(empty($order->steadfast_consignment_id))
+                                    <button type="button"
+                                            class="btn btn-sm btn-white text-primary btnSendSteadfast"
+                                            data-url="{{ route('admin.orders.send_steadfast', $order->id) }}"
+                                            title="Send to SteadFast">
+                                        <i class="fas fa-paper-plane"></i>
+                                    </button>
+                                @else
+                                    <button type="button"
+                                            class="btn btn-sm btn-white text-warning btnSyncSteadfast"
+                                            data-url="{{ route('admin.orders.sync_steadfast_status', $order->id) }}"
+                                            title="Sync SteadFast Status">
+                                        <i class="fas fa-sync-alt"></i>
+                                    </button>
+                                @endif
+                            @endif
+
                             @if(auth()->user()->isAdmin())
                                 <button type="button"
                                         class="btn btn-sm btn-white text-danger btnDelete"
@@ -322,5 +377,17 @@
 
 .admin-note-status.error {
     color: #dc2626 !important;
+}
+
+.sf-courier-box {
+    line-height: 1.3;
+}
+
+.sf-courier-box small {
+    font-size: 11px;
+}
+
+.btn-group .btn {
+    border-radius: 0 !important;
 }
 </style>

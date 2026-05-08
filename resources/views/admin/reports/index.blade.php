@@ -22,6 +22,171 @@
 
 @section('content')
 
+@php
+    $summary = $summary ?? [];
+@endphp
+
+{{-- Report Summary Cards --}}
+@if(empty($isTrash))
+    <div class="d-flex align-items-center justify-content-between mb-3">
+        <div>
+            <h4 class="mb-0 font-weight-bold text-dark report-summary-title">
+                <i class="fas fa-chart-pie text-primary mr-2"></i>
+                Todays Report
+            </h4>
+            <small class="text-muted">
+                Daily order, invoice and delivery summary
+            </small>
+        </div>
+    </div>
+
+    <div class="row mb-3">
+        {{-- Today's Order --}}
+        <div class="col-xl-3 col-lg-4 col-md-4 col-sm-6 mb-3">
+            <div class="info-box shadow-sm border-0 h-100">
+                <span class="info-box-icon bg-primary">
+                    <i class="fas fa-shopping-cart"></i>
+                </span>
+
+                <div class="info-box-content">
+                    <span class="info-box-text text-muted font-weight-bold">Today's Order</span>
+                    <span class="info-box-number text-dark h5 mb-0">
+                        {{ $summary['todays_order'] ?? 0 }}
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        {{-- Pending Order --}}
+        <div class="col-xl-3 col-lg-4 col-md-4 col-sm-6 mb-3">
+            <div class="info-box shadow-sm border-0 h-100">
+                <span class="info-box-icon bg-warning text-white">
+                    <i class="fas fa-clock"></i>
+                </span>
+
+                <div class="info-box-content">
+                    <span class="info-box-text text-muted font-weight-bold">Pending Order</span>
+                    <span class="info-box-number text-dark h5 mb-0">
+                        {{ $summary['pending_order'] ?? 0 }}
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        {{-- Incompleted Order --}}
+        <div class="col-xl-3 col-lg-4 col-md-4 col-sm-6 mb-3">
+            <div class="info-box shadow-sm border-0 h-100">
+                <span class="info-box-icon bg-info">
+                    <i class="fas fa-spinner"></i>
+                </span>
+
+                <div class="info-box-content">
+                    <span class="info-box-text text-muted font-weight-bold">Incompleted Order</span>
+                    <span class="info-box-number text-dark h5 mb-0">
+                        {{ $summary['incompleted_order'] ?? 0 }}
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        {{-- Completed Order --}}
+        <div class="col-xl-3 col-lg-4 col-md-4 col-sm-6 mb-3">
+            <div class="info-box shadow-sm border-0 h-100">
+                <span class="info-box-icon bg-success">
+                    <i class="fas fa-check-circle"></i>
+                </span>
+
+                <div class="info-box-content">
+                    <span class="info-box-text text-muted font-weight-bold">Completed Order</span>
+                    <span class="info-box-number text-dark h5 mb-0">
+                        {{ $summary['completed_order'] ?? 0 }}
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        {{-- Incompleted Invoice --}}
+        <div class="col-xl-3 col-lg-4 col-md-4 col-sm-6 mb-3">
+            <div class="info-box shadow-sm border-0 h-100">
+                <span class="info-box-icon bg-danger">
+                    <i class="fas fa-file-invoice"></i>
+                </span>
+
+                <div class="info-box-content">
+                    <span class="info-box-text text-muted font-weight-bold">Incompleted Invoice</span>
+                    <span class="info-box-number text-dark h5 mb-0">
+                        {{ $summary['incompleted_invoice'] ?? 0 }}
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        {{-- Completed Invoice --}}
+        <div class="col-xl-3 col-lg-4 col-md-4 col-sm-6 mb-3">
+            <div class="info-box shadow-sm border-0 h-100">
+                <span class="info-box-icon bg-success">
+                    <i class="fas fa-file-invoice-dollar"></i>
+                </span>
+
+                <div class="info-box-content">
+                    <span class="info-box-text text-muted font-weight-bold">Completed Invoice</span>
+                    <span class="info-box-number text-dark h5 mb-0">
+                        {{ $summary['completed_invoice'] ?? 0 }}
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        {{-- Total Checkout --}}
+        <div class="col-xl-3 col-lg-4 col-md-4 col-sm-6 mb-3">
+            <div class="info-box shadow-sm border-0 h-100">
+                <span class="info-box-icon bg-secondary">
+                    <i class="fas fa-cash-register"></i>
+                </span>
+
+                <div class="info-box-content">
+                    <span class="info-box-text text-muted font-weight-bold">Total Checkout</span>
+                    <span class="info-box-number text-dark h5 mb-0">
+                        {{ $summary['checkout'] ?? 0 }}
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        {{-- Delivery --}}
+        <div class="col-xl-3 col-lg-4 col-md-4 col-sm-6 mb-3">
+            <div class="info-box shadow-sm border-0 h-100">
+                <span class="info-box-icon bg-primary">
+                    <i class="fas fa-truck"></i>
+                </span>
+
+                <div class="info-box-content">
+                    <span class="info-box-text text-muted font-weight-bold">Delivery</span>
+                    <span class="info-box-number text-dark h5 mb-0">
+                        {{ $summary['delivery'] ?? 0 }}
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        {{-- Cancelled --}}
+        <div class="col-xl-3 col-lg-4 col-md-4 col-sm-6 mb-3">
+            <div class="info-box shadow-sm border-0 h-100">
+                <span class="info-box-icon bg-danger">
+                    <i class="fas fa-times-circle"></i>
+                </span>
+
+                <div class="info-box-content">
+                    <span class="info-box-text text-muted font-weight-bold">Cancelled</span>
+                    <span class="info-box-number text-dark h5 mb-0">
+                        {{ $summary['cancelled'] ?? 0 }}
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+@endif
+
 <div class="card shadow-sm border-0" style="border-radius: 12px;">
     <div class="card-header bg-white py-3 border-0">
         <div class="row align-items-center">
@@ -52,7 +217,6 @@
     </div>
 
     <div class="card-body p-0">
-
         <div class="px-4 py-3 border-top bg-white">
             <div class="row">
                 <div class="col-md-3 col-sm-6 mb-2">
@@ -260,8 +424,10 @@ $(document).ready(function() {
     });
 
     let typeTimer;
+
     $('#table_search').on('keyup', function() {
         clearTimeout(typeTimer);
+
         typeTimer = setTimeout(function() {
             reloadTable(1);
         }, 500);
@@ -335,6 +501,7 @@ $(document).ready(function() {
 
     $('#btnApplyBulk').on('click', function() {
         let action = $('#bulk_action').val();
+
         let ids = $('.row-checkbox:checked').map(function() {
             return $(this).val();
         }).get();
@@ -395,7 +562,7 @@ $(document).ready(function() {
     color: #4338ca;
 }
 
-.breadcrumb-item+.breadcrumb-item::before {
+.breadcrumb-item + .breadcrumb-item::before {
     content: ">";
 }
 
@@ -408,6 +575,23 @@ $(document).ready(function() {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+.report-summary-title {
+    letter-spacing: .2px;
+}
+
+.info-box {
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.info-box-icon {
+    border-radius: 10px 0 0 10px;
+}
+
+.info-box-content {
+    padding: 10px 12px;
 }
 </style>
 @endsection

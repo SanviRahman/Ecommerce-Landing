@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Campaign;
 use App\Models\Order;
 use App\Models\OrderItem;
+use App\Models\Product;
 use App\Services\OrderAssignmentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -38,31 +39,83 @@ class CampaignOrderController extends Controller
         ]);
 
         return DB::transaction(function () use ($request, $campaign) {
+            /*
+            |--------------------------------------------------------------------------
+            | Campaign Attached Products
+            |--------------------------------------------------------------------------
+            | Attached thakle campaign price use hobe.
+            */
             $campaign->load([
                 'products' => function ($query) {
-                    $query->active();
+                    $query->where('products.status', true);
                 },
             ]);
 
-            $submittedProducts = collect($request->products);
+            $campaignProducts = $campaign->products->keyBy('id');
+
+            /*
+            |--------------------------------------------------------------------------
+            | Submitted Product IDs
+            |--------------------------------------------------------------------------
+            | Same product duplicate submit hole quantity merge kore nibe.
+            */
+            $submittedProducts = collect($request->products)
+                ->groupBy('id')
+                ->map(function ($items) {
+                    return [
+                        'id'       => (int) $items->first()['id'],
+                        'quantity' => (int) $items->sum('quantity'),
+                    ];
+                })
+                ->values();
 
             $subTotal = 0;
             $orderItems = [];
 
             foreach ($submittedProducts as $submittedProduct) {
-                $product = $campaign->products
-                    ->firstWhere('id', (int) $submittedProduct['id']);
+                $productId = (int) $submittedProduct['id'];
+
+                /*
+                |--------------------------------------------------------------------------
+                | First priority: campaign attached product
+                | Second priority: normal active product
+                |--------------------------------------------------------------------------
+                */
+                $product = $campaignProducts->get($productId);
+
+                if (! $product) {
+                    $product = Product::query()
+                        ->where('status', true)
+                        ->whereKey($productId)
+                        ->first();
+                }
 
                 if (! $product) {
                     continue;
                 }
 
-                $quantity = (int) $submittedProduct['quantity'];
+                $quantity = max(1, (int) $submittedProduct['quantity']);
 
-                $unitPrice = (int) (
-                    $product->pivot->campaign_price
-                    ?: $product->new_price
-                );
+                /*
+                |--------------------------------------------------------------------------
+                | Price Calculation
+                |--------------------------------------------------------------------------
+                | Campaign attached hole pivot campaign_price use hobe.
+                | Na hole product new_price use hobe.
+                */
+                $campaignPrice = 0;
+
+                if (isset($product->pivot)) {
+                    $campaignPrice = (int) ($product->pivot->campaign_price ?? 0);
+                }
+
+                $unitPrice = $campaignPrice > 0
+                    ? $campaignPrice
+                    : (int) $product->new_price;
+
+                if ($unitPrice <= 0) {
+                    continue;
+                }
 
                 $lineTotal = $unitPrice * $quantity;
                 $subTotal += $lineTotal;
@@ -128,9 +181,6 @@ class CampaignOrderController extends Controller
             |--------------------------------------------------------------------------
             | Auto Assign Order To Active Employee
             |--------------------------------------------------------------------------
-            | Active employee der moddhe order soman vabe distribute hobe.
-            | Jodi Order model er booted method theke already assign hoye jai,
-            | tahole ei service duplicate assign korbe na.
             */
             app(OrderAssignmentService::class)->assign($order);
 

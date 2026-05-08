@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Models;
 
 use App\Services\OrderAssignmentService;
@@ -13,19 +12,19 @@ class Order extends Model
 {
     use SoftDeletes;
 
-    public const STATUS_PENDING = 'pending';
-    public const STATUS_CONFIRMED = 'confirmed';
+    public const STATUS_PENDING    = 'pending';
+    public const STATUS_CONFIRMED  = 'confirmed';
     public const STATUS_PROCESSING = 'processing';
-    public const STATUS_SHIPPED = 'shipped';
-    public const STATUS_DELIVERED = 'delivered';
-    public const STATUS_CANCELLED = 'cancelled';
-    public const STATUS_FAKE = 'fake';
+    public const STATUS_SHIPPED    = 'shipped';
+    public const STATUS_DELIVERED  = 'delivered';
+    public const STATUS_CANCELLED  = 'cancelled';
+    public const STATUS_FAKE       = 'fake';
 
-    public const PAYMENT_COD = 'cash_on_delivery';
-    public const PAYMENT_STATUS_UNPAID = 'unpaid';
+    public const PAYMENT_COD                = 'cash_on_delivery';
+    public const PAYMENT_STATUS_UNPAID      = 'unpaid';
     public const PAYMENT_STATUS_COD_PENDING = 'cod_pending';
-    public const PAYMENT_STATUS_COLLECTED = 'collected';
-    public const PAYMENT_STATUS_FAILED = 'failed';
+    public const PAYMENT_STATUS_COLLECTED   = 'collected';
+    public const PAYMENT_STATUS_FAILED      = 'failed';
 
     protected $fillable = [
         'invoice_id',
@@ -53,6 +52,13 @@ class Order extends Model
         'delivered_at',
         'cancelled_at',
         'marked_fake_at',
+        'steadfast_consignment_id',
+        'steadfast_tracking_code',
+        'steadfast_status',
+        'steadfast_note',
+        'steadfast_response',
+        'steadfast_sent_at',
+        'steadfast_synced_at',
     ];
 
     protected $casts = [
@@ -67,6 +73,9 @@ class Order extends Model
         'delivered_at'         => 'datetime',
         'cancelled_at'         => 'datetime',
         'marked_fake_at'       => 'datetime',
+        'steadfast_response'   => 'array',
+        'steadfast_sent_at'    => 'datetime',
+        'steadfast_synced_at'  => 'datetime',
     ];
 
     protected static function booted(): void

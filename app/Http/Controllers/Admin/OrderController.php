@@ -11,6 +11,8 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use App\Services\SteadfastCourierService;
+use Throwable;
 
 class OrderController extends Controller
 {
@@ -854,5 +856,122 @@ class OrderController extends Controller
         ])->setPaper('a4', 'portrait');
 
         return $pdf->download($fileName);
+    }
+
+    /**
+     * Send single order to SteadFast courier.
+     */
+    public function sendToSteadfast(Order $order, SteadfastCourierService $steadfast)
+    {
+        if (! auth()->user()->isAdmin()) {
+            abort(403, 'Unauthorized access.');
+        }
+
+        try {
+            $data = $steadfast->createOrder($order);
+
+            return response()->json([
+                'status'  => true,
+                'message' => data_get($data, 'message', 'Order sent to SteadFast successfully.'),
+                'data'    => $data,
+            ]);
+        } catch (Throwable $e) {
+            return response()->json([
+                'status'  => false,
+                'message' => $e->getMessage(),
+            ], 422);
+        }
+    }
+
+/**
+ * Send selected orders to SteadFast courier.
+ */
+    public function bulkSendToSteadfast(Request $request, SteadfastCourierService $steadfast)
+    {
+        if (! auth()->user()->isAdmin()) {
+            abort(403, 'Unauthorized access.');
+        }
+
+        $request->validate([
+            'ids'   => ['required', 'array', 'min:1'],
+            'ids.*' => ['required', 'integer', 'exists:orders,id'],
+        ]);
+
+        $orders = Order::query()
+            ->with(['items'])
+            ->whereIn('id', $request->ids)
+            ->where('courier_service', 'steadfast')
+            ->get();
+
+        $success = 0;
+        $failed  = 0;
+        $errors  = [];
+
+        foreach ($orders as $order) {
+            try {
+                $steadfast->createOrder($order);
+                $success++;
+            } catch (Throwable $e) {
+                $failed++;
+                $errors[] = '#' . $order->invoice_id . ': ' . $e->getMessage();
+            }
+        }
+
+        return response()->json([
+            'status'  => true,
+            'message' => "SteadFast send completed. Success: {$success}, Failed: {$failed}",
+            'errors' => $errors,
+        ]);
+    }
+
+/**
+ * Sync single order SteadFast status.
+ */
+    public function syncSteadfastStatus(Order $order, SteadfastCourierService $steadfast)
+    {
+        if (! auth()->user()->isAdmin()) {
+            abort(403, 'Unauthorized access.');
+        }
+
+        try {
+            $data = $steadfast->syncStatus($order);
+
+            return response()->json([
+                'status'          => true,
+                'message'         => 'SteadFast status synced successfully.',
+                'delivery_status' => data_get($data, 'delivery_status'),
+                'data'            => $data,
+            ]);
+        } catch (Throwable $e) {
+            return response()->json([
+                'status'  => false,
+                'message' => $e->getMessage(),
+            ], 422);
+        }
+    }
+
+/**
+ * Check SteadFast current balance.
+ */
+    public function steadfastBalance(SteadfastCourierService $steadfast)
+    {
+        if (! auth()->user()->isAdmin()) {
+            abort(403, 'Unauthorized access.');
+        }
+
+        try {
+            $data = $steadfast->getBalance();
+
+            return response()->json([
+                'status'  => true,
+                'message' => 'Balance fetched successfully.',
+                'data'    => $data,
+            ]);
+        } catch (Throwable $e) {
+            return response()->json([
+                'status'  => false,
+                'message' => $e->getMessage(),
+            ], 422);
+        }
     }
 }

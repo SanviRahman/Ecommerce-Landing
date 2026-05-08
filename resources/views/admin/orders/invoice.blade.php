@@ -43,6 +43,13 @@
         : '-';
 
     $courierName = ($courierServices ?? config('couriers.list'))[$order->courier_service] ?? 'Not Selected';
+
+    $steadfastStatus = $order->steadfast_status
+        ? ucwords(str_replace('_', ' ', $order->steadfast_status))
+        : 'Not Synced';
+
+    $steadfastTrackingCode = $order->steadfast_tracking_code ?: 'Not Sent Yet';
+    $steadfastConsignmentId = $order->steadfast_consignment_id ?: '-';
 @endphp
 
 <div id="invoiceArea">
@@ -90,7 +97,13 @@
 
                     {{ $order->address }} <br>
 
-                    <strong>Area:</strong> {{ $deliveryArea }}
+                    <strong>Area:</strong> {{ $deliveryArea }} <br>
+
+                    <strong>Courier:</strong> {{ $courierName }} <br>
+
+                    @if($order->courier_service === 'steadfast')
+                        <strong>Tracking:</strong> {{ $steadfastTrackingCode }}
+                    @endif
                 </td>
 
                 <td style="width: 30%;">
@@ -117,6 +130,20 @@
                     <strong>Courier:</strong>
                     {{ $courierName }}
                     <br>
+
+                    @if($order->courier_service === 'steadfast')
+                        <strong>Tracking Code:</strong>
+                        {{ $steadfastTrackingCode }}
+                        <br>
+
+                        <strong>Consignment ID:</strong>
+                        {{ $steadfastConsignmentId }}
+                        <br>
+
+                        <strong>Courier Status:</strong>
+                        {{ $steadfastStatus }}
+                        <br>
+                    @endif
 
                     <strong>Employee:</strong>
                     {{ $order->assignedEmployee->name ?? 'Unassigned' }}
@@ -213,6 +240,38 @@
             </tfoot>
         </table>
 
+        @if($order->courier_service === 'steadfast')
+            <table class="invoice-table table table-striped">
+                <tr>
+                    <th colspan="4" class="text-center">
+                        SteadFast Courier Information
+                    </th>
+                </tr>
+
+                <tr>
+                    <td style="width: 25%;">
+                        <strong>Courier</strong><br>
+                        {{ $courierName }}
+                    </td>
+
+                    <td style="width: 25%;">
+                        <strong>Tracking Code</strong><br>
+                        {{ $steadfastTrackingCode }}
+                    </td>
+
+                    <td style="width: 25%;">
+                        <strong>Consignment ID</strong><br>
+                        {{ $steadfastConsignmentId }}
+                    </td>
+
+                    <td style="width: 25%;">
+                        <strong>Status</strong><br>
+                        {{ $steadfastStatus }}
+                    </td>
+                </tr>
+            </table>
+        @endif
+
         <table class="invoice-table table table-striped">
             <tr>
                 <td style="width: 50%;">
@@ -280,7 +339,8 @@
         vertical-align: top;
     }
 
-    .invoice-table thead tr th {
+    .invoice-table thead tr th,
+    .invoice-table tr th {
         background-color: #6c757d !important;
         color: #ffffff !important;
         font-weight: 700;
@@ -356,7 +416,8 @@
             background: #ffffff !important;
         }
 
-        .invoice-table thead tr th {
+        .invoice-table thead tr th,
+        .invoice-table tr th {
             background-color: #6c757d !important;
             color: #ffffff !important;
             -webkit-print-color-adjust: exact;
