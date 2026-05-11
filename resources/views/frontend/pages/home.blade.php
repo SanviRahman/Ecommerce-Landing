@@ -1469,12 +1469,6 @@ a {
                         <i class="fas fa-phone-alt"></i>
                     </a>
                     @endif
-
-                    @if($messengerUrl)
-                    <a href="{{ $messengerUrl }}" target="_blank" class="btn side-action-btn" aria-label="Messenger">
-                        <i class="fab fa-facebook-messenger"></i>
-                    </a>
-                    @endif
                 </div>
             </div>
 
