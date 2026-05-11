@@ -9,13 +9,7 @@ use Illuminate\Support\Facades\DB;
 class OrderAssignmentService
 {
     /**
-     * Assign order to an active employee.
-     *
-     * Logic:
-     * - Only active employees receive orders.
-     * - Employee with the lowest active order count gets priority.
-     * - If multiple employees have same count, one is selected randomly.
-     * - Transaction + lock reduces wrong assignment during simultaneous orders.
+     * Assign single order to an active employee.
      */
     public function assign(Order $order): ?User
     {
@@ -33,23 +27,7 @@ class OrderAssignmentService
                 return $lockedOrder->assignedEmployee;
             }
 
-            $employees = User::activeEmployees()
-                ->withCount([
-                    'activeAssignedOrders as active_orders_count',
-                ])
-                ->lockForUpdate()
-                ->get();
-
-            if ($employees->isEmpty()) {
-                return null;
-            }
-
-            $minimumOrderCount = $employees->min('active_orders_count');
-
-            $employee = $employees
-                ->where('active_orders_count', $minimumOrderCount)
-                ->shuffle()
-                ->first();
+            $employee = $this->findAvailableEmployee();
 
             if (! $employee) {
                 return null;
@@ -65,5 +43,57 @@ class OrderAssignmentService
 
             return $employee;
         });
+    }
+
+    /**
+     * Assign all unassigned active orders.
+     * This method is called from OrderController::assignUnassignedOrders().
+     */
+    public function assignUnassigned(): int
+    {
+        $assignedCount = 0;
+
+        $orders = Order::query()
+            ->whereNull('assigned_employee_id')
+            ->whereNotIn('order_status', [
+                Order::STATUS_DELIVERED,
+                Order::STATUS_CANCELLED,
+                Order::STATUS_FAKE,
+            ])
+            ->oldest()
+            ->get();
+
+        foreach ($orders as $order) {
+            $employee = $this->assign($order);
+
+            if ($employee) {
+                $assignedCount++;
+            }
+        }
+
+        return $assignedCount;
+    }
+
+    /**
+     * Pick active employee with lowest active assigned order count.
+     */
+    private function findAvailableEmployee(): ?User
+    {
+        $employees = User::activeEmployees()
+            ->withCount([
+                'activeAssignedOrders as active_orders_count',
+            ])
+            ->get();
+
+        if ($employees->isEmpty()) {
+            return null;
+        }
+
+        $minimumOrderCount = $employees->min('active_orders_count');
+
+        return $employees
+            ->where('active_orders_count', $minimumOrderCount)
+            ->shuffle()
+            ->first();
     }
 }

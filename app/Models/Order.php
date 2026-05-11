@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Models;
 
 use App\Services\OrderAssignmentService;
@@ -35,8 +36,10 @@ class Order extends Model
         'address',
         'delivery_area',
         'courier_service',
+        'courier_account_id',
         'sub_total',
         'shipping_charge',
+        'is_free_delivery',
         'cod_charge',
         'total_amount',
         'payment_method',
@@ -64,8 +67,10 @@ class Order extends Model
     protected $casts = [
         'campaign_id'          => 'integer',
         'assigned_employee_id' => 'integer',
+        'courier_account_id'   => 'integer',
         'sub_total'            => 'decimal:2',
         'shipping_charge'      => 'decimal:2',
+        'is_free_delivery'     => 'boolean',
         'cod_charge'           => 'decimal:2',
         'total_amount'         => 'decimal:2',
         'is_fake'              => 'boolean',
@@ -87,12 +92,6 @@ class Order extends Model
         });
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Relationships
-    |--------------------------------------------------------------------------
-    */
-
     public function campaign(): BelongsTo
     {
         return $this->belongsTo(Campaign::class);
@@ -101,6 +100,11 @@ class Order extends Model
     public function assignedEmployee(): BelongsTo
     {
         return $this->belongsTo(User::class, 'assigned_employee_id');
+    }
+
+    public function courierAccount(): BelongsTo
+    {
+        return $this->belongsTo(CourierAccount::class);
     }
 
     public function items(): HasMany
@@ -118,22 +122,19 @@ class Order extends Model
         return $this->hasMany(FakeOrderLog::class);
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Accessors
-    |--------------------------------------------------------------------------
-    */
-
     public function getCourierNameAttribute(): string
     {
-        return config('couriers.list.' . $this->courier_service, 'Not Selected');
-    }
+        if ($this->courierAccount) {
+            return $this->courierAccount->name;
+        }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Scopes
-    |--------------------------------------------------------------------------
-    */
+        if ($this->courier_service) {
+            return config('couriers.list.' . $this->courier_service)
+                ?: ucwords(str_replace('_', ' ', $this->courier_service));
+        }
+
+        return 'No Courier';
+    }
 
     public function scopeForLoggedInUser(Builder $query): Builder
     {

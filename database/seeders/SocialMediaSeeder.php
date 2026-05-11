@@ -7,9 +7,6 @@ use Illuminate\Database\Seeder;
 
 class SocialMediaSeeder extends Seeder
 {
-    /**
-     * Run the database seeds.
-     */
     public function run(): void
     {
         $socialMedias = [
@@ -17,6 +14,24 @@ class SocialMediaSeeder extends Seeder
                 'platform_name' => 'Facebook',
                 'link' => 'https://facebook.com/yourpage',
                 'icon_class' => 'fab fa-facebook-f',
+                'status' => true,
+            ],
+            [
+                'platform_name' => 'Messenger',
+                'link' => 'https://m.me/yourpage',
+                'icon_class' => 'fab fa-facebook-messenger',
+                'status' => true,
+            ],
+            [
+                'platform_name' => 'WhatsApp',
+                'link' => 'https://wa.me/8801711111111',
+                'icon_class' => 'fab fa-whatsapp',
+                'status' => true,
+            ],
+            [
+                'platform_name' => 'Phone',
+                'link' => 'tel:01711111111',
+                'icon_class' => 'fas fa-phone-alt',
                 'status' => true,
             ],
             [
@@ -32,29 +47,18 @@ class SocialMediaSeeder extends Seeder
                 'status' => true,
             ],
             [
-                'platform_name' => 'Twitter / X',
-                'link' => 'https://twitter.com/yourhandle',
-                'icon_class' => 'fab fa-x-twitter', // or 'fab fa-twitter' depending on your FontAwesome version
-                'status' => true,
-            ],
-            [
                 'platform_name' => 'LinkedIn',
                 'link' => 'https://linkedin.com/company/yourcompany',
                 'icon_class' => 'fab fa-linkedin-in',
                 'status' => true,
             ],
-            [
-                'platform_name' => 'WhatsApp',
-                'link' => 'https://wa.me/1234567890',
-                'icon_class' => 'fab fa-whatsapp',
-                'status' => true,
-            ],
         ];
 
         foreach ($socialMedias as $social) {
-            // firstOrCreate
-            SocialMedia::firstOrCreate(
-                ['platform_name' => $social['platform_name']],
+            SocialMedia::updateOrCreate(
+                [
+                    'platform_name' => $social['platform_name'],
+                ],
                 [
                     'link' => $social['link'],
                     'icon_class' => $social['icon_class'],
@@ -62,5 +66,7 @@ class SocialMediaSeeder extends Seeder
                 ]
             );
         }
+
+        $this->command?->info('Social media seeded successfully.');
     }
 }

@@ -111,18 +111,60 @@ class ReportController extends Controller
         return $query;
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | Today's Report Summary
+    |--------------------------------------------------------------------------
+    | Report index top cards-এর জন্য শুধু today's data calculate করবে।
+    | View file-এ $summary অথবা $summaryStats দুইভাবেই data পাওয়া যাবে।
+    */
     private function getReportSummaryStats(): array
     {
+        $todayOrdersQuery = Order::query()
+            ->whereDate('created_at', today());
+
         return [
-            'todays_order'        => Order::whereDate('created_at', today())->count(),
-            'pending_order'       => Order::where('order_status', Order::STATUS_PENDING)->count(),
-            'completed_order'     => Order::where('order_status', Order::STATUS_DELIVERED)->count(),
-            'incompleted_order'   => Order::whereNotIn('order_status', [Order::STATUS_DELIVERED, Order::STATUS_CANCELLED, Order::STATUS_FAKE])->count(),
-            'completed_invoice'   => Order::where('payment_status', Order::PAYMENT_STATUS_COLLECTED)->count(),
-            'incompleted_invoice' => Order::where('payment_status', '!=', Order::PAYMENT_STATUS_COLLECTED)->count(),
-            'checkout'            => Order::count(),
-            'delivery'            => Order::whereIn('order_status', [Order::STATUS_SHIPPED, Order::STATUS_DELIVERED])->count(),
-            'cancelled'           => Order::where('order_status', Order::STATUS_CANCELLED)->count(),
+            'todays_order' => (clone $todayOrdersQuery)->count(),
+
+            'pending_order' => (clone $todayOrdersQuery)
+                ->where('order_status', Order::STATUS_PENDING)
+                ->count(),
+
+            'incompleted_order' => (clone $todayOrdersQuery)
+                ->whereNotIn('order_status', [
+                    Order::STATUS_DELIVERED,
+                    Order::STATUS_CANCELLED,
+                    Order::STATUS_FAKE,
+                ])
+                ->count(),
+
+            'completed_order' => (clone $todayOrdersQuery)
+                ->where('order_status', Order::STATUS_DELIVERED)
+                ->count(),
+
+            'incompleted_invoice' => (clone $todayOrdersQuery)
+                ->where(function ($query) {
+                    $query->where('payment_status', '!=', Order::PAYMENT_STATUS_COLLECTED)
+                        ->orWhereNull('payment_status');
+                })
+                ->count(),
+
+            'completed_invoice' => (clone $todayOrdersQuery)
+                ->where('payment_status', Order::PAYMENT_STATUS_COLLECTED)
+                ->count(),
+
+            'checkout' => (clone $todayOrdersQuery)->count(),
+
+            'delivery' => (clone $todayOrdersQuery)
+                ->whereIn('order_status', [
+                    Order::STATUS_SHIPPED,
+                    Order::STATUS_DELIVERED,
+                ])
+                ->count(),
+
+            'cancelled' => (clone $todayOrdersQuery)
+                ->where('order_status', Order::STATUS_CANCELLED)
+                ->count(),
         ];
     }
 
@@ -132,7 +174,7 @@ class ReportController extends Controller
 
         $query = $this->applyFilters($query, $request);
 
-        $reports = $query->paginate(10);
+        $reports = $query->paginate(10)->withQueryString();
 
         $breadcrumb = [
             ['text' => 'Dashboard', 'url' => route('admin.dashboard')],
@@ -165,6 +207,16 @@ class ReportController extends Controller
             'reportTypes'    => $this->reportTypes(),
             'formats'        => $this->formats(),
             'groupByOptions' => $this->groupByOptions(),
+
+            /*
+            |--------------------------------------------------------------------------
+            | Important Fix
+            |--------------------------------------------------------------------------
+            | তোমার index.blade.php আগে $summary read করছে,
+            | আর controller আগে শুধু $summaryStats পাঠাচ্ছিল।
+            | তাই এখন দুই নামেই data পাঠানো হলো।
+            */
+            'summary'        => $summaryStats,
             'summaryStats'   => $summaryStats,
         ]);
     }
@@ -236,7 +288,7 @@ class ReportController extends Controller
             'filters'      => $filters,
             'columns'      => $columns,
             'summary'      => $payload['summary'] ?? [],
-            'status'       => 'completed',
+            'status'       => ReportExport::STATUS_COMPLETED,
             'generated_by' => auth()->id(),
             'generated_at' => now(),
         ]);
@@ -296,16 +348,16 @@ class ReportController extends Controller
         $this->adminOnly();
 
         $validated = $request->validate([
-            'title'         => ['required', 'string', 'max:255'],
-            'report_type'   => ['required', 'string', 'in:' . implode(',', array_keys($this->reportTypes()))],
-            'date_from'     => ['nullable', 'date'],
-            'date_to'       => ['nullable', 'date', 'after_or_equal:date_from'],
-            'group_by'      => ['nullable', 'string', 'in:' . implode(',', array_keys($this->groupByOptions()))],
-            'format'        => ['required', 'string', 'in:html,csv,pdf,excel'],
-            'status'        => ['required', 'string', 'in:pending,processing,completed,failed'],
-            'filters'       => ['nullable', 'array'],
-            'columns'       => ['nullable', 'array'],
-            'error_message' => ['nullable', 'string'],
+            'title'           => ['required', 'string', 'max:255'],
+            'report_type'     => ['required', 'string', 'in:' . implode(',', array_keys($this->reportTypes()))],
+            'date_from'       => ['nullable', 'date'],
+            'date_to'         => ['nullable', 'date', 'after_or_equal:date_from'],
+            'group_by'        => ['nullable', 'string', 'in:' . implode(',', array_keys($this->groupByOptions()))],
+            'format'          => ['required', 'string', 'in:html,csv,pdf,excel'],
+            'status'          => ['required', 'string', 'in:pending,processing,completed,failed'],
+            'filters'         => ['nullable', 'array'],
+            'columns'         => ['nullable', 'array'],
+            'error_message'   => ['nullable', 'string'],
             'regenerate_file' => ['nullable', 'boolean'],
         ]);
 
@@ -338,6 +390,7 @@ class ReportController extends Controller
             $fileData = [
                 'file_name' => null,
                 'file_path' => null,
+                'file_disk' => $report->file_disk ?: 'public',
                 'mime_type' => null,
                 'file_size' => null,
             ];
@@ -351,8 +404,8 @@ class ReportController extends Controller
             }
 
             $report->update(array_merge($fileData, [
-                'summary' => $payload['summary'] ?? [],
-                'status' => 'completed',
+                'summary'      => $payload['summary'] ?? [],
+                'status'       => ReportExport::STATUS_COMPLETED,
                 'generated_at' => now(),
             ]));
         }
@@ -547,15 +600,15 @@ class ReportController extends Controller
 
         return [
             'total_orders'      => (clone $query)->count(),
-            'pending_orders'    => $statusCounts['pending'] ?? 0,
-            'confirmed_orders'  => $statusCounts['confirmed'] ?? 0,
-            'processing_orders' => $statusCounts['processing'] ?? 0,
-            'shipped_orders'    => $statusCounts['shipped'] ?? 0,
-            'delivered_orders'  => $statusCounts['delivered'] ?? 0,
-            'cancelled_orders'  => $statusCounts['cancelled'] ?? 0,
+            'pending_orders'    => $statusCounts[Order::STATUS_PENDING] ?? 0,
+            'confirmed_orders'  => $statusCounts[Order::STATUS_CONFIRMED] ?? 0,
+            'processing_orders' => $statusCounts[Order::STATUS_PROCESSING] ?? 0,
+            'shipped_orders'    => $statusCounts[Order::STATUS_SHIPPED] ?? 0,
+            'delivered_orders'  => $statusCounts[Order::STATUS_DELIVERED] ?? 0,
+            'cancelled_orders'  => $statusCounts[Order::STATUS_CANCELLED] ?? 0,
             'fake_orders'       => (clone $query)->where('is_fake', true)->count(),
             'gross_sales'       => (clone $query)->sum('total_amount'),
-            'delivered_sales'   => (clone $query)->where('order_status', 'delivered')->sum('total_amount'),
+            'delivered_sales'   => (clone $query)->where('order_status', Order::STATUS_DELIVERED)->sum('total_amount'),
             'shipping_total'    => (clone $query)->sum('shipping_charge'),
             'cod_total'         => (clone $query)->sum('cod_charge'),
             'unique_customers'  => (clone $query)->distinct('phone')->count('phone'),
@@ -594,7 +647,7 @@ class ReportController extends Controller
 
         if ($groupBy === 'status') {
             return (clone $query)
-                ->selectRaw("order_status as label, COUNT(*) as total_orders, SUM(total_amount) as total_sales")
+                ->selectRaw('order_status as label, COUNT(*) as total_orders, SUM(total_amount) as total_sales')
                 ->groupBy('order_status')
                 ->orderByDesc('total_orders')
                 ->get()
@@ -603,7 +656,7 @@ class ReportController extends Controller
 
         if ($groupBy === 'payment_status') {
             return (clone $query)
-                ->selectRaw("payment_status as label, COUNT(*) as total_orders, SUM(total_amount) as total_sales")
+                ->selectRaw('payment_status as label, COUNT(*) as total_orders, SUM(total_amount) as total_sales')
                 ->groupBy('payment_status')
                 ->orderByDesc('total_orders')
                 ->get()
@@ -612,7 +665,7 @@ class ReportController extends Controller
 
         if ($groupBy === 'delivery_area') {
             return (clone $query)
-                ->selectRaw("delivery_area as label, COUNT(*) as total_orders, SUM(total_amount) as total_sales")
+                ->selectRaw('delivery_area as label, COUNT(*) as total_orders, SUM(total_amount) as total_sales')
                 ->groupBy('delivery_area')
                 ->orderByDesc('total_orders')
                 ->get()
@@ -641,7 +694,7 @@ class ReportController extends Controller
         if (! Schema::hasTable('order_items')) {
             return [
                 'summary' => ['message' => 'order_items table not found.'],
-                'rows' => [],
+                'rows'    => [],
             ];
         }
 
@@ -738,19 +791,21 @@ class ReportController extends Controller
         fputcsv($handle, []);
 
         fputcsv($handle, ['SUMMARY']);
+
         foreach (($payload['summary'] ?? []) as $key => $value) {
             fputcsv($handle, [
                 ucwords(str_replace('_', ' ', $key)),
-                is_array($value) || is_object($value) ? json_encode($value) : $value
+                is_array($value) || is_object($value) ? json_encode($value) : $value,
             ]);
         }
 
         fputcsv($handle, []);
         fputcsv($handle, ['FILTERS']);
+
         foreach (($report->filters ?? []) as $key => $value) {
             fputcsv($handle, [
                 ucwords(str_replace('_', ' ', $key)),
-                is_array($value) || is_object($value) ? json_encode($value) : ($value ?: 'All')
+                is_array($value) || is_object($value) ? json_encode($value) : ($value ?: 'All'),
             ]);
         }
 
@@ -796,8 +851,8 @@ class ReportController extends Controller
         $filePath = 'reports/' . $fileName;
 
         $pdf = Pdf::loadView('admin.reports.exports.pdf', [
-            'report' => $report,
-            'payload' => $payload,
+            'report'      => $report,
+            'payload'     => $payload,
             'reportTypes' => $this->reportTypes(),
         ])->setPaper('a4', 'portrait');
 

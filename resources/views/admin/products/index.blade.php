@@ -8,13 +8,13 @@
         <h1 class="mb-0">{{ $title ?? 'Product Management' }}</h1>
 
         @if(isset($breadcrumb))
-        <ol class="breadcrumb mt-2 mb-0 bg-transparent p-0">
-            @foreach($breadcrumb as $item)
-            <li class="breadcrumb-item">
-                <a href="{{ $item['url'] }}">{{ $item['text'] }}</a>
-            </li>
-            @endforeach
-        </ol>
+            <ol class="breadcrumb mt-2 mb-0 bg-transparent p-0">
+                @foreach($breadcrumb as $item)
+                    <li class="breadcrumb-item">
+                        <a href="{{ $item['url'] }}">{{ $item['text'] }}</a>
+                    </li>
+                @endforeach
+            </ol>
         @endif
     </div>
 </div>
@@ -23,10 +23,10 @@
 @section('content')
 
 @if(auth()->user()->isEmployee())
-<div class="alert alert-info">
-    <i class="fas fa-info-circle mr-1"></i>
-    Employee has view-only product access.
-</div>
+    <div class="alert alert-info">
+        <i class="fas fa-info-circle mr-1"></i>
+        Employee has view-only product access.
+    </div>
 @endif
 
 <div class="card shadow-sm border-0" style="border-radius: 12px;">
@@ -45,14 +45,14 @@
 
             <div class="col-md-6 mt-2 mt-md-0 text-md-right">
                 @if(auth()->user()->isAdmin())
-                <button class="btn btn-outline-danger btn-sm px-3 shadow-none" id="btnToggleTrash">
-                    <i class="fas fa-trash-alt mr-1"></i> Trash Bin
-                </button>
+                    <button class="btn btn-outline-danger btn-sm px-3 shadow-none" id="btnToggleTrash">
+                        <i class="fas fa-trash-alt mr-1"></i> Trash Bin
+                    </button>
 
-                <button class="btn btn-primary btn-sm px-4 shadow-sm ml-2" id="btnAddProduct"
-                    style="border-radius: 8px;">
-                    <i class="fas fa-plus-circle mr-1"></i> Add Product
-                </button>
+                    <button class="btn btn-primary btn-sm px-4 shadow-sm ml-2" id="btnAddProduct"
+                            style="border-radius: 8px;">
+                        <i class="fas fa-plus-circle mr-1"></i> Add Product
+                    </button>
                 @endif
             </div>
         </div>
@@ -76,7 +76,7 @@
                     <select id="filter_category" class="form-control border-0 bg-light shadow-none">
                         <option value="all">All Categories</option>
                         @foreach($categories ?? [] as $category)
-                        <option value="{{ $category->id }}">{{ $category->name }}</option>
+                            <option value="{{ $category->id }}">{{ $category->name }}</option>
                         @endforeach
                     </select>
                 </div>
@@ -87,7 +87,7 @@
                         <option value="all">All Brands</option>
                         <option value="no_brand">No Brand</option>
                         @foreach($brands ?? [] as $brand)
-                        <option value="{{ $brand->id }}">{{ $brand->name }}</option>
+                            <option value="{{ $brand->id }}">{{ $brand->name }}</option>
                         @endforeach
                     </select>
                 </div>
@@ -119,49 +119,53 @@
 
                 <div class="col-md-12 col-sm-12 mb-2">
                     <label class="small font-weight-bold text-muted text-uppercase">Search</label>
-                    <input type="text" id="table_search" class="form-control shadow-none"
-                        placeholder="Search product name, code, category, brand...">
+                    <input type="text"
+                           id="table_search"
+                           class="form-control shadow-none"
+                           placeholder="Search product name, code, category, brand...">
                 </div>
             </div>
         </div>
 
         {{-- Bulk Action --}}
         @if(auth()->user()->isAdmin())
-        <div class="px-4 py-2 bg-light d-flex align-items-center border-top border-bottom flex-wrap">
-            <div class="custom-control custom-checkbox mr-3">
-                <span class="small text-muted font-weight-bold">SELECT ALL</span>
+            <div class="px-4 py-2 bg-light d-flex align-items-center border-top border-bottom flex-wrap">
+                <div class="custom-control custom-checkbox mr-3">
+                    <span class="small text-muted font-weight-bold">SELECT ALL</span>
+                </div>
+
+                <select id="bulk_action"
+                        class="form-control form-control-sm w-auto mr-2 shadow-none border-0 font-weight-bold text-muted bg-transparent">
+                    <option value="">Bulk Actions</option>
+
+                    <option value="delete" class="opt-active text-danger">Move to Trash</option>
+                    <option value="active" class="opt-active text-success">Set Active</option>
+                    <option value="inactive" class="opt-active text-warning">Set Inactive</option>
+                    <option value="top_sale" class="opt-active">Mark Top Sale</option>
+                    <option value="remove_top_sale" class="opt-active">Remove Top Sale</option>
+                    <option value="featured" class="opt-active">Mark Featured</option>
+                    <option value="remove_featured" class="opt-active">Remove Featured</option>
+                    <option value="flash_sale" class="opt-active">Mark Flash Sale</option>
+                    <option value="remove_flash_sale" class="opt-active">Remove Flash Sale</option>
+                    <option value="free_delivery" class="opt-active">Mark Free Delivery</option>
+                    <option value="remove_free_delivery" class="opt-active">Remove Free Delivery</option>
+
+                    <option value="restore" class="opt-trash d-none text-success">Restore Selected</option>
+                    <option value="force_delete" class="opt-trash d-none text-danger">Purge Permanently</option>
+                </select>
+
+                <button class="btn btn-primary btn-sm px-3 shadow-none" id="btnApplyBulk"
+                        style="border-radius: 5px; font-size: 11px;">
+                    APPLY
+                </button>
             </div>
-
-            <select id="bulk_action"
-                class="form-control form-control-sm w-auto mr-2 shadow-none border-0 font-weight-bold text-muted bg-transparent">
-                <option value="">Bulk Actions</option>
-
-                <option value="delete" class="opt-active text-danger">Move to Trash</option>
-                <option value="active" class="opt-active text-success">Set Active</option>
-                <option value="inactive" class="opt-active text-warning">Set Inactive</option>
-                <option value="top_sale" class="opt-active">Mark Top Sale</option>
-                <option value="remove_top_sale" class="opt-active">Remove Top Sale</option>
-                <option value="featured" class="opt-active">Mark Featured</option>
-                <option value="remove_featured" class="opt-active">Remove Featured</option>
-                <option value="flash_sale" class="opt-active">Mark Flash Sale</option>
-                <option value="remove_flash_sale" class="opt-active">Remove Flash Sale</option>
-
-                <option value="restore" class="opt-trash d-none text-success">Restore Selected</option>
-                <option value="force_delete" class="opt-trash d-none text-danger">Purge Permanently</option>
-            </select>
-
-            <button class="btn btn-primary btn-sm px-3 shadow-none" id="btnApplyBulk"
-                style="border-radius: 5px; font-size: 11px;">
-                APPLY
-            </button>
-        </div>
         @endif
 
         {{-- Table --}}
         <div id="content-wrapper" style="min-height: 400px; position: relative;">
             @include('admin.products.partials.table', [
-            'products' => $products,
-            'isTrash' => $isTrash ?? false,
+                'products' => $products,
+                'isTrash' => $isTrash ?? false,
             ])
         </div>
     </div>
@@ -195,33 +199,40 @@
 
 @section('js')
 <script>
-$(document).ready(function() {
+$(document).ready(function () {
     let currentView = "{{ isset($isTrash) && $isTrash ? 'trash' : 'active' }}";
 
-    function showToast(type, message) {
-        Swal.fire({
-            icon: type,
-            type: type, // SweetAlert2 v8 এর জন্য এটি যোগ করা হলো
-            title: message,
-            position: 'top-end',
-            showConfirmButton: false,
-            timer: 2200,
-            timerProgressBar: true,
-            toast: true
-        });
+    function swalConfirmed(result) {
+        return result.isConfirmed || result.value;
     }
 
+    function showToast(type, message) {
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({
+                icon: type,
+                type: type,
+                title: message,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 2200,
+                timerProgressBar: true,
+                toast: true
+            });
+        } else {
+            alert(message);
+        }
+    }
 
     $.ajaxSetup({
         headers: {
-            'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+            'X-CSRF-TOKEN': '{{ csrf_token() }}'
         }
     });
 
     function getBaseUrl() {
-        return currentView === 'trash' ?
-            "{{ route('admin.products.trashed') }}" :
-            "{{ route('admin.products.index') }}";
+        return currentView === 'trash'
+            ? "{{ route('admin.products.trashed') }}"
+            : "{{ route('admin.products.index') }}";
     }
 
     function getQueryParams(page = 1) {
@@ -243,7 +254,7 @@ $(document).ready(function() {
             url: getBaseUrl(),
             type: 'GET',
             data: getQueryParams(page),
-            success: function(res) {
+            success: function (res) {
                 if (res.status && res.html) {
                     $('#content-wrapper').html(res.html).css('opacity', '1');
                     updateUIState();
@@ -252,9 +263,16 @@ $(document).ready(function() {
                     showToast('error', 'Failed to fetch products.');
                 }
             },
-            error: function() {
+            error: function (xhr) {
                 $('#content-wrapper').css('opacity', '1');
-                showToast('error', 'Failed to fetch products.');
+
+                let message = 'Failed to fetch products.';
+
+                if (xhr.responseJSON && xhr.responseJSON.message) {
+                    message = xhr.responseJSON.message;
+                }
+
+                showToast('error', message);
             }
         });
     }
@@ -291,63 +309,88 @@ $(document).ready(function() {
         }
     }
 
-    $('#filter_status, #filter_category, #filter_brand, #filter_product_type, #filter_stock_status').on(
-        'change',
-        function() {
-            reloadTable(1);
-        });
+    function openProductModal(url) {
+        $('#modal-body').html(
+            '<div class="text-center py-5">' +
+                '<i class="fas fa-spinner fa-spin fa-2x text-primary mb-3"></i>' +
+                '<div class="text-muted">Loading product form...</div>' +
+            '</div>'
+        );
 
-    $('#btnFilter').on('click', function() {
+        $('#ajaxModal').modal('show');
+
+        $.ajax({
+            url: url,
+            type: 'GET',
+            dataType: 'json',
+            success: function (res) {
+                if (res.status && res.html) {
+                    $('#modal-body').html(res.html);
+                } else {
+                    $('#ajaxModal').modal('hide');
+                    showToast('error', res.message || 'Failed to load product form.');
+                }
+            },
+            error: function (xhr) {
+                $('#ajaxModal').modal('hide');
+
+                let message = 'Failed to load product form.';
+
+                if (xhr.responseJSON && xhr.responseJSON.message) {
+                    message = xhr.responseJSON.message;
+                }
+
+                showToast('error', message);
+            }
+        });
+    }
+
+    $('#filter_status, #filter_category, #filter_brand, #filter_product_type, #filter_stock_status').on('change', function () {
+        reloadTable(1);
+    });
+
+    $('#btnFilter').on('click', function () {
         reloadTable(1);
     });
 
     let typeTimer;
-    $('#table_search').on('keyup', function() {
+
+    $('#table_search').on('keyup', function () {
         clearTimeout(typeTimer);
 
-        typeTimer = setTimeout(function() {
+        typeTimer = setTimeout(function () {
             reloadTable(1);
         }, 500);
     });
 
-    $(document).on('click', '.pagination a', function(e) {
+    $(document).on('click', '.pagination a', function (e) {
         e.preventDefault();
 
         let page = $(this).attr('href').split('page=')[1];
         reloadTable(page);
     });
 
-    $('#btnToggleTrash').on('click', function() {
+    $('#btnToggleTrash').on('click', function () {
         currentView = currentView === 'active' ? 'trash' : 'active';
         reloadTable(1);
     });
 
-    $('#btnAddProduct').on('click', function() {
-        $.get("{{ route('admin.products.create') }}", function(res) {
-            if (res.status && res.html) {
-                $('#modal-body').html(res.html);
-                $('#ajaxModal').modal('show');
-            }
-        });
+    $('#btnAddProduct').on('click', function () {
+        openProductModal("{{ route('admin.products.create') }}");
     });
 
-    $(document).on('click', '.btnEdit', function() {
+    $(document).on('click', '.btnEdit', function () {
         let url = $(this).data('url');
-
-        $.get(url, function(res) {
-            if (res.status && res.html) {
-                $('#modal-body').html(res.html);
-                $('#ajaxModal').modal('show');
-            }
-        });
+        openProductModal(url);
     });
 
-    $(document).on('submit', '#productForm', function(e) {
+    $(document).on('submit', '#productForm', function (e) {
         e.preventDefault();
 
         let form = $(this);
         let formData = new FormData(this);
         let btn = form.find('button[type="submit"]');
+        let oldHtml = btn.html();
 
         $.ajax({
             url: form.attr('action'),
@@ -355,20 +398,22 @@ $(document).ready(function() {
             data: formData,
             processData: false,
             contentType: false,
-
-            beforeSend: function() {
+            beforeSend: function () {
                 btn.prop('disabled', true)
-                    .prepend('<i class="fas fa-spinner fa-spin mr-1"></i> ');
+                    .html('<i class="fas fa-spinner fa-spin mr-1"></i> Saving...');
             },
-
-            success: function(res) {
-                $('#ajaxModal').modal('hide');
-                reloadTable();
-                showToast('success', res.message);
+            success: function (res) {
+                if (res.status) {
+                    $('#ajaxModal').modal('hide');
+                    reloadTable();
+                    showToast('success', res.message || 'Product saved successfully.');
+                } else {
+                    btn.prop('disabled', false).html(oldHtml);
+                    showToast('error', res.message || 'Product save failed.');
+                }
             },
-
-            error: function(xhr) {
-                btn.prop('disabled', false).find('i.fa-spinner').remove();
+            error: function (xhr) {
+                btn.prop('disabled', false).html(oldHtml);
 
                 let message = 'Validation error.';
 
@@ -378,62 +423,73 @@ $(document).ready(function() {
                     message = xhr.responseJSON.message;
                 }
 
-                Swal.fire('Error', message, 'error');
+                Swal.fire({
+                    icon: 'error',
+                    type: 'error',
+                    title: 'Error',
+                    html: message
+                });
             }
         });
     });
 
-    $(document).on('change', '#check_all', function() {
+    $(document).on('change', '#check_all', function () {
         $('.row-checkbox').prop('checked', $(this).prop('checked'));
     });
 
-    // UPDATED DELETE / RESTORE / FORCE DELETE LOGIC
-    $(document).on('click', '.btnDelete, .btnRestore, .btnForceDelete', function() {
+    $(document).on('change', '.row-checkbox', function () {
+        let total = $('.row-checkbox').length;
+        let checked = $('.row-checkbox:checked').length;
+
+        $('#check_all').prop('checked', total > 0 && total === checked);
+    });
+
+    $(document).on('click', '.btnDelete, .btnRestore, .btnForceDelete', function () {
         let url = $(this).data('url');
         let isRestore = $(this).hasClass('btnRestore');
         let isForce = $(this).hasClass('btnForceDelete');
 
         Swal.fire({
-            title: isRestore ? 'Restore product?' : (isForce ? 'Purge forever?' :
-                'Move to trash?'),
+            title: isRestore ? 'Restore product?' : (isForce ? 'Purge forever?' : 'Move to trash?'),
             text: isForce ? 'This action cannot be undone!' : 'You can recover this later.',
             icon: isRestore ? 'question' : 'warning',
-            type: isRestore ? 'question' : 'warning', // Added for v8 compatibility
+            type: isRestore ? 'question' : 'warning',
             showCancelButton: true,
             confirmButtonText: 'Yes, Proceed',
             confirmButtonColor: isRestore ? '#28a745' : '#dc3545'
         }).then((result) => {
-            // FIX: Checking both result.isConfirmed (v9+) and result.value (v8)
-            if (result.isConfirmed || result.value) {
+            if (swalConfirmed(result)) {
                 $.ajax({
                     url: url,
                     type: isRestore ? 'POST' : 'DELETE',
                     data: {
                         _token: '{{ csrf_token() }}'
                     },
-                    success: function(res) {
+                    success: function (res) {
                         if (res.status) {
                             reloadTable();
-                            showToast('success', res.message);
+                            showToast('success', res.message || 'Action completed.');
                         } else {
                             showToast('error', res.message || 'Action failed.');
                         }
                     },
-                    error: function(xhr) {
+                    error: function (xhr) {
                         let message = 'Action failed.';
+
                         if (xhr.responseJSON && xhr.responseJSON.message) {
                             message = xhr.responseJSON.message;
                         }
+
                         showToast('error', message);
                     }
                 });
             }
         });
-    });;
+    });
 
-    $('#btnApplyBulk').on('click', function() {
+    $('#btnApplyBulk').on('click', function () {
         let action = $('#bulk_action').val();
-        let ids = $('.row-checkbox:checked').map(function() {
+        let ids = $('.row-checkbox:checked').map(function () {
             return $(this).val();
         }).get();
 
@@ -450,7 +506,7 @@ $(document).ready(function() {
             showCancelButton: true,
             confirmButtonText: 'Yes, Proceed'
         }).then((result) => {
-            if (result.isConfirmed || result.value) {
+            if (swalConfirmed(result)) {
                 $.ajax({
                     url: "{{ route('admin.products.multiple_action') }}",
                     type: "POST",
@@ -459,16 +515,15 @@ $(document).ready(function() {
                         ids: ids,
                         action: action
                     },
-                    success: function(res) {
+                    success: function (res) {
                         if (res.status) {
                             reloadTable();
-                            showToast('success', res.message);
+                            showToast('success', res.message || 'Bulk action completed.');
                         } else {
-                            showToast('error', res.message ||
-                                'Bulk action failed.');
+                            showToast('error', res.message || 'Bulk action failed.');
                         }
                     },
-                    error: function(xhr) {
+                    error: function (xhr) {
                         let message = 'Bulk action failed.';
 
                         if (xhr.responseJSON && xhr.responseJSON.message) {
@@ -502,12 +557,20 @@ $(document).ready(function() {
     cursor: pointer;
 }
 
-.breadcrumb-item+.breadcrumb-item::before {
+.breadcrumb-item + .breadcrumb-item::before {
     content: ">";
 }
 
 .swal2-container {
     z-index: 999999 !important;
+}
+
+#ajaxModal {
+    z-index: 1050;
+}
+
+.modal-backdrop {
+    z-index: 1040;
 }
 </style>
 @endsection

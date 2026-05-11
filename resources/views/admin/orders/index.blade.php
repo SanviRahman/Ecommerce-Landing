@@ -227,6 +227,12 @@
                         </button>
 
                         <button type="button"
+                                class="btn btn-success btn-sm mr-2"
+                                id="btnSendSelectedPathao">
+                            <i class="fas fa-shipping-fast mr-1"></i> Send Pathao
+                        </button>
+
+                        <button type="button"
                                 class="btn btn-danger btn-sm mr-2"
                                 id="btnDeleteSelected">
                             <i class="fas fa-trash mr-1"></i> Delete Selected
@@ -305,6 +311,7 @@
 
 @section('plugins.Sweetalert2', true)
 
+
 @section('js')
 <script>
 $(document).ready(function () {
@@ -362,6 +369,16 @@ $(document).ready(function () {
         $('#stat_fake').text(stats.fake ?? 0);
     }
 
+    function selectedIds() {
+        return $('.row-checkbox:checked').map(function () {
+            return $(this).val();
+        }).get();
+    }
+
+    function updateSelectedCount() {
+        $('#selectedCount').text(selectedIds().length);
+    }
+
     function updateUIState() {
         if (currentView === 'trash') {
             $('#view-label')
@@ -374,6 +391,7 @@ $(document).ready(function () {
                 .addClass('btn-outline-primary');
 
             $('#btnSendSelectedSteadfast').prop('disabled', true).addClass('disabled');
+            $('#btnSendSelectedPathao').prop('disabled', true).addClass('disabled');
         } else {
             $('#view-label')
                 .text('Active List')
@@ -385,17 +403,8 @@ $(document).ready(function () {
                 .addClass('btn-outline-danger');
 
             $('#btnSendSelectedSteadfast').prop('disabled', false).removeClass('disabled');
+            $('#btnSendSelectedPathao').prop('disabled', false).removeClass('disabled');
         }
-    }
-
-    function selectedIds() {
-        return $('.row-checkbox:checked').map(function () {
-            return $(this).val();
-        }).get();
-    }
-
-    function updateSelectedCount() {
-        $('#selectedCount').text(selectedIds().length);
     }
 
     function reloadTable(page = 1) {
@@ -423,12 +432,7 @@ $(document).ready(function () {
             error: function (xhr) {
                 $('#content-wrapper').css('opacity', '1');
 
-                let message = 'Failed to fetch orders.';
-
-                if (xhr.responseJSON && xhr.responseJSON.message) {
-                    message = xhr.responseJSON.message;
-                }
-
+                let message = xhr.responseJSON?.message || 'Failed to fetch orders.';
                 showToast('error', message);
             }
         });
@@ -475,13 +479,9 @@ $(document).ready(function () {
                     error: function (xhr) {
                         $('#content-wrapper').css('opacity', '1');
 
-                        let message = 'Bulk action failed.';
+                        let message = xhr.responseJSON?.message || 'Bulk action failed.';
 
-                        if (xhr.responseJSON && xhr.responseJSON.message) {
-                            message = xhr.responseJSON.message;
-                        }
-
-                        if (xhr.status === 422 && xhr.responseJSON && xhr.responseJSON.errors) {
+                        if (xhr.status === 422 && xhr.responseJSON?.errors) {
                             message = Object.values(xhr.responseJSON.errors)[0][0];
                         }
 
@@ -534,13 +534,9 @@ $(document).ready(function () {
                 }
             },
             error: function (xhr) {
-                let message = 'Save failed';
+                let message = xhr.responseJSON?.message || 'Save failed';
 
-                if (xhr.responseJSON && xhr.responseJSON.message) {
-                    message = xhr.responseJSON.message;
-                }
-
-                if (xhr.status === 422 && xhr.responseJSON && xhr.responseJSON.errors) {
+                if (xhr.status === 422 && xhr.responseJSON?.errors) {
                     message = Object.values(xhr.responseJSON.errors)[0][0];
                 }
 
@@ -717,13 +713,67 @@ $(document).ready(function () {
                     error: function (xhr) {
                         $('#content-wrapper').css('opacity', '1');
 
-                        let message = 'SteadFast send failed.';
+                        let message = xhr.responseJSON?.message || 'SteadFast send failed.';
 
-                        if (xhr.responseJSON && xhr.responseJSON.message) {
-                            message = xhr.responseJSON.message;
+                        if (xhr.status === 422 && xhr.responseJSON?.errors) {
+                            message = Object.values(xhr.responseJSON.errors)[0][0];
                         }
 
-                        if (xhr.status === 422 && xhr.responseJSON && xhr.responseJSON.errors) {
+                        showToast('error', message);
+                    }
+                });
+            }
+        });
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Send Selected Orders To Pathao
+    |--------------------------------------------------------------------------
+    */
+    $('#btnSendSelectedPathao').on('click', function () {
+        let ids = selectedIds();
+
+        if (!ids.length) {
+            Swal.fire('Notice', 'Please select at least one order.', 'info');
+            return;
+        }
+
+        Swal.fire({
+            title: 'Send selected orders to Pathao?',
+            text: `Only orders where courier service is Pathao will be sent. Selected orders: ${ids.length}`,
+            icon: 'warning',
+            type: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, Send',
+            confirmButtonColor: '#16a34a'
+        }).then((result) => {
+            if (swalConfirmed(result)) {
+                $.ajax({
+                    url: "{{ route('admin.orders.send_pathao_bulk') }}",
+                    type: "POST",
+                    data: {
+                        _token: '{{ csrf_token() }}',
+                        ids: ids
+                    },
+                    beforeSend: function () {
+                        $('#content-wrapper').css('opacity', '0.6');
+                    },
+                    success: function (res) {
+                        if (res.status) {
+                            showToast('success', res.message || 'Orders sent to Pathao successfully.');
+                            reloadTable();
+                        } else {
+                            $('#content-wrapper').css('opacity', '1');
+                            showToast('error', res.message || 'Pathao send failed.');
+                        }
+                    },
+                    error: function (xhr) {
+                        $('#content-wrapper').css('opacity', '1');
+
+                        let message = xhr.responseJSON?.message || 'Pathao send failed.';
+
+                        if (xhr.status === 422 && xhr.responseJSON?.errors) {
                             message = Object.values(xhr.responseJSON.errors)[0][0];
                         }
 
@@ -740,7 +790,9 @@ $(document).ready(function () {
     |--------------------------------------------------------------------------
     */
     $(document).on('click', '.btnSendSteadfast', function () {
-        let url = $(this).data('url');
+        let button = $(this);
+        let url = button.data('url');
+        let oldButtonHtml = button.html();
 
         Swal.fire({
             title: 'Send this order to SteadFast?',
@@ -752,6 +804,8 @@ $(document).ready(function () {
             confirmButtonColor: '#2563eb'
         }).then((result) => {
             if (swalConfirmed(result)) {
+                button.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i>');
+
                 $.ajax({
                     url: url,
                     type: 'POST',
@@ -767,18 +821,68 @@ $(document).ready(function () {
                             reloadTable();
                         } else {
                             $('#content-wrapper').css('opacity', '1');
+                            button.prop('disabled', false).html(oldButtonHtml);
                             showToast('error', res.message || 'SteadFast send failed.');
                         }
                     },
                     error: function (xhr) {
                         $('#content-wrapper').css('opacity', '1');
+                        button.prop('disabled', false).html(oldButtonHtml);
 
-                        let message = 'SteadFast send failed.';
+                        let message = xhr.responseJSON?.message || 'SteadFast send failed.';
+                        showToast('error', message);
+                    }
+                });
+            }
+        });
+    });
 
-                        if (xhr.responseJSON && xhr.responseJSON.message) {
-                            message = xhr.responseJSON.message;
+    /*
+    |--------------------------------------------------------------------------
+    | Send Single Order To Pathao
+    |--------------------------------------------------------------------------
+    */
+    $(document).on('click', '.btnSendPathao', function () {
+        let button = $(this);
+        let url = button.data('url');
+        let oldButtonHtml = button.html();
+
+        Swal.fire({
+            title: 'Send this order to Pathao?',
+            text: 'A new Pathao courier order will be created.',
+            icon: 'warning',
+            type: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, Send',
+            confirmButtonColor: '#16a34a'
+        }).then((result) => {
+            if (swalConfirmed(result)) {
+                button.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i>');
+
+                $.ajax({
+                    url: url,
+                    type: 'POST',
+                    data: {
+                        _token: '{{ csrf_token() }}'
+                    },
+                    beforeSend: function () {
+                        $('#content-wrapper').css('opacity', '0.6');
+                    },
+                    success: function (res) {
+                        if (res.status) {
+                            showToast('success', res.message || 'Order sent to Pathao.');
+                            reloadTable();
+                        } else {
+                            $('#content-wrapper').css('opacity', '1');
+                            button.prop('disabled', false).html(oldButtonHtml);
+                            showToast('error', res.message || 'Pathao send failed.');
                         }
+                    },
+                    error: function (xhr) {
+                        $('#content-wrapper').css('opacity', '1');
+                        button.prop('disabled', false).html(oldButtonHtml);
 
+                        let message = xhr.responseJSON?.message || 'Pathao send failed.';
                         showToast('error', message);
                     }
                 });
@@ -815,12 +919,7 @@ $(document).ready(function () {
             error: function (xhr) {
                 $('#content-wrapper').css('opacity', '1');
 
-                let message = 'SteadFast sync failed.';
-
-                if (xhr.responseJSON && xhr.responseJSON.message) {
-                    message = xhr.responseJSON.message;
-                }
-
+                let message = xhr.responseJSON?.message || 'SteadFast sync failed.';
                 showToast('error', message);
             }
         });
@@ -853,12 +952,7 @@ $(document).ready(function () {
                 }
             },
             error: function (xhr) {
-                let message = 'Balance fetch failed.';
-
-                if (xhr.responseJSON && xhr.responseJSON.message) {
-                    message = xhr.responseJSON.message;
-                }
-
+                let message = xhr.responseJSON?.message || 'Balance fetch failed.';
                 showToast('error', message);
             }
         });
@@ -919,18 +1013,13 @@ $(document).ready(function () {
                     success: function (res) {
                         if (res.status) {
                             reloadTable();
-                            showToast('success', res.message);
+                            showToast('success', res.message || 'Action completed.');
                         } else {
                             showToast('error', res.message || 'Action failed.');
                         }
                     },
                     error: function (xhr) {
-                        let message = 'Action failed.';
-
-                        if (xhr.responseJSON && xhr.responseJSON.message) {
-                            message = xhr.responseJSON.message;
-                        }
-
+                        let message = xhr.responseJSON?.message || 'Action failed.';
                         showToast('error', message);
                     }
                 });
@@ -962,18 +1051,13 @@ $(document).ready(function () {
                     success: function (res) {
                         if (res.status) {
                             reloadTable();
-                            showToast('success', res.message);
+                            showToast('success', res.message || 'Assigned successfully.');
                         } else {
                             showToast('error', res.message || 'Assignment failed.');
                         }
                     },
                     error: function (xhr) {
-                        let message = 'Assignment failed.';
-
-                        if (xhr.responseJSON && xhr.responseJSON.message) {
-                            message = xhr.responseJSON.message;
-                        }
-
+                        let message = xhr.responseJSON?.message || 'Assignment failed.';
                         showToast('error', message);
                     }
                 });

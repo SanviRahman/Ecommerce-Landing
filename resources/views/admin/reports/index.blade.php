@@ -23,7 +23,7 @@
 @section('content')
 
 @php
-    $summary = $summary ?? [];
+    $summary = $summary ?? $summaryStats ?? [];
 @endphp
 
 {{-- Report Summary Cards --}}
@@ -41,145 +41,127 @@
     </div>
 
     <div class="row mb-3">
-        {{-- Today's Order --}}
         <div class="col-xl-3 col-lg-4 col-md-4 col-sm-6 mb-3">
             <div class="info-box shadow-sm border-0 h-100">
                 <span class="info-box-icon bg-primary">
                     <i class="fas fa-shopping-cart"></i>
                 </span>
-
                 <div class="info-box-content">
                     <span class="info-box-text text-muted font-weight-bold">Today's Order</span>
                     <span class="info-box-number text-dark h5 mb-0">
-                        {{ $summary['todays_order'] ?? 0 }}
+                        {{ number_format($summary['todays_order'] ?? 0) }}
                     </span>
                 </div>
             </div>
         </div>
 
-        {{-- Pending Order --}}
         <div class="col-xl-3 col-lg-4 col-md-4 col-sm-6 mb-3">
             <div class="info-box shadow-sm border-0 h-100">
                 <span class="info-box-icon bg-warning text-white">
                     <i class="fas fa-clock"></i>
                 </span>
-
                 <div class="info-box-content">
                     <span class="info-box-text text-muted font-weight-bold">Pending Order</span>
                     <span class="info-box-number text-dark h5 mb-0">
-                        {{ $summary['pending_order'] ?? 0 }}
+                        {{ number_format($summary['pending_order'] ?? 0) }}
                     </span>
                 </div>
             </div>
         </div>
 
-        {{-- Incompleted Order --}}
         <div class="col-xl-3 col-lg-4 col-md-4 col-sm-6 mb-3">
             <div class="info-box shadow-sm border-0 h-100">
                 <span class="info-box-icon bg-info">
                     <i class="fas fa-spinner"></i>
                 </span>
-
                 <div class="info-box-content">
                     <span class="info-box-text text-muted font-weight-bold">Incompleted Order</span>
                     <span class="info-box-number text-dark h5 mb-0">
-                        {{ $summary['incompleted_order'] ?? 0 }}
+                        {{ number_format($summary['incompleted_order'] ?? 0) }}
                     </span>
                 </div>
             </div>
         </div>
 
-        {{-- Completed Order --}}
         <div class="col-xl-3 col-lg-4 col-md-4 col-sm-6 mb-3">
             <div class="info-box shadow-sm border-0 h-100">
                 <span class="info-box-icon bg-success">
                     <i class="fas fa-check-circle"></i>
                 </span>
-
                 <div class="info-box-content">
                     <span class="info-box-text text-muted font-weight-bold">Completed Order</span>
                     <span class="info-box-number text-dark h5 mb-0">
-                        {{ $summary['completed_order'] ?? 0 }}
+                        {{ number_format($summary['completed_order'] ?? 0) }}
                     </span>
                 </div>
             </div>
         </div>
 
-        {{-- Incompleted Invoice --}}
         <div class="col-xl-3 col-lg-4 col-md-4 col-sm-6 mb-3">
             <div class="info-box shadow-sm border-0 h-100">
                 <span class="info-box-icon bg-danger">
                     <i class="fas fa-file-invoice"></i>
                 </span>
-
                 <div class="info-box-content">
                     <span class="info-box-text text-muted font-weight-bold">Incompleted Invoice</span>
                     <span class="info-box-number text-dark h5 mb-0">
-                        {{ $summary['incompleted_invoice'] ?? 0 }}
+                        {{ number_format($summary['incompleted_invoice'] ?? 0) }}
                     </span>
                 </div>
             </div>
         </div>
 
-        {{-- Completed Invoice --}}
         <div class="col-xl-3 col-lg-4 col-md-4 col-sm-6 mb-3">
             <div class="info-box shadow-sm border-0 h-100">
                 <span class="info-box-icon bg-success">
                     <i class="fas fa-file-invoice-dollar"></i>
                 </span>
-
                 <div class="info-box-content">
                     <span class="info-box-text text-muted font-weight-bold">Completed Invoice</span>
                     <span class="info-box-number text-dark h5 mb-0">
-                        {{ $summary['completed_invoice'] ?? 0 }}
+                        {{ number_format($summary['completed_invoice'] ?? 0) }}
                     </span>
                 </div>
             </div>
         </div>
 
-        {{-- Total Checkout --}}
         <div class="col-xl-3 col-lg-4 col-md-4 col-sm-6 mb-3">
             <div class="info-box shadow-sm border-0 h-100">
                 <span class="info-box-icon bg-secondary">
                     <i class="fas fa-cash-register"></i>
                 </span>
-
                 <div class="info-box-content">
                     <span class="info-box-text text-muted font-weight-bold">Total Checkout</span>
                     <span class="info-box-number text-dark h5 mb-0">
-                        {{ $summary['checkout'] ?? 0 }}
+                        {{ number_format($summary['checkout'] ?? 0) }}
                     </span>
                 </div>
             </div>
         </div>
 
-        {{-- Delivery --}}
         <div class="col-xl-3 col-lg-4 col-md-4 col-sm-6 mb-3">
             <div class="info-box shadow-sm border-0 h-100">
                 <span class="info-box-icon bg-primary">
                     <i class="fas fa-truck"></i>
                 </span>
-
                 <div class="info-box-content">
                     <span class="info-box-text text-muted font-weight-bold">Delivery</span>
                     <span class="info-box-number text-dark h5 mb-0">
-                        {{ $summary['delivery'] ?? 0 }}
+                        {{ number_format($summary['delivery'] ?? 0) }}
                     </span>
                 </div>
             </div>
         </div>
 
-        {{-- Cancelled --}}
         <div class="col-xl-3 col-lg-4 col-md-4 col-sm-6 mb-3">
             <div class="info-box shadow-sm border-0 h-100">
                 <span class="info-box-icon bg-danger">
                     <i class="fas fa-times-circle"></i>
                 </span>
-
                 <div class="info-box-content">
                     <span class="info-box-text text-muted font-weight-bold">Cancelled</span>
                     <span class="info-box-number text-dark h5 mb-0">
-                        {{ $summary['cancelled'] ?? 0 }}
+                        {{ number_format($summary['cancelled'] ?? 0) }}
                     </span>
                 </div>
             </div>

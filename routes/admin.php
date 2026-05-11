@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\BrandController;
 use App\Http\Controllers\Admin\BulkOrderController;
 use App\Http\Controllers\Admin\CampaignController;
 use App\Http\Controllers\Admin\CategoryController;
+use App\Http\Controllers\Admin\CourierAccountController;
 use App\Http\Controllers\Admin\CreatePageController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\FaqController;
@@ -35,11 +36,11 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/password', [ProfileController::class, 'password'])->name('change-password');
     Route::post('/password', [ProfileController::class, 'updatePassword'])->name('change-password.update');
 
-/*
-|--------------------------------------------------------------------------
-| Orders: Admin + Employee
-|--------------------------------------------------------------------------
-*/
+    /*
+    |--------------------------------------------------------------------------
+    | Orders: Admin + Employee
+    |--------------------------------------------------------------------------
+    */
     Route::middleware(['role:admin,employee'])
         ->prefix('orders')
         ->as('orders.')
@@ -55,10 +56,10 @@ Route::middleware(['auth'])->group(function () {
             Route::get('/fake', [OrderController::class, 'fake'])->name('fake');
 
             /*
-        |--------------------------------------------------------------------------
-        | Admin Only Order Bulk / Trash Routes
-        |--------------------------------------------------------------------------
-        */
+            |--------------------------------------------------------------------------
+            | Admin Only Order Bulk / Trash Routes
+            |--------------------------------------------------------------------------
+            */
             Route::middleware(['role:admin'])->group(function () {
                 Route::get('/trash', [OrderController::class, 'trash'])->name('trashed');
                 Route::post('/restore/{id}', [OrderController::class, 'restore'])->name('restore');
@@ -67,15 +68,18 @@ Route::middleware(['auth'])->group(function () {
                 Route::post('/multiple-action', [OrderController::class, 'multipleAction'])->name('multiple_action');
                 Route::post('/assign-unassigned', [OrderController::class, 'assignUnassignedOrders'])->name('assign_unassigned');
                 Route::post('/selected-invoices', [OrderController::class, 'selectedInvoices'])->name('selected_invoices');
+
                 Route::post('/send-steadfast-bulk', [OrderController::class, 'bulkSendToSteadfast'])->name('send_steadfast_bulk');
+                Route::post('/send-pathao-bulk', [OrderController::class, 'bulkSendToPathao'])->name('send_pathao_bulk');
+
                 Route::get('/steadfast/balance', [OrderController::class, 'steadfastBalance'])->name('steadfast.balance');
             });
 
             /*
-        |--------------------------------------------------------------------------
-        | Single Order Routes
-        |--------------------------------------------------------------------------
-        */
+            |--------------------------------------------------------------------------
+            | Single Order Routes
+            |--------------------------------------------------------------------------
+            */
             Route::get('/{order}/invoice', [OrderController::class, 'invoice'])->name('invoice');
             Route::get('/{order}/invoice/download', [OrderController::class, 'downloadInvoice'])->name('invoice.download');
 
@@ -90,31 +94,50 @@ Route::middleware(['auth'])->group(function () {
                 ->middleware('role:admin')
                 ->name('destroy');
 
-            Route::post('/{order}/send-steadfast', [OrderController::class, 'sendToSteadfast'])->name('send_steadfast');
-            Route::post('/{order}/sync-steadfast-status', [OrderController::class, 'syncSteadfastStatus'])->name('sync_steadfast_status');
+            Route::post('/{order}/send-steadfast', [OrderController::class, 'sendToSteadfast'])
+                ->middleware('role:admin')
+                ->name('send_steadfast');
+
+            Route::post('/{order}/send-pathao', [OrderController::class, 'sendToPathao'])
+                ->middleware('role:admin')
+                ->name('send_pathao');
+
+            Route::post('/{order}/sync-steadfast-status', [OrderController::class, 'syncSteadfastStatus'])
+                ->middleware('role:admin')
+                ->name('sync_steadfast_status');
 
             /*
-        |--------------------------------------------------------------------------
-        | Show route must be last
-        |--------------------------------------------------------------------------
-        */
+            |--------------------------------------------------------------------------
+            | Admin Select Courier For Order
+            |--------------------------------------------------------------------------
+            */
+            Route::patch('/{order}/courier', [OrderController::class, 'updateCourier'])
+                ->middleware('role:admin')
+                ->name('update_courier');
+
+            /*
+            |--------------------------------------------------------------------------
+            | Show route must be last
+            |--------------------------------------------------------------------------
+            */
             Route::get('/{order}', [OrderController::class, 'show'])->name('show');
         });
+
     /*
-|--------------------------------------------------------------------------
-| Products: Admin full access, Employee view only
-|--------------------------------------------------------------------------
-*/
+    |--------------------------------------------------------------------------
+    | Products: Admin full access, Employee view only
+    |--------------------------------------------------------------------------
+    */
     Route::middleware(['role:admin,employee'])
         ->prefix('products')
         ->as('products.')
         ->group(function () {
 
             /*
-        |--------------------------------------------------------------------------
-        | Admin Only Static Routes
-        |--------------------------------------------------------------------------
-        */
+            |--------------------------------------------------------------------------
+            | Admin Only Static Routes
+            |--------------------------------------------------------------------------
+            */
             Route::middleware(['role:admin'])->group(function () {
                 Route::get('/create', [ProductController::class, 'create'])->name('create');
                 Route::post('/', [ProductController::class, 'store'])->name('store');
@@ -127,17 +150,17 @@ Route::middleware(['auth'])->group(function () {
             });
 
             /*
-        |--------------------------------------------------------------------------
-        | Product List
-        |--------------------------------------------------------------------------
-        */
+            |--------------------------------------------------------------------------
+            | Product List
+            |--------------------------------------------------------------------------
+            */
             Route::get('/', [ProductController::class, 'index'])->name('index');
 
             /*
-        |--------------------------------------------------------------------------
-        | Admin Only Dynamic Edit/Update/Delete Routes
-        |--------------------------------------------------------------------------
-        */
+            |--------------------------------------------------------------------------
+            | Admin Only Dynamic Edit/Update/Delete Routes
+            |--------------------------------------------------------------------------
+            */
             Route::middleware(['role:admin'])->group(function () {
                 Route::get('/{product}/edit', [ProductController::class, 'edit'])->name('edit');
                 Route::put('/{product}', [ProductController::class, 'update'])->name('update');
@@ -146,25 +169,34 @@ Route::middleware(['auth'])->group(function () {
             });
 
             /*
-        |--------------------------------------------------------------------------
-        | Product Show Route Must Be Last
-        |--------------------------------------------------------------------------
-        */
+            |--------------------------------------------------------------------------
+            | Product Show Route Must Be Last
+            |--------------------------------------------------------------------------
+            */
             Route::get('/{product}', [ProductController::class, 'show'])->name('show');
         });
 
-/*
-|--------------------------------------------------------------------------
-| Admin Only Routes
-|--------------------------------------------------------------------------
-*/
+    /*
+    |--------------------------------------------------------------------------
+    | Admin Only Routes
+    |--------------------------------------------------------------------------
+    */
     Route::middleware(['role:admin'])->group(function () {
 
         /*
-    |--------------------------------------------------------------------------
-    | Users
-    |--------------------------------------------------------------------------
-    */
+        |--------------------------------------------------------------------------
+        | Courier API Accounts
+        |--------------------------------------------------------------------------
+        */
+        Route::resource('courier-accounts', CourierAccountController::class)
+            ->only(['index', 'store', 'update', 'destroy'])
+            ->names('courier-accounts');
+
+        /*
+        |--------------------------------------------------------------------------
+        | Users
+        |--------------------------------------------------------------------------
+        */
         Route::prefix('users')
             ->as('users.')
             ->group(function () {
@@ -183,10 +215,10 @@ Route::middleware(['auth'])->group(function () {
             });
 
         /*
-|--------------------------------------------------------------------------
-| Categories
-|--------------------------------------------------------------------------
-*/
+        |--------------------------------------------------------------------------
+        | Categories
+        |--------------------------------------------------------------------------
+        */
         Route::prefix('categories')
             ->as('categories.')
             ->group(function () {
@@ -209,7 +241,7 @@ Route::middleware(['auth'])->group(function () {
                 Route::get('/{category}', [CategoryController::class, 'show'])->name('show');
             });
 
-/*
+        /*
         |--------------------------------------------------------------------------
         | Brands
         |--------------------------------------------------------------------------
@@ -261,11 +293,11 @@ Route::middleware(['auth'])->group(function () {
                 Route::get('/{page}', [CreatePageController::class, 'show'])->name('show');
             });
 
-/*
-|--------------------------------------------------------------------------
-| Campaigns
-|--------------------------------------------------------------------------
-*/
+        /*
+        |--------------------------------------------------------------------------
+        | Campaigns
+        |--------------------------------------------------------------------------
+        */
         Route::prefix('campaigns')
             ->as('campaigns.')
             ->group(function () {
@@ -291,11 +323,11 @@ Route::middleware(['auth'])->group(function () {
                 Route::get('/{campaign}', [CampaignController::class, 'show'])->name('show');
             });
 
-/*
-|--------------------------------------------------------------------------
-| Old Singular Campaign URL Redirects
-|--------------------------------------------------------------------------
-*/
+        /*
+        |--------------------------------------------------------------------------
+        | Old Singular Campaign URL Redirects
+        |--------------------------------------------------------------------------
+        */
         Route::get('/campaign/create', function () {
             return redirect()->route('admin.campaigns.create');
         })->name('campaign.create.redirect');
@@ -304,7 +336,7 @@ Route::middleware(['auth'])->group(function () {
             return redirect()->route('admin.campaigns.index');
         })->name('campaign.manage.redirect');
 
-/*
+        /*
         |--------------------------------------------------------------------------
         | Banners
         |--------------------------------------------------------------------------
@@ -312,7 +344,6 @@ Route::middleware(['auth'])->group(function () {
         Route::prefix('banners')
             ->as('banners.')
             ->group(function () {
-                // Bulk and Trash routes should be defined BEFORE the resource/CRUD routes
                 Route::get('/trash/list', [BannerController::class, 'trash'])->name('trashed');
                 Route::post('/restore/{id}', [BannerController::class, 'restore'])->name('restore');
                 Route::delete('/force-delete/{id}', [BannerController::class, 'forceDelete'])->name('force_delete');
@@ -331,11 +362,11 @@ Route::middleware(['auth'])->group(function () {
                 Route::get('/{banner}', [BannerController::class, 'show'])->name('show');
             });
 
-/*
-|--------------------------------------------------------------------------
-| Tracking Pixels
-|--------------------------------------------------------------------------
-*/
+        /*
+        |--------------------------------------------------------------------------
+        | Tracking Pixels
+        |--------------------------------------------------------------------------
+        */
         Route::prefix('tracking-pixels')
             ->as('tracking-pixels.')
             ->group(function () {
@@ -360,10 +391,10 @@ Route::middleware(['auth'])->group(function () {
             });
 
         /*
-|--------------------------------------------------------------------------
-| Site Settings
-|--------------------------------------------------------------------------
-*/
+        |--------------------------------------------------------------------------
+        | Site Settings
+        |--------------------------------------------------------------------------
+        */
         Route::prefix('site-settings')
             ->as('site-settings.')
             ->group(function () {
@@ -383,7 +414,6 @@ Route::middleware(['auth'])->group(function () {
         Route::prefix('social-media')
             ->as('social-media.')
             ->group(function () {
-                // Bulk and Trash routes MUST be defined BEFORE the resource/dynamic routes
                 Route::get('/trash/list', [SocialMediaController::class, 'trash'])->name('trashed');
                 Route::post('/restore/{id}', [SocialMediaController::class, 'restore'])->name('restore');
                 Route::delete('/force-delete/{id}', [SocialMediaController::class, 'forceDelete'])->name('force_delete');
@@ -401,6 +431,7 @@ Route::middleware(['auth'])->group(function () {
 
                 Route::get('/{socialMedia}', [SocialMediaController::class, 'show'])->name('show');
             });
+
         /*
         |--------------------------------------------------------------------------
         | Reviews
@@ -409,7 +440,6 @@ Route::middleware(['auth'])->group(function () {
         Route::prefix('reviews')
             ->as('reviews.')
             ->group(function () {
-                // Bulk and Trash routes should be defined BEFORE the resource routes
                 Route::get('/trash/list', [ReviewController::class, 'trash'])->name('trashed');
                 Route::post('/restore/{id}', [ReviewController::class, 'restore'])->name('restore');
                 Route::delete('/force-delete/{id}', [ReviewController::class, 'forceDelete'])->name('force_delete');
@@ -436,7 +466,6 @@ Route::middleware(['auth'])->group(function () {
         Route::prefix('faqs')
             ->as('faqs.')
             ->group(function () {
-                // Bulk and Trash routes MUST be defined BEFORE the resource/dynamic routes
                 Route::get('/trash/list', [FaqController::class, 'trash'])->name('trashed');
                 Route::post('/restore/{id}', [FaqController::class, 'restore'])->name('restore');
                 Route::delete('/force-delete/{id}', [FaqController::class, 'forceDelete'])->name('force_delete');
@@ -480,11 +509,11 @@ Route::middleware(['auth'])->group(function () {
                 Route::delete('/{bulkOrder}', [BulkOrderController::class, 'destroy'])->name('destroy');
             });
 
-/*
-|--------------------------------------------------------------------------
-| Reports
-|--------------------------------------------------------------------------
-*/
+        /*
+        |--------------------------------------------------------------------------
+        | Reports
+        |--------------------------------------------------------------------------
+        */
         Route::prefix('reports')
             ->as('reports.')
             ->group(function () {

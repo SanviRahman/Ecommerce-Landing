@@ -11,7 +11,6 @@ use App\Services\OrderAssignmentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use Illuminate\Validation\Rule;
 
 class CampaignOrderController extends Controller
 {
@@ -24,13 +23,6 @@ class CampaignOrderController extends Controller
             'phone'               => ['required', 'string', 'max:20'],
             'address'             => ['required', 'string'],
             'delivery_area'       => ['required', 'in:inside_dhaka,outside_dhaka'],
-
-            'courier_service'     => [
-                'required',
-                'string',
-                Rule::in(array_keys(config('couriers.list', []))),
-            ],
-
             'customer_note'       => ['nullable', 'string', 'max:1000'],
 
             'products'            => ['required', 'array', 'min:1'],
@@ -39,12 +31,6 @@ class CampaignOrderController extends Controller
         ]);
 
         return DB::transaction(function () use ($request, $campaign) {
-            /*
-            |--------------------------------------------------------------------------
-            | Campaign Attached Products
-            |--------------------------------------------------------------------------
-            | Attached thakle campaign price use hobe.
-            */
             $campaign->load([
                 'products' => function ($query) {
                     $query->where('products.status', true);
@@ -53,12 +39,6 @@ class CampaignOrderController extends Controller
 
             $campaignProducts = $campaign->products->keyBy('id');
 
-            /*
-            |--------------------------------------------------------------------------
-            | Submitted Product IDs
-            |--------------------------------------------------------------------------
-            | Same product duplicate submit hole quantity merge kore nibe.
-            */
             $submittedProducts = collect($request->products)
                 ->groupBy('id')
                 ->map(function ($items) {
@@ -75,12 +55,6 @@ class CampaignOrderController extends Controller
             foreach ($submittedProducts as $submittedProduct) {
                 $productId = (int) $submittedProduct['id'];
 
-                /*
-                |--------------------------------------------------------------------------
-                | First priority: campaign attached product
-                | Second priority: normal active product
-                |--------------------------------------------------------------------------
-                */
                 $product = $campaignProducts->get($productId);
 
                 if (! $product) {
@@ -96,13 +70,6 @@ class CampaignOrderController extends Controller
 
                 $quantity = max(1, (int) $submittedProduct['quantity']);
 
-                /*
-                |--------------------------------------------------------------------------
-                | Price Calculation
-                |--------------------------------------------------------------------------
-                | Campaign attached hole pivot campaign_price use hobe.
-                | Na hole product new_price use hobe.
-                */
                 $campaignPrice = 0;
 
                 if (isset($product->pivot)) {
@@ -121,10 +88,11 @@ class CampaignOrderController extends Controller
                 $subTotal += $lineTotal;
 
                 $orderItems[] = [
-                    'product'    => $product,
-                    'quantity'   => $quantity,
-                    'unit_price' => $unitPrice,
-                    'line_total' => $lineTotal,
+                    'product'          => $product,
+                    'quantity'         => $quantity,
+                    'unit_price'       => $unitPrice,
+                    'line_total'       => $lineTotal,
+                    'is_free_delivery' => (bool) $product->is_free_delivery,
                 ];
             }
 
@@ -134,36 +102,60 @@ class CampaignOrderController extends Controller
                     ->with('error', 'Please select at least one valid product.');
             }
 
-            $shippingCharge = $request->delivery_area === 'inside_dhaka' ? 70 : 130;
+            /*
+            |--------------------------------------------------------------------------
+            | Delivery Charge Logic
+            |--------------------------------------------------------------------------
+            | সব selected product free delivery হলে delivery charge 0 হবে।
+            | Mixed / non-free product থাকলে:
+            | - ঢাকার ভিতরে = 70
+            | - ঢাকার বাইরে = 130
+            |--------------------------------------------------------------------------
+            */
+            $allItemsFreeDelivery = collect($orderItems)
+                ->every(fn ($item) => (bool) $item['is_free_delivery']);
+
+            $shippingCharge = $allItemsFreeDelivery
+                ? 0
+                : ($request->delivery_area === 'inside_dhaka' ? 70 : 130);
+
             $codCharge = 0;
             $totalAmount = $subTotal + $shippingCharge + $codCharge;
 
             $order = Order::create([
-                'invoice_id'      => $this->generateInvoiceId(),
-                'campaign_id'     => $campaign->id,
+                'invoice_id'        => $this->generateInvoiceId(),
+                'campaign_id'       => $campaign->id,
 
-                'customer_name'   => $request->customer_name,
-                'phone'           => $request->phone,
-                'address'         => $request->address,
+                'customer_name'     => $request->customer_name,
+                'phone'             => $request->phone,
+                'address'           => $request->address,
+                'delivery_area'     => $request->delivery_area,
 
-                'delivery_area'   => $request->delivery_area,
-                'courier_service' => $request->courier_service,
+                /*
+                |--------------------------------------------------------------------------
+                | User panel থেকে courier select হবে না।
+                | Admin panel থেকে পরে courier select করবে।
+                |--------------------------------------------------------------------------
+                */
+                'courier_service'    => null,
+                'courier_account_id' => null,
 
-                'sub_total'       => $subTotal,
-                'shipping_charge' => $shippingCharge,
-                'cod_charge'      => $codCharge,
-                'total_amount'    => $totalAmount,
+                'sub_total'         => $subTotal,
+                'shipping_charge'   => $shippingCharge,
+                'is_free_delivery'  => $allItemsFreeDelivery,
+                'cod_charge'        => $codCharge,
+                'total_amount'      => $totalAmount,
 
-                'payment_method'  => 'cash_on_delivery',
-                'payment_status'  => 'cod_pending',
-                'order_status'    => 'pending',
+                'payment_method'    => 'cash_on_delivery',
+                'payment_status'    => 'cod_pending',
+                'order_status'      => 'pending',
 
-                'is_fake'         => false,
-                'customer_note'   => $request->customer_note,
+                'is_fake'           => false,
+                'customer_note'     => $request->customer_note,
 
-                'source_ip'       => $request->ip(),
-                'user_agent'      => $request->userAgent(),
-                'source_url'      => url()->previous(),
+                'source_ip'         => $request->ip(),
+                'user_agent'        => $request->userAgent(),
+                'source_url'        => url()->previous(),
             ]);
 
             foreach ($orderItems as $item) {
@@ -177,11 +169,6 @@ class CampaignOrderController extends Controller
                 ]);
             }
 
-            /*
-            |--------------------------------------------------------------------------
-            | Auto Assign Order To Active Employee
-            |--------------------------------------------------------------------------
-            */
             app(OrderAssignmentService::class)->assign($order);
 
             return redirect()

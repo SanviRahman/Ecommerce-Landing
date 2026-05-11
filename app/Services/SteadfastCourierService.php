@@ -2,54 +2,66 @@
 
 namespace App\Services;
 
+use App\Models\CourierAccount;
 use App\Models\Order;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use RuntimeException;
+use Throwable;
 
 class SteadfastCourierService
 {
-    private string $baseUrl;
-
-    private ?string $apiKey;
-
-    private ?string $secretKey;
-
     private int $timeout;
 
     public function __construct()
     {
-        $this->baseUrl = rtrim(config('steadfast.base_url'), '/');
-        $this->apiKey = config('steadfast.api_key');
-        $this->secretKey = config('steadfast.secret_key');
         $this->timeout = (int) config('steadfast.timeout', 30);
     }
 
-    /**
-     * Create order on Steadfast.
-     */
     public function createOrder(Order $order): array
     {
-        $this->ensureConfigured();
+        $order->loadMissing(['items', 'courierAccount']);
 
-        if ($order->courier_service !== 'steadfast') {
-            throw new RuntimeException('This order courier service is not SteadFast.');
+        $courier = $this->resolveCourierAccount($order);
+
+        if ($courier->code !== 'steadfast') {
+            throw new RuntimeException('Selected courier is not SteadFast.');
         }
+
+        $this->ensureConfigured($courier);
 
         if ($order->steadfast_consignment_id || $order->steadfast_tracking_code) {
             throw new RuntimeException('This order already sent to SteadFast.');
         }
 
-        $payload = $this->makeOrderPayload($order);
+        try {
+            $response = $this->client($courier)
+                ->post($this->baseUrl($courier) . '/create_order', $this->makeOrderPayload($order));
+        } catch (ConnectionException $e) {
+            $message = 'SteadFast connection failed. Please check courier base URL. Current URL: ' . $this->baseUrl($courier);
 
-        $response = $this->client()
-            ->post($this->baseUrl . '/create_order', $payload);
+            $order->update([
+                'steadfast_note' => $message,
+                'steadfast_response' => [
+                    'error' => $e->getMessage(),
+                    'base_url' => $this->baseUrl($courier),
+                ],
+                'steadfast_synced_at' => now(),
+            ]);
+
+            throw new RuntimeException($message);
+        } catch (Throwable $e) {
+            throw new RuntimeException($e->getMessage());
+        }
 
         $data = $this->decodeResponse($response);
 
         if (! $response->successful() || (int) data_get($data, 'status') !== 200) {
-            $message = data_get($data, 'message', 'SteadFast order create failed.');
+            $message = data_get($data, 'message')
+                ?: data_get($data, 'error')
+                ?: 'SteadFast order create failed.';
 
             $order->update([
                 'steadfast_note' => $message,
@@ -75,56 +87,31 @@ class SteadfastCourierService
         return $data;
     }
 
-    /**
-     * Check status by invoice id.
-     */
-    public function statusByInvoice(string $invoiceId): array
-    {
-        $this->ensureConfigured();
-
-        $response = $this->client()
-            ->get($this->baseUrl . '/status_by_invoice/' . urlencode($invoiceId));
-
-        return $this->decodeResponse($response);
-    }
-
-    /**
-     * Check status by tracking code.
-     */
-    public function statusByTrackingCode(string $trackingCode): array
-    {
-        $this->ensureConfigured();
-
-        $response = $this->client()
-            ->get($this->baseUrl . '/status_by_trackingcode/' . urlencode($trackingCode));
-
-        return $this->decodeResponse($response);
-    }
-
-    /**
-     * Check current SteadFast balance.
-     */
-    public function getBalance(): array
-    {
-        $this->ensureConfigured();
-
-        $response = $this->client()
-            ->get($this->baseUrl . '/get_balance');
-
-        return $this->decodeResponse($response);
-    }
-
-    /**
-     * Sync SteadFast status into local order.
-     */
     public function syncStatus(Order $order): array
     {
-        if ($order->steadfast_tracking_code) {
-            $data = $this->statusByTrackingCode($order->steadfast_tracking_code);
-        } else {
-            $data = $this->statusByInvoice($order->invoice_id);
+        $order->loadMissing('courierAccount');
+
+        $courier = $this->resolveCourierAccount($order);
+
+        if ($courier->code !== 'steadfast') {
+            throw new RuntimeException('Selected courier is not SteadFast.');
         }
 
+        $this->ensureConfigured($courier);
+
+        try {
+            if ($order->steadfast_tracking_code) {
+                $response = $this->client($courier)
+                    ->get($this->baseUrl($courier) . '/status_by_trackingcode/' . urlencode($order->steadfast_tracking_code));
+            } else {
+                $response = $this->client($courier)
+                    ->get($this->baseUrl($courier) . '/status_by_invoice/' . urlencode($order->invoice_id));
+            }
+        } catch (ConnectionException $e) {
+            throw new RuntimeException('SteadFast connection failed. Please check courier base URL. Current URL: ' . $this->baseUrl($courier));
+        }
+
+        $data = $this->decodeResponse($response);
         $deliveryStatus = data_get($data, 'delivery_status');
 
         $updateData = [
@@ -135,12 +122,12 @@ class SteadfastCourierService
 
         if (config('steadfast.auto_update_order_status')) {
             if ($deliveryStatus === 'delivered') {
-                $updateData['order_status'] = 'delivered';
+                $updateData['order_status'] = Order::STATUS_DELIVERED;
                 $updateData['delivered_at'] = now();
             }
 
             if ($deliveryStatus === 'cancelled') {
-                $updateData['order_status'] = 'cancelled';
+                $updateData['order_status'] = Order::STATUS_CANCELLED;
                 $updateData['cancelled_at'] = now();
             }
         }
@@ -150,18 +137,62 @@ class SteadfastCourierService
         return $data;
     }
 
-    /**
-     * Prepare SteadFast payload from local order.
-     */
+    public function getBalance(?CourierAccount $courier = null): array
+    {
+        $courier = $courier ?: CourierAccount::query()
+            ->where('code', 'steadfast')
+            ->where('status', true)
+            ->latest()
+            ->first();
+
+        $this->ensureConfigured($courier);
+
+        try {
+            $response = $this->client($courier)
+                ->get($this->baseUrl($courier) . '/get_balance');
+        } catch (ConnectionException $e) {
+            throw new RuntimeException('SteadFast connection failed. Please check courier base URL. Current URL: ' . $this->baseUrl($courier));
+        }
+
+        return $this->decodeResponse($response);
+    }
+
+    private function resolveCourierAccount(Order $order): CourierAccount
+    {
+        $courier = $order->courierAccount;
+
+        if (! $courier && $order->courier_account_id) {
+            $courier = CourierAccount::query()->find($order->courier_account_id);
+        }
+
+        if (! $courier && $order->courier_service === 'steadfast') {
+            $courier = CourierAccount::query()
+                ->where('code', 'steadfast')
+                ->where('status', true)
+                ->latest()
+                ->first();
+        }
+
+        if (! $courier) {
+            throw new RuntimeException('Please select SteadFast courier from admin order details page first.');
+        }
+
+        if (! $courier->status) {
+            throw new RuntimeException('Selected courier API account is inactive.');
+        }
+
+        return $courier;
+    }
+
     private function makeOrderPayload(Order $order): array
     {
         $order->loadMissing('items');
 
         return [
             'invoice' => $order->invoice_id,
-            'recipient_name' => Str::limit($order->customer_name, 100, ''),
+            'recipient_name' => Str::limit($order->customer_name ?: 'Customer', 100, ''),
             'recipient_phone' => $this->normalizePhone($order->phone),
-            'recipient_address' => Str::limit($order->address, 250, ''),
+            'recipient_address' => Str::limit($order->address ?: 'N/A', 250, ''),
             'cod_amount' => (float) ($order->total_amount ?? 0),
             'note' => $this->makeNote($order),
             'item_description' => $this->makeItemDescription($order),
@@ -170,24 +201,23 @@ class SteadfastCourierService
         ];
     }
 
-    /**
-     * Laravel HTTP client with required headers.
-     */
-    private function client()
+    private function client(CourierAccount $courier)
     {
         return Http::timeout($this->timeout)
             ->acceptJson()
             ->asJson()
             ->withHeaders([
-                'Api-Key' => $this->apiKey,
-                'Secret-Key' => $this->secretKey,
+                'Api-Key' => trim((string) $courier->api_key),
+                'Secret-Key' => trim((string) $courier->secret_key),
                 'Content-Type' => 'application/json',
             ]);
     }
 
-    /**
-     * Decode response safely.
-     */
+    private function baseUrl(CourierAccount $courier): string
+    {
+        return rtrim($courier->base_url ?: 'https://portal.packzy.com/api/v1', '/');
+    }
+
     private function decodeResponse(Response $response): array
     {
         $data = $response->json();
@@ -202,19 +232,25 @@ class SteadfastCourierService
         ];
     }
 
-    /**
-     * Ensure .env credentials exist.
-     */
-    private function ensureConfigured(): void
+    private function ensureConfigured(?CourierAccount $courier): void
     {
-        if (blank($this->apiKey) || blank($this->secretKey)) {
-            throw new RuntimeException('SteadFast API key or secret key is missing. Please update .env file.');
+        if (! $courier) {
+            throw new RuntimeException('No active SteadFast courier API account found.');
+        }
+
+        if (blank($courier->base_url)) {
+            throw new RuntimeException('SteadFast API base URL is missing.');
+        }
+
+        if (blank($courier->api_key) || blank($courier->secret_key)) {
+            throw new RuntimeException('SteadFast API key or secret key is missing.');
+        }
+
+        if (str_contains($courier->base_url, 'portal.steadfast.com.bd')) {
+            throw new RuntimeException('Wrong SteadFast base URL. Use: https://portal.packzy.com/api/v1');
         }
     }
 
-    /**
-     * Convert BD phone to 11 digit format.
-     */
     private function normalizePhone(?string $phone): string
     {
         $phone = preg_replace('/\D+/', '', (string) $phone);
@@ -230,15 +266,16 @@ class SteadfastCourierService
         return $phone;
     }
 
-    /**
-     * Order note for courier.
-     */
     private function makeNote(Order $order): ?string
     {
         $notes = [];
 
         if ($order->delivery_area) {
             $notes[] = 'Area: ' . ucwords(str_replace('_', ' ', $order->delivery_area));
+        }
+
+        if ($order->is_free_delivery) {
+            $notes[] = 'Free Delivery';
         }
 
         if ($order->customer_note) {
@@ -254,9 +291,6 @@ class SteadfastCourierService
             : Str::limit(implode(' | ', $notes), 250, '');
     }
 
-    /**
-     * Product item description.
-     */
     private function makeItemDescription(Order $order): ?string
     {
         if (! $order->relationLoaded('items')) {
@@ -264,9 +298,7 @@ class SteadfastCourierService
         }
 
         $items = $order->items
-            ->map(function ($item) {
-                return $item->quantity . ' x ' . $item->product_name;
-            })
+            ->map(fn ($item) => $item->quantity . ' x ' . $item->product_name)
             ->implode(', ');
 
         return $items ? Str::limit($items, 250, '') : null;

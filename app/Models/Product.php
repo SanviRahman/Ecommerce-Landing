@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Models;
 
 use App\Traits\HasMediaTrait;
@@ -29,21 +30,23 @@ class Product extends Model implements HasMedia
         'is_top_sale',
         'is_feature',
         'is_flash_sale',
+        'is_free_delivery',
         'status',
         'meta_title',
         'meta_description',
     ];
 
     protected $casts = [
-        'purchase_price' => 'integer',
-        'old_price'      => 'integer',
-        'new_price'      => 'integer',
-        'stock'          => 'integer',
-        'sold_quantity'  => 'integer',
-        'is_top_sale'    => 'boolean',
-        'is_feature'     => 'boolean',
-        'is_flash_sale'  => 'boolean',
-        'status'         => 'boolean',
+        'purchase_price'   => 'integer',
+        'old_price'        => 'integer',
+        'new_price'        => 'integer',
+        'stock'            => 'integer',
+        'sold_quantity'    => 'integer',
+        'is_top_sale'      => 'boolean',
+        'is_feature'       => 'boolean',
+        'is_flash_sale'    => 'boolean',
+        'is_free_delivery' => 'boolean',
+        'status'           => 'boolean',
     ];
 
     protected $appends = [
@@ -104,6 +107,11 @@ class Product extends Model implements HasMedia
     public function scopeFlashSale($query)
     {
         return $query->where('is_flash_sale', true);
+    }
+
+    public function scopeFreeDelivery($query)
+    {
+        return $query->where('is_free_delivery', true);
     }
 
     public function getThumbnailAttribute(): string
