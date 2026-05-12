@@ -11,7 +11,21 @@ class CourierAccountSeeder extends Seeder
     {
         /*
         |--------------------------------------------------------------------------
-        | SteadFast Courier
+        | Reset Default Courier API Account
+        |--------------------------------------------------------------------------
+        | পুরোনো database এ Pathao default হয়ে থাকলে সেটা false করবে।
+        | তারপর SteadFast কে default করবে।
+        |--------------------------------------------------------------------------
+        */
+        CourierAccount::query()->update([
+            'is_default' => false,
+        ]);
+
+        /*
+        |--------------------------------------------------------------------------
+        | SteadFast Courier API Account
+        |--------------------------------------------------------------------------
+        | Default courier API হিসেবে SteadFast থাকবে।
         |--------------------------------------------------------------------------
         */
         CourierAccount::updateOrCreate(
@@ -24,10 +38,9 @@ class CourierAccountSeeder extends Seeder
 
                 /*
                 |--------------------------------------------------------------------------
-                | Security Note
-                |--------------------------------------------------------------------------
                 | Real API key/secret seeder-e rakha safe na.
-                | Admin Panel -> Courier API Accounts theke update korbe.
+                | Admin Panel -> Courier API Accounts থেকে update করবে।
+                |--------------------------------------------------------------------------
                 */
                 'api_key' => null,
                 'secret_key' => null,
@@ -48,7 +61,10 @@ class CourierAccountSeeder extends Seeder
 
         /*
         |--------------------------------------------------------------------------
-        | Pathao Courier
+        | Pathao Courier API Account
+        |--------------------------------------------------------------------------
+        | Pathao active থাকবে, কিন্তু default হবে না।
+        | Pathao send button click করলে Pathao-তে যাবে।
         |--------------------------------------------------------------------------
         */
         CourierAccount::updateOrCreate(
@@ -59,11 +75,6 @@ class CourierAccountSeeder extends Seeder
                 'name' => 'Pathao Courier',
                 'base_url' => 'https://api-hermes.pathao.com',
 
-                /*
-                |--------------------------------------------------------------------------
-                | Pathao uses Bearer access token.
-                | Token, store_id Admin Panel theke update korbe.
-                */
                 'api_key' => null,
                 'secret_key' => null,
                 'token' => null,
@@ -82,5 +93,6 @@ class CourierAccountSeeder extends Seeder
         );
 
         $this->command?->info('Courier API accounts seeded successfully.');
+        $this->command?->info('Default Courier API: SteadFast Courier');
     }
 }

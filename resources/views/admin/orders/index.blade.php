@@ -311,7 +311,6 @@
 
 @section('plugins.Sweetalert2', true)
 
-
 @section('js')
 <script>
 $(document).ready(function () {
@@ -682,12 +681,12 @@ $(document).ready(function () {
         }
 
         Swal.fire({
-            title: 'Send selected orders to SteadFast?',
-            text: `Only orders where courier service is SteadFast will be sent. Selected orders: ${ids.length}`,
+            title: 'Assign & send selected orders to SteadFast?',
+            text: `Selected orders: ${ids.length}. No Courier orders will be auto assigned to SteadFast before sending.`,
             icon: 'warning',
             type: 'warning',
             showCancelButton: true,
-            confirmButtonText: 'Yes, Send',
+            confirmButtonText: 'Yes, Assign & Send',
             confirmButtonColor: '#2563eb'
         }).then((result) => {
             if (swalConfirmed(result)) {
@@ -740,12 +739,12 @@ $(document).ready(function () {
         }
 
         Swal.fire({
-            title: 'Send selected orders to Pathao?',
-            text: `Only orders where courier service is Pathao will be sent. Selected orders: ${ids.length}`,
+            title: 'Assign & send selected orders to Pathao?',
+            text: `Selected orders: ${ids.length}. No Courier orders will be auto assigned to Pathao before sending.`,
             icon: 'warning',
             type: 'warning',
             showCancelButton: true,
-            confirmButtonText: 'Yes, Send',
+            confirmButtonText: 'Yes, Assign & Send',
             confirmButtonColor: '#16a34a'
         }).then((result) => {
             if (swalConfirmed(result)) {
@@ -849,7 +848,7 @@ $(document).ready(function () {
 
         Swal.fire({
             title: 'Send this order to Pathao?',
-            text: 'A new Pathao courier order will be created.',
+            text: 'A new Pathao order will be created.',
             icon: 'warning',
             type: 'warning',
             showCancelButton: true,
@@ -1013,7 +1012,7 @@ $(document).ready(function () {
                     success: function (res) {
                         if (res.status) {
                             reloadTable();
-                            showToast('success', res.message || 'Action completed.');
+                            showToast('success', res.message);
                         } else {
                             showToast('error', res.message || 'Action failed.');
                         }
@@ -1051,7 +1050,7 @@ $(document).ready(function () {
                     success: function (res) {
                         if (res.status) {
                             reloadTable();
-                            showToast('success', res.message || 'Assigned successfully.');
+                            showToast('success', res.message);
                         } else {
                             showToast('error', res.message || 'Assignment failed.');
                         }

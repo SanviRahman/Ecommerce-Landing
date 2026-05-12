@@ -104,18 +104,16 @@ class CampaignOrderController extends Controller
 
             /*
             |--------------------------------------------------------------------------
-            | Delivery Charge Logic
+            | Updated Free Delivery Logic
             |--------------------------------------------------------------------------
-            | সব selected product free delivery হলে delivery charge 0 হবে।
-            | Mixed / non-free product থাকলে:
-            | - ঢাকার ভিতরে = 70
-            | - ঢাকার বাইরে = 130
+            | আগের logic: সব product free হলে delivery free.
+            | নতুন logic: selected product-এর মধ্যে ১টাও free delivery হলে পুরো order free.
             |--------------------------------------------------------------------------
             */
-            $allItemsFreeDelivery = collect($orderItems)
-                ->every(fn ($item) => (bool) $item['is_free_delivery']);
+            $hasAnyFreeDeliveryProduct = collect($orderItems)
+                ->contains(fn ($item) => (bool) $item['is_free_delivery']);
 
-            $shippingCharge = $allItemsFreeDelivery
+            $shippingCharge = $hasAnyFreeDeliveryProduct
                 ? 0
                 : ($request->delivery_area === 'inside_dhaka' ? 70 : 130);
 
@@ -129,12 +127,14 @@ class CampaignOrderController extends Controller
                 'customer_name'     => $request->customer_name,
                 'phone'             => $request->phone,
                 'address'           => $request->address,
-                'delivery_area'     => $request->delivery_area,
+                'delivery_area'     => $hasAnyFreeDeliveryProduct ? 'free_delivery' : $request->delivery_area,
 
                 /*
                 |--------------------------------------------------------------------------
-                | User panel থেকে courier select হবে না।
-                | Admin panel থেকে পরে courier select করবে।
+                | Default No Courier
+                |--------------------------------------------------------------------------
+                | User panel থেকে courier select হবে না.
+                | Admin index/show থেকে bulk button click করলে courier auto assign হবে.
                 |--------------------------------------------------------------------------
                 */
                 'courier_service'    => null,
@@ -142,13 +142,13 @@ class CampaignOrderController extends Controller
 
                 'sub_total'         => $subTotal,
                 'shipping_charge'   => $shippingCharge,
-                'is_free_delivery'  => $allItemsFreeDelivery,
+                'is_free_delivery'  => $hasAnyFreeDeliveryProduct,
                 'cod_charge'        => $codCharge,
                 'total_amount'      => $totalAmount,
 
-                'payment_method'    => 'cash_on_delivery',
-                'payment_status'    => 'cod_pending',
-                'order_status'      => 'pending',
+                'payment_method'    => Order::PAYMENT_COD,
+                'payment_status'    => Order::PAYMENT_STATUS_COD_PENDING,
+                'order_status'      => Order::STATUS_PENDING,
 
                 'is_fake'           => false,
                 'customer_note'     => $request->customer_note,

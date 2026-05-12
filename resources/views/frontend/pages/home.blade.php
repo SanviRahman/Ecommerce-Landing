@@ -2092,15 +2092,23 @@ $(document).ready(function () {
         addProductFromCard($(this));
     });
 
-    function updateDeliveryAreaUI(allFreeDelivery) {
-        if (allFreeDelivery) {
+    function hasFreeDeliveryProduct() {
+        const allItems = Object.values(selectedProducts);
+
+        return allItems.length > 0 && allItems.some(function (item) {
+            return item.isFreeDelivery === true;
+        });
+    }
+
+    function updateDeliveryAreaUI(hasAnyFreeDeliveryProduct) {
+        if (hasAnyFreeDeliveryProduct) {
             $('#deliveryAreaOptions').addClass('d-none');
             $('#freeDeliveryAreaBox').removeClass('d-none');
 
             /*
             |--------------------------------------------------------------------------
             | Backend validation needs delivery_area value.
-            | Free delivery holeo hidden selected value inside_dhaka thakbe.
+            | Free delivery হলেও hidden selected value inside_dhaka থাকবে।
             |--------------------------------------------------------------------------
             */
             $('input[name="delivery_area"][value="inside_dhaka"]').prop('checked', true);
@@ -2157,16 +2165,20 @@ $(document).ready(function () {
             index++;
         });
 
-        const allItems = Object.values(selectedProducts);
+        /*
+        |--------------------------------------------------------------------------
+        | Fixed Free Delivery Logic
+        |--------------------------------------------------------------------------
+        | আগের condition ছিল: সব product free delivery হলে free হবে।
+        | এখন condition: selected product-এর মধ্যে ১টাও free delivery হলে total order free হবে।
+        |--------------------------------------------------------------------------
+        */
+        const hasAnyFreeDeliveryProduct = hasFreeDeliveryProduct();
 
-        const allFreeDelivery = allItems.length > 0 && allItems.every(function (item) {
-            return item.isFreeDelivery === true;
-        });
-
-        updateDeliveryAreaUI(allFreeDelivery);
+        updateDeliveryAreaUI(hasAnyFreeDeliveryProduct);
 
         const deliveryArea = $('input[name="delivery_area"]:checked').val();
-        const deliveryCharge = allFreeDelivery ? 0 : (deliveryCharges[deliveryArea] || 0);
+        const deliveryCharge = hasAnyFreeDeliveryProduct ? 0 : (deliveryCharges[deliveryArea] || 0);
         const codCharge = 0;
         const grandTotal = subTotal + deliveryCharge + codCharge;
 
@@ -2174,7 +2186,7 @@ $(document).ready(function () {
         $('#selectedProductsInputs').html(inputsHtml);
 
         $('#summarySubTotal').text(money(subTotal));
-        $('#summaryDeliveryCharge').text(allFreeDelivery ? 'ফ্রি ডেলিভারি' : money(deliveryCharge));
+        $('#summaryDeliveryCharge').text(hasAnyFreeDeliveryProduct ? 'ফ্রি ডেলিভারি' : money(deliveryCharge));
         $('#summaryCodCharge').text(money(codCharge));
         $('#summaryGrandTotal').text(money(grandTotal));
 

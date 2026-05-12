@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Courier;
 use App\Models\CourierAccount;
 use App\Models\Order;
 use App\Models\OrderStatusLog;
@@ -14,6 +15,7 @@ use App\Services\SteadfastCourierService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Throwable;
 
 class OrderController extends Controller
@@ -43,6 +45,7 @@ class OrderController extends Controller
                 'campaign',
                 'assignedEmployee',
                 'items',
+                'courier',
                 'courierAccount',
             ])
             ->forLoggedInUser()
@@ -72,9 +75,16 @@ class OrderController extends Controller
         ];
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | Courier List For Order Dropdown / Filter
+    |--------------------------------------------------------------------------
+    | এই list courier_accounts table থেকে না, couriers table থেকে আসবে।
+    |--------------------------------------------------------------------------
+    */
     private function getCourierServices(): array
     {
-        $couriers = CourierAccount::query()
+        $couriers = Courier::query()
             ->active()
             ->orderBy('name')
             ->pluck('name', 'code')
@@ -83,6 +93,14 @@ class OrderController extends Controller
         return array_merge([
             'none' => 'No Courier',
         ], $couriers);
+    }
+
+    private function getActiveCouriers(): Collection
+    {
+        return Courier::query()
+            ->active()
+            ->orderBy('name')
+            ->get();
     }
 
     private function getStats(): array
@@ -128,7 +146,7 @@ class OrderController extends Controller
                         $employeeQuery->where('name', 'like', "%{$search}%")
                             ->orWhere('email', 'like', "%{$search}%");
                     })
-                    ->orWhereHas('courierAccount', function ($courierQuery) use ($search) {
+                    ->orWhereHas('courier', function ($courierQuery) use ($search) {
                         $courierQuery->where('name', 'like', "%{$search}%")
                             ->orWhere('code', 'like', "%{$search}%");
                     });
@@ -149,18 +167,18 @@ class OrderController extends Controller
 
         if ($request->filled('courier_service') && $request->courier_service !== 'all') {
             if ($request->courier_service === 'none') {
-                $query->whereNull('courier_service')
-                    ->whereNull('courier_account_id');
+                $query->whereNull('courier_id')
+                    ->whereNull('courier_service');
             } else {
                 $query->where('courier_service', $request->courier_service);
             }
         }
 
-        if ($request->filled('courier_account_id') && $request->courier_account_id !== 'all') {
-            if ($request->courier_account_id === 'none') {
-                $query->whereNull('courier_account_id');
+        if ($request->filled('courier_id') && $request->courier_id !== 'all') {
+            if ($request->courier_id === 'none') {
+                $query->whereNull('courier_id');
             } else {
-                $query->where('courier_account_id', $request->courier_account_id);
+                $query->where('courier_id', $request->courier_id);
             }
         }
 
@@ -219,10 +237,7 @@ class OrderController extends Controller
             ->orderBy('name')
             ->get();
 
-        $courierAccounts = CourierAccount::query()
-            ->active()
-            ->orderBy('name')
-            ->get();
+        $couriers = $this->getActiveCouriers();
 
         $defaultCourier = CourierAccount::defaultActive();
 
@@ -248,7 +263,8 @@ class OrderController extends Controller
             'title' => $title,
             'orders' => $orders,
             'employees' => $employees,
-            'courierAccounts' => $courierAccounts,
+            'couriers' => $couriers,
+            'courierAccounts' => collect(),
             'courierServices' => $courierServices,
             'defaultCourier' => $defaultCourier,
             'stats' => $stats,
@@ -260,6 +276,48 @@ class OrderController extends Controller
                 ['text' => $title, 'url' => url()->current()],
             ],
         ]);
+    }
+
+    private function activeCourierByCode(string $code): ?CourierAccount
+    {
+        $courierAccount = CourierAccount::query()
+            ->active()
+            ->where('code', $code)
+            ->where('is_default', true)
+            ->latest()
+            ->first();
+
+        if (! $courierAccount) {
+            $courierAccount = CourierAccount::query()
+                ->active()
+                ->where('code', $code)
+                ->latest()
+                ->first();
+        }
+
+        return $courierAccount;
+    }
+
+    private function activeCourierListByCode(string $code): ?Courier
+    {
+        return Courier::query()
+            ->active()
+            ->where('code', $code)
+            ->latest()
+            ->first();
+    }
+
+    private function assignCourierToOrder(Order $order, CourierAccount $courierAccount): Order
+    {
+        $courier = $this->activeCourierListByCode($courierAccount->code);
+
+        $order->update([
+            'courier_id' => $courier?->id,
+            'courier_account_id' => $courierAccount->id,
+            'courier_service' => $courierAccount->code,
+        ]);
+
+        return $order->fresh(['courier', 'courierAccount', 'items']);
     }
 
     public function index(Request $request)
@@ -339,16 +397,14 @@ class OrderController extends Controller
             'items',
             'statusLogs',
             'fakeLogs',
+            'courier',
             'courierAccount',
         ]);
 
         return view('admin.orders.show', [
             'title' => 'Order Details',
             'order' => $order,
-            'courierAccounts' => CourierAccount::query()
-                ->active()
-                ->orderBy('name')
-                ->get(),
+            'couriers' => $this->getActiveCouriers(),
             'breadcrumb' => [
                 ['text' => 'Dashboard', 'url' => route('admin.dashboard')],
                 ['text' => 'Orders', 'url' => route('admin.orders.index')],
@@ -362,19 +418,26 @@ class OrderController extends Controller
         $this->adminOnly();
 
         $request->validate([
-            'courier_account_id' => ['nullable', 'exists:courier_accounts,id'],
+            'courier_id' => ['nullable', 'exists:couriers,id'],
         ]);
 
         $courier = null;
 
-        if ($request->filled('courier_account_id')) {
-            $courier = CourierAccount::query()
+        if ($request->filled('courier_id')) {
+            $courier = Courier::query()
                 ->active()
-                ->findOrFail($request->courier_account_id);
+                ->findOrFail($request->courier_id);
+        }
+
+        $courierAccount = null;
+
+        if ($courier && in_array($courier->code, ['steadfast', 'pathao'], true)) {
+            $courierAccount = $this->activeCourierByCode($courier->code);
         }
 
         $order->update([
-            'courier_account_id' => $courier?->id,
+            'courier_id' => $courier?->id,
+            'courier_account_id' => $courierAccount?->id,
             'courier_service' => $courier?->code,
         ]);
 
@@ -535,6 +598,7 @@ class OrderController extends Controller
             ->whereIn('id', $request->ids)
             ->with([
                 'items',
+                'courier',
                 'courierAccount',
                 'assignedEmployee',
             ])
@@ -545,10 +609,7 @@ class OrderController extends Controller
             ->latest()
             ->first();
 
-        $courierServices = CourierAccount::query()
-            ->active()
-            ->pluck('name', 'code')
-            ->toArray();
+        $courierServices = $this->getCourierServices();
 
         return view('admin.orders.multiple-invoices', [
             'title' => 'Selected Invoices',
@@ -562,7 +623,7 @@ class OrderController extends Controller
     {
         $this->adminOrEmployeeOnly();
 
-        $order->load(['items', 'campaign', 'courierAccount', 'assignedEmployee']);
+        $order->load(['items', 'campaign', 'courier', 'courierAccount', 'assignedEmployee']);
 
         return view('admin.orders.invoice', [
             'order' => $order,
@@ -575,7 +636,7 @@ class OrderController extends Controller
     {
         $this->adminOrEmployeeOnly();
 
-        $order->load(['items', 'campaign', 'courierAccount', 'assignedEmployee']);
+        $order->load(['items', 'campaign', 'courier', 'courierAccount', 'assignedEmployee']);
 
         $pdf = Pdf::loadView('admin.orders.invoice-pdf', [
             'order' => $order,
@@ -593,23 +654,18 @@ class OrderController extends Controller
     {
         $this->adminOnly();
 
-        $order->loadMissing(['courierAccount', 'items']);
+        $courierAccount = $this->activeCourierByCode('steadfast');
 
-        if (! $order->courier_account_id) {
+        if (! $courierAccount) {
             return response()->json([
                 'status' => false,
-                'message' => 'Please select courier from order details page first.',
-            ], 422);
-        }
-
-        if ($order->courierAccount?->code !== 'steadfast') {
-            return response()->json([
-                'status' => false,
-                'message' => 'Selected courier is not SteadFast.',
+                'message' => 'Active SteadFast courier API account not found.',
             ], 422);
         }
 
         try {
+            $order = $this->assignCourierToOrder($order, $courierAccount);
+
             $data = $steadfastCourierService->createOrder($order);
 
             return response()->json([
@@ -634,18 +690,24 @@ class OrderController extends Controller
             'ids.*' => ['integer', 'exists:orders,id'],
         ]);
 
+        $courierAccount = $this->activeCourierByCode('steadfast');
+
+        if (! $courierAccount) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Active SteadFast courier API account not found.',
+            ], 422);
+        }
+
         $orders = Order::query()
-            ->with(['courierAccount', 'items'])
+            ->with(['courier', 'courierAccount', 'items'])
             ->whereIn('id', $request->ids)
-            ->whereHas('courierAccount', function ($query) {
-                $query->where('code', 'steadfast');
-            })
             ->get();
 
         if ($orders->isEmpty()) {
             return response()->json([
                 'status' => false,
-                'message' => 'Selected orders do not have SteadFast courier selected.',
+                'message' => 'No selected orders found.',
             ], 422);
         }
 
@@ -655,7 +717,10 @@ class OrderController extends Controller
 
         foreach ($orders as $order) {
             try {
+                $order = $this->assignCourierToOrder($order, $courierAccount);
+
                 $steadfastCourierService->createOrder($order);
+
                 $success++;
             } catch (Throwable $e) {
                 $failed++;
@@ -665,7 +730,7 @@ class OrderController extends Controller
 
         return response()->json([
             'status' => true,
-            'message' => "Bulk send completed. Success: {$success}, Failed: {$failed}",
+            'message' => "SteadFast bulk send completed. Success: {$success}, Failed: {$failed}",
             'success' => $success,
             'failed' => $failed,
             'errors' => $errors,
@@ -676,23 +741,18 @@ class OrderController extends Controller
     {
         $this->adminOnly();
 
-        $order->loadMissing(['courierAccount', 'items']);
+        $courierAccount = $this->activeCourierByCode('pathao');
 
-        if (! $order->courier_account_id) {
+        if (! $courierAccount) {
             return response()->json([
                 'status' => false,
-                'message' => 'Please select courier from order details page first.',
-            ], 422);
-        }
-
-        if ($order->courierAccount?->code !== 'pathao') {
-            return response()->json([
-                'status' => false,
-                'message' => 'Selected courier is not Pathao.',
+                'message' => 'Active Pathao courier API account not found.',
             ], 422);
         }
 
         try {
+            $order = $this->assignCourierToOrder($order, $courierAccount);
+
             $data = $pathaoCourierService->createOrder($order);
 
             return response()->json([
@@ -717,18 +777,24 @@ class OrderController extends Controller
             'ids.*' => ['integer', 'exists:orders,id'],
         ]);
 
+        $courierAccount = $this->activeCourierByCode('pathao');
+
+        if (! $courierAccount) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Active Pathao courier API account not found.',
+            ], 422);
+        }
+
         $orders = Order::query()
-            ->with(['courierAccount', 'items'])
+            ->with(['courier', 'courierAccount', 'items'])
             ->whereIn('id', $request->ids)
-            ->whereHas('courierAccount', function ($query) {
-                $query->where('code', 'pathao');
-            })
             ->get();
 
         if ($orders->isEmpty()) {
             return response()->json([
                 'status' => false,
-                'message' => 'Selected orders do not have Pathao courier selected.',
+                'message' => 'No selected orders found.',
             ], 422);
         }
 
@@ -738,7 +804,10 @@ class OrderController extends Controller
 
         foreach ($orders as $order) {
             try {
+                $order = $this->assignCourierToOrder($order, $courierAccount);
+
                 $pathaoCourierService->createOrder($order);
+
                 $success++;
             } catch (Throwable $e) {
                 $failed++;
@@ -761,18 +830,17 @@ class OrderController extends Controller
 
         $order->loadMissing('courierAccount');
 
-        if (! $order->courier_account_id) {
+        $courierAccount = $this->activeCourierByCode('steadfast');
+
+        if (! $courierAccount) {
             return response()->json([
                 'status' => false,
-                'message' => 'Please select courier first.',
+                'message' => 'Active SteadFast courier API account not found.',
             ], 422);
         }
 
         if ($order->courierAccount?->code !== 'steadfast') {
-            return response()->json([
-                'status' => false,
-                'message' => 'Selected courier is not SteadFast.',
-            ], 422);
+            $order = $this->assignCourierToOrder($order, $courierAccount);
         }
 
         try {
@@ -795,7 +863,7 @@ class OrderController extends Controller
     {
         $this->adminOnly();
 
-        $courier = CourierAccount::query()
+        $courierAccount = CourierAccount::query()
             ->active()
             ->where('code', 'steadfast')
             ->default()
@@ -803,7 +871,7 @@ class OrderController extends Controller
             ->first();
 
         try {
-            $data = $steadfastCourierService->getBalance($courier);
+            $data = $steadfastCourierService->getBalance($courierAccount);
 
             return response()->json([
                 'status' => true,

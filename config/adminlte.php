@@ -656,16 +656,23 @@ return [
             'can'    => 'admin-only',
         ],
         [
-            'text' => 'Courier API Accounts',
-            'url'  => 'admin/courier-accounts',
-            'icon' => 'fas fa-fw fa-truck',
-            'can'  => 'admin-only',
-        ],
-        [
-            'text' => 'Site Settings',
-            'url'  => 'admin/site-settings',
-            'icon' => 'fas fa-fw fa-cogs',
-            'can'  => 'admin-only',
+            'text'    => 'API Integration',
+            'icon'    => 'fas fa-fw fa-plug',
+            'can'     => 'admin-only',
+            'submenu' => [
+                [
+                    'text' => 'Courier API',
+                    'url'  => 'admin/courier-accounts',
+                    'icon' => 'far fa-fw fa-circle',
+                    'can'  => 'admin-only',
+                ],
+                [
+                    'text' => 'Add Courier',
+                    'url'  => 'admin/couriers',
+                    'icon' => 'far fa-fw fa-circle',
+                    'can'  => 'admin-only',
+                ],
+            ],
         ],
         [
             'text'    => 'Admins & Employees',

@@ -65,9 +65,9 @@
                     <tr>
                         <th>Courier</th>
                         <td>
-                            @if($order->courierAccount)
+                            @if($order->courier)
                                 <span class="badge badge-info">
-                                    {{ $order->courierAccount->name }}
+                                    {{ $order->courier->name }}
                                 </span>
                             @else
                                 <span class="badge badge-light border">
@@ -229,6 +229,51 @@
                 </div>
             </div>
         @endif
+
+        @if($order->pathao_consignment_id || $order->pathao_merchant_order_id || $order->pathao_status)
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-white">
+                    <h3 class="card-title mb-0">
+                        <i class="fas fa-shipping-fast mr-1"></i>
+                        Pathao Information
+                    </h3>
+                </div>
+
+                <div class="card-body">
+                    <table class="table table-bordered">
+                        <tr>
+                            <th width="220">Consignment ID</th>
+                            <td>{{ $order->pathao_consignment_id ?: '-' }}</td>
+                        </tr>
+
+                        <tr>
+                            <th>Merchant Order ID</th>
+                            <td>{{ $order->pathao_merchant_order_id ?: '-' }}</td>
+                        </tr>
+
+                        <tr>
+                            <th>Status</th>
+                            <td>{{ $order->pathao_status ?: '-' }}</td>
+                        </tr>
+
+                        <tr>
+                            <th>Delivery Fee</th>
+                            <td>৳{{ number_format($order->pathao_delivery_fee ?? 0) }}</td>
+                        </tr>
+
+                        <tr>
+                            <th>Note</th>
+                            <td>{{ $order->pathao_note ?: '-' }}</td>
+                        </tr>
+
+                        <tr>
+                            <th>Sent At</th>
+                            <td>{{ $order->pathao_sent_at?->format('d M Y h:i A') ?: '-' }}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        @endif
     </div>
 
     <div class="col-lg-4">
@@ -247,18 +292,22 @@
                     @method('PATCH')
 
                     <div class="form-group">
-                        <label>Courier API Account</label>
+                        <label>Courier</label>
 
-                        <select name="courier_account_id" class="form-control">
+                        <select name="courier_id" class="form-control">
                             <option value="">No Courier</option>
 
-                            @foreach($courierAccounts as $courier)
+                            @foreach($couriers ?? [] as $courier)
                                 <option value="{{ $courier->id }}"
-                                    @selected($order->courier_account_id == $courier->id)>
+                                    @selected((int) $order->courier_id === (int) $courier->id)>
                                     {{ $courier->name }}
                                 </option>
                             @endforeach
                         </select>
+
+                        <small class="text-muted">
+                            এই courier list Add Courier menu থেকে আসবে।
+                        </small>
                     </div>
 
                     <button type="submit" class="btn btn-primary btn-block">
@@ -291,19 +340,30 @@
                     Download Invoice
                 </a>
 
-                <button type="button"
-                        class="btn btn-success btn-block btnSendSteadfast"
-                        data-url="{{ route('admin.orders.send_steadfast', $order->id) }}">
-                    <i class="fas fa-truck mr-1"></i>
-                    Send SteadFast
-                </button>
+                @if(auth()->user()->isAdmin())
+                    @if($order->courier_service === 'pathao')
+                        <button type="button"
+                                class="btn btn-success btn-block btnSendPathao"
+                                data-url="{{ route('admin.orders.send_pathao', $order->id) }}">
+                            <i class="fas fa-shipping-fast mr-1"></i>
+                            Send Pathao
+                        </button>
+                    @else
+                        <button type="button"
+                                class="btn btn-success btn-block btnSendSteadfast"
+                                data-url="{{ route('admin.orders.send_steadfast', $order->id) }}">
+                            <i class="fas fa-truck mr-1"></i>
+                            Send SteadFast
+                        </button>
 
-                <button type="button"
-                        class="btn btn-warning btn-block btnSyncSteadfast"
-                        data-url="{{ route('admin.orders.sync_steadfast_status', $order->id) }}">
-                    <i class="fas fa-sync mr-1"></i>
-                    Sync SteadFast Status
-                </button>
+                        <button type="button"
+                                class="btn btn-warning btn-block btnSyncSteadfast"
+                                data-url="{{ route('admin.orders.sync_steadfast_status', $order->id) }}">
+                            <i class="fas fa-sync mr-1"></i>
+                            Sync SteadFast Status
+                        </button>
+                    @endif
+                @endif
             </div>
         </div>
 
@@ -387,11 +447,6 @@ $(document).ready(function () {
         }
     });
 
-    /*
-    |--------------------------------------------------------------------------
-    | Courier Update Toast
-    |--------------------------------------------------------------------------
-    */
     $(document).on('submit', '#orderCourierUpdateForm', function (e) {
         e.preventDefault();
 
@@ -434,11 +489,6 @@ $(document).ready(function () {
         });
     });
 
-    /*
-    |--------------------------------------------------------------------------
-    | Order Status Update Toast
-    |--------------------------------------------------------------------------
-    */
     $(document).on('submit', '#orderStatusForm', function (e) {
         e.preventDefault();
 
@@ -481,11 +531,6 @@ $(document).ready(function () {
         });
     });
 
-    /*
-    |--------------------------------------------------------------------------
-    | Send Single Order To SteadFast
-    |--------------------------------------------------------------------------
-    */
     $(document).on('click', '.btnSendSteadfast', function () {
         let button = $(this);
         let url = button.data('url');
@@ -536,11 +581,56 @@ $(document).ready(function () {
         });
     });
 
-    /*
-    |--------------------------------------------------------------------------
-    | Sync SteadFast Status
-    |--------------------------------------------------------------------------
-    */
+    $(document).on('click', '.btnSendPathao', function () {
+        let button = $(this);
+        let url = button.data('url');
+        let oldButtonHtml = button.html();
+
+        Swal.fire({
+            title: 'Send this order to Pathao?',
+            text: 'A new Pathao order will be created.',
+            icon: 'warning',
+            type: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, Send',
+            confirmButtonColor: '#16a34a'
+        }).then(function (result) {
+            if (swalConfirmed(result)) {
+                button.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i> Sending...');
+
+                $.ajax({
+                    url: url,
+                    type: 'POST',
+                    data: {
+                        _token: '{{ csrf_token() }}'
+                    },
+                    success: function (res) {
+                        if (res.status) {
+                            showToast('success', res.message || 'Order sent to Pathao successfully.');
+
+                            setTimeout(function () {
+                                window.location.reload();
+                            }, 900);
+                        } else {
+                            showToast('error', res.message || 'Pathao send failed.');
+                            button.prop('disabled', false).html(oldButtonHtml);
+                        }
+                    },
+                    error: function (xhr) {
+                        let message = 'Pathao send failed.';
+
+                        if (xhr.responseJSON && xhr.responseJSON.message) {
+                            message = xhr.responseJSON.message;
+                        }
+
+                        showToast('error', message);
+                        button.prop('disabled', false).html(oldButtonHtml);
+                    }
+                });
+            }
+        });
+    });
+
     $(document).on('click', '.btnSyncSteadfast', function () {
         let button = $(this);
         let url = button.data('url');

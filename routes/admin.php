@@ -6,6 +6,7 @@ use App\Http\Controllers\Admin\BulkOrderController;
 use App\Http\Controllers\Admin\CampaignController;
 use App\Http\Controllers\Admin\CategoryController;
 use App\Http\Controllers\Admin\CourierAccountController;
+use App\Http\Controllers\Admin\CourierController;
 use App\Http\Controllers\Admin\CreatePageController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\FaqController;
@@ -133,11 +134,6 @@ Route::middleware(['auth'])->group(function () {
         ->as('products.')
         ->group(function () {
 
-            /*
-            |--------------------------------------------------------------------------
-            | Admin Only Static Routes
-            |--------------------------------------------------------------------------
-            */
             Route::middleware(['role:admin'])->group(function () {
                 Route::get('/create', [ProductController::class, 'create'])->name('create');
                 Route::post('/', [ProductController::class, 'store'])->name('store');
@@ -149,18 +145,8 @@ Route::middleware(['auth'])->group(function () {
                 Route::delete('/media/{id}', [ProductController::class, 'deleteMedia'])->name('delete_media');
             });
 
-            /*
-            |--------------------------------------------------------------------------
-            | Product List
-            |--------------------------------------------------------------------------
-            */
             Route::get('/', [ProductController::class, 'index'])->name('index');
 
-            /*
-            |--------------------------------------------------------------------------
-            | Admin Only Dynamic Edit/Update/Delete Routes
-            |--------------------------------------------------------------------------
-            */
             Route::middleware(['role:admin'])->group(function () {
                 Route::get('/{product}/edit', [ProductController::class, 'edit'])->name('edit');
                 Route::put('/{product}', [ProductController::class, 'update'])->name('update');
@@ -168,11 +154,6 @@ Route::middleware(['auth'])->group(function () {
                 Route::delete('/{product}', [ProductController::class, 'destroy'])->name('destroy');
             });
 
-            /*
-            |--------------------------------------------------------------------------
-            | Product Show Route Must Be Last
-            |--------------------------------------------------------------------------
-            */
             Route::get('/{product}', [ProductController::class, 'show'])->name('show');
         });
 
@@ -189,8 +170,15 @@ Route::middleware(['auth'])->group(function () {
         |--------------------------------------------------------------------------
         */
         Route::resource('courier-accounts', CourierAccountController::class)
-            ->only(['index', 'store', 'update', 'destroy'])
-            ->names('courier-accounts');
+            ->only(['index', 'store', 'update', 'destroy']);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Add Courier
+        |--------------------------------------------------------------------------
+        */
+        Route::resource('couriers', CourierController::class)
+            ->only(['index', 'store', 'update', 'destroy']);
 
         /*
         |--------------------------------------------------------------------------

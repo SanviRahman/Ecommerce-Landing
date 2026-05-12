@@ -32,6 +32,20 @@ class OrderManagementService
                 throw new Exception('Product stock is not available.');
             }
 
+            /*
+            |--------------------------------------------------------------------------
+            | Free Delivery Product Logic
+            |--------------------------------------------------------------------------
+            | Single product order হলে product free delivery হলে delivery charge 0.
+            |--------------------------------------------------------------------------
+            */
+            $isFreeDelivery = (bool) $product->is_free_delivery;
+
+            if ($isFreeDelivery) {
+                $pricing['shipping_charge'] = 0;
+                $pricing['total_amount'] = $pricing['sub_total'] + ($pricing['cod_charge'] ?? 0);
+            }
+
             $fakeCheck = $this->fakeOrderDetectionService->detect([
                 'customer_name' => $data['customer_name'],
                 'phone'         => $data['phone'],
@@ -40,26 +54,39 @@ class OrderManagementService
             ], $request);
 
             $order = Order::create([
-                'invoice_id'       => $this->generateInvoiceId(),
-                'campaign_id'      => $data['campaign_id'] ?? null,
-                'customer_name'    => $data['customer_name'],
-                'phone'            => $data['phone'],
-                'address'          => $data['address'],
-                'delivery_area'    => $data['delivery_area'] ?? null,
-                'courier_service'  => $data['courier_service'] ?? null,
-                'sub_total'        => $pricing['sub_total'],
-                'shipping_charge'  => $pricing['shipping_charge'],
-                'cod_charge'       => $pricing['cod_charge'],
-                'total_amount'     => $pricing['total_amount'],
-                'payment_method'   => Order::PAYMENT_COD,
-                'payment_status'   => Order::PAYMENT_STATUS_COD_PENDING,
-                'order_status'     => $fakeCheck['is_fake'] ? Order::STATUS_FAKE : Order::STATUS_PENDING,
-                'is_fake'          => $fakeCheck['is_fake'],
-                'customer_note'    => $data['customer_note'] ?? null,
-                'source_ip'        => $request->ip(),
-                'user_agent'       => $request->userAgent(),
-                'source_url'       => $request->headers->get('referer'),
-                'marked_fake_at'   => $fakeCheck['is_fake'] ? now() : null,
+                'invoice_id'        => $this->generateInvoiceId(),
+                'campaign_id'       => $data['campaign_id'] ?? null,
+
+                'customer_name'     => $data['customer_name'],
+                'phone'             => $data['phone'],
+                'address'           => $data['address'],
+                'delivery_area'     => $isFreeDelivery ? 'free_delivery' : ($data['delivery_area'] ?? null),
+
+                /*
+                |--------------------------------------------------------------------------
+                | Default No Courier
+                |--------------------------------------------------------------------------
+                */
+                'courier_service'    => null,
+                'courier_account_id' => null,
+
+                'sub_total'         => $pricing['sub_total'],
+                'shipping_charge'   => $pricing['shipping_charge'],
+                'is_free_delivery'  => $isFreeDelivery,
+                'cod_charge'        => $pricing['cod_charge'],
+                'total_amount'      => $pricing['total_amount'],
+
+                'payment_method'    => Order::PAYMENT_COD,
+                'payment_status'    => Order::PAYMENT_STATUS_COD_PENDING,
+                'order_status'      => $fakeCheck['is_fake'] ? Order::STATUS_FAKE : Order::STATUS_PENDING,
+
+                'is_fake'           => $fakeCheck['is_fake'],
+                'customer_note'     => $data['customer_note'] ?? null,
+
+                'source_ip'         => $request->ip(),
+                'user_agent'        => $request->userAgent(),
+                'source_url'        => $request->headers->get('referer'),
+                'marked_fake_at'    => $fakeCheck['is_fake'] ? now() : null,
             ]);
 
             OrderItem::create([

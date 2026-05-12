@@ -31,30 +31,48 @@ class Order extends Model
         'invoice_id',
         'campaign_id',
         'assigned_employee_id',
+
         'customer_name',
         'phone',
         'address',
         'delivery_area',
+
+        /*
+        |--------------------------------------------------------------------------
+        | Courier
+        |--------------------------------------------------------------------------
+        | courier_id = Add Courier CRUD থেকে selected courier
+        | courier_account_id = API account, only SteadFast/Pathao API send এর জন্য
+        | courier_service = courier code, filter/send logic এর জন্য রাখা হলো
+        |--------------------------------------------------------------------------
+        */
         'courier_service',
         'courier_account_id',
+        'courier_id',
+
         'sub_total',
         'shipping_charge',
         'is_free_delivery',
         'cod_charge',
         'total_amount',
+
         'payment_method',
         'payment_status',
         'order_status',
+
         'is_fake',
         'admin_note',
         'customer_note',
+
         'source_ip',
         'user_agent',
         'source_url',
+
         'confirmed_at',
         'delivered_at',
         'cancelled_at',
         'marked_fake_at',
+
         'steadfast_consignment_id',
         'steadfast_tracking_code',
         'steadfast_status',
@@ -62,25 +80,44 @@ class Order extends Model
         'steadfast_response',
         'steadfast_sent_at',
         'steadfast_synced_at',
+
+        'pathao_consignment_id',
+        'pathao_merchant_order_id',
+        'pathao_status',
+        'pathao_delivery_fee',
+        'pathao_note',
+        'pathao_response',
+        'pathao_sent_at',
+        'pathao_synced_at',
     ];
 
     protected $casts = [
         'campaign_id'          => 'integer',
         'assigned_employee_id' => 'integer',
         'courier_account_id'   => 'integer',
+        'courier_id'           => 'integer',
+
         'sub_total'            => 'decimal:2',
         'shipping_charge'      => 'decimal:2',
         'is_free_delivery'     => 'boolean',
         'cod_charge'           => 'decimal:2',
         'total_amount'         => 'decimal:2',
+
         'is_fake'              => 'boolean',
+
         'confirmed_at'         => 'datetime',
         'delivered_at'         => 'datetime',
         'cancelled_at'         => 'datetime',
         'marked_fake_at'       => 'datetime',
+
         'steadfast_response'   => 'array',
         'steadfast_sent_at'    => 'datetime',
         'steadfast_synced_at'  => 'datetime',
+
+        'pathao_delivery_fee'  => 'decimal:2',
+        'pathao_response'      => 'array',
+        'pathao_sent_at'       => 'datetime',
+        'pathao_synced_at'     => 'datetime',
     ];
 
     protected static function booted(): void
@@ -107,6 +144,11 @@ class Order extends Model
         return $this->belongsTo(CourierAccount::class);
     }
 
+    public function courier(): BelongsTo
+    {
+        return $this->belongsTo(Courier::class);
+    }
+
     public function items(): HasMany
     {
         return $this->hasMany(OrderItem::class);
@@ -124,16 +166,24 @@ class Order extends Model
 
     public function getCourierNameAttribute(): string
     {
+        if ($this->courier) {
+            return $this->courier->name;
+        }
+
         if ($this->courierAccount) {
             return $this->courierAccount->name;
         }
 
         if ($this->courier_service) {
-            return config('couriers.list.' . $this->courier_service)
-                ?: ucwords(str_replace('_', ' ', $this->courier_service));
+            return ucwords(str_replace('_', ' ', $this->courier_service));
         }
 
         return 'No Courier';
+    }
+
+    public function getIsCourierSelectedAttribute(): bool
+    {
+        return ! empty($this->courier_id) && ! empty($this->courier_service);
     }
 
     public function scopeForLoggedInUser(Builder $query): Builder
