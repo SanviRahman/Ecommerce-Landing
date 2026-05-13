@@ -11,21 +11,39 @@ class CourierSeeder extends Seeder
     {
         /*
         |--------------------------------------------------------------------------
-        | Courier List For Order Dropdown
+        | Courier List For Order Dropdown + Invoice Merchant Info
         |--------------------------------------------------------------------------
-        | এই courier list admin order courier dropdown/filter এ show করবে।
-        | API credential CourierAccountSeeder থেকে manage হবে।
+        | merchant_id এবং phone_number invoice এর left side business/courier info
+        | section এ show হবে।
         |--------------------------------------------------------------------------
         */
         $couriers = [
             [
                 'name' => 'SteadFast Courier',
                 'code' => 'steadfast',
+                'merchant_id' => null,
+                'phone_number' => null,
                 'status' => true,
             ],
             [
                 'name' => 'Pathao Courier',
                 'code' => 'pathao',
+                'merchant_id' => null,
+                'phone_number' => null,
+                'status' => true,
+            ],
+            [
+                'name' => 'Paperfly',
+                'code' => 'paperfly',
+                'merchant_id' => null,
+                'phone_number' => null,
+                'status' => true,
+            ],
+            [
+                'name' => 'RedX',
+                'code' => 'redx',
+                'merchant_id' => null,
+                'phone_number' => null,
                 'status' => true,
             ],
         ];
@@ -37,6 +55,8 @@ class CourierSeeder extends Seeder
                 ],
                 [
                     'name' => $courier['name'],
+                    'merchant_id' => $courier['merchant_id'],
+                    'phone_number' => $courier['phone_number'],
                     'status' => $courier['status'],
                 ]
             );

@@ -13,6 +13,8 @@ class Courier extends Model
     protected $fillable = [
         'name',
         'code',
+        'merchant_id',
+        'phone_number',
         'status',
     ];
 

@@ -65,6 +65,8 @@
                         <th width="70" class="text-center">SL</th>
                         <th>Courier Name</th>
                         <th>Code</th>
+                        <th>Merchant ID</th>
+                        <th>Phone Number</th>
                         <th>Status</th>
                         <th width="130" class="text-right pr-4">Action</th>
                     </tr>
@@ -90,6 +92,14 @@
                             </td>
 
                             <td>
+                                {{ $courier->merchant_id ?: '-' }}
+                            </td>
+
+                            <td>
+                                {{ $courier->phone_number ?: '-' }}
+                            </td>
+
+                            <td>
                                 @if($courier->status)
                                     <span class="badge badge-success">Active</span>
                                 @else
@@ -105,6 +115,8 @@
                                         data-update-url="{{ route('admin.couriers.update', $courier->id) }}"
                                         data-name="{{ e($courier->name) }}"
                                         data-code="{{ e($courier->code) }}"
+                                        data-merchant-id="{{ e($courier->merchant_id) }}"
+                                        data-phone-number="{{ e($courier->phone_number) }}"
                                         data-status="{{ $courier->status ? 1 : 0 }}"
                                         title="Edit">
                                     <i class="fas fa-edit"></i>
@@ -124,7 +136,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="5" class="text-center text-muted py-5">
+                            <td colspan="7" class="text-center text-muted py-5">
                                 <i class="fas fa-truck fa-2x mb-2"></i>
                                 <div>No courier found.</div>
                             </td>
@@ -181,6 +193,24 @@
                     <small class="text-muted">
                         Auto generate হবে। চাইলে custom code দিতে পারো।
                     </small>
+                </div>
+
+                <div class="form-group">
+                    <label>Merchant ID</label>
+                    <input type="text"
+                           name="merchant_id"
+                           id="create_merchant_id"
+                           class="form-control"
+                           placeholder="Example: 1001">
+                </div>
+
+                <div class="form-group">
+                    <label>Phone Number</label>
+                    <input type="text"
+                           name="phone_number"
+                           id="create_phone_number"
+                           class="form-control"
+                           placeholder="Example: 017xxxxxxxx">
                 </div>
 
                 <div class="custom-control custom-switch">
@@ -251,6 +281,24 @@
                     </small>
                 </div>
 
+                <div class="form-group">
+                    <label>Merchant ID</label>
+                    <input type="text"
+                           name="merchant_id"
+                           id="edit_merchant_id"
+                           class="form-control"
+                           placeholder="Example: 1001">
+                </div>
+
+                <div class="form-group">
+                    <label>Phone Number</label>
+                    <input type="text"
+                           name="phone_number"
+                           id="edit_phone_number"
+                           class="form-control"
+                           placeholder="Example: 017xxxxxxxx">
+                </div>
+
                 <div class="custom-control custom-switch">
                     <input type="checkbox"
                            name="status"
@@ -316,6 +364,8 @@ $(document).ready(function () {
         $('#courierEditForm').attr('action', button.data('update-url'));
         $('#edit_name').val(button.data('name') || '');
         $('#edit_code').val(button.data('code') || '');
+        $('#edit_merchant_id').val(button.data('merchant-id') || '');
+        $('#edit_phone_number').val(button.data('phone-number') || '');
         $('#edit_status').prop('checked', Number(button.data('status')) === 1);
     });
 

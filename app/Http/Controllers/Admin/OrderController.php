@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
@@ -9,6 +8,7 @@ use App\Models\Order;
 use App\Models\OrderStatusLog;
 use App\Models\SiteSetting;
 use App\Models\User;
+use App\Services\BdCourierFraudCheckerService;
 use App\Services\OrderAssignmentService;
 use App\Services\PathaoCourierService;
 use App\Services\SteadfastCourierService;
@@ -108,21 +108,21 @@ class OrderController extends Controller
         $baseQuery = Order::query()->forLoggedInUser();
 
         return [
-            'all' => (clone $baseQuery)->count(),
+            'all'        => (clone $baseQuery)->count(),
 
             'processing' => (clone $baseQuery)
                 ->where('order_status', Order::STATUS_PROCESSING)
                 ->count(),
 
-            'delivered' => (clone $baseQuery)
+            'delivered'  => (clone $baseQuery)
                 ->where('order_status', Order::STATUS_DELIVERED)
                 ->count(),
 
-            'cancelled' => (clone $baseQuery)
+            'cancelled'  => (clone $baseQuery)
                 ->where('order_status', Order::STATUS_CANCELLED)
                 ->count(),
 
-            'fake' => (clone $baseQuery)
+            'fake'       => (clone $baseQuery)
                 ->where(function ($query) {
                     $query->where('is_fake', true)
                         ->orWhere('order_status', Order::STATUS_FAKE);
@@ -241,37 +241,37 @@ class OrderController extends Controller
 
         $defaultCourier = CourierAccount::defaultActive();
 
-        $stats = $this->getStats();
-        $orderStatuses = $this->getOrderStatuses();
+        $stats           = $this->getStats();
+        $orderStatuses   = $this->getOrderStatuses();
         $paymentStatuses = $this->getPaymentStatuses();
         $courierServices = $this->getCourierServices();
 
         if ($request->ajax()) {
             return response()->json([
                 'status' => true,
-                'stats' => $stats,
-                'html' => view('admin.orders.partials.table', [
-                    'orders' => $orders,
-                    'isTrash' => $isTrash,
-                    'defaultCourier' => $defaultCourier,
+                'stats'  => $stats,
+                'html'   => view('admin.orders.partials.table', [
+                    'orders'          => $orders,
+                    'isTrash'         => $isTrash,
+                    'defaultCourier'  => $defaultCourier,
                     'courierServices' => $courierServices,
                 ])->render(),
             ]);
         }
 
         return view('admin.orders.index', [
-            'title' => $title,
-            'orders' => $orders,
-            'employees' => $employees,
-            'couriers' => $couriers,
+            'title'           => $title,
+            'orders'          => $orders,
+            'employees'       => $employees,
+            'couriers'        => $couriers,
             'courierAccounts' => collect(),
             'courierServices' => $courierServices,
-            'defaultCourier' => $defaultCourier,
-            'stats' => $stats,
-            'orderStatuses' => $orderStatuses,
+            'defaultCourier'  => $defaultCourier,
+            'stats'           => $stats,
+            'orderStatuses'   => $orderStatuses,
             'paymentStatuses' => $paymentStatuses,
-            'isTrash' => $isTrash,
-            'breadcrumb' => [
+            'isTrash'         => $isTrash,
+            'breadcrumb'      => [
                 ['text' => 'Dashboard', 'url' => route('admin.dashboard')],
                 ['text' => $title, 'url' => url()->current()],
             ],
@@ -312,9 +312,9 @@ class OrderController extends Controller
         $courier = $this->activeCourierListByCode($courierAccount->code);
 
         $order->update([
-            'courier_id' => $courier?->id,
+            'courier_id'         => $courier?->id,
             'courier_account_id' => $courierAccount->id,
-            'courier_service' => $courierAccount->code,
+            'courier_service'    => $courierAccount->code,
         ]);
 
         return $order->fresh(['courier', 'courierAccount', 'items']);
@@ -402,9 +402,9 @@ class OrderController extends Controller
         ]);
 
         return view('admin.orders.show', [
-            'title' => 'Order Details',
-            'order' => $order,
-            'couriers' => $this->getActiveCouriers(),
+            'title'      => 'Order Details',
+            'order'      => $order,
+            'couriers'   => $this->getActiveCouriers(),
             'breadcrumb' => [
                 ['text' => 'Dashboard', 'url' => route('admin.dashboard')],
                 ['text' => 'Orders', 'url' => route('admin.orders.index')],
@@ -436,13 +436,13 @@ class OrderController extends Controller
         }
 
         $order->update([
-            'courier_id' => $courier?->id,
+            'courier_id'         => $courier?->id,
             'courier_account_id' => $courierAccount?->id,
-            'courier_service' => $courier?->code,
+            'courier_service'    => $courier?->code,
         ]);
 
         return response()->json([
-            'status' => true,
+            'status'  => true,
             'message' => $courier
                 ? 'Courier selected successfully: ' . $courier->name
                 : 'Courier removed successfully.',
@@ -455,7 +455,7 @@ class OrderController extends Controller
 
         $request->validate([
             'order_status' => ['required', 'string'],
-            'note' => ['nullable', 'string', 'max:1000'],
+            'note'         => ['nullable', 'string', 'max:1000'],
         ]);
 
         $status = $request->order_status;
@@ -477,21 +477,21 @@ class OrderController extends Controller
         }
 
         if ($status === Order::STATUS_FAKE) {
-            $updateData['is_fake'] = true;
+            $updateData['is_fake']        = true;
             $updateData['marked_fake_at'] = now();
         }
 
         $order->update($updateData);
 
         OrderStatusLog::create([
-            'order_id' => $order->id,
-            'status' => $status,
-            'note' => $request->note,
+            'order_id'   => $order->id,
+            'status'     => $status,
+            'note'       => $request->note,
             'created_by' => auth()->id(),
         ]);
 
         return response()->json([
-            'status' => true,
+            'status'  => true,
             'message' => 'Order status updated successfully.',
         ]);
     }
@@ -509,7 +509,7 @@ class OrderController extends Controller
         ]);
 
         return response()->json([
-            'status' => true,
+            'status'  => true,
             'message' => 'Payment status updated successfully.',
         ]);
     }
@@ -527,7 +527,7 @@ class OrderController extends Controller
         ]);
 
         return response()->json([
-            'status' => true,
+            'status'  => true,
             'message' => 'Admin note updated successfully.',
         ]);
     }
@@ -541,8 +541,8 @@ class OrderController extends Controller
         ]);
 
         $order->update([
-            'is_fake' => true,
-            'order_status' => Order::STATUS_FAKE,
+            'is_fake'        => true,
+            'order_status'   => Order::STATUS_FAKE,
             'marked_fake_at' => now(),
         ]);
 
@@ -552,7 +552,7 @@ class OrderController extends Controller
         ]);
 
         return response()->json([
-            'status' => true,
+            'status'  => true,
             'message' => 'Order marked as fake.',
         ]);
     }
@@ -562,13 +562,13 @@ class OrderController extends Controller
         $this->adminOrEmployeeOnly();
 
         $order->update([
-            'is_fake' => false,
-            'order_status' => Order::STATUS_PENDING,
+            'is_fake'        => false,
+            'order_status'   => Order::STATUS_PENDING,
             'marked_fake_at' => null,
         ]);
 
         return response()->json([
-            'status' => true,
+            'status'  => true,
             'message' => 'Fake order restored successfully.',
         ]);
     }
@@ -580,7 +580,7 @@ class OrderController extends Controller
         $count = app(OrderAssignmentService::class)->assignUnassigned();
 
         return response()->json([
-            'status' => true,
+            'status'  => true,
             'message' => "{$count} orders assigned successfully.",
         ]);
     }
@@ -590,7 +590,7 @@ class OrderController extends Controller
         $this->adminOnly();
 
         $request->validate([
-            'ids' => ['required', 'array'],
+            'ids'   => ['required', 'array'],
             'ids.*' => ['integer', 'exists:orders,id'],
         ]);
 
@@ -612,9 +612,9 @@ class OrderController extends Controller
         $courierServices = $this->getCourierServices();
 
         return view('admin.orders.multiple-invoices', [
-            'title' => 'Selected Invoices',
-            'orders' => $orders,
-            'siteSetting' => $siteSetting,
+            'title'           => 'Selected Invoices',
+            'orders'          => $orders,
+            'siteSetting'     => $siteSetting,
             'courierServices' => $courierServices,
         ]);
     }
@@ -626,8 +626,8 @@ class OrderController extends Controller
         $order->load(['items', 'campaign', 'courier', 'courierAccount', 'assignedEmployee']);
 
         return view('admin.orders.invoice', [
-            'order' => $order,
-            'title' => 'Invoice - ' . $order->invoice_id,
+            'order'           => $order,
+            'title'           => 'Invoice - ' . $order->invoice_id,
             'courierServices' => $this->getCourierServices(),
         ]);
     }
@@ -639,8 +639,8 @@ class OrderController extends Controller
         $order->load(['items', 'campaign', 'courier', 'courierAccount', 'assignedEmployee']);
 
         $pdf = Pdf::loadView('admin.orders.invoice-pdf', [
-            'order' => $order,
-            'siteSetting' => SiteSetting::query()
+            'order'           => $order,
+            'siteSetting'     => SiteSetting::query()
                 ->where('status', true)
                 ->latest()
                 ->first(),
@@ -658,7 +658,7 @@ class OrderController extends Controller
 
         if (! $courierAccount) {
             return response()->json([
-                'status' => false,
+                'status'  => false,
                 'message' => 'Active SteadFast courier API account not found.',
             ], 422);
         }
@@ -669,13 +669,13 @@ class OrderController extends Controller
             $data = $steadfastCourierService->createOrder($order);
 
             return response()->json([
-                'status' => true,
+                'status'  => true,
                 'message' => data_get($data, 'message', 'Order sent to SteadFast successfully.'),
-                'data' => $data,
+                'data'    => $data,
             ]);
         } catch (Throwable $e) {
             return response()->json([
-                'status' => false,
+                'status'  => false,
                 'message' => $e->getMessage(),
             ], 422);
         }
@@ -686,7 +686,7 @@ class OrderController extends Controller
         $this->adminOnly();
 
         $request->validate([
-            'ids' => ['required', 'array'],
+            'ids'   => ['required', 'array'],
             'ids.*' => ['integer', 'exists:orders,id'],
         ]);
 
@@ -694,7 +694,7 @@ class OrderController extends Controller
 
         if (! $courierAccount) {
             return response()->json([
-                'status' => false,
+                'status'  => false,
                 'message' => 'Active SteadFast courier API account not found.',
             ], 422);
         }
@@ -706,14 +706,14 @@ class OrderController extends Controller
 
         if ($orders->isEmpty()) {
             return response()->json([
-                'status' => false,
+                'status'  => false,
                 'message' => 'No selected orders found.',
             ], 422);
         }
 
         $success = 0;
-        $failed = 0;
-        $errors = [];
+        $failed  = 0;
+        $errors  = [];
 
         foreach ($orders as $order) {
             try {
@@ -729,11 +729,11 @@ class OrderController extends Controller
         }
 
         return response()->json([
-            'status' => true,
+            'status'  => true,
             'message' => "SteadFast bulk send completed. Success: {$success}, Failed: {$failed}",
             'success' => $success,
-            'failed' => $failed,
-            'errors' => $errors,
+            'failed'  => $failed,
+            'errors'  => $errors,
         ]);
     }
 
@@ -745,7 +745,7 @@ class OrderController extends Controller
 
         if (! $courierAccount) {
             return response()->json([
-                'status' => false,
+                'status'  => false,
                 'message' => 'Active Pathao courier API account not found.',
             ], 422);
         }
@@ -756,13 +756,13 @@ class OrderController extends Controller
             $data = $pathaoCourierService->createOrder($order);
 
             return response()->json([
-                'status' => true,
+                'status'  => true,
                 'message' => data_get($data, 'message', 'Order sent to Pathao successfully.'),
-                'data' => $data,
+                'data'    => $data,
             ]);
         } catch (Throwable $e) {
             return response()->json([
-                'status' => false,
+                'status'  => false,
                 'message' => $e->getMessage(),
             ], 422);
         }
@@ -773,7 +773,7 @@ class OrderController extends Controller
         $this->adminOnly();
 
         $request->validate([
-            'ids' => ['required', 'array'],
+            'ids'   => ['required', 'array'],
             'ids.*' => ['integer', 'exists:orders,id'],
         ]);
 
@@ -781,7 +781,7 @@ class OrderController extends Controller
 
         if (! $courierAccount) {
             return response()->json([
-                'status' => false,
+                'status'  => false,
                 'message' => 'Active Pathao courier API account not found.',
             ], 422);
         }
@@ -793,14 +793,14 @@ class OrderController extends Controller
 
         if ($orders->isEmpty()) {
             return response()->json([
-                'status' => false,
+                'status'  => false,
                 'message' => 'No selected orders found.',
             ], 422);
         }
 
         $success = 0;
-        $failed = 0;
-        $errors = [];
+        $failed  = 0;
+        $errors  = [];
 
         foreach ($orders as $order) {
             try {
@@ -816,11 +816,11 @@ class OrderController extends Controller
         }
 
         return response()->json([
-            'status' => true,
+            'status'  => true,
             'message' => "Pathao bulk send completed. Success: {$success}, Failed: {$failed}",
             'success' => $success,
-            'failed' => $failed,
-            'errors' => $errors,
+            'failed'  => $failed,
+            'errors'  => $errors,
         ]);
     }
 
@@ -834,7 +834,7 @@ class OrderController extends Controller
 
         if (! $courierAccount) {
             return response()->json([
-                'status' => false,
+                'status'  => false,
                 'message' => 'Active SteadFast courier API account not found.',
             ], 422);
         }
@@ -847,13 +847,13 @@ class OrderController extends Controller
             $data = $steadfastCourierService->syncStatus($order);
 
             return response()->json([
-                'status' => true,
+                'status'  => true,
                 'message' => 'SteadFast status synced successfully.',
-                'data' => $data,
+                'data'    => $data,
             ]);
         } catch (Throwable $e) {
             return response()->json([
-                'status' => false,
+                'status'  => false,
                 'message' => $e->getMessage(),
             ], 422);
         }
@@ -874,13 +874,13 @@ class OrderController extends Controller
             $data = $steadfastCourierService->getBalance($courierAccount);
 
             return response()->json([
-                'status' => true,
+                'status'  => true,
                 'message' => 'Balance fetched successfully.',
-                'data' => $data,
+                'data'    => $data,
             ]);
         } catch (Throwable $e) {
             return response()->json([
-                'status' => false,
+                'status'  => false,
                 'message' => $e->getMessage(),
             ], 422);
         }
@@ -893,7 +893,7 @@ class OrderController extends Controller
         $order->delete();
 
         return response()->json([
-            'status' => true,
+            'status'  => true,
             'message' => 'Order moved to trash successfully.',
         ]);
     }
@@ -905,7 +905,7 @@ class OrderController extends Controller
         Order::onlyTrashed()->findOrFail($id)->restore();
 
         return response()->json([
-            'status' => true,
+            'status'  => true,
             'message' => 'Order restored successfully.',
         ]);
     }
@@ -917,7 +917,7 @@ class OrderController extends Controller
         Order::onlyTrashed()->findOrFail($id)->forceDelete();
 
         return response()->json([
-            'status' => true,
+            'status'  => true,
             'message' => 'Order permanently deleted successfully.',
         ]);
     }
@@ -928,18 +928,18 @@ class OrderController extends Controller
 
         $request->validate([
             'action' => ['required', 'string'],
-            'ids' => ['required', 'array'],
-            'ids.*' => ['integer'],
+            'ids'    => ['required', 'array'],
+            'ids.*'  => ['integer'],
         ]);
 
         $action = $request->action;
-        $ids = $request->ids;
+        $ids    = $request->ids;
 
         if ($action === 'delete') {
             Order::whereIn('id', $ids)->delete();
 
             return response()->json([
-                'status' => true,
+                'status'  => true,
                 'message' => 'Selected orders moved to trash.',
             ]);
         }
@@ -948,7 +948,7 @@ class OrderController extends Controller
             Order::onlyTrashed()->whereIn('id', $ids)->restore();
 
             return response()->json([
-                'status' => true,
+                'status'  => true,
                 'message' => 'Selected orders restored.',
             ]);
         }
@@ -957,7 +957,7 @@ class OrderController extends Controller
             Order::onlyTrashed()->whereIn('id', $ids)->forceDelete();
 
             return response()->json([
-                'status' => true,
+                'status'  => true,
                 'message' => 'Selected orders permanently deleted.',
             ]);
         }
@@ -974,14 +974,44 @@ class OrderController extends Controller
             ]);
 
             return response()->json([
-                'status' => true,
+                'status'  => true,
                 'message' => 'Selected orders status updated.',
             ]);
         }
 
         return response()->json([
-            'status' => false,
+            'status'  => false,
             'message' => 'Invalid action selected.',
         ], 422);
+    }
+
+    public function fraudCheck(Order $order, BdCourierFraudCheckerService $bdCourierFraudCheckerService)
+    {
+        $this->adminOrEmployeeOnly();
+
+        if (auth()->user()->isEmployee() && $order->assigned_employee_id !== auth()->id()) {
+            abort(403, 'Unauthorized access.');
+        }
+
+        try {
+            $data = $bdCourierFraudCheckerService->check($order->phone);
+
+            return response()->json([
+                'status'  => true,
+                'message' => 'Fraud checker data fetched successfully.',
+                'order'   => [
+                    'id'            => $order->id,
+                    'invoice_id'    => $order->invoice_id,
+                    'customer_name' => $order->customer_name,
+                    'phone'         => $order->phone,
+                ],
+                'data'    => $data,
+            ]);
+        } catch (Throwable $e) {
+            return response()->json([
+                'status'  => false,
+                'message' => $e->getMessage(),
+            ], 422);
+        }
     }
 }

@@ -18,7 +18,7 @@
                 <th>Admin Note</th>
                 <th>Employee</th>
                 <th>Date</th>
-                <th width="190" class="text-right px-4">Actions</th>
+                <th width="230" class="text-right px-4">Actions</th>
             </tr>
         </thead>
 
@@ -309,6 +309,16 @@
                                    title="Download Invoice PDF">
                                     <i class="fas fa-file-download"></i>
                                 </a>
+
+                                <button type="button"
+                                        class="btn btn-sm btn-white text-primary btnFraudCheck"
+                                        data-url="{{ route('admin.orders.fraud_check', $order->id) }}"
+                                        data-phone="{{ $order->phone }}"
+                                        data-customer="{{ $order->customer_name }}"
+                                        data-invoice="{{ $order->invoice_id }}"
+                                        title="Fraud Check">
+                                    <i class="fas fa-user-shield"></i>
+                                </button>
 
                                 @if(auth()->user()->isAdmin() && $order->courier_service === 'steadfast')
                                     @if(empty($order->steadfast_consignment_id))

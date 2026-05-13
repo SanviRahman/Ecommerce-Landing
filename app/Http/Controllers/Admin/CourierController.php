@@ -46,6 +46,8 @@ class CourierController extends Controller
                 'regex:/^[a-zA-Z0-9_-]+$/',
                 Rule::unique('couriers', 'code')->whereNull('deleted_at'),
             ],
+            'merchant_id' => ['nullable', 'string', 'max:255'],
+            'phone_number' => ['nullable', 'string', 'max:50'],
             'status' => ['nullable', 'boolean'],
         ], [
             'code.regex' => 'Courier code only supports letters, numbers, dash and underscore.',
@@ -55,6 +57,8 @@ class CourierController extends Controller
         Courier::create([
             'name' => $validated['name'],
             'code' => $this->makeCode($validated['code'] ?? null, $validated['name']),
+            'merchant_id' => $validated['merchant_id'] ?? null,
+            'phone_number' => $validated['phone_number'] ?? null,
             'status' => $request->boolean('status', true),
         ]);
 
@@ -76,6 +80,8 @@ class CourierController extends Controller
                     ->ignore($courier->id)
                     ->whereNull('deleted_at'),
             ],
+            'merchant_id' => ['nullable', 'string', 'max:255'],
+            'phone_number' => ['nullable', 'string', 'max:50'],
             'status' => ['nullable', 'boolean'],
         ], [
             'code.regex' => 'Courier code only supports letters, numbers, dash and underscore.',
@@ -85,6 +91,8 @@ class CourierController extends Controller
         $courier->update([
             'name' => $validated['name'],
             'code' => $this->makeCode($validated['code'] ?? null, $validated['name']),
+            'merchant_id' => $validated['merchant_id'] ?? null,
+            'phone_number' => $validated['phone_number'] ?? null,
             'status' => $request->boolean('status'),
         ]);
 

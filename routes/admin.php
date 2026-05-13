@@ -81,6 +81,7 @@ Route::middleware(['auth'])->group(function () {
             | Single Order Routes
             |--------------------------------------------------------------------------
             */
+            Route::post('/{order}/fraud-check', [OrderController::class, 'fraudCheck'])->name('fraud_check');
             Route::get('/{order}/invoice', [OrderController::class, 'invoice'])->name('invoice');
             Route::get('/{order}/invoice/download', [OrderController::class, 'downloadInvoice'])->name('invoice.download');
 

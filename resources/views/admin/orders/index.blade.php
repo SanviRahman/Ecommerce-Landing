@@ -3,30 +3,30 @@
 @section('title', $title ?? 'Order Management')
 
 @section('content_header')
-    <div class="d-flex justify-content-between align-items-center flex-wrap">
-        <div>
-            <h1 class="mb-0">{{ $title ?? 'Order Management' }}</h1>
+<div class="d-flex justify-content-between align-items-center flex-wrap">
+    <div>
+        <h1 class="mb-0">{{ $title ?? 'Order Management' }}</h1>
 
-            @if(isset($breadcrumb))
-                <ol class="breadcrumb mt-2 mb-0 bg-transparent p-0">
-                    @foreach($breadcrumb as $item)
-                        <li class="breadcrumb-item">
-                            <a href="{{ $item['url'] }}">{{ $item['text'] }}</a>
-                        </li>
-                    @endforeach
-                </ol>
-            @endif
-        </div>
+        @if(isset($breadcrumb))
+        <ol class="breadcrumb mt-2 mb-0 bg-transparent p-0">
+            @foreach($breadcrumb as $item)
+            <li class="breadcrumb-item">
+                <a href="{{ $item['url'] }}">{{ $item['text'] }}</a>
+            </li>
+            @endforeach
+        </ol>
+        @endif
     </div>
+</div>
 @endsection
 
 @section('content')
 
 @if(auth()->user()->isEmployee())
-    <div class="alert alert-info">
-        <i class="fas fa-info-circle mr-1"></i>
-        You are viewing your assigned orders only.
-    </div>
+<div class="alert alert-info">
+    <i class="fas fa-info-circle mr-1"></i>
+    You are viewing your assigned orders only.
+</div>
 @endif
 
 {{-- Top Small Stats --}}
@@ -98,17 +98,17 @@
 
             <div class="col-md-6 mt-2 mt-md-0 text-md-right">
                 @if(auth()->user()->isAdmin())
-                    <button class="btn btn-outline-info btn-sm px-3 shadow-none mr-1" id="btnSteadfastBalance">
-                        <i class="fas fa-wallet mr-1"></i> SteadFast Balance
-                    </button>
+                <button class="btn btn-outline-info btn-sm px-3 shadow-none mr-1" id="btnSteadfastBalance">
+                    <i class="fas fa-wallet mr-1"></i> SteadFast Balance
+                </button>
 
-                    <button class="btn btn-outline-success btn-sm px-3 shadow-none mr-1" id="btnAssignUnassigned">
-                        <i class="fas fa-random mr-1"></i> Assign Unassigned
-                    </button>
+                <button class="btn btn-outline-success btn-sm px-3 shadow-none mr-1" id="btnAssignUnassigned">
+                    <i class="fas fa-random mr-1"></i> Assign Unassigned
+                </button>
 
-                    <button class="btn btn-outline-danger btn-sm px-3 shadow-none" id="btnToggleTrash">
-                        <i class="fas fa-trash-alt mr-1"></i> Trash Bin
-                    </button>
+                <button class="btn btn-outline-danger btn-sm px-3 shadow-none" id="btnToggleTrash">
+                    <i class="fas fa-trash-alt mr-1"></i> Trash Bin
+                </button>
                 @endif
             </div>
         </div>
@@ -123,9 +123,9 @@
                     <select id="filter_order_status" class="form-control border-0 bg-light shadow-none">
                         <option value="all">All Status</option>
                         @foreach($orderStatuses ?? [] as $status)
-                            <option value="{{ $status }}">
-                                {{ ucfirst(str_replace('_', ' ', $status)) }}
-                            </option>
+                        <option value="{{ $status }}">
+                            {{ ucfirst(str_replace('_', ' ', $status)) }}
+                        </option>
                         @endforeach
                     </select>
                 </div>
@@ -135,9 +135,9 @@
                     <select id="filter_payment_status" class="form-control border-0 bg-light shadow-none">
                         <option value="all">All Payment</option>
                         @foreach($paymentStatuses ?? [] as $status)
-                            <option value="{{ $status }}">
-                                {{ ucfirst(str_replace('_', ' ', $status)) }}
-                            </option>
+                        <option value="{{ $status }}">
+                            {{ ucfirst(str_replace('_', ' ', $status)) }}
+                        </option>
                         @endforeach
                     </select>
                 </div>
@@ -147,7 +147,7 @@
                     <select id="filter_courier_service" class="form-control border-0 bg-light shadow-none">
                         <option value="all">All Courier</option>
                         @foreach($courierServices ?? [] as $key => $label)
-                            <option value="{{ $key }}">{{ $label }}</option>
+                        <option value="{{ $key }}">{{ $label }}</option>
                         @endforeach
                     </select>
                 </div>
@@ -162,21 +162,21 @@
                 </div>
 
                 @if(auth()->user()->isAdmin())
-                    <div class="col-md-2 col-sm-6 mb-2">
-                        <label class="small font-weight-bold text-muted text-uppercase">Employee</label>
-                        <select id="filter_employee" class="form-control border-0 bg-light shadow-none">
-                            <option value="all">All Employees</option>
-                            <option value="unassigned">Unassigned</option>
+                <div class="col-md-2 col-sm-6 mb-2">
+                    <label class="small font-weight-bold text-muted text-uppercase">Employee</label>
+                    <select id="filter_employee" class="form-control border-0 bg-light shadow-none">
+                        <option value="all">All Employees</option>
+                        <option value="unassigned">Unassigned</option>
 
-                            @foreach($employees ?? [] as $employee)
-                                <option value="{{ $employee->id }}">
-                                    {{ $employee->name }}
-                                </option>
-                            @endforeach
-                        </select>
-                    </div>
+                        @foreach($employees ?? [] as $employee)
+                        <option value="{{ $employee->id }}">
+                            {{ $employee->name }}
+                        </option>
+                        @endforeach
+                    </select>
+                </div>
                 @else
-                    <input type="hidden" id="filter_employee" value="all">
+                <input type="hidden" id="filter_employee" value="all">
                 @endif
 
                 <div class="col-md-2 col-sm-6 mb-2">
@@ -191,10 +191,8 @@
 
                 <div class="col-md-8 col-sm-8 mb-2">
                     <label class="small font-weight-bold text-muted text-uppercase">Search</label>
-                    <input type="text"
-                           id="table_search"
-                           class="form-control shadow-none"
-                           placeholder="Search invoice, customer, phone, address, courier, employee...">
+                    <input type="text" id="table_search" class="form-control shadow-none"
+                        placeholder="Search invoice, customer, phone, address, courier, employee...">
                 </div>
 
                 <div class="col-md-2 col-sm-4 mb-2 d-flex align-items-end">
@@ -207,93 +205,80 @@
 
         {{-- Bulk Action Bar --}}
         @if(auth()->user()->isAdmin())
-            <div class="px-4 py-2 bg-light border-top border-bottom">
-                <div class="d-flex align-items-center justify-content-between flex-wrap">
-                    <div class="d-flex align-items-center flex-wrap">
-                        <span class="badge badge-dark px-3 py-2 mr-2">
-                            Total <span id="selectedCount">0</span> Orders
-                        </span>
+        <div class="px-4 py-2 bg-light border-top border-bottom">
+            <div class="d-flex align-items-center justify-content-between flex-wrap">
+                <div class="d-flex align-items-center flex-wrap">
+                    <span class="badge badge-dark px-3 py-2 mr-2">
+                        Total <span id="selectedCount">0</span> Orders
+                    </span>
 
-                        <button type="button"
-                                class="btn btn-secondary btn-sm mr-2"
-                                id="btnPrintSelectedInvoice">
-                            <i class="fas fa-print mr-1"></i> Print Selected Invoice
+                    <button type="button" class="btn btn-secondary btn-sm mr-2" id="btnPrintSelectedInvoice">
+                        <i class="fas fa-print mr-1"></i> Print Selected Invoice
+                    </button>
+
+                    <button type="button" class="btn btn-primary btn-sm mr-2" id="btnSendSelectedSteadfast">
+                        <i class="fas fa-paper-plane mr-1"></i> Send SteadFast
+                    </button>
+
+                    <button type="button" class="btn btn-success btn-sm mr-2" id="btnSendSelectedPathao">
+                        <i class="fas fa-shipping-fast mr-1"></i> Send Pathao
+                    </button>
+
+                    <button type="button" class="btn btn-danger btn-sm mr-2" id="btnDeleteSelected">
+                        <i class="fas fa-trash mr-1"></i> Delete Selected
+                    </button>
+
+                    <div class="dropdown d-inline-block mr-2">
+                        <button class="btn btn-info btn-sm dropdown-toggle" type="button" id="changeStatusDropdown"
+                            data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                            <i class="fas fa-exchange-alt mr-1"></i> Change Status
                         </button>
 
-                        <button type="button"
-                                class="btn btn-primary btn-sm mr-2"
-                                id="btnSendSelectedSteadfast">
-                            <i class="fas fa-paper-plane mr-1"></i> Send SteadFast
-                        </button>
+                        <div class="dropdown-menu" aria-labelledby="changeStatusDropdown">
+                            <a class="dropdown-item bulk-status-action" href="#" data-action="status_pending">
+                                <i class="far fa-circle mr-1"></i> Pending
+                            </a>
 
-                        <button type="button"
-                                class="btn btn-success btn-sm mr-2"
-                                id="btnSendSelectedPathao">
-                            <i class="fas fa-shipping-fast mr-1"></i> Send Pathao
-                        </button>
+                            <a class="dropdown-item bulk-status-action" href="#" data-action="status_confirmed">
+                                <i class="far fa-check-circle mr-1"></i> Confirmed
+                            </a>
 
-                        <button type="button"
-                                class="btn btn-danger btn-sm mr-2"
-                                id="btnDeleteSelected">
-                            <i class="fas fa-trash mr-1"></i> Delete Selected
-                        </button>
+                            <a class="dropdown-item bulk-status-action" href="#" data-action="status_processing">
+                                <i class="fas fa-spinner mr-1"></i> Processing
+                            </a>
 
-                        <div class="dropdown d-inline-block mr-2">
-                            <button class="btn btn-info btn-sm dropdown-toggle"
-                                    type="button"
-                                    id="changeStatusDropdown"
-                                    data-toggle="dropdown"
-                                    aria-haspopup="true"
-                                    aria-expanded="false">
-                                <i class="fas fa-exchange-alt mr-1"></i> Change Status
-                            </button>
+                            <a class="dropdown-item bulk-status-action" href="#" data-action="status_shipped">
+                                <i class="fas fa-truck mr-1"></i> Shipped
+                            </a>
 
-                            <div class="dropdown-menu" aria-labelledby="changeStatusDropdown">
-                                <a class="dropdown-item bulk-status-action" href="#" data-action="status_pending">
-                                    <i class="far fa-circle mr-1"></i> Pending
-                                </a>
+                            <a class="dropdown-item bulk-status-action" href="#" data-action="status_delivered">
+                                <i class="fas fa-check-double mr-1"></i> Delivered
+                            </a>
 
-                                <a class="dropdown-item bulk-status-action" href="#" data-action="status_confirmed">
-                                    <i class="far fa-check-circle mr-1"></i> Confirmed
-                                </a>
+                            <a class="dropdown-item bulk-status-action text-danger" href="#"
+                                data-action="status_cancelled">
+                                <i class="fas fa-times-circle mr-1"></i> Cancelled
+                            </a>
 
-                                <a class="dropdown-item bulk-status-action" href="#" data-action="status_processing">
-                                    <i class="fas fa-spinner mr-1"></i> Processing
-                                </a>
-
-                                <a class="dropdown-item bulk-status-action" href="#" data-action="status_shipped">
-                                    <i class="fas fa-truck mr-1"></i> Shipped
-                                </a>
-
-                                <a class="dropdown-item bulk-status-action" href="#" data-action="status_delivered">
-                                    <i class="fas fa-check-double mr-1"></i> Delivered
-                                </a>
-
-                                <a class="dropdown-item bulk-status-action text-danger" href="#" data-action="status_cancelled">
-                                    <i class="fas fa-times-circle mr-1"></i> Cancelled
-                                </a>
-
-                                <a class="dropdown-item bulk-status-action text-danger" href="#" data-action="status_fake">
-                                    <i class="fas fa-ban mr-1"></i> Fake
-                                </a>
-                            </div>
+                            <a class="dropdown-item bulk-status-action text-danger" href="#" data-action="status_fake">
+                                <i class="fas fa-ban mr-1"></i> Fake
+                            </a>
                         </div>
-
-                        <button type="button"
-                                class="btn btn-warning btn-sm mr-2"
-                                id="btnAssignUnassignedTwo">
-                            <i class="fas fa-sync-alt mr-1"></i> Sync Order
-                        </button>
                     </div>
+
+                    <button type="button" class="btn btn-warning btn-sm mr-2" id="btnAssignUnassignedTwo">
+                        <i class="fas fa-sync-alt mr-1"></i> Sync Order
+                    </button>
                 </div>
             </div>
+        </div>
         @endif
 
         <div id="content-wrapper" style="min-height: 400px; position: relative;">
             @include('admin.orders.partials.table', [
-                'orders' => $orders,
-                'isTrash' => $isTrash ?? false,
-                'courierServices' => $courierServices ?? [],
+            'orders' => $orders,
+            'isTrash' => $isTrash ?? false,
+            'courierServices' => $courierServices ?? [],
             ])
         </div>
     </div>
@@ -302,18 +287,18 @@
 @endsection
 
 @section('footer')
-    <strong>
-        © Copyright 2026 All rights reserved |
-        This website developed by
-        <a href="https://sfashanto.netlify.app/" target="_blank">SFA Shanto</a>
-    </strong>
+<strong>
+    © Copyright 2026 All rights reserved |
+    This website developed by
+    <a href="https://sfashanto.netlify.app/" target="_blank">SFA Shanto</a>
+</strong>
 @endsection
 
 @section('plugins.Sweetalert2', true)
 
 @section('js')
 <script>
-$(document).ready(function () {
+$(document).ready(function() {
     let currentView = "{{ isset($isTrash) && $isTrash ? 'trash' : 'active' }}";
     let adminNoteTimers = {};
 
@@ -334,6 +319,175 @@ $(document).ready(function () {
         });
     }
 
+    function htmlEscape(value) {
+        if (value === null || value === undefined) {
+            return '';
+        }
+
+        return String(value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function numberText(value) {
+        let number = Number(value || 0);
+
+        if (Number.isNaN(number)) {
+            return '0';
+        }
+
+        return number.toLocaleString('en-US');
+    }
+
+    function riskBadgeClass(risk) {
+        if (risk === 'low') {
+            return 'badge-success';
+        }
+
+        if (risk === 'medium') {
+            return 'badge-warning';
+        }
+
+        if (risk === 'high') {
+            return 'badge-danger';
+        }
+
+        return 'badge-secondary';
+    }
+
+    function riskText(risk) {
+        if (risk === 'low') {
+            return 'Low Risk';
+        }
+
+        if (risk === 'medium') {
+            return 'Medium Risk';
+        }
+
+        if (risk === 'high') {
+            return 'High Risk';
+        }
+
+        return 'Unknown';
+    }
+
+    function renderFraudCheckerHtml(res) {
+        let order = res.order || {};
+        let data = res.data || {};
+        let couriers = data.couriers || [];
+
+        let rows = '';
+
+        if (couriers.length) {
+            couriers.forEach(function(item) {
+                rows += `
+                    <tr>
+                        <td class="text-left font-weight-bold">${htmlEscape(item.courier || '-')}</td>
+                        <td>${numberText(item.total)}</td>
+                        <td class="text-success font-weight-bold">${numberText(item.success)}</td>
+                        <td class="text-danger font-weight-bold">${numberText(item.cancel)}</td>
+                        <td>${htmlEscape(item.success_ratio || 0)}%</td>
+                    </tr>
+                `;
+            });
+        } else {
+            rows = `
+                <tr>
+                    <td colspan="5" class="text-center text-muted py-3">
+                        No courier history found.
+                    </td>
+                </tr>
+            `;
+        }
+
+        let risk = data.risk_level || 'unknown';
+        let riskClass = riskBadgeClass(risk);
+
+        return `
+            <div class="text-left fraud-checker-popup">
+                <div class="fraud-header-box mb-3">
+                    <div class="d-flex justify-content-between flex-wrap">
+                        <div>
+                            <div><strong>Invoice:</strong> #${htmlEscape(order.invoice_id || '-')}</div>
+                            <div><strong>Customer:</strong> ${htmlEscape(order.customer_name || '-')}</div>
+                            <div><strong>Phone:</strong> ${htmlEscape(data.phone || order.phone || '-')}</div>
+                        </div>
+
+                        <div class="text-right mt-2 mt-md-0">
+                            <span class="badge ${riskClass} px-3 py-2 text-uppercase">
+                                ${riskText(risk)}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row text-center mb-3">
+                    <div class="col-3">
+                        <div class="border rounded p-2 fraud-summary-card">
+                            <div class="small text-muted">Total</div>
+                            <div class="h5 mb-0">${numberText(data.total)}</div>
+                        </div>
+                    </div>
+
+                    <div class="col-3">
+                        <div class="border rounded p-2 fraud-summary-card">
+                            <div class="small text-muted">Success</div>
+                            <div class="h5 mb-0 text-success">${numberText(data.success)}</div>
+                        </div>
+                    </div>
+
+                    <div class="col-3">
+                        <div class="border rounded p-2 fraud-summary-card">
+                            <div class="small text-muted">Cancel</div>
+                            <div class="h5 mb-0 text-danger">${numberText(data.cancel)}</div>
+                        </div>
+                    </div>
+
+                    <div class="col-3">
+                        <div class="border rounded p-2 fraud-summary-card">
+                            <div class="small text-muted">Success</div>
+                            <div class="h5 mb-0">${htmlEscape(data.success_ratio || 0)}%</div>
+                        </div>
+                    </div>
+                </div>
+
+                <table class="table table-sm table-bordered mb-0 text-center">
+                    <thead class="bg-light">
+                        <tr>
+                            <th class="text-left">Courier</th>
+                            <th>Total</th>
+                            <th>Success</th>
+                            <th>Cancelled</th>
+                            <th>Success Ratio</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        ${rows}
+                    </tbody>
+
+                    <tfoot>
+                        <tr class="font-weight-bold">
+                            <td class="text-left">Total</td>
+                            <td>${numberText(data.total)}</td>
+                            <td class="text-success">${numberText(data.success)}</td>
+                            <td class="text-danger">${numberText(data.cancel)}</td>
+                            <td>${htmlEscape(data.success_ratio || 0)}%</td>
+                        </tr>
+                    </tfoot>
+                </table>
+
+                <div class="small text-muted mt-2">
+                    <i class="fas fa-info-circle mr-1"></i>
+                    This result is based on BD Courier history for this customer phone number.
+                </div>
+            </div>
+        `;
+    }
+
     $.ajaxSetup({
         headers: {
             'X-CSRF-TOKEN': '{{ csrf_token() }}'
@@ -341,9 +495,9 @@ $(document).ready(function () {
     });
 
     function getBaseUrl() {
-        return currentView === 'trash'
-            ? "{{ route('admin.orders.trashed') }}"
-            : "{{ route('admin.orders.index') }}";
+        return currentView === 'trash' ?
+            "{{ route('admin.orders.trashed') }}" :
+            "{{ route('admin.orders.index') }}";
     }
 
     function getQueryParams(page = 1) {
@@ -369,7 +523,7 @@ $(document).ready(function () {
     }
 
     function selectedIds() {
-        return $('.row-checkbox:checked').map(function () {
+        return $('.row-checkbox:checked').map(function() {
             return $(this).val();
         }).get();
     }
@@ -413,7 +567,7 @@ $(document).ready(function () {
             url: getBaseUrl(),
             type: 'GET',
             data: getQueryParams(page),
-            success: function (res) {
+            success: function(res) {
                 if (res.status && res.html) {
                     $('#content-wrapper').html(res.html).css('opacity', '1');
 
@@ -428,7 +582,7 @@ $(document).ready(function () {
                     showToast('error', 'Failed to fetch orders.');
                 }
             },
-            error: function (xhr) {
+            error: function(xhr) {
                 $('#content-wrapper').css('opacity', '1');
 
                 let message = xhr.responseJSON?.message || 'Failed to fetch orders.';
@@ -463,19 +617,20 @@ $(document).ready(function () {
                         ids: ids,
                         action: action
                     },
-                    beforeSend: function () {
+                    beforeSend: function() {
                         $('#content-wrapper').css('opacity', '0.6');
                     },
-                    success: function (res) {
+                    success: function(res) {
                         if (res.status) {
-                            showToast('success', res.message || 'Bulk action completed successfully.');
+                            showToast('success', res.message ||
+                                'Bulk action completed successfully.');
                             reloadTable();
                         } else {
                             $('#content-wrapper').css('opacity', '1');
                             showToast('error', res.message || 'Bulk action failed.');
                         }
                     },
-                    error: function (xhr) {
+                    error: function(xhr) {
                         $('#content-wrapper').css('opacity', '1');
 
                         let message = xhr.responseJSON?.message || 'Bulk action failed.';
@@ -520,19 +675,19 @@ $(document).ready(function () {
                 _token: '{{ csrf_token() }}',
                 admin_note: note
             },
-            success: function (res) {
+            success: function(res) {
                 if (res.status) {
                     textarea.attr('data-original', note);
                     updateNoteStatus(textarea, 'saved', 'Saved');
 
-                    setTimeout(function () {
+                    setTimeout(function() {
                         updateNoteStatus(textarea, '', 'Auto save enabled');
                     }, 1500);
                 } else {
                     updateNoteStatus(textarea, 'error', res.message || 'Save failed');
                 }
             },
-            error: function (xhr) {
+            error: function(xhr) {
                 let message = xhr.responseJSON?.message || 'Save failed';
 
                 if (xhr.status === 422 && xhr.responseJSON?.errors) {
@@ -546,23 +701,72 @@ $(document).ready(function () {
 
     /*
     |--------------------------------------------------------------------------
+    | BD Courier Fraud Check
+    |--------------------------------------------------------------------------
+    */
+    $(document).on('click', '.btnFraudCheck', function() {
+        let button = $(this);
+        let url = button.data('url');
+        let oldHtml = button.html();
+
+        button.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i>');
+
+        $.ajax({
+            url: url,
+            type: 'POST',
+            data: {
+                _token: '{{ csrf_token() }}'
+            },
+            success: function(res) {
+                button.prop('disabled', false).html(oldHtml);
+
+                if (res.status) {
+                    Swal.fire({
+                        title: 'Fraud Check Result',
+                        html: renderFraudCheckerHtml(res),
+                        width: 650,
+                        showCancelButton: false,
+                        confirmButtonText: 'Close',
+                        confirmButtonColor: '#2563eb'
+                    });
+                } else {
+                    showToast('error', res.message || 'Fraud check failed.');
+                }
+            },
+            error: function(xhr) {
+                button.prop('disabled', false).html(oldHtml);
+
+                let message = xhr.responseJSON?.message || 'Fraud check failed.';
+
+                if (xhr.status === 422 && xhr.responseJSON?.errors) {
+                    message = Object.values(xhr.responseJSON.errors)[0][0];
+                }
+
+                showToast('error', message);
+            }
+        });
+    });
+
+    /*
+    |--------------------------------------------------------------------------
     | Filters
     |--------------------------------------------------------------------------
     */
-    $('#filter_order_status, #filter_payment_status, #filter_courier_service, #filter_fake_status, #filter_employee, #filter_date_from, #filter_date_to').on('change', function () {
-        reloadTable(1);
-    });
+    $('#filter_order_status, #filter_payment_status, #filter_courier_service, #filter_fake_status, #filter_employee, #filter_date_from, #filter_date_to')
+        .on('change', function() {
+            reloadTable(1);
+        });
 
-    $('#btnFilter').on('click', function () {
+    $('#btnFilter').on('click', function() {
         reloadTable(1);
     });
 
     let typeTimer;
 
-    $('#table_search').on('keyup', function () {
+    $('#table_search').on('keyup', function() {
         clearTimeout(typeTimer);
 
-        typeTimer = setTimeout(function () {
+        typeTimer = setTimeout(function() {
             reloadTable(1);
         }, 500);
     });
@@ -572,7 +776,7 @@ $(document).ready(function () {
     | Pagination
     |--------------------------------------------------------------------------
     */
-    $(document).on('click', '.pagination a', function (e) {
+    $(document).on('click', '.pagination a', function(e) {
         e.preventDefault();
 
         let page = $(this).attr('href').split('page=')[1];
@@ -584,7 +788,7 @@ $(document).ready(function () {
     | Trash Toggle
     |--------------------------------------------------------------------------
     */
-    $('#btnToggleTrash').on('click', function () {
+    $('#btnToggleTrash').on('click', function() {
         currentView = currentView === 'active' ? 'trash' : 'active';
         reloadTable(1);
     });
@@ -594,12 +798,12 @@ $(document).ready(function () {
     | Checkbox
     |--------------------------------------------------------------------------
     */
-    $(document).on('change', '#check_all', function () {
+    $(document).on('change', '#check_all', function() {
         $('.row-checkbox').prop('checked', $(this).prop('checked'));
         updateSelectedCount();
     });
 
-    $(document).on('change', '.row-checkbox', function () {
+    $(document).on('change', '.row-checkbox', function() {
         updateSelectedCount();
 
         let total = $('.row-checkbox').length;
@@ -613,7 +817,7 @@ $(document).ready(function () {
     | Bulk Delete
     |--------------------------------------------------------------------------
     */
-    $('#btnDeleteSelected').on('click', function () {
+    $('#btnDeleteSelected').on('click', function() {
         runBulkAction('delete');
     });
 
@@ -622,7 +826,7 @@ $(document).ready(function () {
     | Bulk Status Change
     |--------------------------------------------------------------------------
     */
-    $(document).on('click', '.bulk-status-action', function (e) {
+    $(document).on('click', '.bulk-status-action', function(e) {
         e.preventDefault();
 
         let action = $(this).data('action');
@@ -634,7 +838,7 @@ $(document).ready(function () {
     | Selected Invoice Print
     |--------------------------------------------------------------------------
     */
-    $('#btnPrintSelectedInvoice').on('click', function () {
+    $('#btnPrintSelectedInvoice').on('click', function() {
         let ids = selectedIds();
 
         if (!ids.length) {
@@ -654,7 +858,7 @@ $(document).ready(function () {
             value: '{{ csrf_token() }}'
         }));
 
-        ids.forEach(function (id) {
+        ids.forEach(function(id) {
             form.append($('<input>', {
                 type: 'hidden',
                 name: 'ids[]',
@@ -672,7 +876,7 @@ $(document).ready(function () {
     | Send Selected Orders To SteadFast
     |--------------------------------------------------------------------------
     */
-    $('#btnSendSelectedSteadfast').on('click', function () {
+    $('#btnSendSelectedSteadfast').on('click', function() {
         let ids = selectedIds();
 
         if (!ids.length) {
@@ -697,22 +901,25 @@ $(document).ready(function () {
                         _token: '{{ csrf_token() }}',
                         ids: ids
                     },
-                    beforeSend: function () {
+                    beforeSend: function() {
                         $('#content-wrapper').css('opacity', '0.6');
                     },
-                    success: function (res) {
+                    success: function(res) {
                         if (res.status) {
-                            showToast('success', res.message || 'Orders sent to SteadFast successfully.');
+                            showToast('success', res.message ||
+                                'Orders sent to SteadFast successfully.');
                             reloadTable();
                         } else {
                             $('#content-wrapper').css('opacity', '1');
-                            showToast('error', res.message || 'SteadFast send failed.');
+                            showToast('error', res.message ||
+                                'SteadFast send failed.');
                         }
                     },
-                    error: function (xhr) {
+                    error: function(xhr) {
                         $('#content-wrapper').css('opacity', '1');
 
-                        let message = xhr.responseJSON?.message || 'SteadFast send failed.';
+                        let message = xhr.responseJSON?.message ||
+                            'SteadFast send failed.';
 
                         if (xhr.status === 422 && xhr.responseJSON?.errors) {
                             message = Object.values(xhr.responseJSON.errors)[0][0];
@@ -730,7 +937,7 @@ $(document).ready(function () {
     | Send Selected Orders To Pathao
     |--------------------------------------------------------------------------
     */
-    $('#btnSendSelectedPathao').on('click', function () {
+    $('#btnSendSelectedPathao').on('click', function() {
         let ids = selectedIds();
 
         if (!ids.length) {
@@ -755,22 +962,25 @@ $(document).ready(function () {
                         _token: '{{ csrf_token() }}',
                         ids: ids
                     },
-                    beforeSend: function () {
+                    beforeSend: function() {
                         $('#content-wrapper').css('opacity', '0.6');
                     },
-                    success: function (res) {
+                    success: function(res) {
                         if (res.status) {
-                            showToast('success', res.message || 'Orders sent to Pathao successfully.');
+                            showToast('success', res.message ||
+                                'Orders sent to Pathao successfully.');
                             reloadTable();
                         } else {
                             $('#content-wrapper').css('opacity', '1');
-                            showToast('error', res.message || 'Pathao send failed.');
+                            showToast('error', res.message ||
+                            'Pathao send failed.');
                         }
                     },
-                    error: function (xhr) {
+                    error: function(xhr) {
                         $('#content-wrapper').css('opacity', '1');
 
-                        let message = xhr.responseJSON?.message || 'Pathao send failed.';
+                        let message = xhr.responseJSON?.message ||
+                            'Pathao send failed.';
 
                         if (xhr.status === 422 && xhr.responseJSON?.errors) {
                             message = Object.values(xhr.responseJSON.errors)[0][0];
@@ -788,7 +998,7 @@ $(document).ready(function () {
     | Send Single Order To SteadFast
     |--------------------------------------------------------------------------
     */
-    $(document).on('click', '.btnSendSteadfast', function () {
+    $(document).on('click', '.btnSendSteadfast', function() {
         let button = $(this);
         let url = button.data('url');
         let oldButtonHtml = button.html();
@@ -811,24 +1021,27 @@ $(document).ready(function () {
                     data: {
                         _token: '{{ csrf_token() }}'
                     },
-                    beforeSend: function () {
+                    beforeSend: function() {
                         $('#content-wrapper').css('opacity', '0.6');
                     },
-                    success: function (res) {
+                    success: function(res) {
                         if (res.status) {
-                            showToast('success', res.message || 'Order sent to SteadFast.');
+                            showToast('success', res.message ||
+                                'Order sent to SteadFast.');
                             reloadTable();
                         } else {
                             $('#content-wrapper').css('opacity', '1');
                             button.prop('disabled', false).html(oldButtonHtml);
-                            showToast('error', res.message || 'SteadFast send failed.');
+                            showToast('error', res.message ||
+                                'SteadFast send failed.');
                         }
                     },
-                    error: function (xhr) {
+                    error: function(xhr) {
                         $('#content-wrapper').css('opacity', '1');
                         button.prop('disabled', false).html(oldButtonHtml);
 
-                        let message = xhr.responseJSON?.message || 'SteadFast send failed.';
+                        let message = xhr.responseJSON?.message ||
+                            'SteadFast send failed.';
                         showToast('error', message);
                     }
                 });
@@ -841,7 +1054,7 @@ $(document).ready(function () {
     | Send Single Order To Pathao
     |--------------------------------------------------------------------------
     */
-    $(document).on('click', '.btnSendPathao', function () {
+    $(document).on('click', '.btnSendPathao', function() {
         let button = $(this);
         let url = button.data('url');
         let oldButtonHtml = button.html();
@@ -864,24 +1077,27 @@ $(document).ready(function () {
                     data: {
                         _token: '{{ csrf_token() }}'
                     },
-                    beforeSend: function () {
+                    beforeSend: function() {
                         $('#content-wrapper').css('opacity', '0.6');
                     },
-                    success: function (res) {
+                    success: function(res) {
                         if (res.status) {
-                            showToast('success', res.message || 'Order sent to Pathao.');
+                            showToast('success', res.message ||
+                                'Order sent to Pathao.');
                             reloadTable();
                         } else {
                             $('#content-wrapper').css('opacity', '1');
                             button.prop('disabled', false).html(oldButtonHtml);
-                            showToast('error', res.message || 'Pathao send failed.');
+                            showToast('error', res.message ||
+                            'Pathao send failed.');
                         }
                     },
-                    error: function (xhr) {
+                    error: function(xhr) {
                         $('#content-wrapper').css('opacity', '1');
                         button.prop('disabled', false).html(oldButtonHtml);
 
-                        let message = xhr.responseJSON?.message || 'Pathao send failed.';
+                        let message = xhr.responseJSON?.message ||
+                            'Pathao send failed.';
                         showToast('error', message);
                     }
                 });
@@ -894,7 +1110,7 @@ $(document).ready(function () {
     | Sync Single SteadFast Status
     |--------------------------------------------------------------------------
     */
-    $(document).on('click', '.btnSyncSteadfast', function () {
+    $(document).on('click', '.btnSyncSteadfast', function() {
         let url = $(this).data('url');
 
         $.ajax({
@@ -903,10 +1119,10 @@ $(document).ready(function () {
             data: {
                 _token: '{{ csrf_token() }}'
             },
-            beforeSend: function () {
+            beforeSend: function() {
                 $('#content-wrapper').css('opacity', '0.6');
             },
-            success: function (res) {
+            success: function(res) {
                 if (res.status) {
                     showToast('success', res.message || 'SteadFast status synced.');
                     reloadTable();
@@ -915,7 +1131,7 @@ $(document).ready(function () {
                     showToast('error', res.message || 'SteadFast sync failed.');
                 }
             },
-            error: function (xhr) {
+            error: function(xhr) {
                 $('#content-wrapper').css('opacity', '1');
 
                 let message = xhr.responseJSON?.message || 'SteadFast sync failed.';
@@ -929,16 +1145,16 @@ $(document).ready(function () {
     | SteadFast Balance Check
     |--------------------------------------------------------------------------
     */
-    $('#btnSteadfastBalance').on('click', function () {
+    $('#btnSteadfastBalance').on('click', function() {
         $.ajax({
             url: "{{ route('admin.orders.steadfast.balance') }}",
             type: "GET",
-            success: function (res) {
+            success: function(res) {
                 if (res.status) {
-                    let balance = res.data.current_balance
-                        ?? res.data.balance
-                        ?? res.data.data
-                        ?? JSON.stringify(res.data);
+                    let balance = res.data.current_balance ??
+                        res.data.balance ??
+                        res.data.data ??
+                        JSON.stringify(res.data);
 
                     Swal.fire({
                         icon: 'success',
@@ -950,7 +1166,7 @@ $(document).ready(function () {
                     showToast('error', res.message || 'Balance fetch failed.');
                 }
             },
-            error: function (xhr) {
+            error: function(xhr) {
                 let message = xhr.responseJSON?.message || 'Balance fetch failed.';
                 showToast('error', message);
             }
@@ -962,7 +1178,7 @@ $(document).ready(function () {
     | Admin Note Auto Save
     |--------------------------------------------------------------------------
     */
-    $(document).on('input', '.admin-note-input', function () {
+    $(document).on('input', '.admin-note-input', function() {
         let textarea = $(this);
         let orderId = textarea.data('order-id');
 
@@ -970,12 +1186,12 @@ $(document).ready(function () {
 
         updateNoteStatus(textarea, 'saving', 'Typing...');
 
-        adminNoteTimers[orderId] = setTimeout(function () {
+        adminNoteTimers[orderId] = setTimeout(function() {
             saveAdminNote(textarea);
         }, 800);
     });
 
-    $(document).on('blur', '.admin-note-input', function () {
+    $(document).on('blur', '.admin-note-input', function() {
         let textarea = $(this);
         let orderId = textarea.data('order-id');
 
@@ -988,13 +1204,14 @@ $(document).ready(function () {
     | Single Delete / Restore / Force Delete
     |--------------------------------------------------------------------------
     */
-    $(document).on('click', '.btnDelete, .btnRestore, .btnForceDelete', function () {
+    $(document).on('click', '.btnDelete, .btnRestore, .btnForceDelete', function() {
         let url = $(this).data('url');
         let isRestore = $(this).hasClass('btnRestore');
         let isForce = $(this).hasClass('btnForceDelete');
 
         Swal.fire({
-            title: isRestore ? 'Restore order?' : (isForce ? 'Purge forever?' : 'Move to trash?'),
+            title: isRestore ? 'Restore order?' : (isForce ? 'Purge forever?' :
+                'Move to trash?'),
             text: isForce ? 'This action cannot be undone!' : 'You can recover this later.',
             icon: isRestore ? 'question' : 'warning',
             type: isRestore ? 'question' : 'warning',
@@ -1009,7 +1226,7 @@ $(document).ready(function () {
                     data: {
                         _token: '{{ csrf_token() }}'
                     },
-                    success: function (res) {
+                    success: function(res) {
                         if (res.status) {
                             reloadTable();
                             showToast('success', res.message);
@@ -1017,7 +1234,7 @@ $(document).ready(function () {
                             showToast('error', res.message || 'Action failed.');
                         }
                     },
-                    error: function (xhr) {
+                    error: function(xhr) {
                         let message = xhr.responseJSON?.message || 'Action failed.';
                         showToast('error', message);
                     }
@@ -1031,7 +1248,7 @@ $(document).ready(function () {
     | Assign Unassigned
     |--------------------------------------------------------------------------
     */
-    $('#btnAssignUnassigned, #btnAssignUnassignedTwo').on('click', function () {
+    $('#btnAssignUnassigned, #btnAssignUnassignedTwo').on('click', function() {
         Swal.fire({
             title: 'Assign unassigned orders?',
             text: 'All unassigned orders will be distributed to active employees.',
@@ -1047,7 +1264,7 @@ $(document).ready(function () {
                     data: {
                         _token: '{{ csrf_token() }}'
                     },
-                    success: function (res) {
+                    success: function(res) {
                         if (res.status) {
                             reloadTable();
                             showToast('success', res.message);
@@ -1055,8 +1272,9 @@ $(document).ready(function () {
                             showToast('error', res.message || 'Assignment failed.');
                         }
                     },
-                    error: function (xhr) {
-                        let message = xhr.responseJSON?.message || 'Assignment failed.';
+                    error: function(xhr) {
+                        let message = xhr.responseJSON?.message ||
+                            'Assignment failed.';
                         showToast('error', message);
                     }
                 });
@@ -1078,14 +1296,14 @@ $(document).ready(function () {
 }
 
 .shadow-xs {
-    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .cursor-pointer {
     cursor: pointer;
 }
 
-.breadcrumb-item + .breadcrumb-item::before {
+.breadcrumb-item+.breadcrumb-item::before {
     content: ">";
 }
 
@@ -1099,7 +1317,7 @@ $(document).ready(function () {
     border-radius: 10px;
     padding: 13px 15px;
     min-height: 82px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -1110,7 +1328,7 @@ $(document).ready(function () {
 .order-stat-card:hover {
     transform: translateY(-2px);
     color: #111827;
-    box-shadow: 0 8px 18px rgba(0,0,0,0.08);
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.08);
 }
 
 .order-stat-card h4 {
@@ -1133,6 +1351,32 @@ $(document).ready(function () {
 
 .dropdown-menu {
     z-index: 9999;
+}
+
+
+
+
+
+.fraud-checker-popup table th,
+.fraud-checker-popup table td {
+    vertical-align: middle !important;
+    font-size: 13px;
+}
+
+.fraud-checker-popup .h5 {
+    font-weight: 800;
+}
+
+.fraud-header-box {
+    background: #f8fafc;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 12px;
+}
+
+.fraud-summary-card {
+    background: #ffffff;
+    min-height: 70px;
 }
 </style>
 @endsection

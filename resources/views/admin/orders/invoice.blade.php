@@ -3,53 +3,57 @@
 @section('title', $title ?? 'Order Invoice')
 
 @section('content_header')
-    <div class="d-flex justify-content-between align-items-center flex-wrap no-print">
-        <h1 class="mb-0">Invoice</h1>
+<div class="d-flex justify-content-between align-items-center flex-wrap no-print">
+    <h1 class="mb-0">Invoice</h1>
 
-        <div>
-            <a href="{{ route('admin.orders.show', $order->id) }}" class="btn btn-secondary btn-sm">
-                <i class="fas fa-arrow-left mr-1"></i> Back
-            </a>
+    <div>
+        <a href="{{ route('admin.orders.show', $order->id) }}" class="btn btn-secondary btn-sm">
+            <i class="fas fa-arrow-left mr-1"></i> Back
+        </a>
 
-            <button onclick="window.print()" class="btn btn-primary btn-sm">
-                <i class="fa fa-print mr-1"></i> Print
-            </button>
-        </div>
+        <button onclick="window.print()" class="btn btn-primary btn-sm">
+            <i class="fa fa-print mr-1"></i> Print
+        </button>
     </div>
+</div>
 @endsection
 
 @section('content')
 
 @php
-    $siteSetting = $siteSetting ?? \App\Models\SiteSetting::query()
-        ->where('status', true)
-        ->latest()
-        ->first();
+$siteSetting = $siteSetting ?? \App\Models\SiteSetting::query()
+->where('status', true)
+->latest()
+->first();
 
-    $deliveryArea = $order->delivery_area
-        ? ucwords(str_replace('_', ' ', $order->delivery_area))
-        : '-';
+$deliveryArea = $order->delivery_area
+? ucwords(str_replace('_', ' ', $order->delivery_area))
+: '-';
 
-    $paymentMethod = $order->payment_method
-        ? ucwords(str_replace('_', ' ', $order->payment_method))
-        : 'Cash On Delivery';
+$paymentMethod = $order->payment_method
+? ucwords(str_replace('_', ' ', $order->payment_method))
+: 'Cash On Delivery';
 
-    $paymentStatus = $order->payment_status
-        ? ucwords(str_replace('_', ' ', $order->payment_status))
-        : '-';
+$paymentStatus = $order->payment_status
+? ucwords(str_replace('_', ' ', $order->payment_status))
+: '-';
 
-    $orderStatus = $order->order_status
-        ? ucwords(str_replace('_', ' ', $order->order_status))
-        : '-';
+$orderStatus = $order->order_status
+? ucwords(str_replace('_', ' ', $order->order_status))
+: '-';
 
-    $courierName = ($courierServices ?? config('couriers.list'))[$order->courier_service] ?? 'Not Selected';
+$courierName = $order->courier?->name
+?? (($courierServices ?? config('couriers.list'))[$order->courier_service] ?? 'Not Selected');
 
-    $steadfastStatus = $order->steadfast_status
-        ? ucwords(str_replace('_', ' ', $order->steadfast_status))
-        : 'Not Synced';
+$courierMerchantId = $order->courier?->merchant_id;
+$courierPhoneNumber = $order->courier?->phone_number;
 
-    $steadfastTrackingCode = $order->steadfast_tracking_code ?: 'Not Sent Yet';
-    $steadfastConsignmentId = $order->steadfast_consignment_id ?: '-';
+$steadfastStatus = $order->steadfast_status
+? ucwords(str_replace('_', ' ', $order->steadfast_status))
+: 'Not Synced';
+
+$steadfastTrackingCode = $order->steadfast_tracking_code ?: 'Not Sent Yet';
+$steadfastConsignmentId = $order->steadfast_consignment_id ?: '-';
 @endphp
 
 <div id="invoiceArea">
@@ -59,11 +63,10 @@
             <tr>
                 <td style="width: 35%;">
                     @if ($siteSetting && $siteSetting->getFirstMedia('site_logo'))
-                        <img src="{{ $siteSetting->logo }}"
-                             style="max-height:45px;display:block;margin-bottom:6px;"
-                             alt="{{ $siteSetting->website_name }}">
+                    <img src="{{ $siteSetting->logo }}" style="max-height:45px;display:block;margin-bottom:6px;"
+                        alt="{{ $siteSetting->website_name }}">
                     @else
-                        <h3 class="mb-1">{{ config('app.name') }}</h3>
+                    <h3 class="mb-1">{{ config('app.name') }}</h3>
                     @endif
 
                     <strong>
@@ -71,18 +74,34 @@
                     </strong>
 
                     @if ($siteSetting?->address)
-                        <br>
-                        <small>{{ $siteSetting->address }}</small>
+                    <br>
+                    <small>{{ $siteSetting->address }}</small>
                     @endif
 
                     @if ($siteSetting?->phone)
-                        <br>
-                        <small>Phone: {{ $siteSetting->phone }}</small>
+                    <br>
+                    <small>Phone: {{ $siteSetting->phone }}</small>
                     @endif
 
                     @if ($siteSetting?->email)
-                        <br>
-                        <small>Email: {{ $siteSetting->email }}</small>
+                    <br>
+                    <small>Email: {{ $siteSetting->email }}</small>
+                    @endif
+
+                    @if($courierName || $courierMerchantId || $courierPhoneNumber)
+                    <div class="merchant-box">
+                        @if($courierName && $courierName !== 'Not Selected')
+                        <strong>Courier Name:</strong> {{ $courierName }}<br>
+                        @endif
+
+                        @if($courierMerchantId)
+                        <strong>Merchant ID:</strong> {{ $courierMerchantId }}<br>
+                        @endif
+
+                        @if($courierPhoneNumber)
+                        <strong>Courier Phone:</strong> {{ $courierPhoneNumber }}
+                        @endif
+                    </div>
                     @endif
                 </td>
 
@@ -102,7 +121,7 @@
                     <strong>Courier:</strong> {{ $courierName }} <br>
 
                     @if($order->courier_service === 'steadfast')
-                        <strong>Tracking:</strong> {{ $steadfastTrackingCode }}
+                    <strong>Tracking:</strong> {{ $steadfastTrackingCode }}
                     @endif
                 </td>
 
@@ -132,17 +151,17 @@
                     <br>
 
                     @if($order->courier_service === 'steadfast')
-                        <strong>Tracking Code:</strong>
-                        {{ $steadfastTrackingCode }}
-                        <br>
+                    <strong>Tracking Code:</strong>
+                    {{ $steadfastTrackingCode }}
+                    <br>
 
-                        <strong>Consignment ID:</strong>
-                        {{ $steadfastConsignmentId }}
-                        <br>
+                    <strong>Consignment ID:</strong>
+                    {{ $steadfastConsignmentId }}
+                    <br>
 
-                        <strong>Courier Status:</strong>
-                        {{ $steadfastStatus }}
-                        <br>
+                    <strong>Courier Status:</strong>
+                    {{ $steadfastStatus }}
+                    <br>
                     @endif
 
                     <strong>Employee:</strong>
@@ -168,44 +187,44 @@
 
             <tbody>
                 @forelse($order->items as $item)
-                    <tr>
-                        <td>
-                            <span class="d-block">
-                                <h3 class="product-name">
-                                    {{ $item->product_name }}
-                                </h3>
-                            </span>
-
-                            @if (!empty($item->product_code))
-                                <small class="text-muted">
-                                    Code: {{ $item->product_code }}
-                                </small>
-                            @endif
-                        </td>
-
-                        <td>
-                            <h3 class="quantity-text">
-                                {{ $item->quantity }}
+                <tr>
+                    <td>
+                        <span class="d-block">
+                            <h3 class="product-name">
+                                {{ $item->product_name }}
                             </h3>
-                        </td>
+                        </span>
 
-                        <td>
-                            {{ number_format($item->total_price ?? 0) }} Tk
+                        @if (!empty($item->product_code))
+                        <small class="text-muted">
+                            Code: {{ $item->product_code }}
+                        </small>
+                        @endif
+                    </td>
 
-                            @if (!empty($item->unit_price))
-                                <br>
-                                <small>
-                                    Unit: {{ number_format($item->unit_price) }} Tk
-                                </small>
-                            @endif
-                        </td>
-                    </tr>
+                    <td>
+                        <h3 class="quantity-text">
+                            {{ $item->quantity }}
+                        </h3>
+                    </td>
+
+                    <td>
+                        {{ number_format($item->total_price ?? 0) }} Tk
+
+                        @if (!empty($item->unit_price))
+                        <br>
+                        <small>
+                            Unit: {{ number_format($item->unit_price) }} Tk
+                        </small>
+                        @endif
+                    </td>
+                </tr>
                 @empty
-                    <tr>
-                        <td colspan="3" class="text-center text-muted">
-                            No order items found.
-                        </td>
-                    </tr>
+                <tr>
+                    <td colspan="3" class="text-center text-muted">
+                        No order items found.
+                    </td>
+                </tr>
                 @endforelse
             </tbody>
 
@@ -219,15 +238,21 @@
                 <tr>
                     <td style="border: none !important;"></td>
                     <th>Delivery:</th>
-                    <td>{{ number_format($order->shipping_charge ?? 0) }} Tk</td>
+                    <td>
+                        @if($order->is_free_delivery)
+                        Free Delivery
+                        @else
+                        {{ number_format($order->shipping_charge ?? 0) }} Tk
+                        @endif
+                    </td>
                 </tr>
 
                 @if (($order->cod_charge ?? 0) > 0)
-                    <tr>
-                        <td style="border: none !important;"></td>
-                        <th>COD Charge:</th>
-                        <td>{{ number_format($order->cod_charge ?? 0) }} Tk</td>
-                    </tr>
+                <tr>
+                    <td style="border: none !important;"></td>
+                    <th>COD Charge:</th>
+                    <td>{{ number_format($order->cod_charge ?? 0) }} Tk</td>
+                </tr>
                 @endif
 
                 <tr>
@@ -241,35 +266,35 @@
         </table>
 
         @if($order->courier_service === 'steadfast')
-            <table class="invoice-table table table-striped">
-                <tr>
-                    <th colspan="4" class="text-center">
-                        SteadFast Courier Information
-                    </th>
-                </tr>
+        <table class="invoice-table table table-striped">
+            <tr>
+                <th colspan="4" class="text-center">
+                    SteadFast Courier Information
+                </th>
+            </tr>
 
-                <tr>
-                    <td style="width: 25%;">
-                        <strong>Courier</strong><br>
-                        {{ $courierName }}
-                    </td>
+            <tr>
+                <td style="width: 25%;">
+                    <strong>Courier</strong><br>
+                    {{ $courierName }}
+                </td>
 
-                    <td style="width: 25%;">
-                        <strong>Tracking Code</strong><br>
-                        {{ $steadfastTrackingCode }}
-                    </td>
+                <td style="width: 25%;">
+                    <strong>Tracking Code</strong><br>
+                    {{ $steadfastTrackingCode }}
+                </td>
 
-                    <td style="width: 25%;">
-                        <strong>Consignment ID</strong><br>
-                        {{ $steadfastConsignmentId }}
-                    </td>
+                <td style="width: 25%;">
+                    <strong>Consignment ID</strong><br>
+                    {{ $steadfastConsignmentId }}
+                </td>
 
-                    <td style="width: 25%;">
-                        <strong>Status</strong><br>
-                        {{ $steadfastStatus }}
-                    </td>
-                </tr>
-            </table>
+                <td style="width: 25%;">
+                    <strong>Status</strong><br>
+                    {{ $steadfastStatus }}
+                </td>
+            </tr>
+        </table>
         @endif
 
         <table class="invoice-table table table-striped">
@@ -294,152 +319,159 @@
 @endsection
 
 @section('footer')
-    <strong class="no-print">
-        © Copyright 2026 All rights reserved |
-        This website developed by
-        <a href="https://sfashanto.netlify.app/" target="_blank">SFA Shanto</a>
-    </strong>
+<strong class="no-print">
+    © Copyright 2026 All rights reserved |
+    This website developed by
+    <a href="https://sfashanto.netlify.app/" target="_blank">SFA Shanto</a>
+</strong>
 @endsection
 
 @section('css')
 <style>
-    * {
-        margin: 0;
-        padding: 0;
+* {
+    margin: 0;
+    padding: 0;
+}
+
+#invoiceArea {
+    background: #ffffff;
+    color: #000000;
+    padding: 12px;
+}
+
+.invoice-section {
+    width: 100%;
+    background: #ffffff;
+}
+
+.invoice-table {
+    width: 100%;
+    color: #000000 !important;
+    margin-bottom: 10px;
+    background: #ffffff;
+}
+
+.invoice-table,
+.invoice-table th,
+.invoice-table td {
+    border: 1px solid #6c757d !important;
+}
+
+.invoice-table th,
+.invoice-table td {
+    padding: 4px !important;
+    text-align: left;
+    vertical-align: top;
+}
+
+.invoice-table thead tr th,
+.invoice-table tr th {
+    background-color: #6c757d !important;
+    color: #ffffff !important;
+    font-weight: 700;
+}
+
+.invoice-title {
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 5px;
+}
+
+.customer-phone {
+    font-size: 22px;
+    font-weight: 700;
+    margin: 3px 0;
+}
+
+.product-name {
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 2px;
+}
+
+.quantity-text {
+    font-size: 22px;
+    font-weight: 700;
+    margin: 0;
+}
+
+.order-note {
+    font-size: 16px;
+    font-weight: 700;
+    margin-top: 5px;
+    margin-bottom: 0;
+}
+
+.merchant-box {
+    margin-top: 5px;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.4;
+}
+
+hr {
+    border-top: 1px dashed red;
+    margin: 12px 0;
+}
+
+@media print {
+    @page {
+        size: A4;
+        margin: 8mm;
+    }
+
+    body {
+        background: #ffffff !important;
+    }
+
+    body * {
+        visibility: hidden;
+    }
+
+    #invoiceArea,
+    #invoiceArea * {
+        visibility: visible;
     }
 
     #invoiceArea {
-        background: #ffffff;
-        color: #000000;
-        padding: 12px;
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        box-shadow: none !important;
+        border: none !important;
+        padding: 0 !important;
     }
 
     .invoice-section {
         width: 100%;
-        background: #ffffff;
-    }
-
-    .invoice-table {
-        width: 100%;
-        color: #000000 !important;
-        margin-bottom: 10px;
-        background: #ffffff;
-    }
-
-    .invoice-table,
-    .invoice-table th,
-    .invoice-table td {
-        border: 1px solid #6c757d !important;
-    }
-
-    .invoice-table th,
-    .invoice-table td {
-        padding: 4px !important;
-        text-align: left;
-        vertical-align: top;
+        background: #ffffff !important;
     }
 
     .invoice-table thead tr th,
     .invoice-table tr th {
         background-color: #6c757d !important;
         color: #ffffff !important;
-        font-weight: 700;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
     }
 
-    .invoice-title {
-        font-size: 18px;
-        font-weight: 700;
-        margin-bottom: 5px;
+    .content-wrapper,
+    .content,
+    .container-fluid {
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #ffffff !important;
     }
 
-    .customer-phone {
-        font-size: 22px;
-        font-weight: 700;
-        margin: 3px 0;
+    .main-footer,
+    .main-header,
+    .main-sidebar,
+    .content-header,
+    .btn,
+    .no-print {
+        display: none !important;
     }
-
-    .product-name {
-        font-size: 20px;
-        font-weight: 700;
-        margin-bottom: 2px;
-    }
-
-    .quantity-text {
-        font-size: 22px;
-        font-weight: 700;
-        margin: 0;
-    }
-
-    .order-note {
-        font-size: 16px;
-        font-weight: 700;
-        margin-top: 5px;
-        margin-bottom: 0;
-    }
-
-    hr {
-        border-top: 1px dashed red;
-        margin: 12px 0;
-    }
-
-    @media print {
-        @page {
-            size: A4;
-            margin: 8mm;
-        }
-
-        body {
-            background: #ffffff !important;
-        }
-
-        body * {
-            visibility: hidden;
-        }
-
-        #invoiceArea,
-        #invoiceArea * {
-            visibility: visible;
-        }
-
-        #invoiceArea {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-            box-shadow: none !important;
-            border: none !important;
-            padding: 0 !important;
-        }
-
-        .invoice-section {
-            width: 100%;
-            background: #ffffff !important;
-        }
-
-        .invoice-table thead tr th,
-        .invoice-table tr th {
-            background-color: #6c757d !important;
-            color: #ffffff !important;
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
-        }
-
-        .content-wrapper,
-        .content,
-        .container-fluid {
-            margin: 0 !important;
-            padding: 0 !important;
-            background: #ffffff !important;
-        }
-
-        .main-footer,
-        .main-header,
-        .main-sidebar,
-        .content-header,
-        .btn,
-        .no-print {
-            display: none !important;
-        }
-    }
+}
 </style>
 @endsection

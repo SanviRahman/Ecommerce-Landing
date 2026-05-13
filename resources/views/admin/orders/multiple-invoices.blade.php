@@ -1,163 +1,175 @@
 <!doctype html>
 <html lang="bn">
+
 <head>
     <meta charset="UTF-8">
     <title>{{ $title ?? 'Selected Invoices' }}</title>
 
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
 
-        body {
-            font-family: DejaVu Sans, Arial, sans-serif;
-            font-size: 10px;
-            color: #000;
-            background: #fff;
+    body {
+        font-family: DejaVu Sans, Arial, sans-serif;
+        font-size: 10px;
+        color: #000;
+        background: #fff;
+    }
+
+    .no-print {
+        padding: 10px;
+        text-align: right;
+        border-bottom: 1px solid #ddd;
+        margin-bottom: 8px;
+    }
+
+    .btn-print {
+        background: #2563eb;
+        color: #fff;
+        border: 0;
+        padding: 8px 18px;
+        cursor: pointer;
+        border-radius: 4px;
+    }
+
+    .invoice-card {
+        height: 92mm;
+        overflow: hidden;
+        padding: 5mm;
+        border-bottom: 1px dashed #dc2626;
+        page-break-inside: avoid;
+    }
+
+    .invoice-card:nth-child(3n) {
+        page-break-after: always;
+    }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 4px;
+    }
+
+    table,
+    th,
+    td {
+        border: 1px solid #6c757d;
+    }
+
+    th,
+    td {
+        padding: 3px;
+        vertical-align: top;
+        text-align: left;
+    }
+
+    th {
+        background: #6c757d;
+        color: #fff;
+        font-weight: bold;
+    }
+
+    .logo {
+        max-height: 28px;
+        display: block;
+        margin-bottom: 3px;
+    }
+
+    .invoice-title {
+        font-size: 13px;
+        font-weight: bold;
+    }
+
+    .phone {
+        font-size: 15px;
+        font-weight: bold;
+    }
+
+    .product-name {
+        font-size: 12px;
+        font-weight: bold;
+    }
+
+    .merchant-box {
+        margin-top: 3px;
+        font-size: 10px;
+        font-weight: bold;
+        line-height: 1.35;
+    }
+
+    .footer-note {
+        text-align: center;
+        font-size: 9px;
+        color: #555;
+    }
+
+    @media print {
+        @page {
+            size: A4 portrait;
+            margin: 8mm;
         }
 
         .no-print {
-            padding: 10px;
-            text-align: right;
-            border-bottom: 1px solid #ddd;
-            margin-bottom: 8px;
+            display: none !important;
         }
 
-        .btn-print {
-            background: #2563eb;
-            color: #fff;
-            border: 0;
-            padding: 8px 18px;
-            cursor: pointer;
-            border-radius: 4px;
+        body {
+            background: #fff !important;
         }
 
         .invoice-card {
             height: 92mm;
-            overflow: hidden;
-            padding: 5mm;
-            border-bottom: 1px dashed #dc2626;
-            page-break-inside: avoid;
-        }
-
-        .invoice-card:nth-child(3n) {
-            page-break-after: always;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 4px;
-        }
-
-        table,
-        th,
-        td {
-            border: 1px solid #6c757d;
-        }
-
-        th,
-        td {
-            padding: 3px;
-            vertical-align: top;
-            text-align: left;
+            padding: 3mm;
         }
 
         th {
-            background: #6c757d;
-            color: #fff;
-            font-weight: bold;
+            background: #6c757d !important;
+            color: #fff !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
         }
-
-        .logo {
-            max-height: 28px;
-            display: block;
-            margin-bottom: 3px;
-        }
-
-        .invoice-title {
-            font-size: 13px;
-            font-weight: bold;
-        }
-
-        .phone {
-            font-size: 15px;
-            font-weight: bold;
-        }
-
-        .product-name {
-            font-size: 12px;
-            font-weight: bold;
-        }
-
-        .footer-note {
-            text-align: center;
-            font-size: 9px;
-            color: #555;
-        }
-
-        @media print {
-            @page {
-                size: A4 portrait;
-                margin: 8mm;
-            }
-
-            .no-print {
-                display: none !important;
-            }
-
-            body {
-                background: #fff !important;
-            }
-
-            .invoice-card {
-                height: 92mm;
-                padding: 3mm;
-            }
-
-            th {
-                background: #6c757d !important;
-                color: #fff !important;
-                -webkit-print-color-adjust: exact;
-                print-color-adjust: exact;
-            }
-        }
+    }
     </style>
 </head>
 
 <body>
 
-<div class="no-print">
-    <button onclick="window.print()" class="btn-print">
-        Print Selected Invoices
-    </button>
-</div>
+    <div class="no-print">
+        <button onclick="window.print()" class="btn-print">
+            Print Selected Invoices
+        </button>
+    </div>
 
-@php
+    @php
     $logoUrl = null;
 
     if ($siteSetting && $siteSetting->getFirstMedia('site_logo')) {
-        $logoUrl = $siteSetting->logo;
+    $logoUrl = $siteSetting->logo;
     }
-@endphp
+    @endphp
 
-@foreach($orders as $order)
+    @foreach($orders as $order)
     @php
-        $deliveryArea = $order->delivery_area
-            ? ucwords(str_replace('_', ' ', $order->delivery_area))
-            : '-';
+    $deliveryArea = $order->delivery_area
+    ? ucwords(str_replace('_', ' ', $order->delivery_area))
+    : '-';
 
-        $paymentStatus = $order->payment_status
-            ? ucwords(str_replace('_', ' ', $order->payment_status))
-            : '-';
+    $paymentStatus = $order->payment_status
+    ? ucwords(str_replace('_', ' ', $order->payment_status))
+    : '-';
 
-        $orderStatus = $order->order_status
-            ? ucwords(str_replace('_', ' ', $order->order_status))
-            : '-';
+    $orderStatus = $order->order_status
+    ? ucwords(str_replace('_', ' ', $order->order_status))
+    : '-';
 
-        $courierName = $courierServices[$order->courier_service] ?? 'Not Selected';
+    $courierName = $order->courier?->name
+    ?? ($courierServices[$order->courier_service] ?? 'Not Selected');
+
+    $courierMerchantId = $order->courier?->merchant_id;
+    $courierPhoneNumber = $order->courier?->phone_number;
     @endphp
 
     <div class="invoice-card">
@@ -165,17 +177,33 @@
             <tr>
                 <td style="width: 34%;">
                     @if($logoUrl)
-                        <img src="{{ $logoUrl }}" class="logo" alt="{{ $siteSetting->website_name }}">
+                    <img src="{{ $logoUrl }}" class="logo" alt="{{ $siteSetting->website_name }}">
                     @endif
 
                     <strong>{{ $siteSetting->website_name ?? config('app.name') }}</strong>
 
                     @if($siteSetting?->address)
-                        <br>{{ $siteSetting->address }}
+                    <br>{{ $siteSetting->address }}
                     @endif
 
                     @if($siteSetting?->phone)
-                        <br>Phone: {{ $siteSetting->phone }}
+                    <br>Phone: {{ $siteSetting->phone }}
+                    @endif
+
+                    @if($courierName || $courierMerchantId || $courierPhoneNumber)
+                    <div class="merchant-box">
+                        @if($courierName && $courierName !== 'Not Selected')
+                        Courier Name: {{ $courierName }}<br>
+                        @endif
+
+                        @if($courierMerchantId)
+                        Merchant ID: {{ $courierMerchantId }}<br>
+                        @endif
+
+                        @if($courierPhoneNumber)
+                        Courier Phone: {{ $courierPhoneNumber }}
+                        @endif
+                    </div>
                     @endif
                 </td>
 
@@ -189,7 +217,8 @@
 
                 <td style="width: 33%;">
                     <div class="invoice-title">Invoice #{{ $order->invoice_id }}</div>
-                    <strong>Date:</strong> {{ $order->created_at ? $order->created_at->format('d M, Y h:i A') : '-' }}<br>
+                    <strong>Date:</strong>
+                    {{ $order->created_at ? $order->created_at->format('d M, Y h:i A') : '-' }}<br>
                     <strong>Status:</strong> {{ $orderStatus }}<br>
                     <strong>Payment:</strong> {{ $paymentStatus }}<br>
                     <strong>Courier:</strong> {{ $courierName }}<br>
@@ -200,15 +229,15 @@
 
         <table>
             <thead>
-            <tr>
-                <th style="width: 60%;">Product</th>
-                <th style="width: 15%;">Qty</th>
-                <th style="width: 25%;">Price</th>
-            </tr>
+                <tr>
+                    <th style="width: 60%;">Product</th>
+                    <th style="width: 15%;">Qty</th>
+                    <th style="width: 25%;">Price</th>
+                </tr>
             </thead>
 
             <tbody>
-            @forelse($order->items as $item)
+                @forelse($order->items as $item)
                 <tr>
                     <td>
                         <div class="product-name">{{ $item->product_name }}</div>
@@ -217,33 +246,39 @@
                     <td>
                         {{ number_format($item->total_price ?? 0) }} Tk
                         @if(!empty($item->unit_price))
-                            <br><small>Unit: {{ number_format($item->unit_price) }} Tk</small>
+                        <br><small>Unit: {{ number_format($item->unit_price) }} Tk</small>
                         @endif
                     </td>
                 </tr>
-            @empty
+                @empty
                 <tr>
                     <td colspan="3" style="text-align:center;">No items found.</td>
                 </tr>
-            @endforelse
+                @endforelse
             </tbody>
 
             <tfoot>
-            <tr>
-                <td style="border:none;"></td>
-                <th>Sub Total:</th>
-                <td>{{ number_format($order->sub_total ?? 0) }} Tk</td>
-            </tr>
-            <tr>
-                <td style="border:none;"></td>
-                <th>Delivery:</th>
-                <td>{{ number_format($order->shipping_charge ?? 0) }} Tk</td>
-            </tr>
-            <tr>
-                <td style="border:none;"></td>
-                <th>Total:</th>
-                <td><strong>{{ number_format($order->total_amount ?? 0) }} Tk</strong></td>
-            </tr>
+                <tr>
+                    <td style="border:none;"></td>
+                    <th>Sub Total:</th>
+                    <td>{{ number_format($order->sub_total ?? 0) }} Tk</td>
+                </tr>
+                <tr>
+                    <td style="border:none;"></td>
+                    <th>Delivery:</th>
+                    <td>
+                        @if($order->is_free_delivery)
+                        Free Delivery
+                        @else
+                        {{ number_format($order->shipping_charge ?? 0) }} Tk
+                        @endif
+                    </td>
+                </tr>
+                <tr>
+                    <td style="border:none;"></td>
+                    <th>Total:</th>
+                    <td><strong>{{ number_format($order->total_amount ?? 0) }} Tk</strong></td>
+                </tr>
             </tfoot>
         </table>
 
@@ -262,7 +297,8 @@
             Generated by {{ config('app.name') }} | Invoice #{{ $order->invoice_id }}
         </div>
     </div>
-@endforeach
+    @endforeach
 
 </body>
+
 </html>
