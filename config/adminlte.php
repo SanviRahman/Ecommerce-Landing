@@ -656,6 +656,12 @@ return [
             'can'    => 'admin-only',
         ],
         [
+            'text' => 'Site Settings',
+            'url'  => 'admin/site-settings',
+            'icon' => 'fas fa-fw fa-cogs',
+            'can'  => 'admin-only',
+        ],
+        [
             'text'    => 'API Integration',
             'icon'    => 'fas fa-fw fa-plug',
             'can'     => 'admin-only',
