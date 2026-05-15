@@ -36,7 +36,7 @@ class Order extends Model
         'phone',
         'address',
         'delivery_area',
-
+        'success_token',
         /*
         |--------------------------------------------------------------------------
         | Courier

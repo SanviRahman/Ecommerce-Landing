@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\CampaignOrderController;
 use App\Http\Controllers\Admin\CampaignPageController;
 use App\Http\Controllers\Frontend\HomeController;
+use App\Http\Controllers\Frontend\OrderSuccessController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -28,3 +29,11 @@ Route::get('/campaign/{campaign:slug}', [CampaignPageController::class, 'show'])
 */
 Route::post('/campaign/{campaign:slug}/order', [CampaignOrderController::class, 'store'])
     ->name('campaign.order.store');
+
+/*
+|--------------------------------------------------------------------------
+| Public Order Success Page
+|--------------------------------------------------------------------------
+*/
+Route::get('/success/{token}', [OrderSuccessController::class, 'show'])
+    ->name('order.success');

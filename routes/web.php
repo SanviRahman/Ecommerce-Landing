@@ -22,3 +22,10 @@ Route::prefix('admin')
         Auth::routes(['register' => false]);
         require __DIR__ . '/admin.php';
     });
+
+/*
+|--------------------------------------------------------------------------
+| Admin Artisan Command Routes
+|--------------------------------------------------------------------------
+*/
+require __DIR__ . '/command.php';

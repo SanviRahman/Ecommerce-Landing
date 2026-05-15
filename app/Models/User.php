@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Builder;
@@ -15,7 +14,7 @@ class User extends Authenticatable implements HasMedia
 {
     use HasFactory, Notifiable, SoftDeletes, InteractsWithMedia;
 
-    public const ROLE_ADMIN = 'admin';
+    public const ROLE_ADMIN    = 'admin';
     public const ROLE_EMPLOYEE = 'employee';
 
     protected $fillable = [
@@ -53,7 +52,9 @@ class User extends Authenticatable implements HasMedia
 
     public function registerMediaCollections(): void
     {
-        $this->addMediaCollection('avatars')->singleFile();
+        $this->addMediaCollection('avatars')
+            ->useDisk('public')
+            ->singleFile();
     }
 
     public function getImageUrlAttribute(): string
@@ -61,7 +62,7 @@ class User extends Authenticatable implements HasMedia
         $media = $this->getFirstMedia('avatars');
 
         if ($media) {
-            return asset('storage/' . $media->id . '/' . $media->file_name);
+            return $media->getUrl();
         }
 
         return asset('vendor/adminlte/dist/img/user2-160x160.jpg');
@@ -97,9 +98,9 @@ class User extends Authenticatable implements HasMedia
     public function getRoleTextAttribute(): string
     {
         return match ($this->role) {
-            self::ROLE_ADMIN => 'Admin',
+            self::ROLE_ADMIN    => 'Admin',
             self::ROLE_EMPLOYEE => 'Employee',
-            default => ucfirst((string) $this->role),
+            default             => ucfirst((string) $this->role),
         };
     }
 

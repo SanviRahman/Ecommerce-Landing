@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Models;
 
 use App\Traits\HasMediaTrait;
@@ -22,12 +21,14 @@ class Banner extends Model implements HasMedia
 
     protected $casts = [
         'sort_order' => 'integer',
-        'status' => 'boolean',
+        'status'     => 'boolean',
     ];
 
     public function registerMediaCollections(): void
     {
-        $this->addMediaCollection('banner_image')->singleFile();
+        $this->addMediaCollection('banner_image')
+            ->useDisk('public')
+            ->singleFile();
     }
 
     public function scopeActive($query)

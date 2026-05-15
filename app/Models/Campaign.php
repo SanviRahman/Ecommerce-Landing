@@ -1,10 +1,9 @@
 <?php
-
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Spatie\MediaLibrary\HasMedia;
 use Spatie\MediaLibrary\InteractsWithMedia;
 
@@ -33,12 +32,12 @@ class Campaign extends Model implements HasMedia
     ];
 
     protected $casts = [
-        'benefits_text'      => 'array',
-        'comparison_text'    => 'array',
-        'old_price'          => 'integer',
-        'new_price'          => 'integer',
-        'enable_bulk_order'  => 'boolean',
-        'status'             => 'boolean',
+        'benefits_text'     => 'array',
+        'comparison_text'   => 'array',
+        'old_price'         => 'integer',
+        'new_price'         => 'integer',
+        'enable_bulk_order' => 'boolean',
+        'status'            => 'boolean',
     ];
 
     protected $appends = [
@@ -52,14 +51,12 @@ class Campaign extends Model implements HasMedia
 
     public function registerMediaCollections(): void
     {
-        $this->addMediaCollection('banner_image')->singleFile();
-        $this->addMediaCollection('image_one')->singleFile();
-        $this->addMediaCollection('image_two')->singleFile();
-        $this->addMediaCollection('image_three')->singleFile();
-        $this->addMediaCollection('review_image')->singleFile();
-
-        // Hero video for frontend landing page
-        $this->addMediaCollection('campaign_video')->singleFile();
+        $this->addMediaCollection('banner_image')->useDisk('public')->singleFile();
+        $this->addMediaCollection('image_one')->useDisk('public')->singleFile();
+        $this->addMediaCollection('image_two')->useDisk('public')->singleFile();
+        $this->addMediaCollection('image_three')->useDisk('public')->singleFile();
+        $this->addMediaCollection('review_image')->useDisk('public')->singleFile();
+        $this->addMediaCollection('campaign_video')->useDisk('public')->singleFile();
     }
 
     public function products(): BelongsToMany

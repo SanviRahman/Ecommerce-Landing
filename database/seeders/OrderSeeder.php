@@ -3,7 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Campaign;
-use App\Models\CourierAccount;
+use App\Models\Courier;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
@@ -28,8 +28,16 @@ class OrderSeeder extends Seeder
             ->pluck('id')
             ->toArray();
 
-        $courierAccounts = CourierAccount::query()
-            ->active()
+        /*
+        |--------------------------------------------------------------------------
+        | Normal Courier List
+        |--------------------------------------------------------------------------
+        | Courier table dropdown/list er jonno.
+        | CourierAccount table only API credential er jonno.
+        |--------------------------------------------------------------------------
+        */
+        $couriers = Courier::query()
+            ->where('status', true)
             ->whereIn('code', ['steadfast', 'pathao'])
             ->get();
 
@@ -70,7 +78,7 @@ class OrderSeeder extends Seeder
                     'quantity' => $quantity,
                     'unit_price' => $unitPrice,
                     'line_total' => $lineTotal,
-                    'is_free_delivery' => (bool) $product->is_free_delivery,
+                    'is_free_delivery' => (bool) ($product->is_free_delivery ?? false),
                 ];
             }
 
@@ -78,10 +86,10 @@ class OrderSeeder extends Seeder
             |--------------------------------------------------------------------------
             | Free Delivery Logic
             |--------------------------------------------------------------------------
-            | যদি order-এর সব product free delivery হয়, shipping charge 0 হবে।
-            | Mixed / non-free product থাকলে delivery charge হবে।
+            | Order-er moddhe 1 ta product free delivery holei full order free delivery.
+            |--------------------------------------------------------------------------
             */
-            $allItemsFreeDelivery = collect($orderItems)->every(function ($item) {
+            $hasAnyFreeDeliveryProduct = collect($orderItems)->contains(function ($item) {
                 return (bool) $item['is_free_delivery'];
             });
 
@@ -89,9 +97,9 @@ class OrderSeeder extends Seeder
                 ? 'inside_dhaka'
                 : 'outside_dhaka';
 
-            $shippingCharge = $allItemsFreeDelivery
+            $shippingCharge = $hasAnyFreeDeliveryProduct
                 ? 0
-                : ($deliveryArea === 'inside_dhaka' ? 80 : 150);
+                : ($deliveryArea === 'inside_dhaka' ? 70 : 130);
 
             $codCharge = 0;
             $totalAmount = $subTotal + $shippingCharge + $codCharge;
@@ -104,17 +112,18 @@ class OrderSeeder extends Seeder
             |--------------------------------------------------------------------------
             | Courier Default Logic
             |--------------------------------------------------------------------------
-            | কিছু order No Courier থাকবে, কিছু order courier selected থাকবে।
-            | User panel order default null হবে, admin পরে select করবে।
+            | Demo order-er kichu order No Courier thakbe, kichu order courier selected thakbe.
+            |--------------------------------------------------------------------------
             */
             $courier = null;
 
-            if ($courierAccounts->isNotEmpty() && random_int(1, 100) <= 45) {
-                $courier = $courierAccounts->random();
+            if ($couriers->isNotEmpty() && random_int(1, 100) <= 45) {
+                $courier = $couriers->random();
             }
 
             $order = Order::create([
                 'invoice_id' => $this->generateInvoiceId(),
+                'success_token' => Str::random(40),
 
                 'campaign_id' => ! empty($campaignIds)
                     ? $campaignIds[array_rand($campaignIds)]
@@ -124,14 +133,25 @@ class OrderSeeder extends Seeder
                 'phone' => '01711' . random_int(100000, 999999),
                 'address' => 'Dhaka, Bangladesh',
 
-                'delivery_area' => $deliveryArea,
+                /*
+                |--------------------------------------------------------------------------
+                | Delivery Area
+                |--------------------------------------------------------------------------
+                | Free delivery order hole delivery_area free_delivery show korte chaile
+                | eta free_delivery rakhte paro.
+                |--------------------------------------------------------------------------
+                */
+                'delivery_area' => $hasAnyFreeDeliveryProduct
+                    ? 'free_delivery'
+                    : $deliveryArea,
 
                 'courier_service' => $courier?->code,
-                'courier_account_id' => $courier?->id,
+                'courier_id' => $courier?->id,
+                'courier_account_id' => null,
 
                 'sub_total' => $subTotal,
                 'shipping_charge' => $shippingCharge,
-                'is_free_delivery' => $allItemsFreeDelivery,
+                'is_free_delivery' => $hasAnyFreeDeliveryProduct,
                 'cod_charge' => $codCharge,
                 'total_amount' => $totalAmount,
 
@@ -184,7 +204,7 @@ class OrderSeeder extends Seeder
             }
         }
 
-        $this->command?->info('Orders seeded successfully with dynamic courier and free delivery logic.');
+        $this->command?->info('Orders seeded successfully with success_token, courier and fixed free delivery logic.');
     }
 
     private function generateInvoiceId(): string

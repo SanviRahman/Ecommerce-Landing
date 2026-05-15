@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
@@ -21,9 +20,9 @@ class TrackingPixelController extends Controller
     private function platforms(): array
     {
         return [
-            'meta' => 'Meta / Facebook Pixel',
-            'tiktok' => 'TikTok Pixel',
-            'gtm' => 'Google Tag Manager',
+            'meta'             => 'Meta / Facebook Pixel',
+            'tiktok'           => 'TikTok Pixel',
+            'gtm'              => 'Google Tag Manager',
             'google_analytics' => 'Google Analytics',
         ];
     }
@@ -73,27 +72,27 @@ class TrackingPixelController extends Controller
         if ($isTrash) {
             $breadcrumb[] = [
                 'text' => 'Trash',
-                'url' => route('admin.tracking-pixels.trashed'),
+                'url'  => route('admin.tracking-pixels.trashed'),
             ];
         }
 
         if ($request->ajax()) {
             return response()->json([
                 'status' => true,
-                'html' => view('admin.tracking-pixels.partials.table', [
+                'html'   => view('admin.tracking-pixels.partials.table', [
                     'trackingPixels' => $trackingPixels,
-                    'platforms' => $this->platforms(),
-                    'isTrash' => $isTrash,
+                    'platforms'      => $this->platforms(),
+                    'isTrash'        => $isTrash,
                 ])->render(),
             ]);
         }
 
         return view('admin.tracking-pixels.index', [
             'trackingPixels' => $trackingPixels,
-            'platforms' => $this->platforms(),
-            'title' => $title,
-            'breadcrumb' => $breadcrumb,
-            'isTrash' => $isTrash,
+            'platforms'      => $this->platforms(),
+            'title'          => $title,
+            'breadcrumb'     => $breadcrumb,
+            'isTrash'        => $isTrash,
         ]);
     }
 
@@ -114,11 +113,11 @@ class TrackingPixelController extends Controller
 
         return view('admin.tracking-pixels.create', [
             'trackingPixel' => null,
-            'platforms' => $this->platforms(),
-            'isEdit' => false,
-            'action' => route('admin.tracking-pixels.store'),
-            'title' => 'Create Tracking Pixel',
-            'breadcrumb' => [
+            'platforms'     => $this->platforms(),
+            'isEdit'        => false,
+            'action'        => route('admin.tracking-pixels.store'),
+            'title'         => 'Create Tracking Pixel',
+            'breadcrumb'    => [
                 ['text' => 'Dashboard', 'url' => route('admin.dashboard')],
                 ['text' => 'Tracking Pixels', 'url' => route('admin.tracking-pixels.index')],
                 ['text' => 'Create Pixel', 'url' => route('admin.tracking-pixels.create')],
@@ -131,11 +130,11 @@ class TrackingPixelController extends Controller
         $this->adminOnly();
 
         $request->validate([
-            'platform' => ['required', 'string', 'in:meta,tiktok,gtm,google_analytics'],
-            'name' => ['nullable', 'string', 'max:255'],
-            'pixel_id' => ['nullable', 'string', 'max:255'],
+            'platform'    => ['required', 'string', 'in:meta,tiktok,gtm,google_analytics'],
+            'name'        => ['nullable', 'string', 'max:255'],
+            'pixel_id'    => ['nullable', 'string', 'max:255'],
             'script_code' => ['required', 'string'],
-            'status' => ['nullable', 'boolean'],
+            'status'      => ['nullable', 'boolean'],
         ]);
 
         $scriptBlocks = $this->extractScriptBlocks($request->script_code, $request->platform);
@@ -171,19 +170,19 @@ class TrackingPixelController extends Controller
                 }
 
                 $trackingPixel->update([
-                    'name' => $request->name ?: $this->defaultPixelName($request->platform, $pixelId),
+                    'name'        => $request->name ?: $this->defaultPixelName($request->platform, $pixelId),
                     'script_code' => $scriptBlock,
-                    'status' => $request->has('status') ? $request->boolean('status') : true,
+                    'status'      => $request->has('status') ? $request->boolean('status') : true,
                 ]);
 
                 $updated++;
             } else {
                 TrackingPixel::create([
-                    'platform' => $request->platform,
-                    'name' => $request->name ?: $this->defaultPixelName($request->platform, $pixelId),
-                    'pixel_id' => $pixelId,
+                    'platform'    => $request->platform,
+                    'name'        => $request->name ?: $this->defaultPixelName($request->platform, $pixelId),
+                    'pixel_id'    => $pixelId,
                     'script_code' => $scriptBlock,
-                    'status' => $request->has('status') ? $request->boolean('status') : true,
+                    'status'      => $request->has('status') ? $request->boolean('status') : true,
                 ]);
 
                 $created++;
@@ -207,9 +206,9 @@ class TrackingPixelController extends Controller
 
         return view('admin.tracking-pixels.show', [
             'trackingPixel' => $trackingPixel,
-            'platforms' => $this->platforms(),
-            'title' => 'Tracking Pixel Details',
-            'breadcrumb' => [
+            'platforms'     => $this->platforms(),
+            'title'         => 'Tracking Pixel Details',
+            'breadcrumb'    => [
                 ['text' => 'Dashboard', 'url' => route('admin.dashboard')],
                 ['text' => 'Tracking Pixels', 'url' => route('admin.tracking-pixels.index')],
                 ['text' => 'Details', 'url' => route('admin.tracking-pixels.show', $trackingPixel->id)],
@@ -223,11 +222,11 @@ class TrackingPixelController extends Controller
 
         return view('admin.tracking-pixels.edit', [
             'trackingPixel' => $trackingPixel,
-            'platforms' => $this->platforms(),
-            'isEdit' => true,
-            'action' => route('admin.tracking-pixels.update', $trackingPixel->id),
-            'title' => 'Edit Tracking Pixel',
-            'breadcrumb' => [
+            'platforms'     => $this->platforms(),
+            'isEdit'        => true,
+            'action'        => route('admin.tracking-pixels.update', $trackingPixel->id),
+            'title'         => 'Edit Tracking Pixel',
+            'breadcrumb'    => [
                 ['text' => 'Dashboard', 'url' => route('admin.dashboard')],
                 ['text' => 'Tracking Pixels', 'url' => route('admin.tracking-pixels.index')],
                 ['text' => 'Edit Pixel', 'url' => route('admin.tracking-pixels.edit', $trackingPixel->id)],
@@ -240,11 +239,11 @@ class TrackingPixelController extends Controller
         $this->adminOnly();
 
         $request->validate([
-            'platform' => ['required', 'string', 'in:meta,tiktok,gtm,google_analytics'],
-            'name' => ['nullable', 'string', 'max:255'],
-            'pixel_id' => ['nullable', 'string', 'max:255'],
+            'platform'    => ['required', 'string', 'in:meta,tiktok,gtm,google_analytics'],
+            'name'        => ['nullable', 'string', 'max:255'],
+            'pixel_id'    => ['nullable', 'string', 'max:255'],
             'script_code' => ['required', 'string'],
-            'status' => ['nullable', 'boolean'],
+            'status'      => ['nullable', 'boolean'],
         ]);
 
         $pixelId = $this->extractIdentifier(
@@ -271,11 +270,11 @@ class TrackingPixelController extends Controller
         }
 
         $trackingPixel->update([
-            'platform' => $request->platform,
-            'name' => $request->name ?: $this->defaultPixelName($request->platform, $pixelId),
-            'pixel_id' => $pixelId,
+            'platform'    => $request->platform,
+            'name'        => $request->name ?: $this->defaultPixelName($request->platform, $pixelId),
+            'pixel_id'    => $pixelId,
             'script_code' => $request->script_code,
-            'status' => $request->has('status') ? $request->boolean('status') : true,
+            'status'      => $request->has('status') ? $request->boolean('status') : true,
         ]);
 
         return redirect()
@@ -296,7 +295,7 @@ class TrackingPixelController extends Controller
         ]);
 
         return response()->json([
-            'status' => true,
+            'status'  => true,
             'message' => 'Tracking pixel status updated successfully.',
         ]);
     }
@@ -308,7 +307,7 @@ class TrackingPixelController extends Controller
         $trackingPixel->delete();
 
         return response()->json([
-            'status' => true,
+            'status'  => true,
             'message' => 'Tracking pixel moved to trash successfully.',
         ]);
     }
@@ -332,7 +331,7 @@ class TrackingPixelController extends Controller
         TrackingPixel::onlyTrashed()->findOrFail($id)->restore();
 
         return response()->json([
-            'status' => true,
+            'status'  => true,
             'message' => 'Tracking pixel restored successfully.',
         ]);
     }
@@ -344,7 +343,7 @@ class TrackingPixelController extends Controller
         TrackingPixel::onlyTrashed()->findOrFail($id)->forceDelete();
 
         return response()->json([
-            'status' => true,
+            'status'  => true,
             'message' => 'Tracking pixel permanently deleted successfully.',
         ]);
     }
@@ -355,15 +354,15 @@ class TrackingPixelController extends Controller
 
         $request->validate([
             'action' => ['required', 'in:delete,restore,force_delete,active,inactive'],
-            'ids' => ['required', 'array'],
-            'ids.*' => ['integer'],
+            'ids'    => ['required', 'array'],
+            'ids.*'  => ['integer'],
         ]);
 
         if ($request->action === 'delete') {
             TrackingPixel::whereIn('id', $request->ids)->delete();
 
             return response()->json([
-                'status' => true,
+                'status'  => true,
                 'message' => 'Selected tracking pixels moved to trash.',
             ]);
         }
@@ -372,7 +371,7 @@ class TrackingPixelController extends Controller
             TrackingPixel::onlyTrashed()->whereIn('id', $request->ids)->restore();
 
             return response()->json([
-                'status' => true,
+                'status'  => true,
                 'message' => 'Selected tracking pixels restored.',
             ]);
         }
@@ -381,7 +380,7 @@ class TrackingPixelController extends Controller
             TrackingPixel::onlyTrashed()->whereIn('id', $request->ids)->forceDelete();
 
             return response()->json([
-                'status' => true,
+                'status'  => true,
                 'message' => 'Selected tracking pixels permanently deleted.',
             ]);
         }
@@ -390,7 +389,7 @@ class TrackingPixelController extends Controller
             TrackingPixel::whereIn('id', $request->ids)->update(['status' => true]);
 
             return response()->json([
-                'status' => true,
+                'status'  => true,
                 'message' => 'Selected tracking pixels activated.',
             ]);
         }
@@ -399,13 +398,13 @@ class TrackingPixelController extends Controller
             TrackingPixel::whereIn('id', $request->ids)->update(['status' => false]);
 
             return response()->json([
-                'status' => true,
+                'status'  => true,
                 'message' => 'Selected tracking pixels deactivated.',
             ]);
         }
 
         return response()->json([
-            'status' => false,
+            'status'  => false,
             'message' => 'Invalid bulk action selected.',
         ], 422);
     }
@@ -427,7 +426,7 @@ class TrackingPixelController extends Controller
 
             if (! empty($matches[0])) {
                 return collect($matches[0])
-                    ->map(fn ($script) => trim($script))
+                    ->map(fn($script) => trim($script))
                     ->filter()
                     ->unique()
                     ->values()
@@ -447,6 +446,10 @@ class TrackingPixelController extends Controller
 
     private function extractIdentifier(string $script, string $platform, ?string $manualPixelId = null): ?string
     {
+        if ($manualPixelId) {
+            return trim($manualPixelId);
+        }
+
         if ($platform === 'meta') {
             preg_match(
                 "/fbq\(\s*['\"]init['\"]\s*,\s*['\"]([^'\"]+)['\"]\s*\)/i",
@@ -469,8 +472,50 @@ class TrackingPixelController extends Controller
             }
         }
 
-        if ($manualPixelId) {
-            return trim($manualPixelId);
+        if ($platform === 'tiktok') {
+            preg_match(
+                "/ttq\.load\(\s*['\"]([^'\"]+)['\"]\s*\)/i",
+                $script,
+                $matches
+            );
+
+            if (! empty($matches[1])) {
+                return trim($matches[1]);
+            }
+
+            preg_match(
+                "/sdkid=([A-Za-z0-9]+)/i",
+                $script,
+                $urlMatches
+            );
+
+            if (! empty($urlMatches[1])) {
+                return trim($urlMatches[1]);
+            }
+        }
+
+        if ($platform === 'gtm') {
+            preg_match(
+                "/GTM-[A-Z0-9]+/i",
+                $script,
+                $matches
+            );
+
+            if (! empty($matches[0])) {
+                return strtoupper(trim($matches[0]));
+            }
+        }
+
+        if ($platform === 'google_analytics') {
+            preg_match(
+                "/G-[A-Z0-9]+|UA-[0-9\-]+/i",
+                $script,
+                $matches
+            );
+
+            if (! empty($matches[0])) {
+                return strtoupper(trim($matches[0]));
+            }
         }
 
         return 'script-' . Str::random(12);

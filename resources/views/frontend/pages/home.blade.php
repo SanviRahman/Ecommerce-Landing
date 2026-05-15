@@ -2074,22 +2074,48 @@ $(document).ready(function () {
         }) + ' tk';
     }
 
-    function addProductFromCard(card) {
+    function addProductFromCard(card, shouldTrack = true) {
         const id = String(card.data('id'));
+        const price = Number(card.data('price') || 0);
+        const name = String(card.data('name') || '');
+        const weight = String(card.data('weight') || '');
 
         selectedProducts[id] = {
             id: id,
-            name: card.data('name'),
-            price: Number(card.data('price') || 0),
-            weight: card.data('weight'),
+            name: name,
+            price: price,
+            weight: weight,
             image: card.data('image') || noImage,
             isFreeDelivery: Number(card.data('free-delivery') || 0) === 1,
             quantity: selectedProducts[id] ? selectedProducts[id].quantity : 1
         };
+
+        /*
+        |--------------------------------------------------------------------------
+        | DataLayer / Meta / TikTok Add To Cart Event
+        |--------------------------------------------------------------------------
+        */
+        if (shouldTrack && window.SFATracking) {
+            window.SFATracking.addToCart({
+                item_id: id,
+                item_name: name,
+                price: price,
+                quantity: 1,
+                currency: 'BDT'
+            });
+        }
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | Initial Selected Product
+    |--------------------------------------------------------------------------
+    | Page load-e first product active thake. Eta add_to_cart event fire korbe na,
+    | karon user manually add/click kore nai.
+    |--------------------------------------------------------------------------
+    */
     $('.order-product-card.active').each(function () {
-        addProductFromCard($(this));
+        addProductFromCard($(this), false);
     });
 
     function hasFreeDeliveryProduct() {
@@ -2118,6 +2144,39 @@ $(document).ready(function () {
             $('#deliveryAreaOptions').removeClass('d-none');
             $('#freeDeliveryAreaBox').addClass('d-none');
         }
+    }
+
+    function getCheckoutItems() {
+        return Object.values(selectedProducts).map(function (item) {
+            return {
+                item_id: String(item.id),
+                item_name: String(item.name),
+                price: Number(item.price || 0),
+                quantity: Number(item.quantity || 1)
+            };
+        });
+    }
+
+    function getOrderTotals() {
+        let subTotal = 0;
+
+        Object.values(selectedProducts).forEach(function (item) {
+            subTotal += Number(item.price || 0) * Number(item.quantity || 1);
+        });
+
+        const hasAnyFreeDeliveryProduct = hasFreeDeliveryProduct();
+        const deliveryArea = $('input[name="delivery_area"]:checked').val();
+        const deliveryCharge = hasAnyFreeDeliveryProduct ? 0 : (deliveryCharges[deliveryArea] || 0);
+        const codCharge = 0;
+        const grandTotal = subTotal + deliveryCharge + codCharge;
+
+        return {
+            subTotal: subTotal,
+            deliveryCharge: deliveryCharge,
+            codCharge: codCharge,
+            grandTotal: grandTotal,
+            hasAnyFreeDeliveryProduct: hasAnyFreeDeliveryProduct
+        };
     }
 
     function renderSummary() {
@@ -2169,26 +2228,21 @@ $(document).ready(function () {
         |--------------------------------------------------------------------------
         | Fixed Free Delivery Logic
         |--------------------------------------------------------------------------
-        | আগের condition ছিল: সব product free delivery হলে free হবে।
-        | এখন condition: selected product-এর মধ্যে ১টাও free delivery হলে total order free হবে।
+        | selected product-er moddhe 1 ta free delivery product thaklei
+        | total order free delivery hobe.
         |--------------------------------------------------------------------------
         */
-        const hasAnyFreeDeliveryProduct = hasFreeDeliveryProduct();
+        const totals = getOrderTotals();
 
-        updateDeliveryAreaUI(hasAnyFreeDeliveryProduct);
-
-        const deliveryArea = $('input[name="delivery_area"]:checked').val();
-        const deliveryCharge = hasAnyFreeDeliveryProduct ? 0 : (deliveryCharges[deliveryArea] || 0);
-        const codCharge = 0;
-        const grandTotal = subTotal + deliveryCharge + codCharge;
+        updateDeliveryAreaUI(totals.hasAnyFreeDeliveryProduct);
 
         $('#orderSummaryItems').html(itemsHtml);
         $('#selectedProductsInputs').html(inputsHtml);
 
-        $('#summarySubTotal').text(money(subTotal));
-        $('#summaryDeliveryCharge').text(hasAnyFreeDeliveryProduct ? 'ফ্রি ডেলিভারি' : money(deliveryCharge));
-        $('#summaryCodCharge').text(money(codCharge));
-        $('#summaryGrandTotal').text(money(grandTotal));
+        $('#summarySubTotal').text(money(totals.subTotal));
+        $('#summaryDeliveryCharge').text(totals.hasAnyFreeDeliveryProduct ? 'ফ্রি ডেলিভারি' : money(totals.deliveryCharge));
+        $('#summaryCodCharge').text(money(totals.codCharge));
+        $('#summaryGrandTotal').text(money(totals.grandTotal));
 
         $('#orderSubmitBtn').prop('disabled', Object.keys(selectedProducts).length === 0);
     }
@@ -2220,6 +2274,11 @@ $(document).ready(function () {
         });
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | Product Filter
+    |--------------------------------------------------------------------------
+    */
     $(document).on('click', '.product-filter', function () {
         const button = $(this);
         const type = button.data('filter-type');
@@ -2239,6 +2298,11 @@ $(document).ready(function () {
         applyProductFilter();
     });
 
+    /*
+    |--------------------------------------------------------------------------
+    | Order Product Card Click
+    |--------------------------------------------------------------------------
+    */
     $(document).on('click', '.order-product-card', function () {
         const card = $(this);
         const id = String(card.data('id'));
@@ -2246,13 +2310,18 @@ $(document).ready(function () {
         if (selectedProducts[id]) {
             delete selectedProducts[id];
         } else {
-            addProductFromCard(card);
+            addProductFromCard(card, true);
         }
 
         syncOrderCards();
         renderSummary();
     });
 
+    /*
+    |--------------------------------------------------------------------------
+    | Product Grid Add Button Click
+    |--------------------------------------------------------------------------
+    */
     $(document).on('click', '.add-product-to-order', function () {
         const productId = String($(this).data('product-id'));
         const card = $('.order-product-card[data-id="' + productId + '"]');
@@ -2262,7 +2331,7 @@ $(document).ready(function () {
             return;
         }
 
-        addProductFromCard(card);
+        addProductFromCard(card, true);
         syncOrderCards();
         renderSummary();
 
@@ -2271,6 +2340,11 @@ $(document).ready(function () {
         }, 500);
     });
 
+    /*
+    |--------------------------------------------------------------------------
+    | Quantity Change
+    |--------------------------------------------------------------------------
+    */
     $(document).on('change', '.summary-qty', function () {
         const id = String($(this).data('id'));
         const qty = parseInt($(this).val(), 10) || 1;
@@ -2282,6 +2356,11 @@ $(document).ready(function () {
         renderSummary();
     });
 
+    /*
+    |--------------------------------------------------------------------------
+    | Remove Summary Item
+    |--------------------------------------------------------------------------
+    */
     $(document).on('click', '.remove-summary-item', function () {
         const id = String($(this).data('id'));
 
@@ -2291,12 +2370,22 @@ $(document).ready(function () {
         renderSummary();
     });
 
+    /*
+    |--------------------------------------------------------------------------
+    | Delivery Area Change
+    |--------------------------------------------------------------------------
+    */
     $(document).on('change', 'input[name="delivery_area"]', function () {
         $('.delivery-area-card').removeClass('active');
         $(this).closest('.delivery-area-card').addClass('active');
         renderSummary();
     });
 
+    /*
+    |--------------------------------------------------------------------------
+    | Begin Checkout Event + Submit
+    |--------------------------------------------------------------------------
+    */
     $('#landingOrderForm').on('submit', function () {
         renderSummary();
 
@@ -2305,11 +2394,28 @@ $(document).ready(function () {
             return false;
         }
 
+        if (window.SFATracking) {
+            const totals = getOrderTotals();
+
+            window.SFATracking.beginCheckout({
+                currency: 'BDT',
+                value: totals.grandTotal,
+                shipping: totals.deliveryCharge,
+                tax: totals.codCharge,
+                items: getCheckoutItems()
+            });
+        }
+
         $('#orderSubmitBtn')
             .prop('disabled', true)
             .html('<span class="spinner-border spinner-border-sm mr-2"></span> অর্ডার সাবমিট হচ্ছে...');
     });
 
+    /*
+    |--------------------------------------------------------------------------
+    | Review Carousel
+    |--------------------------------------------------------------------------
+    */
     $('#reviewCarousel').carousel({
         interval: 3000,
         ride: 'carousel',

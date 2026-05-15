@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Models;
 
 use App\Traits\HasMediaTrait;
@@ -21,7 +20,7 @@ class Category extends Model implements HasMedia
 
     protected $casts = [
         'is_front_view' => 'boolean',
-        'status' => 'boolean',
+        'status'        => 'boolean',
     ];
 
     protected $appends = [
@@ -30,7 +29,9 @@ class Category extends Model implements HasMedia
 
     public function registerMediaCollections(): void
     {
-        $this->addMediaCollection('category_image')->singleFile();
+        $this->addMediaCollection('category_image')
+            ->useDisk('public')
+            ->singleFile();
     }
 
     public function products()

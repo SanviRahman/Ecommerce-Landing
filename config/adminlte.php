@@ -714,7 +714,113 @@ return [
             'icon' => 'fas fa-fw fa-lock',
             'can'  => 'admin-or-employee',
         ],
-    ],
+
+          [
+            'header' => 'ACCOUNT',
+            'can'    => 'admin-or-employee',
+        ],
+        [
+            'text' => 'Profile',
+            'url'  => 'admin/profile',
+            'icon' => 'fas fa-fw fa-user',
+            'can'  => 'admin-or-employee',
+        ],
+        [
+            'text' => 'Change Password',
+            'url'  => 'admin/password',
+            'icon' => 'fas fa-fw fa-lock',
+            'can'  => 'admin-or-employee',
+        ],
+
+        /*
+|--------------------------------------------------------------------------
+| Commands
+|--------------------------------------------------------------------------
+*/
+        [
+            'header' => 'COMMANDS',
+            'can'    => 'admin-only',
+        ],
+        [
+            'text'    => 'Commands',
+            'icon'    => 'fas fa-fw fa-terminal',
+            'can'     => 'admin-only',
+            'submenu' => [
+                [
+                    'text' => 'Clear Cache',
+                    'url'  => 'command/clear-cache',
+                    'icon' => 'far fa-fw fa-circle',
+                    'can'  => 'admin-only',
+                ],
+                [
+                    'text' => 'Clear Config',
+                    'url'  => 'command/clear-config',
+                    'icon' => 'far fa-fw fa-circle',
+                    'can'  => 'admin-only',
+                ],
+                [
+                    'text' => 'Clear Route',
+                    'url'  => 'command/clear-route',
+                    'icon' => 'far fa-fw fa-circle',
+                    'can'  => 'admin-only',
+                ],
+                [
+                    'text' => 'Clear View',
+                    'url'  => 'command/clear-view',
+                    'icon' => 'far fa-fw fa-circle',
+                    'can'  => 'admin-only',
+                ],
+                [
+                    'text' => 'Optimize',
+                    'url'  => 'command/optimize',
+                    'icon' => 'far fa-fw fa-circle',
+                    'can'  => 'admin-only',
+                ],
+                [
+                    'text' => 'Optimize Clear',
+                    'url'  => 'command/optimize-clear',
+                    'icon' => 'far fa-fw fa-circle',
+                    'can'  => 'admin-only',
+                ],
+                [
+                    'text' => 'Migrate',
+                    'url'  => 'command/migrate',
+                    'icon' => 'far fa-fw fa-circle',
+                    'can'  => 'admin-only',
+                ],
+                [
+                    'text' => 'Seed',
+                    'url'  => 'command/seed',
+                    'icon' => 'far fa-fw fa-circle',
+                    'can'  => 'admin-only',
+                ],
+                [
+                    'text' => 'Storage Link',
+                    'url'  => 'command/storage-link',
+                    'icon' => 'far fa-fw fa-circle',
+                    'can'  => 'admin-only',
+                ],
+                [
+                    'text' => 'Fresh Migrate',
+                    'url'  => 'command/migrate-fresh',
+                    'icon' => 'far fa-fw fa-circle text-danger',
+                    'can'  => 'admin-only',
+                ],
+                [
+                    'text' => 'Fresh Migrate Seed',
+                    'url'  => 'command/migrate-fresh-seed',
+                    'icon' => 'far fa-fw fa-circle text-danger',
+                    'can'  => 'admin-only',
+                ],
+            ],
+        ],
+
+/*
+|--------------------------------------------------------------------------
+| Account
+|--------------------------------------------------------------------------
+*/
+],
 
 /*
     |--------------------------------------------------------------------------
@@ -728,15 +834,15 @@ return [
     |
     */
 
-    'filters'                                 => [
-        JeroenNoten\LaravelAdminLte\Menu\Filters\GateFilter::class,
-        JeroenNoten\LaravelAdminLte\Menu\Filters\HrefFilter::class,
-        JeroenNoten\LaravelAdminLte\Menu\Filters\SearchFilter::class,
-        JeroenNoten\LaravelAdminLte\Menu\Filters\ActiveFilter::class,
-        JeroenNoten\LaravelAdminLte\Menu\Filters\ClassesFilter::class,
-        JeroenNoten\LaravelAdminLte\Menu\Filters\LangFilter::class,
-        JeroenNoten\LaravelAdminLte\Menu\Filters\DataFilter::class,
-    ],
+'filters' => [
+    JeroenNoten\LaravelAdminLte\Menu\Filters\GateFilter::class,
+    JeroenNoten\LaravelAdminLte\Menu\Filters\HrefFilter::class,
+    JeroenNoten\LaravelAdminLte\Menu\Filters\SearchFilter::class,
+    JeroenNoten\LaravelAdminLte\Menu\Filters\ActiveFilter::class,
+    JeroenNoten\LaravelAdminLte\Menu\Filters\ClassesFilter::class,
+    JeroenNoten\LaravelAdminLte\Menu\Filters\LangFilter::class,
+    JeroenNoten\LaravelAdminLte\Menu\Filters\DataFilter::class,
+],
 
 /*
     |--------------------------------------------------------------------------
@@ -750,78 +856,78 @@ return [
     |
     */
 
-    'plugins'                                 => [
-        'Datatables'  => [
-            'active' => false,
-            'files'  => [
-                [
-                    'type'     => 'js',
-                    'asset'    => false,
-                    'location' => '//cdn.datatables.net/1.10.19/js/jquery.dataTables.min.js',
-                ],
-                [
-                    'type'     => 'js',
-                    'asset'    => false,
-                    'location' => '//cdn.datatables.net/1.10.19/js/dataTables.bootstrap4.min.js',
-                ],
-                [
-                    'type'     => 'css',
-                    'asset'    => false,
-                    'location' => '//cdn.datatables.net/1.10.19/css/dataTables.bootstrap4.min.css',
-                ],
+'plugins' => [
+    'Datatables'  => [
+        'active' => false,
+        'files'  => [
+            [
+                'type'     => 'js',
+                'asset'    => false,
+                'location' => '//cdn.datatables.net/1.10.19/js/jquery.dataTables.min.js',
             ],
-        ],
-        'Select2'     => [
-            'active' => true,
-            'files'  => [
-                [
-                    'type'     => 'js',
-                    'asset'    => false,
-                    'location' => '//cdnjs.cloudflare.com/ajax/libs/select2/4.0.3/js/select2.min.js',
-                ],
-                [
-                    'type'     => 'css',
-                    'asset'    => false,
-                    'location' => '//cdnjs.cloudflare.com/ajax/libs/select2/4.0.3/css/select2.css',
-                ],
+            [
+                'type'     => 'js',
+                'asset'    => false,
+                'location' => '//cdn.datatables.net/1.10.19/js/dataTables.bootstrap4.min.js',
             ],
-        ],
-        'Chartjs'     => [
-            'active' => true,
-            'files'  => [
-                [
-                    'type'     => 'js',
-                    'asset'    => false,
-                    'location' => '//cdnjs.cloudflare.com/ajax/libs/Chart.js/2.7.0/Chart.bundle.min.js',
-                ],
-            ],
-        ],
-        'Sweetalert2' => [
-            'active' => false,
-            'files'  => [
-                [
-                    'type'     => 'js',
-                    'asset'    => false,
-                    'location' => '//cdn.jsdelivr.net/npm/sweetalert2@8',
-                ],
-            ],
-        ],
-        'Pace'        => [
-            'active' => false,
-            'files'  => [
-                [
-                    'type'     => 'css',
-                    'asset'    => false,
-                    'location' => '//cdnjs.cloudflare.com/ajax/libs/pace/1.0.2/themes/blue/pace-theme-center-radar.min.css',
-                ],
-                [
-                    'type'     => 'js',
-                    'asset'    => false,
-                    'location' => '//cdnjs.cloudflare.com/ajax/libs/pace/1.0.2/pace.min.js',
-                ],
+            [
+                'type'     => 'css',
+                'asset'    => false,
+                'location' => '//cdn.datatables.net/1.10.19/css/dataTables.bootstrap4.min.css',
             ],
         ],
     ],
+    'Select2'     => [
+        'active' => true,
+        'files'  => [
+            [
+                'type'     => 'js',
+                'asset'    => false,
+                'location' => '//cdnjs.cloudflare.com/ajax/libs/select2/4.0.3/js/select2.min.js',
+            ],
+            [
+                'type'     => 'css',
+                'asset'    => false,
+                'location' => '//cdnjs.cloudflare.com/ajax/libs/select2/4.0.3/css/select2.css',
+            ],
+        ],
+    ],
+    'Chartjs'     => [
+        'active' => true,
+        'files'  => [
+            [
+                'type'     => 'js',
+                'asset'    => false,
+                'location' => '//cdnjs.cloudflare.com/ajax/libs/Chart.js/2.7.0/Chart.bundle.min.js',
+            ],
+        ],
+    ],
+    'Sweetalert2' => [
+        'active' => false,
+        'files'  => [
+            [
+                'type'     => 'js',
+                'asset'    => false,
+                'location' => '//cdn.jsdelivr.net/npm/sweetalert2@8',
+            ],
+        ],
+    ],
+    'Pace'        => [
+        'active' => false,
+        'files'  => [
+            [
+                'type'     => 'css',
+                'asset'    => false,
+                'location' => '//cdnjs.cloudflare.com/ajax/libs/pace/1.0.2/themes/blue/pace-theme-center-radar.min.css',
+            ],
+            [
+                'type'     => 'js',
+                'asset'    => false,
+                'location' => '//cdnjs.cloudflare.com/ajax/libs/pace/1.0.2/pace.min.js',
+            ],
+        ],
+    ],
+],
 
 /*
     |--------------------------------------------------------------------------
@@ -836,25 +942,25 @@ return [
     |
     */
 
-    'iframe'                                  => [
-        'default_tab' => [
-            'url'   => null,
-            'title' => null,
-        ],
-        'buttons'     => [
-            'close'           => true,
-            'close_all'       => true,
-            'close_all_other' => true,
-            'scroll_left'     => true,
-            'scroll_right'    => true,
-            'fullscreen'      => true,
-        ],
-        'options'     => [
-            'loading_screen'    => 1000,
-            'auto_show_new_tab' => true,
-            'use_navbar_items'  => true,
-        ],
+'iframe' => [
+    'default_tab' => [
+        'url'   => null,
+        'title' => null,
     ],
+    'buttons'     => [
+        'close'           => true,
+        'close_all'       => true,
+        'close_all_other' => true,
+        'scroll_left'     => true,
+        'scroll_right'    => true,
+        'fullscreen'      => true,
+    ],
+    'options'     => [
+        'loading_screen'    => 1000,
+        'auto_show_new_tab' => true,
+        'use_navbar_items'  => true,
+    ],
+],
 
 /*
     |--------------------------------------------------------------------------
@@ -868,5 +974,5 @@ return [
     |
     */
 
-    'livewire'                                => false,
+'livewire' => false,
 ];

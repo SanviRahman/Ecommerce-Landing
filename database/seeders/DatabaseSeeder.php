@@ -1,4 +1,5 @@
 <?php
+
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
@@ -30,10 +31,14 @@ class DatabaseSeeder extends Seeder
 
         /*
         |--------------------------------------------------------------------------
-        | Courier API Accounts
+        | Courier Data
+        |--------------------------------------------------------------------------
+        | CourierSeeder = normal courier dropdown/list
+        | CourierAccountSeeder = courier API credentials/accounts
         |--------------------------------------------------------------------------
         */
         $this->call([
+            CourierSeeder::class,
             CourierAccountSeeder::class,
         ]);
 
@@ -56,15 +61,13 @@ class DatabaseSeeder extends Seeder
         |--------------------------------------------------------------------------
         | Orders / Reports
         |--------------------------------------------------------------------------
+        | OrderSeeder depends on products, campaigns and couriers.
+        |--------------------------------------------------------------------------
         */
         $this->call([
             OrderSeeder::class,
             BulkOrderSeeder::class,
             ReportExportSeeder::class,
-        ]);
-
-        $this->call([
-            CourierSeeder::class,
         ]);
     }
 }

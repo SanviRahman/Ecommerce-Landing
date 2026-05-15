@@ -104,10 +104,10 @@ class CampaignOrderController extends Controller
 
             /*
             |--------------------------------------------------------------------------
-            | Updated Free Delivery Logic
+            | Free Delivery Logic
             |--------------------------------------------------------------------------
-            | আগের logic: সব product free হলে delivery free.
-            | নতুন logic: selected product-এর মধ্যে ১টাও free delivery হলে পুরো order free.
+            | selected product list-er moddhe 1 ta free delivery product thaklei
+            | full order free delivery hobe.
             |--------------------------------------------------------------------------
             */
             $hasAnyFreeDeliveryProduct = collect($orderItems)
@@ -122,6 +122,7 @@ class CampaignOrderController extends Controller
 
             $order = Order::create([
                 'invoice_id'        => $this->generateInvoiceId(),
+                'success_token'     => Str::random(40),
                 'campaign_id'       => $campaign->id,
 
                 'customer_name'     => $request->customer_name,
@@ -129,16 +130,9 @@ class CampaignOrderController extends Controller
                 'address'           => $request->address,
                 'delivery_area'     => $hasAnyFreeDeliveryProduct ? 'free_delivery' : $request->delivery_area,
 
-                /*
-                |--------------------------------------------------------------------------
-                | Default No Courier
-                |--------------------------------------------------------------------------
-                | User panel থেকে courier select হবে না.
-                | Admin index/show থেকে bulk button click করলে courier auto assign হবে.
-                |--------------------------------------------------------------------------
-                */
                 'courier_service'    => null,
                 'courier_account_id' => null,
+                'courier_id'         => null,
 
                 'sub_total'         => $subTotal,
                 'shipping_charge'   => $shippingCharge,
@@ -172,7 +166,7 @@ class CampaignOrderController extends Controller
             app(OrderAssignmentService::class)->assign($order);
 
             return redirect()
-                ->route('campaign.show', $campaign->slug)
+                ->route('order.success', $order->success_token)
                 ->with('success', 'আপনার অর্ডারটি সফলভাবে গ্রহণ করা হয়েছে। খুব শীঘ্রই আমাদের প্রতিনিধি যোগাযোগ করবে।');
         });
     }

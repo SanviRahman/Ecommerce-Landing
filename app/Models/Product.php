@@ -58,8 +58,12 @@ class Product extends Model implements HasMedia
 
     public function registerMediaCollections(): void
     {
-        $this->addMediaCollection('product_thumbnail')->singleFile();
-        $this->addMediaCollection('product_gallery');
+        $this->addMediaCollection('product_thumbnail')
+            ->useDisk('public')
+            ->singleFile();
+
+        $this->addMediaCollection('product_gallery')
+            ->useDisk('public');
     }
 
     public function category()
@@ -119,7 +123,7 @@ class Product extends Model implements HasMedia
         $media = $this->getFirstMedia('product_thumbnail');
 
         if ($media) {
-            return url('storage/' . $media->id . '/' . $media->file_name);
+            return $media->getUrl();
         }
 
         return asset('vendor/adminlte/dist/img/no-image.png');

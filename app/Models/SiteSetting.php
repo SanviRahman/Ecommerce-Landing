@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Models;
 
 use App\Traits\HasMediaTrait;
@@ -33,9 +32,9 @@ class SiteSetting extends Model implements HasMedia
 
     public function registerMediaCollections(): void
     {
-        $this->addMediaCollection('site_logo')->singleFile();
-        $this->addMediaCollection('site_white_logo')->singleFile();
-        $this->addMediaCollection('site_favicon')->singleFile();
+        $this->addMediaCollection('site_logo')->useDisk('public')->singleFile();
+        $this->addMediaCollection('site_white_logo')->useDisk('public')->singleFile();
+        $this->addMediaCollection('site_favicon')->useDisk('public')->singleFile();
     }
 
     public function getLogoAttribute(): string

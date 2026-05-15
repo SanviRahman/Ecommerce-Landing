@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Models;
 
 use App\Traits\HasMediaTrait;
@@ -28,7 +27,9 @@ class CreatePage extends Model implements HasMedia
 
     public function registerMediaCollections(): void
     {
-        $this->addMediaCollection('page_banner')->singleFile();
+        $this->addMediaCollection('page_banner')
+            ->useDisk('public')
+            ->singleFile();
     }
 
     public function scopeActive($query)

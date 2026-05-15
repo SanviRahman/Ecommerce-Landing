@@ -279,6 +279,9 @@
     {{-- Bootstrap 4 JS --}}
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
 
+    {{-- DataLayer + Meta/TikTok Event Bridge --}}
+    @includeIf('frontend.partials.datalayer-events')
+
     @stack('js')
 </body>
 </html>
