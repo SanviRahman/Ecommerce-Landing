@@ -3,11 +3,8 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\Brand;
 use App\Models\Campaign;
-use App\Models\Category;
 use App\Models\Faq;
-use App\Models\Product;
 use App\Models\Review;
 use App\Models\SiteSetting;
 use App\Models\SocialMedia;
@@ -18,15 +15,18 @@ class CampaignPageController extends Controller
     {
         abort_if(! $campaign->status, 404);
 
-        /*
-        |--------------------------------------------------------------------------
-        | Load Campaign Attached Products
-        |--------------------------------------------------------------------------
-        | Campaign price priority dewar jonno attached products load kore rakha holo.
-        */
         $campaign->load([
+            'categories' => function ($query) {
+                $query->where('categories.status', true)
+                    ->orderByPivot('sort_order');
+            },
+            'brands' => function ($query) {
+                $query->where('brands.status', true)
+                    ->orderByPivot('sort_order');
+            },
             'products' => function ($query) {
-                $query->where('products.status', true)
+                $query->with(['category', 'brand'])
+                    ->where('products.status', true)
                     ->orderByPivot('sort_order');
             },
         ]);
@@ -36,35 +36,16 @@ class CampaignPageController extends Controller
             ->latest()
             ->first();
 
-        /*
-        |--------------------------------------------------------------------------
-        | All Active Categories / Brands / Products
-        |--------------------------------------------------------------------------
-        | Campaign page-eo user panel-er moto all category, brand, product show hobe.
-        */
-        $categories = Category::query()
-            ->where('status', true)
-            ->orderBy('name')
-            ->get();
+        $products = $campaign->products->values();
 
-        $brands = Brand::query()
-            ->where('status', true)
-            ->orderBy('name')
-            ->get();
+        $categories = $campaign->categories->filter(function ($category) use ($products) {
+            return $products->pluck('category_id')->contains($category->id);
+        })->values();
 
-        $products = Product::query()
-            ->with(['category', 'brand'])
-            ->where('status', true)
-            ->latest()
-            ->get();
+        $brands = $campaign->brands->filter(function ($brand) use ($products) {
+            return $products->pluck('brand_id')->contains($brand->id);
+        })->values();
 
-        /*
-        |--------------------------------------------------------------------------
-        | Order Products
-        |--------------------------------------------------------------------------
-        | Multiple active product order kora jabe.
-        | Attached product hole CampaignOrderController campaign_price use korbe.
-        */
         $orderProducts = $products;
 
         $reviews = Review::query()
@@ -94,15 +75,15 @@ class CampaignPageController extends Controller
             ->get();
 
         return view('frontend.pages.home', [
-            'siteSetting'     => $siteSetting,
-            'campaign'        => $campaign,
-            'categories'      => $categories,
-            'brands'          => $brands,
-            'products'        => $products,
-            'orderProducts'   => $orderProducts,
-            'reviews'         => $reviews,
-            'faqs'            => $faqs,
-            'socialMedias'    => $socialMedias,
+            'siteSetting' => $siteSetting,
+            'campaign' => $campaign,
+            'categories' => $categories,
+            'brands' => $brands,
+            'products' => $products,
+            'orderProducts' => $orderProducts,
+            'reviews' => $reviews,
+            'faqs' => $faqs,
+            'socialMedias' => $socialMedias,
             'courierServices' => config('couriers.list', []),
         ]);
     }

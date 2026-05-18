@@ -2,7 +2,9 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Brand;
 use App\Models\Campaign;
+use App\Models\Category;
 use App\Models\Product;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -21,19 +23,34 @@ class CampaignController extends Controller
 
     private function campaignQuery(bool $trash = false): Builder
     {
-        $query = $trash
-            ? Campaign::onlyTrashed()
-            : Campaign::query();
+        $query = $trash ? Campaign::onlyTrashed() : Campaign::query();
 
-        return $query->with(['products'])->latest();
+        return $query->with(['products', 'categories', 'brands'])->latest();
     }
 
     private function activeProducts()
     {
         return Product::query()
             ->active()
+            ->with(['category', 'brand'])
             ->orderBy('name')
-            ->get(['id', 'name', 'new_price', 'old_price', 'status']);
+            ->get(['id', 'name', 'category_id', 'brand_id', 'new_price', 'old_price', 'status']);
+    }
+
+    private function activeCategories()
+    {
+        return Category::query()
+            ->where('status', true)
+            ->orderBy('name')
+            ->get(['id', 'name', 'status']);
+    }
+
+    private function activeBrands()
+    {
+        return Brand::query()
+            ->where('status', true)
+            ->orderBy('name')
+            ->get(['id', 'name', 'status']);
     }
 
     private function prepareRequest(Request $request): void
@@ -42,23 +59,17 @@ class CampaignController extends Controller
             ?: $request->input('landing_page_title')
             ?: $request->input('banner_title');
 
-        $products = $request->input('products')
-            ?: $request->input('product_ids')
-            ?: [];
-
         $request->merge([
-            'title'    => $title,
-            'products' => $products,
+            'title'      => $title,
+            'categories' => $request->input('categories', $request->input('category_ids', [])),
+            'brands'     => $request->input('brands', $request->input('brand_ids', [])),
+            'products'   => $request->input('products', $request->input('product_ids', [])),
         ]);
     }
 
     private function generateUniqueSlug(string $title, ?int $ignoreId = null): string
     {
-        $baseSlug = Str::slug($title);
-
-        if (! $baseSlug) {
-            $baseSlug = 'campaign-' . time();
-        }
+        $baseSlug = Str::slug($title) ?: 'campaign-' . time();
 
         $slug  = $baseSlug;
         $count = 1;
@@ -74,6 +85,221 @@ class CampaignController extends Controller
         }
 
         return $slug;
+    }
+
+    private function cleanArray(?array $items): ?array
+    {
+        $items = collect($items ?? [])
+            ->map(fn($item) => trim((string) $item))
+            ->filter()
+            ->values()
+            ->toArray();
+
+        return count($items) ? $items : null;
+    }
+
+    private function cleanBenefits(?array $benefits): ?array
+    {
+        return $this->cleanArray($benefits);
+    }
+
+    private function cleanComparison(?array $comparison): ?array
+    {
+        $leftTitle  = trim((string) ($comparison['left_title'] ?? 'গাছ চুইঝাল'));
+        $rightTitle = trim((string) ($comparison['right_title'] ?? 'এটা চুইঝাল'));
+
+        $left = collect($comparison['left'] ?? [])
+            ->map(fn($item) => trim((string) $item))
+            ->filter()
+            ->values()
+            ->toArray();
+
+        $right = collect($comparison['right'] ?? [])
+            ->map(fn($item) => trim((string) $item))
+            ->filter()
+            ->values()
+            ->toArray();
+
+        if (! count($left) && ! count($right)) {
+            return null;
+        }
+
+        return [
+            'left_title'  => $leftTitle ?: 'গাছ চুইঝাল',
+            'right_title' => $rightTitle ?: 'এটা চুইঝাল',
+            'left'        => $left,
+            'right'       => $right,
+        ];
+    }
+
+    private function cleanSectionTitles(?array $titles): array
+    {
+        return [
+            'category_title'        => trim((string) ($titles['category_title'] ?? 'ক্যাটাগরি সমূহ')),
+            'brand_title'           => trim((string) ($titles['brand_title'] ?? 'ব্র্যান্ড সমূহ')),
+            'product_title'         => trim((string) ($titles['product_title'] ?? 'আমাদের প্রোডাক্ট')),
+            'category_filter_title' => trim((string) ($titles['category_filter_title'] ?? 'ক্যাটাগরি দিয়ে ফিল্টার')),
+            'brand_filter_title'    => trim((string) ($titles['brand_filter_title'] ?? 'ব্র্যান্ড দিয়ে ফিল্টার')),
+            'comparison_title'      => trim((string) ($titles['comparison_title'] ?? 'চুইঝালের পার্থক্যসমূহ')),
+            'service_title'         => trim((string) ($titles['service_title'] ?? 'কেন আমরাই সেরা')),
+            'review_title'          => trim((string) ($titles['review_title'] ?? 'কাস্টমার রিভিউ')),
+            'faq_title'             => trim((string) ($titles['faq_title'] ?? 'সচরাচর জিজ্ঞাস্য প্রশ্নাবলি')),
+            'gallery_title'         => trim((string) ($titles['gallery_title'] ?? 'প্রোডাক্ট গ্যালারি')),
+            'order_title'           => trim((string) ($titles['order_title'] ?? 'অর্ডার করুন এখনই')),
+        ];
+    }
+
+    private function cleanServiceItems(?array $serviceItems): array
+    {
+        $default = [
+            ['icon' => 'fas fa-award', 'title' => 'অর্গানিক প্রোডাক্ট', 'description' => 'আমাদের কাছে পাবেন সেরা মানের প্রিমিয়াম পণ্য।'],
+            ['icon' => 'fas fa-crown', 'title' => 'প্রিমিয়াম কোয়ালিটি', 'description' => 'সেরা কোয়ালিটির পণ্য সংগ্রহ করে সরবরাহ করা হয়।'],
+            ['icon' => 'fas fa-undo-alt', 'title' => 'রিটার্ন পলিসি', 'description' => 'সমস্যা হলে সহজ রিটার্ন ও রিপ্লেসমেন্ট সুবিধা।'],
+            ['icon' => 'fas fa-truck', 'title' => 'ক্যাশ অন ডেলিভারি', 'description' => 'পণ্য হাতে পেয়ে টাকা পরিশোধ করার সুবিধা।'],
+        ];
+
+        $serviceItems = $serviceItems ?: $default;
+
+        return collect($serviceItems)
+            ->map(function ($item, $index) use ($default) {
+                return [
+                    'icon'        => trim((string) ($item['icon'] ?? $default[$index]['icon'] ?? 'fas fa-check')),
+                    'title'       => trim((string) ($item['title'] ?? $default[$index]['title'] ?? '')),
+                    'description' => trim((string) ($item['description'] ?? $default[$index]['description'] ?? '')),
+                ];
+            })
+            ->filter(fn($item) => $item['title'] !== '')
+            ->values()
+            ->toArray();
+    }
+
+    private function cleanHelpContent(?array $help): array
+    {
+        return [
+            'title'       => trim((string) ($help['title'] ?? 'সাহায্য প্রয়োজন?')),
+            'description' => trim((string) ($help['description'] ?? 'যেকোনো জিজ্ঞাসা ও অর্ডারজনিত সমস্যায় কল করুন আমাদের হেল্পলাইনে অথবা নক করুন আমাদের হোয়াটসঅ্যাপ বা ফেসবুক পেজে। আমরা আছি সকাল ১০ টা থেকে রাত ৮ টা পর্যন্ত আপনার সেবায়।')),
+            'button_text' => trim((string) ($help['button_text'] ?? 'হেল্পলাইন')),
+        ];
+    }
+
+    private function sectionStatusData(Request $request): array
+    {
+        return [
+            'hero_section_status'       => $request->has('hero_section_status'),
+            'benefits_section_status'   => $request->has('benefits_section_status'),
+            'category_section_status'   => $request->has('category_section_status'),
+            'product_section_status'    => $request->has('product_section_status'),
+            'comparison_section_status' => $request->has('comparison_section_status'),
+            'service_section_status'    => $request->has('service_section_status'),
+            'review_section_status'     => $request->has('review_section_status'),
+            'gallery_section_status'    => $request->has('gallery_section_status'),
+            'faq_section_status'        => $request->has('faq_section_status'),
+            'order_section_status'      => $request->has('order_section_status'),
+        ];
+    }
+
+    private function campaignValidationRules(?Campaign $campaign = null): array
+    {
+        return [
+            'title'                       => ['required', 'string', 'max:255'],
+
+            'slug'                        => [
+                'nullable',
+                'string',
+                'max:255',
+                Rule::unique('campaigns', 'slug')->ignore($campaign?->id),
+            ],
+
+            'categories'                  => ['nullable', 'array'],
+            'categories.*'                => ['nullable', 'integer', 'exists:categories,id'],
+
+            'brands'                      => ['nullable', 'array'],
+            'brands.*'                    => ['nullable', 'integer', 'exists:brands,id'],
+
+            'products'                    => ['required', 'array', 'min:1'],
+            'products.*'                  => ['required', 'integer', 'exists:products,id'],
+
+            'short_description'           => ['nullable', 'string'],
+            'full_description'            => ['nullable', 'string'],
+            'offer_text'                  => ['nullable', 'string', 'max:255'],
+            'embed_video_url'             => ['nullable', 'url', 'max:2000'],
+
+            'benefits_text'               => ['nullable', 'array'],
+            'benefits_text.*'             => ['nullable', 'string', 'max:255'],
+
+            'comparison_text'             => ['nullable', 'array'],
+            'comparison_text.left_title'  => ['nullable', 'string', 'max:255'],
+            'comparison_text.right_title' => ['nullable', 'string', 'max:255'],
+            'comparison_text.left'        => ['nullable', 'array'],
+            'comparison_text.left.*'      => ['nullable', 'string', 'max:255'],
+            'comparison_text.right'       => ['nullable', 'array'],
+            'comparison_text.right.*'     => ['nullable', 'string', 'max:255'],
+
+            'section_titles'              => ['nullable', 'array'],
+            'section_titles.*'            => ['nullable', 'string', 'max:255'],
+
+            'service_items'               => ['nullable', 'array'],
+            'service_items.*.icon'        => ['nullable', 'string', 'max:255'],
+            'service_items.*.title'       => ['nullable', 'string', 'max:255'],
+            'service_items.*.description' => ['nullable', 'string', 'max:500'],
+
+            'help_content'                => ['nullable', 'array'],
+            'help_content.title'          => ['nullable', 'string', 'max:255'],
+            'help_content.description'    => ['nullable', 'string', 'max:1000'],
+            'help_content.button_text'    => ['nullable', 'string', 'max:255'],
+
+            'button_text'                 => ['nullable', 'string', 'max:255'],
+            'order_form_title'            => ['nullable', 'string', 'max:255'],
+            'order_form_subtitle'         => ['nullable', 'string', 'max:255'],
+            'meta_title'                  => ['nullable', 'string', 'max:255'],
+            'meta_description'            => ['nullable', 'string'],
+
+            'banner_image'                => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
+            'image_one'                   => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
+            'image_two'                   => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
+            'image_three'                 => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
+            'review_image'                => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
+            'campaign_video'              => ['nullable', 'file', 'mimes:mp4,webm,ogg', 'max:51200'],
+            'hero_whatsapp'               => ['nullable', 'string', 'max:255'],
+            'hero_phone'                  => ['nullable', 'string', 'max:255'],
+        ];
+    }
+
+    private function campaignData(Request $request, array $productIds, ?Campaign $campaign = null): array
+    {
+        return [
+            'title'               => $request->title,
+
+            'slug'                => $campaign
+                ? ($request->slug ? Str::slug($request->slug) : $this->generateUniqueSlug($request->title, $campaign->id))
+                : $this->generateUniqueSlug($request->title),
+
+            'campaign_type'       => count($productIds) > 1 ? 'multiple' : 'single',
+
+            'short_description'   => $request->short_description,
+            'full_description'    => $request->full_description,
+            'offer_text'          => $request->offer_text ?: $request->input('banner_title'),
+            'embed_video_url'     => $request->embed_video_url,
+
+            'benefits_text'       => $this->cleanBenefits($request->input('benefits_text', [])),
+            'comparison_text'     => $this->cleanComparison($request->input('comparison_text', [])),
+            'section_titles'      => $this->cleanSectionTitles($request->input('section_titles', [])),
+            'service_items'       => $this->cleanServiceItems($request->input('service_items', [])),
+            'help_content'        => $this->cleanHelpContent($request->input('help_content', [])),
+
+            'button_text'         => $request->button_text ?: 'অর্ডার করুন',
+            'order_form_title'    => $request->order_form_title,
+            'order_form_subtitle' => $request->order_form_subtitle,
+            'enable_bulk_order'   => $request->boolean('enable_bulk_order'),
+            'hero_whatsapp'       => $request->hero_whatsapp,
+            'hero_phone'          => $request->hero_phone,
+
+            ...$this->sectionStatusData($request),
+
+            'status'              => $request->has('status') ? $request->boolean('status') : true,
+            'meta_title'          => $request->meta_title,
+            'meta_description'    => $request->meta_description,
+        ];
     }
 
     private function applyFilters(Builder $query, Request $request): Builder
@@ -98,8 +324,7 @@ class CampaignController extends Controller
 
     private function listResponse(Request $request, Builder $query, string $title, bool $isTrash = false)
     {
-        $query = $this->applyFilters($query, $request);
-
+        $query     = $this->applyFilters($query, $request);
         $campaigns = $query->paginate(10);
 
         $breadcrumb = [
@@ -108,10 +333,7 @@ class CampaignController extends Controller
         ];
 
         if ($isTrash) {
-            $breadcrumb[] = [
-                'text' => 'Trash',
-                'url'  => route('admin.campaigns.trashed'),
-            ];
+            $breadcrumb[] = ['text' => 'Trash', 'url' => route('admin.campaigns.trashed')];
         }
 
         if ($request->ajax()) {
@@ -136,11 +358,7 @@ class CampaignController extends Controller
     {
         $this->adminOnly();
 
-        return $this->listResponse(
-            $request,
-            $this->campaignQuery(),
-            'Landing Page Manage'
-        );
+        return $this->listResponse($request, $this->campaignQuery(), 'Landing Page Manage');
     }
 
     public function create()
@@ -148,13 +366,17 @@ class CampaignController extends Controller
         $this->adminOnly();
 
         return view('admin.campaigns.create', [
-            'campaign'         => null,
-            'products'         => $this->activeProducts(),
-            'selectedProducts' => [],
-            'isEdit'           => false,
-            'action'           => route('admin.campaigns.store'),
-            'title'            => 'Landing Page Create',
-            'breadcrumb'       => [
+            'campaign'           => null,
+            'categories'         => $this->activeCategories(),
+            'brands'             => $this->activeBrands(),
+            'products'           => $this->activeProducts(),
+            'selectedCategories' => [],
+            'selectedBrands'     => [],
+            'selectedProducts'   => [],
+            'isEdit'             => false,
+            'action'             => route('admin.campaigns.store'),
+            'title'              => 'Landing Page Create',
+            'breadcrumb'         => [
                 ['text' => 'Dashboard', 'url' => route('admin.dashboard')],
                 ['text' => 'Campaigns', 'url' => route('admin.campaigns.index')],
                 ['text' => 'Create Campaign', 'url' => route('admin.campaigns.create')],
@@ -167,59 +389,17 @@ class CampaignController extends Controller
         $this->adminOnly();
         $this->prepareRequest($request);
 
-        $request->validate([
-            'title'               => ['required', 'string', 'max:255'],
-            'products'            => ['required', 'array', 'min:1'],
-            'products.*'          => ['required', 'integer', 'exists:products,id'],
-
-            'short_description'   => ['nullable', 'string'],
-            'full_description'    => ['nullable', 'string'],
-            'offer_text'          => ['nullable', 'string', 'max:255'],
-            'old_price'           => ['nullable', 'integer', 'min:0'],
-            'new_price'           => ['nullable', 'integer', 'min:0'],
-            'button_text'         => ['nullable', 'string', 'max:255'],
-            'order_form_title'    => ['nullable', 'string', 'max:255'],
-            'order_form_subtitle' => ['nullable', 'string', 'max:255'],
-            'meta_title'          => ['nullable', 'string', 'max:255'],
-            'meta_description'    => ['nullable', 'string'],
-
-            'banner_image'        => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
-            'image_one'           => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
-            'image_two'           => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
-            'image_three'         => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
-            'review_image'        => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
-
-            // Hero video
-            'campaign_video'      => ['nullable', 'file', 'mimes:mp4,webm,ogg', 'max:51200'],
-        ]);
+        $request->validate($this->campaignValidationRules());
 
         return DB::transaction(function () use ($request) {
-            $productIds = collect($request->products)
-                ->filter()
-                ->unique()
-                ->values()
-                ->toArray();
+            $categoryIds = collect($request->categories)->filter()->unique()->values()->toArray();
+            $brandIds    = collect($request->brands)->filter()->unique()->values()->toArray();
+            $productIds  = collect($request->products)->filter()->unique()->values()->toArray();
 
-            $campaign = Campaign::create([
-                'title'               => $request->title,
-                'slug'                => $this->generateUniqueSlug($request->title),
-                'campaign_type'       => count($productIds) > 1 ? 'multiple' : 'single',
-                'short_description'   => $request->short_description,
-                'full_description'    => $request->full_description,
-                'offer_text'          => $request->offer_text ?: $request->input('banner_title'),
-                'benefits_text'       => $request->benefits_text ?: null,
-                'comparison_text'     => $request->comparison_text ?: null,
-                'old_price'           => $request->old_price,
-                'new_price'           => $request->new_price,
-                'button_text'         => $request->button_text ?: 'অর্ডার করুন',
-                'order_form_title'    => $request->order_form_title,
-                'order_form_subtitle' => $request->order_form_subtitle,
-                'enable_bulk_order'   => $request->boolean('enable_bulk_order'),
-                'status'              => $request->has('status') ? $request->boolean('status') : true,
-                'meta_title'          => $request->meta_title,
-                'meta_description'    => $request->meta_description,
-            ]);
+            $campaign = Campaign::create($this->campaignData($request, $productIds));
 
+            $this->syncCategories($campaign, $categoryIds);
+            $this->syncBrands($campaign, $brandIds);
             $this->syncProducts($campaign, $productIds);
             $this->uploadCampaignMedia($campaign, $request);
 
@@ -233,7 +413,7 @@ class CampaignController extends Controller
     {
         $this->adminOnly();
 
-        $campaign->load(['products']);
+        $campaign->load(['products', 'categories', 'brands']);
 
         return view('admin.campaigns.show', [
             'campaign'   => $campaign,
@@ -250,16 +430,20 @@ class CampaignController extends Controller
     {
         $this->adminOnly();
 
-        $campaign->load(['products']);
+        $campaign->load(['products', 'categories', 'brands']);
 
         return view('admin.campaigns.edit', [
-            'campaign'         => $campaign,
-            'products'         => $this->activeProducts(),
-            'selectedProducts' => $campaign->products()->pluck('products.id')->toArray(),
-            'isEdit'           => true,
-            'action'           => route('admin.campaigns.update', $campaign->id),
-            'title'            => 'Edit Campaign',
-            'breadcrumb'       => [
+            'campaign'           => $campaign,
+            'categories'         => $this->activeCategories(),
+            'brands'             => $this->activeBrands(),
+            'products'           => $this->activeProducts(),
+            'selectedCategories' => $campaign->categories()->pluck('categories.id')->toArray(),
+            'selectedBrands'     => $campaign->brands()->pluck('brands.id')->toArray(),
+            'selectedProducts'   => $campaign->products()->pluck('products.id')->toArray(),
+            'isEdit'             => true,
+            'action'             => route('admin.campaigns.update', $campaign->id),
+            'title'              => 'Edit Campaign',
+            'breadcrumb'         => [
                 ['text' => 'Dashboard', 'url' => route('admin.dashboard')],
                 ['text' => 'Campaigns', 'url' => route('admin.campaigns.index')],
                 ['text' => 'Edit Campaign', 'url' => route('admin.campaigns.edit', $campaign->id)],
@@ -272,67 +456,17 @@ class CampaignController extends Controller
         $this->adminOnly();
         $this->prepareRequest($request);
 
-        $request->validate([
-            'title'               => ['required', 'string', 'max:255'],
-            'slug'                => [
-                'nullable',
-                'string',
-                'max:255',
-                Rule::unique('campaigns', 'slug')->ignore($campaign->id),
-            ],
-            'products'            => ['required', 'array', 'min:1'],
-            'products.*'          => ['required', 'integer', 'exists:products,id'],
-
-            'short_description'   => ['nullable', 'string'],
-            'full_description'    => ['nullable', 'string'],
-            'offer_text'          => ['nullable', 'string', 'max:255'],
-            'old_price'           => ['nullable', 'integer', 'min:0'],
-            'new_price'           => ['nullable', 'integer', 'min:0'],
-            'button_text'         => ['nullable', 'string', 'max:255'],
-            'order_form_title'    => ['nullable', 'string', 'max:255'],
-            'order_form_subtitle' => ['nullable', 'string', 'max:255'],
-            'meta_title'          => ['nullable', 'string', 'max:255'],
-            'meta_description'    => ['nullable', 'string'],
-
-            'banner_image'        => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
-            'image_one'           => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
-            'image_two'           => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
-            'image_three'         => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
-            'review_image'        => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
-
-            // Hero video
-            'campaign_video'      => ['nullable', 'file', 'mimes:mp4,webm,ogg', 'max:51200'],
-        ]);
+        $request->validate($this->campaignValidationRules($campaign));
 
         return DB::transaction(function () use ($request, $campaign) {
-            $productIds = collect($request->products)
-                ->filter()
-                ->unique()
-                ->values()
-                ->toArray();
+            $categoryIds = collect($request->categories)->filter()->unique()->values()->toArray();
+            $brandIds    = collect($request->brands)->filter()->unique()->values()->toArray();
+            $productIds  = collect($request->products)->filter()->unique()->values()->toArray();
 
-            $campaign->update([
-                'title'               => $request->title,
-                'slug'                => $request->slug
-                    ? Str::slug($request->slug)
-                    : $this->generateUniqueSlug($request->title, $campaign->id),
-                'campaign_type'       => count($productIds) > 1 ? 'multiple' : 'single',
-                'short_description'   => $request->short_description,
-                'full_description'    => $request->full_description,
-                'offer_text'          => $request->offer_text ?: $request->input('banner_title'),
-                'benefits_text'       => $request->benefits_text ?: null,
-                'comparison_text'     => $request->comparison_text ?: null,
-                'old_price'           => $request->old_price,
-                'new_price'           => $request->new_price,
-                'button_text'         => $request->button_text ?: 'অর্ডার করুন',
-                'order_form_title'    => $request->order_form_title,
-                'order_form_subtitle' => $request->order_form_subtitle,
-                'enable_bulk_order'   => $request->boolean('enable_bulk_order'),
-                'status'              => $request->has('status') ? $request->boolean('status') : true,
-                'meta_title'          => $request->meta_title,
-                'meta_description'    => $request->meta_description,
-            ]);
+            $campaign->update($this->campaignData($request, $productIds, $campaign));
 
+            $this->syncCategories($campaign, $categoryIds);
+            $this->syncBrands($campaign, $brandIds);
             $this->syncProducts($campaign, $productIds);
             $this->uploadCampaignMedia($campaign, $request);
 
@@ -384,12 +518,9 @@ class CampaignController extends Controller
 
         $campaign = Campaign::onlyTrashed()->findOrFail($id);
 
-        $campaign->clearMediaCollection('banner_image');
-        $campaign->clearMediaCollection('image_one');
-        $campaign->clearMediaCollection('image_two');
-        $campaign->clearMediaCollection('image_three');
-        $campaign->clearMediaCollection('review_image');
-        $campaign->clearMediaCollection('campaign_video');
+        foreach (['banner_image', 'image_one', 'image_two', 'image_three', 'review_image', 'campaign_video'] as $collection) {
+            $campaign->clearMediaCollection($collection);
+        }
 
         $campaign->forceDelete();
 
@@ -412,62 +543,42 @@ class CampaignController extends Controller
         if ($request->action === 'delete') {
             Campaign::whereIn('id', $request->ids)->delete();
 
-            return response()->json([
-                'status'  => true,
-                'message' => 'Selected campaigns moved to trash.',
-            ]);
+            return response()->json(['status' => true, 'message' => 'Selected campaigns moved to trash.']);
         }
 
         if ($request->action === 'restore') {
             Campaign::onlyTrashed()->whereIn('id', $request->ids)->restore();
 
-            return response()->json([
-                'status'  => true,
-                'message' => 'Selected campaigns restored.',
-            ]);
+            return response()->json(['status' => true, 'message' => 'Selected campaigns restored.']);
         }
 
         if ($request->action === 'force_delete') {
             $campaigns = Campaign::onlyTrashed()->whereIn('id', $request->ids)->get();
 
             foreach ($campaigns as $campaign) {
-                $campaign->clearMediaCollection('banner_image');
-                $campaign->clearMediaCollection('image_one');
-                $campaign->clearMediaCollection('image_two');
-                $campaign->clearMediaCollection('image_three');
-                $campaign->clearMediaCollection('review_image');
-                $campaign->clearMediaCollection('campaign_video');
+                foreach (['banner_image', 'image_one', 'image_two', 'image_three', 'review_image', 'campaign_video'] as $collection) {
+                    $campaign->clearMediaCollection($collection);
+                }
+
                 $campaign->forceDelete();
             }
 
-            return response()->json([
-                'status'  => true,
-                'message' => 'Selected campaigns permanently deleted.',
-            ]);
+            return response()->json(['status' => true, 'message' => 'Selected campaigns permanently deleted.']);
         }
 
         if ($request->action === 'active') {
             Campaign::whereIn('id', $request->ids)->update(['status' => true]);
 
-            return response()->json([
-                'status'  => true,
-                'message' => 'Selected campaigns activated.',
-            ]);
+            return response()->json(['status' => true, 'message' => 'Selected campaigns activated.']);
         }
 
         if ($request->action === 'inactive') {
             Campaign::whereIn('id', $request->ids)->update(['status' => false]);
 
-            return response()->json([
-                'status'  => true,
-                'message' => 'Selected campaigns deactivated.',
-            ]);
+            return response()->json(['status' => true, 'message' => 'Selected campaigns deactivated.']);
         }
 
-        return response()->json([
-            'status'  => false,
-            'message' => 'Invalid bulk action selected.',
-        ], 422);
+        return response()->json(['status' => false, 'message' => 'Invalid bulk action selected.'], 422);
     }
 
     public function attachProducts(Request $request, Campaign $campaign)
@@ -501,9 +612,7 @@ class CampaignController extends Controller
 
     public function deleteMedia($id)
     {
-        if (! auth()->check() || ! auth()->user()->isAdmin()) {
-            abort(403, 'Unauthorized access.');
-        }
+        $this->adminOnly();
 
         $media = \Spatie\MediaLibrary\MediaCollections\Models\Media::findOrFail($id);
         $media->delete();
@@ -514,15 +623,44 @@ class CampaignController extends Controller
         ]);
     }
 
+    private function syncCategories(Campaign $campaign, array $categoryIds): void
+    {
+        $syncData = [];
+
+        foreach ($categoryIds as $index => $categoryId) {
+            $syncData[$categoryId] = ['sort_order' => $index + 1];
+        }
+
+        $campaign->categories()->sync($syncData);
+    }
+
+    private function syncBrands(Campaign $campaign, array $brandIds): void
+    {
+        $syncData = [];
+
+        foreach ($brandIds as $index => $brandId) {
+            $syncData[$brandId] = ['sort_order' => $index + 1];
+        }
+
+        $campaign->brands()->sync($syncData);
+    }
+
     private function syncProducts(Campaign $campaign, array $productIds): void
     {
         $products = Product::query()
             ->whereIn('id', $productIds)
-            ->get();
+            ->get()
+            ->keyBy('id');
 
         $syncData = [];
 
-        foreach ($products as $index => $product) {
+        foreach ($productIds as $index => $productId) {
+            if (! isset($products[$productId])) {
+                continue;
+            }
+
+            $product = $products[$productId];
+
             $syncData[$product->id] = [
                 'campaign_price' => $product->new_price,
                 'sort_order'     => $index + 1,

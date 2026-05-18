@@ -1,7 +1,7 @@
 @extends('frontend.layouts.master')
 
 @php
-$websiteName = $siteSetting->website_name ?? config('app.name', 'EcoEats');
+$websiteName = $siteSetting->website_name;
 
 $pageTitle = $campaign?->meta_title
 ?: $campaign?->title
@@ -30,6 +30,9 @@ foreach ([
 'review_image_url',
 'thumbnail',
 'thumbnail_url',
+'featured_image_url',
+'primary_image_url',
+'main_image_url',
 'banner_image_url',
 'image_one_url',
 'image_two_url',
@@ -52,6 +55,9 @@ foreach ([
 'customer_photo',
 'review_image',
 'profile_photo',
+'thumbnail',
+'featured_image',
+'main_image',
 ] as $attribute) {
 try {
 if (! empty($model->{$attribute})) {
@@ -92,12 +98,16 @@ foreach ([
 'product_images',
 'product_thumbnail',
 'product_gallery',
+'gallery',
 'thumbnail',
+'main_image',
+'featured_image',
 'banner_image',
 'image_one',
 'image_two',
 'image_three',
 'site_logo',
+'default',
 ] as $collection) {
 try {
 $url = $model->getFirstMediaUrl($collection);
@@ -111,7 +121,67 @@ return $url;
 }
 }
 
+try {
+if (method_exists($model, 'getMedia')) {
+foreach ([
+'product_images',
+'product_gallery',
+'gallery',
+'images',
+'image',
+'product_image',
+'thumbnail',
+'main_image',
+'featured_image',
+'default',
+] as $collection) {
+$media = $model->getMedia($collection)->first();
+
+if ($media) {
+return $media->getUrl();
+}
+}
+}
+} catch (\Throwable $e) {
+//
+}
+
 return $fallback;
+};
+
+$galleryImageOf = function ($model, $fallback = null) use ($imageOf, $noImage) {
+$fallback = $fallback ?: $noImage;
+
+if (! $model) {
+return $fallback;
+}
+
+if (method_exists($model, 'getFirstMediaUrl')) {
+foreach ([
+'product_gallery',
+'product_images',
+'gallery',
+'images',
+'image',
+'product_image',
+'thumbnail',
+'main_image',
+'featured_image',
+'default',
+] as $collection) {
+try {
+$url = $model->getFirstMediaUrl($collection);
+
+if (! empty($url)) {
+return $url;
+}
+} catch (\Throwable $e) {
+//
+}
+}
+}
+
+return $imageOf($model, $fallback);
 };
 
 $valueOf = function ($model, array $attributes, $fallback = null) {
@@ -226,14 +296,24 @@ return 'https://' . $value;
 return 'https://m.me/' . ltrim($value, '@/');
 };
 
+$categories = $categories ?? collect();
+$brands = $brands ?? collect();
+$products = $products ?? collect();
+$orderProducts = $orderProducts ?? collect();
+$reviews = $reviews ?? collect();
+$faqs = $faqs ?? collect();
+
+$defaultCategoryId = $categories->first()?->id;
+$defaultBrandId = 'all';
+
 $heroImage = $campaign
-? ($campaign->banner_image_url ?: ($campaign->image_one_url ?: $noImage))
+? ($campaign->image_three_url ?: ($campaign->banner_image_url ?: $noImage))
 : $noImage;
 
-$heroVideoUrl = null;
+$heroVideoUrl = $campaign?->embed_video_url ?: null;
 
 try {
-if ($campaign && method_exists($campaign, 'getFirstMediaUrl')) {
+if (! $heroVideoUrl && $campaign && method_exists($campaign, 'getFirstMediaUrl')) {
 $heroVideoUrl = $campaign->getFirstMediaUrl('campaign_video') ?: null;
 }
 } catch (\Throwable $e) {
@@ -253,16 +333,86 @@ $heroVideoPoster = $heroImage;
 $videoEmbedUrl = null;
 $videoFileUrl = null;
 
-if ($heroVideoUrl) {
-if (\Illuminate\Support\Str::contains($heroVideoUrl, ['youtube.com/watch', 'youtu.be/', 'youtube.com/shorts'])) {
-preg_match('/(?:v=|youtu\.be\/|shorts\/)([^&?\/]+)/', $heroVideoUrl, $matches);
-$youtubeId = $matches[1] ?? null;
+$youtubeEmbedFromUrl = function (?string $url): ?string {
+if (! $url) {
+return null;
+}
 
-$videoEmbedUrl = $youtubeId
-? 'https://www.youtube.com/embed/' . $youtubeId . '?rel=0&autoplay=0'
-: $heroVideoUrl;
-} elseif (\Illuminate\Support\Str::contains($heroVideoUrl, ['youtube.com/embed', 'facebook.com/plugins/video'])) {
+$url = trim($url);
+$videoId = null;
+$start = 0;
+
+$parts = parse_url($url);
+$host = strtolower($parts['host'] ?? '');
+$path = trim($parts['path'] ?? '', '/');
+$query = [];
+
+if (! empty($parts['query'])) {
+parse_str($parts['query'], $query);
+}
+
+if (isset($query['t'])) {
+$timeValue = (string) $query['t'];
+
+if (preg_match('/^(\d+)$/', $timeValue, $timeMatches)) {
+$start = (int) $timeMatches[1];
+} elseif (preg_match('/(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?/', $timeValue, $timeMatches)) {
+$start = ((int) ($timeMatches[1] ?? 0) * 3600)
++ ((int) ($timeMatches[2] ?? 0) * 60)
++ ((int) ($timeMatches[3] ?? 0));
+}
+}
+
+if (isset($query['start'])) {
+$start = (int) $query['start'];
+}
+
+if (str_contains($host, 'youtu.be')) {
+$videoId = explode('/', $path)[0] ?? null;
+} elseif (str_contains($host, 'youtube.com') || str_contains($host, 'youtube-nocookie.com')) {
+if (isset($query['v'])) {
+$videoId = $query['v'];
+} elseif (preg_match('/(?:shorts|embed|live)\/([^\/?]+)/', $path, $matches)) {
+$videoId = $matches[1] ?? null;
+}
+}
+
+if (! $videoId && preg_match('/(?:v=|youtu\.be\/|shorts\/|embed\/)([A-Za-z0-9_-]{6,})/', $url, $matches)) {
+$videoId = $matches[1] ?? null;
+}
+
+if (! $videoId) {
+return null;
+}
+
+$videoId = preg_replace('/[^A-Za-z0-9_-]/', '', $videoId);
+
+if (! $videoId) {
+return null;
+}
+
+$params = [
+'rel' => 0,
+'autoplay' => 0,
+'modestbranding' => 1,
+'playsinline' => 1,
+];
+
+if ($start > 0) {
+$params['start'] = $start;
+}
+
+return 'https://www.youtube-nocookie.com/embed/' . $videoId . '?' . http_build_query($params);
+};
+
+if ($heroVideoUrl) {
+if (\Illuminate\Support\Str::contains($heroVideoUrl, ['youtube.com', 'youtu.be', 'youtube-nocookie.com'])) {
+$videoEmbedUrl = $youtubeEmbedFromUrl($heroVideoUrl);
+} elseif (\Illuminate\Support\Str::contains($heroVideoUrl, ['facebook.com/plugins/video'])) {
 $videoEmbedUrl = $heroVideoUrl;
+} elseif (\Illuminate\Support\Str::contains($heroVideoUrl, ['facebook.com', 'fb.watch'])) {
+$videoEmbedUrl = 'https://www.facebook.com/plugins/video.php?href=' . urlencode($heroVideoUrl) .
+'&show_text=false&width=560';
 } else {
 $videoFileUrl = \Illuminate\Support\Str::startsWith($heroVideoUrl, ['http://', 'https://', '/'])
 ? $heroVideoUrl
@@ -275,16 +425,91 @@ $heroTitle = $campaign?->title ?: 'খুলনার বিখ্যাত চ�
 $heroSubtitle = $campaign?->short_description
 ?: 'ঘরে বসেই অর্ডার করুন পছন্দের প্রিমিয়াম পণ্য। ক্যাশ অন ডেলিভারি এবং দ্রুত ডেলিভারি সুবিধা।';
 
-$categories = $categories ?? collect();
-$brands = $brands ?? collect();
-$products = $products ?? collect();
-$orderProducts = $orderProducts ?? collect();
-$reviews = $reviews ?? collect();
-$faqs = $faqs ?? collect();
+$defaultBenefits = [
+'গাছের মাছ',
+'হাঁসের মাংস',
+'মাছ',
+'দেশী',
+'খাসির মাংস',
+'মুরগী ঘন্ট',
+'সরিষা',
+'কালিজিরা',
+'চটপটি',
+];
+
+$benefits = collect($campaign?->benefits_text ?: $defaultBenefits)
+->filter()
+->values();
+
+$sectionTitles = $campaign?->section_titles ?? [];
+
+$categorySectionTitle = $sectionTitles['category_title'] ?? 'ক্যাটাগরি সমূহ';
+$brandSectionTitle = $sectionTitles['brand_title'] ?? 'ব্র্যান্ড সমূহ';
+$productSectionTitle = $sectionTitles['product_title'] ?? 'আমাদের প্রোডাক্ট';
+$categoryFilterTitle = $sectionTitles['category_filter_title'] ?? 'ক্যাটাগরি দিয়ে ফিল্টার';
+$brandFilterTitle = $sectionTitles['brand_filter_title'] ?? 'ব্র্যান্ড দিয়ে ফিল্টার';
+$comparisonSectionTitle = $sectionTitles['comparison_title'] ?? 'চুইঝালের পার্থক্যসমূহ';
+$serviceSectionTitle = $sectionTitles['service_title'] ?? 'কেন আমরাই সেরা';
+$reviewSectionTitle = $sectionTitles['review_title'] ?? 'কাস্টমার রিভিউ';
+$faqSectionTitle = $sectionTitles['faq_title'] ?? 'সচরাচর জিজ্ঞাস্য প্রশ্নাবলি';
+$gallerySectionTitle = $sectionTitles['gallery_title'] ?? 'প্রোডাক্ট গ্যালারি';
+$orderSectionTitle = $sectionTitles['order_title'] ?? ($campaign?->order_form_title ?: 'অর্ডার করুন এখনই');
+
+$comparisonLeftTitle = $campaign?->comparison_text['left_title'] ?? 'গাছ চুইঝাল';
+$comparisonRightTitle = $campaign?->comparison_text['right_title'] ?? 'এটা চুইঝাল';
+
+$comparisonLeft = $campaign?->comparison_text['left'] ?? [
+'চুইঝাল গাছের কাঠকে গাছ চুইঝাল বলা হয়।',
+'গাছ চুইঝাল সাধারণত রান্নায় সহজে গলে যায়।',
+'রান্নায় ঝাঁজ ও ঘ্রাণ বাড়াতে ব্যবহার করা হয়।',
+'সাধারণত বড় পরিমাণে ব্যবহার করা হয়।',
+'এটি রান্নার স্বাদকে আলাদা করে তোলে।',
+];
+
+$comparisonRight = $campaign?->comparison_text['right'] ?? [
+'চুইঝাল গাছের গোড়া এবং গোড়া সংলগ্ন অংশকে এটা চুইঝাল বলা হয়।',
+'এটা চুইঝাল ফাইবার কম থাকায় রান্নায় ভালো ফ্লেভার দেয়।',
+'মাংস, ডাল ও তরকারিতে ব্যবহার করা যায়।',
+'মসলা হিসেবে স্বাদ ও ঘ্রাণ বাড়াতে ব্যবহার করা হয়।',
+'এটি সাধারণ খাবারকেও সুস্বাদু করে তোলে।',
+];
+
+$comparisonMaxRows = max(count($comparisonLeft), count($comparisonRight));
+
+$serviceItems = collect($campaign?->service_items ?? [
+[
+'icon' => 'fas fa-award',
+'title' => 'অর্গানিক প্রোডাক্ট',
+'description' => 'আমাদের কাছে পাবেন সেরা মানের প্রিমিয়াম পণ্য।',
+],
+[
+'icon' => 'fas fa-crown',
+'title' => 'প্রিমিয়াম কোয়ালিটি',
+'description' => 'সেরা কোয়ালিটির পণ্য সংগ্রহ করে সরবরাহ করা হয়।',
+],
+[
+'icon' => 'fas fa-undo-alt',
+'title' => 'রিটার্ন পলিসি',
+'description' => 'সমস্যা হলে সহজ রিটার্ন ও রিপ্লেসমেন্ট সুবিধা।',
+],
+[
+'icon' => 'fas fa-truck',
+'title' => 'ক্যাশ অন ডেলিভারি',
+'description' => 'পণ্য হাতে পেয়ে টাকা পরিশোধ করার সুবিধা।',
+],
+])->filter(fn ($item) => ! empty($item['title']))->values();
+
+$helpContent = $campaign?->help_content ?? [
+'title' => 'সাহায্য প্রয়োজন?',
+'description' => 'যেকোনো জিজ্ঞাসা ও অর্ডারজনিত সমস্যায় কল করুন আমাদের হেল্পলাইনে অথবা নক করুন আমাদের হোয়াটসঅ্যাপ বা
+ফেসবুক পেজে। আমরা আছি সকাল ১০ টা থেকে রাত ৮ টা পর্যন্ত আপনার সেবায়।',
+'button_text' => 'হেল্পলাইন',
+];
 
 $reviewItems = $reviews->values();
 
-$phoneNumber = $valueOf($siteSetting, [
+$phoneNumber = $campaign?->hero_phone
+?: $valueOf($siteSetting, [
 'phone',
 'hotline',
 'phone_number',
@@ -304,7 +529,8 @@ $phoneNumber = $valueOf($siteSetting, [
 'phone-alt',
 ]);
 
-$whatsappNumber = $valueOf($siteSetting, [
+$whatsappNumber = $campaign?->hero_whatsapp
+?: $valueOf($siteSetting, [
 'whatsapp_number',
 'whatsapp',
 'whats_app',
@@ -318,23 +544,11 @@ $whatsappNumber = $valueOf($siteSetting, [
 'fa-whatsapp',
 ]);
 
-$messengerLink = $valueOf($siteSetting, [
-'messenger_link',
-'facebook_messenger',
-'messenger',
-])
-?: $socialLinkByPlatform([
-'messenger',
-'facebook messenger',
-'m.me',
-'facebook.com',
-'fb.com',
-'fa-facebook-messenger',
-]);
-
 $phoneUrl = $makePhoneUrl($phoneNumber);
 $whatsappUrl = $makeWhatsappUrl($whatsappNumber);
-$messengerUrl = $makeMessengerUrl($messengerLink);
+
+
+$serviceBannerImage = $campaign?->banner_image_url ?: null;
 @endphp
 
 @section('title', $pageTitle)
@@ -363,10 +577,6 @@ body {
     background: #ffffff;
 }
 
-a {
-    transition: 0.25s ease;
-}
-
 .section-space {
     padding: 76px 0;
 }
@@ -377,7 +587,6 @@ a {
     font-weight: 900;
     text-align: center;
     margin-bottom: 42px;
-    letter-spacing: -0.5px;
 }
 
 .btn-success {
@@ -389,24 +598,6 @@ a {
 .btn-success:focus {
     background: var(--front-green-dark) !important;
     border-color: var(--front-green-dark) !important;
-}
-
-.main-sidebar .nav-sidebar .nav-link:hover,
-.main-sidebar .nav-sidebar .nav-link.active {
-    background: var(--front-green) !important;
-    color: #ffffff !important;
-}
-
-.main-sidebar .nav-sidebar .nav-link:hover i,
-.main-sidebar .nav-sidebar .nav-link.active i {
-    color: #ffffff !important;
-}
-
-.navbar-nav .nav-link:hover,
-.frontend-navbar .nav-link:hover,
-.header-menu a:hover,
-.front-header a:hover {
-    color: var(--front-green) !important;
 }
 
 .hero-section {
@@ -495,9 +686,7 @@ a {
 }
 
 .side-action-btn:hover,
-.side-action-btn:focus,
-.help-icon-btn:hover,
-.help-icon-btn:focus {
+.help-icon-btn:hover {
     background: var(--front-green) !important;
     border-color: var(--front-green) !important;
     color: #ffffff !important;
@@ -514,11 +703,10 @@ a {
     box-shadow: var(--front-shadow);
 }
 
-.hero-video-box img,
 .hero-video-box video,
 .hero-video-box iframe {
     width: 100%;
-    height: 360px;
+    height: 500px;
     object-fit: cover;
     border: 0;
     display: block;
@@ -550,7 +738,6 @@ a {
 .brand-card i {
     color: var(--front-green);
     margin-right: 7px;
-    transition: 0.25s ease;
 }
 
 .category-card:hover i,
@@ -723,86 +910,109 @@ a {
     line-height: 1.7;
 }
 
-.wide-banner {
+.service-banner {
     position: relative;
     overflow: hidden;
     height: 265px;
+    max-width: 1120px;
+    margin: 70px auto 0;
     border-radius: 18px;
     background: var(--front-soft);
     box-shadow: var(--front-shadow);
 }
 
-.wide-banner img {
+.service-banner img {
     width: 100%;
     height: 100%;
     object-fit: cover;
-    transition: 0.35s ease;
 }
 
-.wide-banner:hover img {
-    transform: scale(1.035);
+.gallery-section {
+    background: #ffffff;
 }
 
-.review-carousel-wrapper {
-    position: relative;
-    max-width: 850px;
-    margin: 0 auto;
-    padding: 0 52px 48px;
+.gallery-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 18px;
+}
+
+.gallery-card {
+    height: 220px;
     overflow: hidden;
+    border-radius: 18px;
+    background: #f8fafc;
+    box-shadow: 0 14px 34px rgba(15, 23, 42, 0.055);
+    border: 1px solid #eef2f7;
 }
 
-.review-single-wrap {
-    max-width: 720px;
-    margin: 0 auto;
-}
-
-.review-card {
-    min-height: 296px;
+.gallery-card img {
+    width: 100%;
     height: 100%;
-    padding: 38px 38px 34px;
+    object-fit: cover;
+    display: block;
+    transition: 0.25s ease;
+}
+
+.gallery-card:hover img {
+    transform: scale(1.04);
+}
+
+.review-section {
+    overflow: hidden;
+    background: #ffffff;
+}
+
+.review-carousel-box {
+    position: relative;
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 0 86px 62px;
+}
+
+.review-carousel-inner {
+    max-width: 660px;
+    margin: 0 auto;
     border: 1px solid #eef2f7;
     border-radius: 20px;
     background: linear-gradient(145deg, #ffffff, #f8fafc);
     box-shadow: var(--front-shadow);
-    transition: 0.3s ease;
+    overflow: hidden;
 }
 
-.review-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 24px 60px rgba(15, 23, 42, 0.12);
-    border-color: rgba(34, 197, 94, 0.35);
+.review-slide-card {
+    min-height: 265px;
+    padding: 44px 50px 40px;
 }
 
-.review-card .stars {
+.review-slide-card .stars {
     color: #f59e0b;
-    margin-bottom: 20px;
-    letter-spacing: 2px;
-    font-size: 17px;
+    margin-bottom: 22px;
+    letter-spacing: 5px;
+    font-size: 18px;
 }
 
-.review-card p {
-    color: var(--front-text);
+.review-slide-card p {
+    color: #64748b;
     line-height: 1.9;
     font-size: 17px;
-    min-height: 88px;
-    margin-bottom: 0;
+    margin-bottom: 34px;
 }
 
 .review-user {
     display: flex;
     align-items: center;
-    margin-top: 28px;
 }
 
 .review-user img {
-    width: 58px;
-    height: 58px;
+    width: 62px;
+    height: 62px;
     border-radius: 50%;
     object-fit: cover;
     margin-right: 16px;
     background: #e2e8f0;
-    border: 3px solid #ffffff;
-    box-shadow: 0 8px 22px rgba(15, 23, 42, 0.12);
+    border: 4px solid #ffffff;
+    box-shadow: 0 8px 22px rgba(15, 23, 42, 0.10);
 }
 
 .review-user strong {
@@ -817,66 +1027,63 @@ a {
     font-size: 15px;
 }
 
-.review-social {
-    margin-left: auto;
-    width: 38px;
-    height: 38px;
+.review-control {
+    position: absolute;
+    top: 45%;
+    transform: translateY(-50%);
+    width: 42px;
+    height: 42px;
     border-radius: 50%;
-    background: #eef2f7;
-    color: var(--front-muted);
-    font-size: 18px;
+    background: #e8eef5;
+    color: #ffffff !important;
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    opacity: 0.85;
+    z-index: 4;
     text-decoration: none !important;
-    transition: 0.25s ease;
+    transition: 0.2s ease;
 }
 
-.review-social:hover {
+.review-control:hover {
     background: var(--front-green);
-    color: #ffffff;
-    transform: translateY(-2px);
+    color: #ffffff !important;
+    opacity: 1;
 }
 
-.review-dots {
-    position: static;
+.review-control-prev {
+    left: 70px;
+}
+
+.review-control-next {
+    right: 70px;
+}
+
+.review-indicators {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    display: flex;
     justify-content: center;
-    margin-top: 24px;
-    margin-bottom: 0;
+    gap: 12px;
+    padding-left: 0;
+    margin: 0;
+    list-style: none;
 }
 
-.review-dots li {
+.review-indicators li {
     width: 10px;
     height: 10px;
-    border: 0;
-    border-radius: 50%;
-    background: #cbd5e1;
-    opacity: 1;
-    margin: 0 6px;
-    transition: 0.25s ease;
-}
-
-.review-dots li.active {
-    width: 24px;
     border-radius: 999px;
-    background: var(--front-green);
+    background: #cbd5e1;
+    cursor: pointer;
+    transition: 0.2s ease;
 }
 
-.review-control {
-    width: 38px;
-    height: 38px;
-    border-radius: 50%;
-    background: #e9eef5;
-    top: 43%;
-    opacity: 1;
-    transition: 0.25s ease;
-}
-
-.review-control:hover,
-.review-control:focus {
+.review-indicators li.active {
+    width: 28px;
     background: var(--front-green);
-    opacity: 1;
-    transform: scale(1.06);
 }
 
 .faq-wrapper {
@@ -911,35 +1118,10 @@ a {
     font-weight: 900;
 }
 
-.faq-button:hover {
-    color: var(--front-green);
-}
-
 .faq-body {
     color: var(--front-text);
     line-height: 1.8;
     padding: 0 26px 24px;
-}
-
-.gallery-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 18px;
-}
-
-.gallery-grid img {
-    width: 100%;
-    height: 225px;
-    border-radius: 18px;
-    object-fit: cover;
-    background: var(--front-soft);
-    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
-    transition: 0.25s ease;
-}
-
-.gallery-grid img:hover {
-    transform: translateY(-4px) scale(1.015);
-    box-shadow: 0 22px 55px rgba(15, 23, 42, 0.10);
 }
 
 .order-section {
@@ -1070,11 +1252,7 @@ a {
     box-shadow: 0 8px 22px rgba(34, 197, 94, 0.12);
 }
 
-@media (max-width: 767px) {
-    .delivery-area-options {
-        grid-template-columns: 1fr;
-    }
-}
+
 .summary-line,
 .summary-product {
     border-top: 1px dashed #cbd5e1;
@@ -1176,21 +1354,13 @@ a {
 }
 
 .help-box {
-    position: relative;
-    overflow: hidden;
     min-height: 310px;
     padding: 66px 20px 60px;
     text-align: center;
     border-radius: 20px;
     border: 1px solid #eef2f7;
     box-shadow: var(--front-shadow);
-    background:
-        linear-gradient(rgba(255, 255, 255, 0.80), rgba(255, 255, 255, 0.80)),
-        radial-gradient(ellipse at 9% 8%, rgba(34, 197, 94, 0.18) 0, rgba(34, 197, 94, 0.13) 95px, transparent 98px),
-        radial-gradient(ellipse at 20% 52%, rgba(34, 197, 94, 0.10) 0, rgba(34, 197, 94, 0.08) 120px, transparent 124px),
-        radial-gradient(ellipse at 88% 18%, rgba(34, 197, 94, 0.16) 0, rgba(34, 197, 94, 0.12) 110px, transparent 114px),
-        radial-gradient(ellipse at 82% 78%, rgba(34, 197, 94, 0.12) 0, rgba(34, 197, 94, 0.09) 100px, transparent 104px),
-        #f7fbf7;
+    background: #f7fbf7;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -1235,19 +1405,146 @@ a {
     align-items: center;
     justify-content: center;
     text-decoration: none !important;
-    transition: 0.25s ease;
 }
 
-.help-main-btn i {
-    margin-right: 8px;
+
+.order-section .section-title {
+    margin-bottom: 32px;
 }
 
-.help-main-btn:hover,
-.help-main-btn:focus {
-    background: var(--front-green-dark);
-    border-color: var(--front-green-dark);
-    color: #ffffff !important;
-    transform: translateY(-2px);
+.order-panel {
+    max-width: 1120px;
+    margin: 0 auto;
+}
+
+.order-products-title,
+.order-summary-title,
+.delivery-form-title {
+    color: var(--front-dark);
+    font-size: 22px;
+    font-weight: 900;
+    margin-bottom: 18px;
+}
+
+.order-products-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+    margin-bottom: 42px;
+}
+
+.order-product-card {
+    min-height: 86px;
+    display: flex;
+    align-items: center;
+    position: relative;
+    cursor: pointer;
+    padding: 10px;
+    border: 1px solid #dce5ef;
+    background: #f8fafc;
+    border-radius: 12px;
+    box-shadow: none;
+    transition: 0.2s ease;
+}
+
+.order-product-card:hover {
+    border-color: rgba(34, 197, 94, 0.45);
+    background: #ffffff;
+    transform: translateY(-1px);
+}
+
+.order-product-card.active {
+    border-color: var(--front-green);
+    box-shadow: 0 0 0 1px var(--front-green);
+    background: #f0fdf4;
+}
+
+.order-product-card img {
+    width: 70px;
+    height: 62px;
+    object-fit: cover;
+    border-radius: 9px;
+    margin-right: 10px;
+    background: #e2e8f0;
+    flex-shrink: 0;
+}
+
+.order-product-card h5 {
+    color: var(--front-dark);
+    font-size: 16px;
+    line-height: 1.3;
+    font-weight: 900;
+    margin-bottom: 6px;
+}
+
+.order-product-card p {
+    margin: 0;
+    color: #94a3b8;
+    font-size: 13px;
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.order-product-price {
+    color: var(--front-dark);
+    white-space: nowrap;
+}
+
+.order-product-weight {
+    color: #94a3b8;
+    white-space: nowrap;
+}
+
+.order-info-box {
+    border-top: 2px dashed #dbe4ef;
+    padding-top: 20px;
+}
+
+.delivery-area-select-wrap select {
+    min-height: 48px;
+    border-color: #cbd5e1;
+    border-radius: 10px;
+    color: #64748b;
+    font-weight: 600;
+}
+
+.order-summary-card {
+    position: sticky;
+    top: 95px;
+}
+
+.summary-product {
+    border-top: 2px dashed #dbe4ef;
+    padding: 18px 0;
+}
+
+.summary-product-info img {
+    width: 64px;
+    height: 64px;
+}
+
+.summary-product-info h5 {
+    font-size: 16px;
+}
+
+.summary-line {
+    border-top: 2px dashed #dbe4ef;
+    padding: 15px 0;
+}
+
+.summary-line strong {
+    color: #16a34a;
+    font-weight: 900;
+}
+
+.order-submit-btn {
+    min-height: 52px;
+    border-radius: 10px;
+    font-size: 17px;
+    font-weight: 900;
+    background: var(--front-green);
+    border-color: var(--front-green);
 }
 
 @media (max-width: 991px) {
@@ -1265,7 +1562,6 @@ a {
         border-radius: 20px;
     }
 
-    .hero-video-box img,
     .hero-video-box video,
     .hero-video-box iframe {
         height: 490px;
@@ -1281,11 +1577,11 @@ a {
     }
 
     .gallery-grid {
-        grid-template-columns: repeat(2, 1fr);
+        grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 
-    .review-control {
-        display: none;
+    .review-slide-card {
+        width: 520px;
     }
 }
 
@@ -1294,57 +1590,41 @@ a {
         font-size: 28px;
     }
 
-    .review-carousel-wrapper {
-        padding: 0 0 40px;
-    }
-
-    .review-card {
-        padding: 30px 24px;
-        min-height: 285px;
-    }
-
-    .review-card p {
-        font-size: 15px;
-        min-height: 105px;
-    }
-
-    .review-user img {
-        width: 52px;
-        height: 52px;
-    }
-
     .delivery-area-options {
         grid-template-columns: 1fr;
-    }
-
-    .help-cta-section {
-        padding: 20px 0 58px;
-    }
-
-    .help-box {
-        min-height: 270px;
-        padding: 45px 16px;
     }
 
     .help-title {
         font-size: 27px;
     }
 
-    .help-text {
-        font-size: 15px;
-        line-height: 1.75;
+    .gallery-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
     }
 
-    .help-main-btn {
-        height: 46px;
-        padding: 0 20px;
-        font-size: 15px;
+    .gallery-card {
+        height: 185px;
     }
 
-    .help-icon-btn,
-    .side-action-btn {
-        width: 46px;
-        height: 46px;
+    .review-carousel-box {
+        padding: 0 54px 56px;
+    }
+
+    .review-slide-card {
+        padding: 34px 28px 32px;
+    }
+
+    .review-control-prev {
+        left: 20px;
+    }
+
+    .review-control-next {
+        right: 20px;
+    }
+
+    .service-banner {
+        height: 200px;
     }
 }
 
@@ -1354,30 +1634,44 @@ a {
         padding-right: 16px;
     }
 
-    .hero-video-box img,
     .hero-video-box video,
     .hero-video-box iframe {
         height: 490px;
     }
 
-    .gallery-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .gallery-grid img {
-        height: 250px;
-    }
-
-    .order-product-card {
-        margin-bottom: 12px;
-    }
-
-    .summary-product {
-        align-items: flex-start;
-    }
-
     .summary-product-info {
         max-width: 68%;
+    }
+
+    .gallery-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .gallery-card {
+        height: 155px;
+    }
+
+    .review-carousel-box {
+        padding: 0 28px 52px;
+    }
+
+    .review-slide-card {
+        min-height: 250px;
+        padding: 28px 22px 30px;
+    }
+
+    .review-control {
+        width: 34px;
+        height: 34px;
+        font-size: 13px;
+    }
+
+    .review-control-prev {
+        left: 0;
+    }
+
+    .review-control-next {
+        right: 0;
     }
 }
 </style>
@@ -1417,6 +1711,7 @@ a {
 @endif
 
 {{-- Hero --}}
+@if($campaign?->hero_section_status ?? true)
 <section class="hero-section" id="video-section">
     <div class="container">
         <div class="row align-items-center">
@@ -1427,17 +1722,16 @@ a {
                     {!! $heroSubtitle !!}
                 </div>
 
+                @if(($campaign?->benefits_section_status ?? true) && $benefits->isNotEmpty())
                 <div class="hero-check-list">
-                    <div class="hero-check-item"><i class="fas fa-check-circle"></i> গাছের মাছ</div>
-                    <div class="hero-check-item"><i class="fas fa-check-circle"></i> হাঁসের মাংস</div>
-                    <div class="hero-check-item"><i class="fas fa-check-circle"></i> মাছ</div>
-                    <div class="hero-check-item"><i class="fas fa-check-circle"></i> দেশী</div>
-                    <div class="hero-check-item"><i class="fas fa-check-circle"></i> খাসির মাংস</div>
-                    <div class="hero-check-item"><i class="fas fa-check-circle"></i> মুরগী ঘন্ট</div>
-                    <div class="hero-check-item"><i class="fas fa-check-circle"></i> সরিষা</div>
-                    <div class="hero-check-item"><i class="fas fa-check-circle"></i> কালিজিরা</div>
-                    <div class="hero-check-item"><i class="fas fa-check-circle"></i> চটপটি</div>
+                    @foreach($benefits as $benefit)
+                    <div class="hero-check-item">
+                        <i class="fas fa-check-circle"></i>
+                        {{ $benefit }}
+                    </div>
+                    @endforeach
                 </div>
+                @endif
 
                 <div class="rating-stars">
                     <i class="fas fa-star"></i>
@@ -1454,121 +1748,112 @@ a {
 
                 <div class="hero-actions">
                     <a href="#order-section" class="btn btn-success">
-                        <i class="fas fa-shopping-cart mr-2"></i>
-                        অর্ডার করুন
+                        <i class="fas fa-shopping-cart mr-1"></i>
+                        {{ $campaign?->button_text ?: 'অর্ডার করুন' }}
                     </a>
 
                     @if($whatsappUrl)
-                    <a href="{{ $whatsappUrl }}" target="_blank" class="btn side-action-btn" aria-label="WhatsApp">
+                    <a href="{{ $whatsappUrl }}" target="_blank" class="side-action-btn" title="WhatsApp">
                         <i class="fab fa-whatsapp"></i>
                     </a>
                     @endif
 
                     @if($phoneUrl)
-                    <a href="{{ $phoneUrl }}" class="btn side-action-btn" aria-label="Phone">
+                    <a href="{{ $phoneUrl }}" class="side-action-btn" title="Call">
                         <i class="fas fa-phone-alt"></i>
                     </a>
                     @endif
                 </div>
             </div>
 
+            @if($videoEmbedUrl || $videoFileUrl)
             <div class="col-lg-5">
                 <div class="hero-video-box">
                     @if($videoEmbedUrl)
-                    <iframe src="{{ $videoEmbedUrl }}" title="{{ $heroTitle }}" allowfullscreen></iframe>
+                    <iframe src="{{ $videoEmbedUrl }}" title="{{ $heroTitle }}" allowfullscreen
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture">
+                    </iframe>
                     @elseif($videoFileUrl)
                     <video controls preload="metadata" poster="{{ $heroVideoPoster }}">
                         <source src="{{ $videoFileUrl }}" type="video/mp4">
                     </video>
-                    @elseif($heroVideoUrl)
-                    <a href="{{ $heroVideoUrl }}" target="_blank" class="hero-video-link">
-                        <img src="{{ $heroVideoPoster }}" alt="{{ $heroTitle }}"
-                            onerror="this.onerror=null;this.src='{{ $noImage }}';">
-                    </a>
-                    @else
-                    <img src="{{ $heroVideoPoster }}" alt="{{ $heroTitle }}"
-                        onerror="this.onerror=null;this.src='{{ $noImage }}';">
                     @endif
                 </div>
             </div>
+            @endif
         </div>
     </div>
 </section>
+@endif
 
 {{-- Category --}}
+@if(($campaign?->category_section_status ?? true) && $categories->isNotEmpty())
 <section class="section-space" id="category-section">
     <div class="container">
-        <h2 class="section-title">ক্যাটাগরি সমূহ</h2>
+        <h2 class="section-title">{{ $categorySectionTitle }}</h2>
 
         <div class="row">
-            @forelse($categories as $category)
+            @foreach($categories as $category)
             <div class="col-lg-3 col-md-4 col-6 mb-3">
                 <div class="category-card">
                     <i class="fas fa-leaf"></i>
                     {{ $category->name }}
                 </div>
             </div>
-            @empty
-            <div class="col-12">
-                <div class="alert alert-warning text-center">কোনো category পাওয়া যায়নি।</div>
-            </div>
-            @endforelse
+            @endforeach
         </div>
     </div>
 </section>
+@endif
 
 {{-- Brand --}}
+@if(($campaign?->category_section_status ?? true) && $brands->isNotEmpty())
 <section class="pb-5" id="brand-section">
     <div class="container">
-        <h2 class="section-title">ব্র্যান্ড সমূহ</h2>
+        <h2 class="section-title">{{ $brandSectionTitle }}</h2>
 
         <div class="row">
-            @forelse($brands as $brand)
+            @foreach($brands as $brand)
             <div class="col-lg-3 col-md-4 col-6 mb-3">
                 <div class="brand-card">
                     <i class="fas fa-store"></i>
                     {{ $brand->name }}
                 </div>
             </div>
-            @empty
-            <div class="col-12">
-                <div class="alert alert-warning text-center">কোনো brand পাওয়া যায়নি।</div>
-            </div>
-            @endforelse
+            @endforeach
         </div>
     </div>
 </section>
+@endif
 
 {{-- Products --}}
+@if($campaign?->product_section_status ?? true)
 <section class="section-space bg-white" id="products-section">
     <div class="container">
-        <h2 class="section-title">আমাদের প্রোডাক্ট</h2>
+        <h2 class="section-title">{{ $productSectionTitle }}</h2>
 
+        @if($products->isNotEmpty())
         <div class="filter-card mb-4">
             <div class="row">
                 <div class="col-lg-6 mb-3 mb-lg-0">
-                    <div class="filter-title">ক্যাটাগরি দিয়ে ফিল্টার</div>
-
-                    <button type="button" class="filter-chip active product-filter" data-filter-type="category"
-                        data-filter-value="all">
-                        All Categories
-                    </button>
+                    <div class="filter-title">{{ $categoryFilterTitle }}</div>
 
                     @foreach($categories as $category)
-                    <button type="button" class="filter-chip product-filter" data-filter-type="category"
-                        data-filter-value="{{ $category->id }}">
+                    <button type="button"
+                        class="filter-chip product-filter {{ (string) $defaultCategoryId === (string) $category->id ? 'active' : '' }}"
+                        data-filter-type="category" data-filter-value="{{ $category->id }}">
                         {{ $category->name }}
                     </button>
                     @endforeach
+
+                    <button type="button" class="filter-chip product-filter {{ $defaultCategoryId ? '' : 'active' }}"
+                        data-filter-type="category" data-filter-value="all">
+                        All Categories
+                    </button>
                 </div>
 
                 <div class="col-lg-6">
-                    <div class="filter-title">ব্র্যান্ড দিয়ে ফিল্টার</div>
-
-                    <button type="button" class="filter-chip active product-filter" data-filter-type="brand"
-                        data-filter-value="all">
-                        All Brands
-                    </button>
+                    <div class="filter-title">{{ $brandFilterTitle }}</div>
 
                     @foreach($brands as $brand)
                     <button type="button" class="filter-chip product-filter" data-filter-type="brand"
@@ -1576,17 +1861,24 @@ a {
                         {{ $brand->name }}
                     </button>
                     @endforeach
+
+                    <button type="button" class="filter-chip product-filter active" data-filter-type="brand"
+                        data-filter-value="all">
+                        All Brands
+                    </button>
                 </div>
             </div>
         </div>
+        @endif
 
         <div class="row" id="frontProductGrid">
             @forelse($products as $product)
             @php
             $productImage = $imageOf($product);
-            $productPrice = (int) $product->new_price;
+            $campaignPrice = (int) optional($product->pivot)->campaign_price;
+            $productPrice = $campaignPrice > 0 ? $campaignPrice : (int) $product->new_price;
             $productOldPrice = $product->old_price ? (int) $product->old_price : null;
-            $productWeight = $product->weight_size ?: '৫০০ গ্রাম';
+            $productWeight = $product->weight_size ?: ($product->weight ?? ($product->size ?? ''));
             @endphp
 
             <div class="col-lg-3 col-md-4 col-sm-6 mb-4 product-grid-item" data-category="{{ $product->category_id }}"
@@ -1609,7 +1901,7 @@ a {
                         <div class="product-price">
                             ৳{{ number_format($productPrice) }}
 
-                            @if($productOldPrice)
+                            @if($productOldPrice && $productOldPrice > $productPrice)
                             <del>৳{{ number_format($productOldPrice) }}</del>
                             @endif
                         </div>
@@ -1625,296 +1917,268 @@ a {
             </div>
             @empty
             <div class="col-12">
-                <div class="alert alert-warning text-center">কোনো active product পাওয়া যায়নি।</div>
+                <div class="alert alert-warning text-center">
+                    এই campaign-এ কোনো selected product পাওয়া যায়নি।
+                </div>
             </div>
             @endforelse
         </div>
     </div>
 </section>
+@endif
 
 {{-- Difference --}}
+@if(($campaign?->comparison_section_status ?? true) && $comparisonMaxRows > 0)
 <section class="section-space difference-section" id="difference-section">
     <div class="container">
-        <h2 class="section-title">চুইঝালের পার্থক্যসমূহ</h2>
+        <h2 class="section-title">{{ $comparisonSectionTitle }}</h2>
 
         <div class="row align-items-center">
-            <div class="col-lg-3 mb-4 mb-lg-0">
-                <img src="{{ $campaign ? ($campaign->image_one_url ?: $heroImage) : $heroImage }}"
-                    class="side-product-img" alt="Product" onerror="this.onerror=null;this.src='{{ $noImage }}';">
+            <div class="col-lg-3 d-none d-lg-block">
+                <img src="{{ $campaign?->image_one_url ?: $noImage }}" class="side-product-img"
+                    alt="{{ $comparisonLeftTitle }}" onerror="this.onerror=null;this.src='{{ $noImage }}';">
             </div>
 
             <div class="col-lg-6">
-                <h4 class="text-center font-weight-bold mb-4">গাছ চুইঝাল &nbsp;&nbsp; এটা চুইঝাল</h4>
+                <h4 class="text-center font-weight-bold mb-4">
+                    {{ $comparisonLeftTitle }} &nbsp;&nbsp; {{ $comparisonRightTitle }}
+                </h4>
 
-                <table class="table difference-table mb-0">
-                    <tbody>
-                        <tr>
-                            <td>চুইঝাল গাছের কাঠকে গাছ চুইঝাল বলা হয়।</td>
-                            <td>চুইঝাল গাছের গোড়া এবং গোড়া সংলগ্ন অংশকে এটা চুইঝাল বলা হয়।</td>
-                        </tr>
-                        <tr>
-                            <td>গাছ চুইঝাল সাধারণত রান্নায় সহজে গলে যায়।</td>
-                            <td>এটা চুইঝাল ফাইবার কম থাকায় রান্নায় ভালো ফ্লেভার দেয়।</td>
-                        </tr>
-                        <tr>
-                            <td>রান্নায় ঝাঁজ ও ঘ্রাণ বাড়াতে ব্যবহার করা হয়।</td>
-                            <td>মাংস, ডাল ও তরকারিতে ব্যবহার করা যায়।</td>
-                        </tr>
-                        <tr>
-                            <td>সাধারণত বড় পরিমাণে ব্যবহার করা হয়।</td>
-                            <td>মসলা হিসেবে স্বাদ ও ঘ্রাণ বাড়াতে ব্যবহার করা হয়।</td>
-                        </tr>
-                        <tr>
-                            <td>এটি রান্নার স্বাদকে আলাদা করে তোলে।</td>
-                            <td>এটি সাধারণ খাবারকেও সুস্বাদু করে তোলে।</td>
-                        </tr>
-                    </tbody>
-                </table>
+                <div class="table-responsive">
+                    <table class="table difference-table mb-0">
+                        <tbody>
+                            @for($i = 0; $i < $comparisonMaxRows; $i++) <tr>
+                                <td>{{ $comparisonLeft[$i] ?? '' }}</td>
+                                <td>{{ $comparisonRight[$i] ?? '' }}</td>
+                                </tr>
+                                @endfor
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
-            <div class="col-lg-3 mt-4 mt-lg-0">
-                <img src="{{ $campaign ? ($campaign->image_two_url ?: $heroImage) : $heroImage }}"
-                    class="side-product-img" alt="Product" onerror="this.onerror=null;this.src='{{ $noImage }}';">
+            <div class="col-lg-3 d-none d-lg-block">
+                <img src="{{ $campaign?->image_two_url ?: $noImage }}" class="side-product-img"
+                    alt="{{ $comparisonRightTitle }}" onerror="this.onerror=null;this.src='{{ $noImage }}';">
             </div>
         </div>
     </div>
 </section>
+@endif
 
-{{-- Service --}}
+{{-- Services + Banner --}}
+@if($campaign?->service_section_status ?? true)
 <section class="section-space" id="services-section">
     <div class="container">
-        <h2 class="section-title">কেন আমরাই সেরা</h2>
+        <h2 class="section-title">{{ $serviceSectionTitle }}</h2>
 
         <div class="row">
+            @foreach($serviceItems as $service)
             <div class="col-md-3 col-6 mb-3">
                 <div class="service-card">
-                    <div class="service-icon"><i class="fas fa-award"></i></div>
-                    <h4>অর্গানিক প্রোডাক্ট</h4>
-                    <p>আমাদের কাছে পাবেন সেরা মানের প্রিমিয়াম পণ্য।</p>
+                    <div class="service-icon">
+                        <i class="{{ $service['icon'] ?? 'fas fa-check' }}"></i>
+                    </div>
+                    <h4>{{ $service['title'] ?? '' }}</h4>
+                    <p>{{ $service['description'] ?? '' }}</p>
                 </div>
             </div>
+            @endforeach
+        </div>
 
-            <div class="col-md-3 col-6 mb-3">
-                <div class="service-card">
-                    <div class="service-icon"><i class="fas fa-crown"></i></div>
-                    <h4>প্রিমিয়াম কোয়ালিটি</h4>
-                    <p>সেরা কোয়ালিটির পণ্য সংগ্রহ করে সরবরাহ করা হয়।</p>
-                </div>
-            </div>
+        @if($serviceBannerImage)
+        <div class="service-banner">
+            <img src="{{ $serviceBannerImage }}" alt="{{ $serviceSectionTitle }}"
+                onerror="this.onerror=null;this.src='{{ $noImage }}';">
+        </div>
+        @endif
+    </div>
+</section>
+@endif
 
-            <div class="col-md-3 col-6 mb-3">
-                <div class="service-card">
-                    <div class="service-icon"><i class="fas fa-undo-alt"></i></div>
-                    <h4>রিটার্ন পলিসি</h4>
-                    <p>সমস্যা হলে সহজ রিটার্ন ও রিপ্লেসমেন্ট সুবিধা।</p>
-                </div>
-            </div>
+{{-- Product Gallery --}}
+@if(($campaign?->gallery_section_status ?? true) && $products->isNotEmpty())
+<section class="section-space gallery-section" id="gallery-section">
+    <div class="container">
+        <h2 class="section-title">{{ $gallerySectionTitle }}</h2>
 
-            <div class="col-md-3 col-6 mb-3">
-                <div class="service-card">
-                    <div class="service-icon"><i class="fas fa-truck"></i></div>
-                    <h4>ক্যাশ অন ডেলিভারি</h4>
-                    <p>পণ্য হাতে পেয়ে টাকা পরিশোধ করার সুবিধা।</p>
-                </div>
+        <div class="gallery-grid">
+            @foreach($products as $product)
+            @php
+            $galleryImage = $galleryImageOf($product);
+            @endphp
+
+            <div class="gallery-card">
+                <img src="{{ $galleryImage }}" alt="{{ $product->name }}" loading="lazy"
+                    onerror="this.onerror=null;this.src='{{ $noImage }}';">
             </div>
+            @endforeach
         </div>
     </div>
 </section>
+@endif
 
-{{-- Wide Banner --}}
-<section class="pb-5">
+{{-- Reviews --}}
+@if(($campaign?->review_section_status ?? true) && $reviewItems->isNotEmpty())
+<section class="section-space review-section" id="reviews-section">
     <div class="container">
-        <div class="wide-banner">
-            <img src="{{ $campaign ? ($campaign->banner_image_url ?: $heroImage) : $heroImage }}"
-                alt="{{ $campaign?->title ?? 'Banner' }}" onerror="this.onerror=null;this.src='{{ $noImage }}';">
-        </div>
-    </div>
-</section>
+        <h2 class="section-title">{{ $reviewSectionTitle }}</h2>
 
-{{-- Review --}}
-<section class="section-space" id="reviews-section">
-    <div class="container">
-        <h2 class="section-title">কাস্টমার রিভিউ</h2>
+        <div id="customerReviewCarousel" class="carousel slide review-carousel-box" data-ride="carousel"
+            data-interval="3800" data-pause="hover">
 
-        <div class="review-carousel-wrapper">
-            @if($reviewItems->isNotEmpty())
-            <div id="reviewCarousel" class="carousel slide review-one-carousel" data-ride="carousel"
-                data-interval="3000" data-pause="hover" data-wrap="true">
+            <div class="carousel-inner review-carousel-inner">
+                @foreach($reviewItems as $review)
+                @php
+                $reviewImage = $imageOf($review);
+                $reviewName = $review->customer_name ?? $review->name ?? 'Customer';
+                $reviewLocation = $review->location ?? $review->designation ?? 'Happy Customer';
+                $reviewText = $review->review_text ?? $review->comment ?? $review->message ?? '';
+                $rating = (int) ($review->rating ?? 5);
+                $rating = $rating > 0 ? min($rating, 5) : 5;
+                @endphp
 
-                <div class="carousel-inner">
-                    @foreach($reviewItems as $review)
-                    @php
-                    $rating = (int) ($review->rating ?: 5);
-                    $rating = $rating < 1 ? 5 : ($rating> 5 ? 5 : $rating);
-                        $reviewImage = $imageOf($review, $noImage);
-                        @endphp
+                <div class="carousel-item {{ $loop->first ? 'active' : '' }}">
+                    <div class="review-slide-card">
+                        <div class="stars">
+                            @for($i = 1; $i <= 5; $i++) <i class="{{ $i <= $rating ? 'fas' : 'far' }} fa-star"></i>
+                                @endfor
+                        </div>
 
-                        <div class="carousel-item {{ $loop->first ? 'active' : '' }}">
-                            <div class="review-single-wrap">
-                                <div class="review-card">
-                                    <div class="stars">
-                                        @for($i = 1; $i <= 5; $i++) <i
-                                            class="{{ $i <= $rating ? 'fas' : 'far' }} fa-star"></i>
-                                            @endfor
-                                    </div>
+                        <p>{{ $reviewText }}</p>
 
-                                    <p>
-                                        {{ $review->review_text ?: 'প্রোডাক্টের কোয়ালিটি ভালো ছিল এবং ডেলিভারিও দ্রুত হয়েছে। ধন্যবাদ।' }}
-                                    </p>
+                        <div class="review-user">
+                            <img src="{{ $reviewImage }}" alt="{{ $reviewName }}"
+                                onerror="this.onerror=null;this.src='{{ $noImage }}';">
 
-                                    <div class="review-user">
-                                        <img src="{{ $reviewImage }}" alt="{{ $review->customer_name ?? 'Customer' }}"
-                                            onerror="this.onerror=null;this.src='{{ $noImage }}';">
-
-                                        <div>
-                                            <strong>{{ $review->customer_name ?? 'Customer' }}</strong>
-                                            <span>{{ $review->location ?: 'ঢাকা' }}</span>
-                                        </div>
-
-                                        @if($review->social_link)
-                                        <a href="{{ $review->social_link }}" target="_blank" class="review-social"
-                                            aria-label="Facebook">
-                                            <i class="fab fa-facebook-f"></i>
-                                        </a>
-                                        @endif
-                                    </div>
-                                </div>
+                            <div>
+                                <strong>{{ $reviewName }}</strong>
+                                <span>{{ $reviewLocation }}</span>
                             </div>
                         </div>
-                        @endforeach
+                    </div>
                 </div>
-
-                @if($reviewItems->count() > 1)
-                <a class="carousel-control-prev review-control" href="#reviewCarousel" role="button" data-slide="prev">
-                    <span class="carousel-control-prev-icon"></span>
-                </a>
-
-                <a class="carousel-control-next review-control" href="#reviewCarousel" role="button" data-slide="next">
-                    <span class="carousel-control-next-icon"></span>
-                </a>
-
-                <ol class="carousel-indicators review-dots">
-                    @foreach($reviewItems as $review)
-                    <li data-target="#reviewCarousel" data-slide-to="{{ $loop->index }}"
-                        class="{{ $loop->first ? 'active' : '' }}">
-                    </li>
-                    @endforeach
-                </ol>
-                @endif
+                @endforeach
             </div>
-            @else
-            <div class="alert alert-warning text-center">
-                কোনো review পাওয়া যায়নি।
-            </div>
+
+            @if($reviewItems->count() > 1)
+            <a class="review-control review-control-prev" href="#customerReviewCarousel" role="button" data-slide="prev"
+                aria-label="Previous review">
+                <i class="fas fa-chevron-left"></i>
+            </a>
+
+            <a class="review-control review-control-next" href="#customerReviewCarousel" role="button" data-slide="next"
+                aria-label="Next review">
+                <i class="fas fa-chevron-right"></i>
+            </a>
+
+            <ol class="review-indicators">
+                @foreach($reviewItems as $review)
+                <li data-target="#customerReviewCarousel" data-slide-to="{{ $loop->index }}"
+                    class="{{ $loop->first ? 'active' : '' }}"></li>
+                @endforeach
+            </ol>
             @endif
         </div>
     </div>
 </section>
+@endif
 
 {{-- FAQ --}}
-<section class="section-space" id="faq-section">
+@if(($campaign?->faq_section_status ?? true) && $faqs->isNotEmpty())
+<section class="section-space bg-white" id="faq-section">
     <div class="container">
-        <h2 class="section-title">সচরাচর জিজ্ঞাস্য প্রশ্নাবলি</h2>
+        <h2 class="section-title">{{ $faqSectionTitle }}</h2>
 
-        <div class="faq-wrapper">
-            @forelse($faqs as $faq)
+        <div class="faq-wrapper" id="faqAccordion">
+            @foreach($faqs as $faq)
+            @php
+            $question = $faq->question ?? $faq->title ?? '';
+            $answer = $faq->answer ?? $faq->description ?? '';
+            @endphp
+
             <div class="faq-item">
-                <button class="faq-button" type="button" data-toggle="collapse" data-target="#faq{{ $faq->id }}">
-                    <span>{{ $faq->question }}</span>
-                    <i class="fas fa-plus"></i>
+                <button class="faq-button" type="button" data-toggle="collapse" data-target="#faq_{{ $faq->id }}"
+                    aria-expanded="{{ $loop->first ? 'true' : 'false' }}">
+                    <span>{{ $question }}</span>
+                    <i class="fas fa-chevron-down"></i>
                 </button>
 
-                <div class="collapse faq-body" id="faq{{ $faq->id }}">
-                    {!! $faq->answer !!}
+                <div id="faq_{{ $faq->id }}" class="collapse {{ $loop->first ? 'show' : '' }}"
+                    data-parent="#faqAccordion">
+                    <div class="faq-body">
+                        {!! $answer !!}
+                    </div>
                 </div>
             </div>
-            @empty
-            <div class="faq-item">
-                <button class="faq-button" type="button">
-                    <span>FAQ পাওয়া যায়নি।</span>
-                </button>
-            </div>
-            @endforelse
+            @endforeach
         </div>
     </div>
 </section>
-
-{{-- Gallery --}}
-<section class="section-space" id="gallery-section">
-    <div class="container">
-        <h2 class="section-title">প্রোডাক্ট গ্যালারি</h2>
-
-        <div class="gallery-grid">
-            @forelse($products as $product)
-            <img src="{{ $imageOf($product) }}" alt="{{ $product->name }}" title="{{ $product->name }}"
-                onerror="this.onerror=null;this.src='{{ $noImage }}';">
-            @empty
-            <div class="alert alert-warning text-center w-100">
-                কোনো product gallery image পাওয়া যায়নি।
-            </div>
-            @endforelse
-        </div>
-    </div>
-</section>
+@endif
 
 {{-- Order --}}
+@if(($campaign?->order_section_status ?? true) && $campaign)
 <section class="order-section" id="order-section">
     <div class="container">
-        <h2 class="section-title">অর্ডার করুন এখনই</h2>
+        <h2 class="section-title">{{ $orderSectionTitle }}</h2>
 
-        @if($campaign && $orderProducts->isNotEmpty())
-        <form action="{{ route('campaign.order.store', $campaign->slug) }}" method="POST" id="landingOrderForm">
+        <form action="{{ route('campaign.order.store', $campaign->slug) }}" method="POST"
+            class="checkout-form order-panel" id="campaignOrderForm">
             @csrf
-
-            <div id="selectedProductsInputs"></div>
 
             <div class="row">
                 <div class="col-lg-6 mb-5 mb-lg-0">
-                    <h3 class="checkout-title">প্রোডাক্ট নির্বাচন করুন</h3>
+                    <h3 class="order-products-title">
+                        প্রোডাক্ট নির্বাচন করুন
+                    </h3>
 
-                    <div class="row">
+                    <div class="order-products-grid">
                         @foreach($orderProducts as $product)
                         @php
+                        $productImage = $imageOf($product);
                         $campaignPrice = (int) optional($product->pivot)->campaign_price;
                         $unitPrice = $campaignPrice > 0 ? $campaignPrice : (int) $product->new_price;
-                        $weight = $product->weight_size ?: '৫০০ গ্রাম';
-                        $productImage = $imageOf($product);
+                        $weight = $product->weight_size ?: ($product->weight ?? ($product->size ?? ''));
                         @endphp
 
-                        <div class="col-md-6 mb-3">
-                            <div class="order-product-card {{ $loop->first ? 'active' : '' }}"
-                                data-id="{{ $product->id }}" data-name="{{ e($product->name) }}"
-                                data-price="{{ $unitPrice }}" data-weight="{{ e($weight) }}"
-                                data-image="{{ e($productImage) }}"
-                                data-free-delivery="{{ $product->is_free_delivery ? 1 : 0 }}">
-                                <span class="selected-check">
-                                    <i class="fas fa-check"></i>
-                                </span>
+                        <div class="order-product-card" data-id="{{ $product->id }}" data-name="{{ $product->name }}"
+                            data-price="{{ $unitPrice }}" data-weight="{{ $weight }}" data-image="{{ $productImage }}"
+                            data-free-delivery="{{ $product->is_free_delivery ? 1 : 0 }}">
+                            <img src="{{ $productImage }}" alt="{{ $product->name }}"
+                                onerror="this.onerror=null;this.src='{{ $noImage }}';">
 
-                                <img src="{{ $productImage }}" alt="{{ $product->name }}"
-                                    onerror="this.onerror=null;this.src='{{ $noImage }}';">
+                            <div class="flex-grow-1">
+                                <h5>{{ $product->name }}</h5>
 
-                                <div>
-                                    <h5>{{ \Illuminate\Support\Str::limit($product->name, 22) }}</h5>
-                                    <p>
-                                        ৳ {{ number_format($unitPrice) }}
-                                        <span class="float-right ml-2">{{ $weight }}</span>
+                                <p>
+                                    <span class="order-product-price">৳ {{ number_format($unitPrice) }}</span>
 
-                                        @if($product->is_free_delivery)
-                                        <br>
-                                        <span class="badge badge-success mt-1">
-                                            ফ্রি ডেলিভারি
-                                        </span>
-                                        @endif
-                                    </p>
-                                </div>
+                                    @if($weight)
+                                    <span class="order-product-weight">{{ $weight }}</span>
+                                    @endif
+                                </p>
+
+                                @if($product->is_free_delivery)
+                                <span class="badge badge-success mt-1">ফ্রি ডেলিভারি</span>
+                                @endif
                             </div>
+
+                            <span class="selected-check">
+                                <i class="fas fa-check"></i>
+                            </span>
                         </div>
                         @endforeach
                     </div>
 
-                    <div class="checkout-form mt-4">
-                        <h3 class="checkout-title">ডেলিভারি এড্রেস</h3>
+                    <div class="order-info-box">
+                        <h3 class="delivery-form-title">
+                            {{ $campaign?->order_form_title ?: 'ডেলিভারি এড্রেস' }}
+                        </h3>
+
+                        @if($campaign?->order_form_subtitle)
+                        <p class="text-muted mb-4">{{ $campaign->order_form_subtitle }}</p>
+                        @endif
 
                         <div class="form-group">
                             <label>আপনার নাম</label>
@@ -1929,7 +2193,7 @@ a {
 
                         <div class="form-group">
                             <label>আপনার ঠিকানা</label>
-                            <textarea name="address" rows="3" class="form-control"
+                            <textarea name="address" rows="2" class="form-control"
                                 required>{{ old('address') }}</textarea>
                         </div>
 
@@ -1965,83 +2229,74 @@ a {
                 </div>
 
                 <div class="col-lg-6">
-                    <h3 class="checkout-title">অর্ডার সামারি</h3>
+                    <div class="order-summary-card">
+                        <h3 class="order-summary-title">অর্ডার সামারি</h3>
 
-                    <div class="summary-box" id="orderSummaryItems"></div>
+                        <div id="selectedProductsBox"></div>
+                        <div id="hiddenProductInputs"></div>
 
-                    <div class="summary-line">
-                        <span>মোট</span>
-                        <strong id="summarySubTotal">0.00 tk</strong>
+                        <div class="summary-line">
+                            <span>মোট</span>
+                            <strong id="summarySubTotal">৳0</strong>
+                        </div>
+
+                        <div class="summary-line">
+                            <span>ডেলিভারি চার্জ</span>
+                            <strong id="summaryDeliveryCharge">৳100</strong>
+                        </div>
+
+                        <div class="summary-line">
+                            <span>ক্যাশ অন ডেলিভারি চার্জ ১%</span>
+                            <strong id="summaryCodCharge">৳0</strong>
+                        </div>
+
+                        <div class="summary-line grand-total">
+                            <span>সর্বমোট</span>
+                            <strong id="summaryGrandTotal">৳0</strong>
+                        </div>
+
+                        <div class="summary-line">
+                            <span>ডেলিভারি মেথড</span>
+                            <strong>ক্যাশ অন ডেলিভারি</strong>
+                        </div>
+
+                        <button type="submit" class="btn btn-success btn-block order-submit-btn mt-3">
+                            <i class="fas fa-check-circle mr-2"></i>
+                            অর্ডার প্রেস করুন
+                        </button>
+
+                        <p class="text-muted text-center mt-3">
+                            বিশেষ দ্রষ্টব্য: ক্যাশ অন ডেলিভারি নেওয়ার সময় পণ্য মূল্য পরিশোধ করুন।
+                        </p>
                     </div>
-
-                    <div class="summary-line">
-                        <span>ডেলিভারি চার্জ</span>
-                        <strong id="summaryDeliveryCharge">0.00 tk</strong>
-                    </div>
-
-                    <div class="summary-line">
-                        <span>ক্যাশ অন ডেলিভারি চার্জ ০%</span>
-                        <strong id="summaryCodCharge">0.00 tk</strong>
-                    </div>
-
-                    <div class="summary-line grand-total">
-                        <span>সর্বমোট</span>
-                        <strong id="summaryGrandTotal">0.00 tk</strong>
-                    </div>
-
-                    <div class="summary-line">
-                        <span>ডেলিভারি মেথড</span>
-                        <strong>ক্যাশ অন ডেলিভারি</strong>
-                    </div>
-
-                    <button type="submit" class="btn btn-success btn-block order-submit-btn" id="orderSubmitBtn">
-                        <i class="far fa-check-circle mr-2"></i>
-                        অর্ডার প্লেস করুন
-                    </button>
-
-                    <p class="text-center mt-4 text-muted">
-                        বিশেষ দ্রষ্টব্য: ক্যাশ অন ডেলিভারি নেওয়ার সময় পণ্য মূল্য পরিশোধ করুন।
-                    </p>
                 </div>
             </div>
         </form>
-        @else
-        <div class="alert alert-warning text-center">
-            কোনো active campaign/product পাওয়া যায়নি। আগে admin panel থেকে active campaign এবং active product তৈরি করুন।
-        </div>
-        @endif
     </div>
 </section>
+@endif
 
-{{-- Help CTA --}}
-<section class="help-cta-section">
+{{-- Help --}}
+<section class="help-cta-section" id="contact-section">
     <div class="container">
         <div class="help-box">
-            <h2 class="help-title">সাহায্য প্রয়োজন?</h2>
+            <h2 class="help-title">{{ $helpContent['title'] ?? 'সাহায্য প্রয়োজন?' }}</h2>
 
             <p class="help-text">
-                যেকোনো জিজ্ঞাসা ও অর্ডারজনিত সমস্যায় কল করুন আমাদের হেল্পলাইনে অথবা নক করুন আমাদের হোয়াটসঅ্যাপ বা ফেসবুক
-                পেজে।
-                আমরা আছি সকাল ১০ টা থেকে রাত ৮ টা পর্যন্ত আপনার সেবায়।
+                {{ $helpContent['description'] ?? '' }}
             </p>
 
             <div class="help-actions">
                 @if($phoneUrl)
                 <a href="{{ $phoneUrl }}" class="help-main-btn">
-                    <i class="fas fa-phone-alt"></i>
-                    হেল্পলাইন
+                    <i class="fas fa-phone-alt mr-1"></i>
+                    {{ $helpContent['button_text'] ?? 'হেল্পলাইন' }}
                 </a>
                 @endif
 
                 @if($whatsappUrl)
-                <a href="{{ $whatsappUrl }}" target="_blank" class="help-icon-btn" aria-label="WhatsApp">
+                <a href="{{ $whatsappUrl }}" target="_blank" class="help-icon-btn">
                     <i class="fab fa-whatsapp"></i>
-                </a>
-                @endif
-
-                @if($messengerUrl)
-                <a href="{{ $messengerUrl }}" target="_blank" class="help-icon-btn" aria-label="Messenger">
-                    <i class="fab fa-facebook-messenger"></i>
                 </a>
                 @endif
             </div>
@@ -2053,101 +2308,106 @@ a {
 
 @push('js')
 <script>
-$(document).ready(function () {
+$(document).ready(function() {
     const noImage = @json($noImage);
 
     const deliveryCharges = {
-        inside_dhaka: 70,
-        outside_dhaka: 130
+        inside_dhaka: 100,
+        outside_dhaka: 150
     };
 
-    let selectedCategory = 'all';
+    let selectedCategory = @json($defaultCategoryId ? (string) $defaultCategoryId : 'all');
     let selectedBrand = 'all';
     let selectedProducts = {};
 
     function money(amount) {
-        amount = Number(amount || 0);
-
-        return amount.toLocaleString('en-US', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2
-        }) + ' tk';
+        return '৳' + Number(amount || 0).toLocaleString('en-US');
     }
 
-    function addProductFromCard(card, shouldTrack = true) {
-        const id = String(card.data('id'));
-        const price = Number(card.data('price') || 0);
-        const name = String(card.data('name') || '');
-        const weight = String(card.data('weight') || '');
+    function filterProducts() {
+        let visibleCount = 0;
 
-        selectedProducts[id] = {
-            id: id,
-            name: name,
-            price: price,
-            weight: weight,
-            image: card.data('image') || noImage,
-            isFreeDelivery: Number(card.data('free-delivery') || 0) === 1,
-            quantity: selectedProducts[id] ? selectedProducts[id].quantity : 1
-        };
+        $('.product-grid-item').each(function() {
+            const item = $(this);
+            const categoryId = String(item.data('category'));
+            const brandId = String(item.data('brand'));
 
-        /*
-        |--------------------------------------------------------------------------
-        | DataLayer / Meta / TikTok Add To Cart Event
-        |--------------------------------------------------------------------------
-        */
-        if (shouldTrack && window.SFATracking) {
-            window.SFATracking.addToCart({
-                item_id: id,
-                item_name: name,
-                price: price,
-                quantity: 1,
-                currency: 'BDT'
-            });
+            const categoryMatch = selectedCategory === 'all' || selectedCategory === categoryId;
+            const brandMatch = selectedBrand === 'all' || selectedBrand === brandId;
+
+            if (categoryMatch && brandMatch) {
+                item.show();
+                visibleCount++;
+            } else {
+                item.hide();
+            }
+        });
+
+        $('#noProductFoundBox').remove();
+
+        if (visibleCount === 0) {
+            $('#frontProductGrid').append(`
+                <div class="col-12" id="noProductFoundBox">
+                    <div class="alert alert-warning text-center">
+                        এই category এবং brand অনুযায়ী কোনো product পাওয়া যায়নি।
+                    </div>
+                </div>
+            `);
         }
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Initial Selected Product
-    |--------------------------------------------------------------------------
-    | Page load-e first product active thake. Eta add_to_cart event fire korbe na,
-    | karon user manually add/click kore nai.
-    |--------------------------------------------------------------------------
-    */
-    $('.order-product-card.active').each(function () {
-        addProductFromCard($(this), false);
+    $(document).on('click', '.product-filter', function() {
+        const button = $(this);
+        const type = button.data('filter-type');
+        const value = String(button.data('filter-value'));
+
+        if (type === 'category') {
+            selectedCategory = value;
+            $('.product-filter[data-filter-type="category"]').removeClass('active');
+        }
+
+        if (type === 'brand') {
+            selectedBrand = value;
+            $('.product-filter[data-filter-type="brand"]').removeClass('active');
+        }
+
+        button.addClass('active');
+
+        filterProducts();
     });
 
     function hasFreeDeliveryProduct() {
-        const allItems = Object.values(selectedProducts);
-
-        return allItems.length > 0 && allItems.some(function (item) {
+        return Object.values(selectedProducts).some(function(item) {
             return item.isFreeDelivery === true;
         });
     }
 
-    function updateDeliveryAreaUI(hasAnyFreeDeliveryProduct) {
-        if (hasAnyFreeDeliveryProduct) {
-            $('#deliveryAreaOptions').addClass('d-none');
+    function updateDeliveryAreaView() {
+        if (hasFreeDeliveryProduct()) {
+            $('#deliveryAreaOptions, #deliveryAreaSelectWrap').addClass('d-none');
             $('#freeDeliveryAreaBox').removeClass('d-none');
-
-            /*
-            |--------------------------------------------------------------------------
-            | Backend validation needs delivery_area value.
-            | Free delivery হলেও hidden selected value inside_dhaka থাকবে।
-            |--------------------------------------------------------------------------
-            */
-            $('input[name="delivery_area"][value="inside_dhaka"]').prop('checked', true);
-            $('.delivery-area-card').removeClass('active');
-            $('input[name="delivery_area"][value="inside_dhaka"]').closest('.delivery-area-card').addClass('active');
         } else {
-            $('#deliveryAreaOptions').removeClass('d-none');
+            $('#deliveryAreaOptions, #deliveryAreaSelectWrap').removeClass('d-none');
             $('#freeDeliveryAreaBox').addClass('d-none');
         }
     }
 
+    function addProductFromCard(card) {
+        const id = String(card.data('id'));
+
+        selectedProducts[id] = {
+            id: id,
+            name: card.data('name'),
+            price: Number(card.data('price') || 0),
+            weight: card.data('weight') || '',
+            image: card.data('image') || noImage,
+            isFreeDelivery: Number(card.data('free-delivery') || 0) === 1,
+            quantity: selectedProducts[id] ? selectedProducts[id].quantity : 1
+        };
+    }
+
     function getCheckoutItems() {
-        return Object.values(selectedProducts).map(function (item) {
+        return Object.values(selectedProducts).map(function(item) {
             return {
                 item_id: String(item.id),
                 item_name: String(item.name),
@@ -2160,12 +2420,13 @@ $(document).ready(function () {
     function getOrderTotals() {
         let subTotal = 0;
 
-        Object.values(selectedProducts).forEach(function (item) {
+        Object.values(selectedProducts).forEach(function(item) {
             subTotal += Number(item.price || 0) * Number(item.quantity || 1);
         });
 
         const hasAnyFreeDeliveryProduct = hasFreeDeliveryProduct();
-        const deliveryArea = $('input[name="delivery_area"]:checked').val();
+        const deliveryArea = $('#deliveryAreaSelect').val() || $('input[name="delivery_area"]:checked').val() ||
+            'inside_dhaka';
         const deliveryCharge = hasAnyFreeDeliveryProduct ? 0 : (deliveryCharges[deliveryArea] || 0);
         const codCharge = 0;
         const grandTotal = subTotal + deliveryCharge + codCharge;
@@ -2180,16 +2441,11 @@ $(document).ready(function () {
     }
 
     function renderSummary() {
-        let subTotal = 0;
         let itemsHtml = '';
         let inputsHtml = '';
         let index = 0;
 
-        Object.values(selectedProducts).forEach(function (item) {
-            const lineTotal = item.price * item.quantity;
-
-            subTotal += lineTotal;
-
+        Object.values(selectedProducts).forEach(function(item) {
             itemsHtml += `
                 <div class="summary-product" data-id="${item.id}">
                     <div class="summary-product-info">
@@ -2197,7 +2453,7 @@ $(document).ready(function () {
                         <div>
                             <h5>${item.name}</h5>
                             <span>${item.weight}</span><br>
-                            <strong>৳ ${Number(item.price).toLocaleString('en-US')}</strong>
+                            <strong>${money(item.price)}</strong>
                             ${item.isFreeDelivery ? '<br><span class="badge badge-success mt-1">ফ্রি ডেলিভারি</span>' : ''}
                         </div>
                     </div>
@@ -2224,208 +2480,112 @@ $(document).ready(function () {
             index++;
         });
 
-        /*
-        |--------------------------------------------------------------------------
-        | Fixed Free Delivery Logic
-        |--------------------------------------------------------------------------
-        | selected product-er moddhe 1 ta free delivery product thaklei
-        | total order free delivery hobe.
-        |--------------------------------------------------------------------------
-        */
+        if (!Object.keys(selectedProducts).length) {
+            itemsHtml = `
+                <div class="alert alert-warning">
+                    অর্ডার করার জন্য কমপক্ষে একটি product select করুন।
+                </div>
+            `;
+        }
+
+        $('#selectedProductsBox').html(itemsHtml);
+        $('#hiddenProductInputs').html(inputsHtml);
+
         const totals = getOrderTotals();
 
-        updateDeliveryAreaUI(totals.hasAnyFreeDeliveryProduct);
-
-        $('#orderSummaryItems').html(itemsHtml);
-        $('#selectedProductsInputs').html(inputsHtml);
-
         $('#summarySubTotal').text(money(totals.subTotal));
-        $('#summaryDeliveryCharge').text(totals.hasAnyFreeDeliveryProduct ? 'ফ্রি ডেলিভারি' : money(totals.deliveryCharge));
+        $('#summaryDeliveryCharge').text(totals.hasAnyFreeDeliveryProduct ? 'Free Delivery' : money(totals
+            .deliveryCharge));
         $('#summaryCodCharge').text(money(totals.codCharge));
         $('#summaryGrandTotal').text(money(totals.grandTotal));
 
-        $('#orderSubmitBtn').prop('disabled', Object.keys(selectedProducts).length === 0);
+        updateDeliveryAreaView();
     }
 
-    function syncOrderCards() {
-        $('.order-product-card').each(function () {
-            const card = $(this);
-            const id = String(card.data('id'));
-
-            if (selectedProducts[id]) {
-                card.addClass('active');
-            } else {
-                card.removeClass('active');
-            }
-        });
-    }
-
-    function applyProductFilter() {
-        $('.product-grid-item').each(function () {
-            const item = $(this);
-
-            const itemCategory = String(item.data('category'));
-            const itemBrand = String(item.data('brand'));
-
-            const categoryOk = selectedCategory === 'all' || itemCategory === selectedCategory;
-            const brandOk = selectedBrand === 'all' || itemBrand === selectedBrand;
-
-            item.toggle(categoryOk && brandOk);
-        });
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Product Filter
-    |--------------------------------------------------------------------------
-    */
-    $(document).on('click', '.product-filter', function () {
-        const button = $(this);
-        const type = button.data('filter-type');
-        const value = String(button.data('filter-value'));
-
-        if (type === 'category') {
-            selectedCategory = value;
-            $('.product-filter[data-filter-type="category"]').removeClass('active');
-        }
-
-        if (type === 'brand') {
-            selectedBrand = value;
-            $('.product-filter[data-filter-type="brand"]').removeClass('active');
-        }
-
-        button.addClass('active');
-        applyProductFilter();
-    });
-
-    /*
-    |--------------------------------------------------------------------------
-    | Order Product Card Click
-    |--------------------------------------------------------------------------
-    */
-    $(document).on('click', '.order-product-card', function () {
+    $(document).on('click', '.order-product-card', function() {
         const card = $(this);
         const id = String(card.data('id'));
 
         if (selectedProducts[id]) {
             delete selectedProducts[id];
+            card.removeClass('active');
         } else {
-            addProductFromCard(card, true);
+            addProductFromCard(card);
+            card.addClass('active');
         }
 
-        syncOrderCards();
         renderSummary();
     });
 
-    /*
-    |--------------------------------------------------------------------------
-    | Product Grid Add Button Click
-    |--------------------------------------------------------------------------
-    */
-    $(document).on('click', '.add-product-to-order', function () {
+    $(document).on('click', '.add-product-to-order', function() {
         const productId = String($(this).data('product-id'));
-        const card = $('.order-product-card[data-id="' + productId + '"]');
+        const orderCard = $('.order-product-card[data-id="' + productId + '"]');
 
-        if (! card.length) {
-            alert('এই প্রোডাক্টটি order section-এ পাওয়া যায়নি। Page reload করে আবার চেষ্টা করুন।');
-            return;
+        if (orderCard.length) {
+            addProductFromCard(orderCard);
+            orderCard.addClass('active');
+            renderSummary();
+
+            $('html, body').animate({
+                scrollTop: $('#order-section').offset().top - 80
+            }, 500);
         }
-
-        addProductFromCard(card, true);
-        syncOrderCards();
-        renderSummary();
-
-        $('html, body').animate({
-            scrollTop: $('#order-section').offset().top - 75
-        }, 500);
     });
 
-    /*
-    |--------------------------------------------------------------------------
-    | Quantity Change
-    |--------------------------------------------------------------------------
-    */
-    $(document).on('change', '.summary-qty', function () {
-        const id = String($(this).data('id'));
-        const qty = parseInt($(this).val(), 10) || 1;
-
-        if (selectedProducts[id]) {
-            selectedProducts[id].quantity = qty;
-        }
-
-        renderSummary();
-    });
-
-    /*
-    |--------------------------------------------------------------------------
-    | Remove Summary Item
-    |--------------------------------------------------------------------------
-    */
-    $(document).on('click', '.remove-summary-item', function () {
+    $(document).on('click', '.remove-summary-item', function() {
         const id = String($(this).data('id'));
 
         delete selectedProducts[id];
 
-        syncOrderCards();
+        $('.order-product-card[data-id="' + id + '"]').removeClass('active');
+
         renderSummary();
     });
 
-    /*
-    |--------------------------------------------------------------------------
-    | Delivery Area Change
-    |--------------------------------------------------------------------------
-    */
-    $(document).on('change', 'input[name="delivery_area"]', function () {
-        $('.delivery-area-card').removeClass('active');
-        $(this).closest('.delivery-area-card').addClass('active');
+    $(document).on('change', '.summary-qty', function() {
+        const id = String($(this).data('id'));
+        const quantity = Number($(this).val() || 1);
+
+        if (selectedProducts[id]) {
+            selectedProducts[id].quantity = quantity;
+        }
+
         renderSummary();
     });
 
-    /*
-    |--------------------------------------------------------------------------
-    | Begin Checkout Event + Submit
-    |--------------------------------------------------------------------------
-    */
-    $('#landingOrderForm').on('submit', function () {
-        renderSummary();
+    $(document).on('change', '#deliveryAreaSelect, input[name="delivery_area"]', function() {
+        if ($(this).is('input[name="delivery_area"]')) {
+            $('.delivery-area-card').removeClass('active');
+            $(this).closest('.delivery-area-card').addClass('active');
+        }
 
-        if (Object.keys(selectedProducts).length === 0) {
-            alert('কমপক্ষে একটি প্রোডাক্ট নির্বাচন করুন।');
+        renderSummary();
+    });
+
+    $('#campaignOrderForm').on('submit', function(e) {
+        if (!Object.keys(selectedProducts).length) {
+            e.preventDefault();
+            alert('দয়া করে কমপক্ষে একটি product select করুন।');
             return false;
         }
 
-        if (window.SFATracking) {
-            const totals = getOrderTotals();
+        const totals = getOrderTotals();
 
-            window.SFATracking.beginCheckout({
+        window.dataLayer = window.dataLayer || [];
+        window.dataLayer.push({
+            event: 'initiate_checkout',
+            ecommerce: {
                 currency: 'BDT',
                 value: totals.grandTotal,
                 shipping: totals.deliveryCharge,
-                tax: totals.codCharge,
                 items: getCheckoutItems()
-            });
-        }
-
-        $('#orderSubmitBtn')
-            .prop('disabled', true)
-            .html('<span class="spinner-border spinner-border-sm mr-2"></span> অর্ডার সাবমিট হচ্ছে...');
+            }
+        });
     });
 
-    /*
-    |--------------------------------------------------------------------------
-    | Review Carousel
-    |--------------------------------------------------------------------------
-    */
-    $('#reviewCarousel').carousel({
-        interval: 3000,
-        ride: 'carousel',
-        pause: 'hover',
-        wrap: true
-    });
+    $('.order-product-card').first().trigger('click');
 
-    applyProductFilter();
-    syncOrderCards();
-    renderSummary();
+    filterProducts();
 });
 </script>
 @endpush

@@ -10,23 +10,30 @@
         $logo = $siteSetting->getFirstMediaUrl('site_logo');
     }
 
-    $websiteName = $siteSetting->website_name ?? config('app.name', 'EcoEats');
+    $websiteName = $siteSetting->website_name ?? config('app.name', 'Laravel');
+
+    /*
+    |--------------------------------------------------------------------------
+    | Dynamic Logo URL
+    |--------------------------------------------------------------------------
+    | Campaign page-e thakle logo click korle same campaign page-e thakbe.
+    | Normal home page-e thakle home page-e jabe.
+    */
+    $logoUrl = route('home');
+
+    if (isset($campaign) && $campaign && ! empty($campaign->slug)) {
+        $logoUrl = route('campaign.show', $campaign->slug);
+    }
 @endphp
 
 <header class="front-header">
     <div class="container">
         <nav class="navbar navbar-expand-lg front-navbar px-0">
-            <a class="navbar-brand d-flex align-items-center" href="{{ route('home') }}">
+            <a class="navbar-brand d-flex align-items-center" href="{{ $logoUrl }}">
                 @if($logo)
                     <img src="{{ $logo }}" alt="{{ $websiteName }}" class="site-logo-img">
                 @else
-                    <span class="brand-mark">
-                        <i class="fas fa-seedling"></i>
-                    </span>
-
-                    <span class="brand-text">
-                        {{ $websiteName }}
-                    </span>
+                    <span class="font-weight-bold text-success">{{ $websiteName }}</span>
                 @endif
             </a>
 

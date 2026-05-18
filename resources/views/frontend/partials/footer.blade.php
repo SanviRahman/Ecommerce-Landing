@@ -330,14 +330,6 @@
                                  alt="{{ $websiteName }}"
                                  class="footer-logo-img"
                                  onerror="this.onerror=null;this.style.display='none';">
-                        @else
-                            <span class="brand-mark">
-                                <i class="fas fa-seedling"></i>
-                            </span>
-
-                            <span class="brand-text">
-                                {{ $websiteName }}
-                            </span>
                         @endif
                     </div>
 

@@ -143,26 +143,10 @@
             <td style="width: 35%;">
                 @if ($logoPath && file_exists($logoPath))
                 <img src="{{ $logoPath }}" class="logo" alt="{{ $siteSetting->website_name }}">
-                @else
-                <h3>{{ $siteSetting->website_name ?? config('app.name') }}</h3>
                 @endif
 
                 <strong>{{ $siteSetting->website_name ?? config('app.name') }}</strong>
 
-                @if ($siteSetting?->address)
-                <br>
-                <small>{{ $siteSetting->address }}</small>
-                @endif
-
-                @if ($siteSetting?->phone)
-                <br>
-                <small>Phone: {{ $siteSetting->phone }}</small>
-                @endif
-
-                @if ($siteSetting?->email)
-                <br>
-                <small>Email: {{ $siteSetting->email }}</small>
-                @endif
 
                 @if($courierName || $courierMerchantId || $courierPhoneNumber)
                 <div class="merchant-box">

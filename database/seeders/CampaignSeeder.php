@@ -2,109 +2,259 @@
 
 namespace Database\Seeders;
 
+use App\Models\Brand;
 use App\Models\Campaign;
+use App\Models\Category;
+use App\Models\Product;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Str;
 
 class CampaignSeeder extends Seeder
 {
-    /**
-     * Run the database seeds.
-     */
     public function run(): void
     {
-        $campaigns = [
+        /*
+        |--------------------------------------------------------------------------
+        | Demo Campaign
+        |--------------------------------------------------------------------------
+        */
+        $campaign = Campaign::updateOrCreate(
+            [
+                'slug' => 'shanto-gift-shop-bd',
+            ],
             [
                 'title' => 'Shanto Gift Shop BD',
+                'campaign_type' => 'multiple',
+
+                'short_description' => 'Shanto Gift Shop BD একটি বিশেষ অফার ক্যাম্পেইন। সীমিত সময়ের জন্য এই অফারটি প্রযোজ্য।',
+                'full_description' => 'Premium quality products with cash on delivery service.',
+
                 'offer_text' => 'আজকের স্পেশাল অফার',
-                'old_price' => 1500,
-                'new_price' => 999,
-            ],
-            [
-                'title' => 'Premium Honey Offer',
-                'offer_text' => 'খাঁটি মধু কিনুন বিশেষ ছাড়ে',
-                'old_price' => 1200,
-                'new_price' => 850,
-            ],
-            [
-                'title' => 'Organic Black Seed Oil',
-                'offer_text' => 'স্বাস্থ্যকর জীবনের জন্য প্রিমিয়াম কালোজিরা তেল',
-                'old_price' => 1000,
-                'new_price' => 699,
-            ],
-            [
-                'title' => 'Herbal Hair Oil Campaign',
-                'offer_text' => 'চুলের যত্নে হারবাল হেয়ার অয়েল',
-                'old_price' => 900,
-                'new_price' => 599,
-            ],
-            [
-                'title' => 'Beauty Care Combo',
-                'offer_text' => 'স্কিন কেয়ারে কম্বো অফার',
-                'old_price' => 2200,
-                'new_price' => 1590,
-            ],
-        ];
 
-        foreach ($campaigns as $campaign) {
-            Campaign::create([
-                'title' => $campaign['title'],
-                'slug' => $this->generateUniqueSlug($campaign['title']),
-
-                'campaign_type' => 'single',
-
-                'short_description' => $campaign['title'] . ' একটি বিশেষ অফার ক্যাম্পেইন। সীমিত সময়ের জন্য এই অফারটি প্রযোজ্য।',
-                'full_description' => $campaign['title'] . ' ক্যাম্পেইনের মাধ্যমে আপনি সেরা মানের পণ্য সবচেয়ে ভালো দামে অর্ডার করতে পারবেন। আমাদের সকল পণ্য কোয়ালিটি চেক করা এবং দ্রুত ডেলিভারি সুবিধাসহ পাওয়া যায়।',
-
-                'offer_text' => $campaign['offer_text'],
+                /*
+                |--------------------------------------------------------------------------
+                | Embed Video URL
+                |--------------------------------------------------------------------------
+                | চাইলে YouTube/Facebook embed URL দিতে পারো।
+                | Upload video না থাকলে এই video frontend hero section-এ show হবে।
+                */
+                'embed_video_url' => null,
 
                 'benefits_text' => [
-                    'প্রিমিয়াম কোয়ালিটি',
-                    'দ্রুত হোম ডেলিভারি',
-                    'ক্যাশ অন ডেলিভারি সুবিধা',
-                    'সীমিত সময়ের বিশেষ ছাড়',
+                    'গাছের মাছ',
+                    'ইলিশের মাথা',
+                    'মাছ',
+                    'দেশী',
+                    'খাসির মাথা',
+                    'মুরগী মট',
+                    'সরিষা',
+                    'কালিজিরা',
+                    'চটপটি',
                 ],
 
                 'comparison_text' => [
-                    'বাজারের সাধারণ পণ্যের তুলনায় উন্নত মান',
-                    'বিশ্বস্ত সোর্স থেকে সংগ্রহ করা',
-                    'কাস্টমার সাপোর্ট সুবিধা',
+                    'left_title' => 'গাছ চুইঝাল',
+                    'right_title' => 'এটা চুইঝাল',
+                    'left' => [
+                        'চুইঝাল গাছের কাণ্ডকে গাছ চুইঝাল বলা হয়।',
+                        'গাছ চুইঝাল সাধারণত রান্নায় সহজে গলে যায়।',
+                        'রান্নায় ঝাঁজ ও ঘ্রাণ বাড়াতে ব্যবহার করা হয়।',
+                        'সাধারণত বড় পরিমাণে ব্যবহার করা হয়।',
+                        'এটি রান্নার স্বাদকে আলাদা করে তোলে।',
+                    ],
+                    'right' => [
+                        'চুইঝাল গাছের গোড়া এবং গোড়া সংলগ্ন অংশকে এটা চুইঝাল বলা হয়।',
+                        'এটা চুইঝাল ফাইবার কম থাকায় রান্নায় ভালো ফ্লেভার দেয়।',
+                        'মাছ, ডাল ও তরকারিতে ব্যবহার করা যায়।',
+                        'মসলা হিসেবে স্বাদ ও ঘ্রাণ বাড়াতে ব্যবহার করা হয়।',
+                        'এটি সাধারণ খাবারকেও সুস্বাদু করে তোলে।',
+                    ],
                 ],
 
-                'old_price' => $campaign['old_price'],
-                'new_price' => $campaign['new_price'],
+                'section_titles' => [
+                    'category_title' => 'ক্যাটাগরি সমূহ',
+                    'brand_title' => 'ব্র্যান্ড সমূহ',
+                    'product_title' => 'আমাদের প্রোডাক্ট',
+                    'category_filter_title' => 'ক্যাটাগরি দিয়ে ফিল্টার',
+                    'brand_filter_title' => 'ব্র্যান্ড দিয়ে ফিল্টার',
+                    'comparison_title' => 'চুইঝালের পার্থক্যসমূহ',
+                    'service_title' => 'কেন আমরাই সেরা',
+                    'review_title' => 'কাস্টমার রিভিউ',
+                    'faq_title' => 'সচরাচর জিজ্ঞাস্য প্রশ্নাবলি',
+                    'gallery_title' => 'প্রোডাক্ট গ্যালারি',
+                    'order_title' => 'অর্ডার করুন এখনই',
+                ],
+
+                'service_items' => [
+                    [
+                        'icon' => 'fas fa-award',
+                        'title' => 'অর্গানিক প্রোডাক্ট',
+                        'description' => 'আমাদের কাছে পাবেন সেরা মানের প্রিমিয়াম পণ্য।',
+                    ],
+                    [
+                        'icon' => 'fas fa-crown',
+                        'title' => 'প্রিমিয়াম কোয়ালিটি',
+                        'description' => 'সেরা কোয়ালিটির পণ্য সংগ্রহ করে সরবরাহ করা হয়।',
+                    ],
+                    [
+                        'icon' => 'fas fa-undo-alt',
+                        'title' => 'রিটার্ন পলিসি',
+                        'description' => 'সমস্যা হলে সহজ রিটার্ন ও রিপ্লেসমেন্ট সুবিধা।',
+                    ],
+                    [
+                        'icon' => 'fas fa-truck',
+                        'title' => 'ক্যাশ অন ডেলিভারি',
+                        'description' => 'পণ্য হাতে পেয়ে টাকা পরিশোধ করার সুবিধা।',
+                    ],
+                ],
+
+                'help_content' => [
+                    'title' => 'সাহায্য প্রয়োজন?',
+                    'description' => 'যেকোনো জিজ্ঞাসা ও অর্ডারজনিত সমস্যায় কল করুন আমাদের হেল্পলাইনে অথবা নক করুন আমাদের হোয়াটসঅ্যাপ বা ফেসবুক পেজে। আমরা আছি সকাল ১০ টা থেকে রাত ৮ টা পর্যন্ত আপনার সেবায়।',
+                    'button_text' => 'হেল্পলাইন',
+                ],
 
                 'button_text' => 'অর্ডার করুন',
 
-                'order_form_title' => 'অফারটি সীমিত সময়ের জন্য, তাই অফার শেষ হওয়ার আগেই অর্ডার করুন',
-                'order_form_subtitle' => 'অর্ডার করতে নিচের ফর্মটি পূরণ করুন।',
+                /*
+                |--------------------------------------------------------------------------
+                | Campaign Wise Hero Contact
+                |--------------------------------------------------------------------------
+                | এই ২টা field campaign-wise WhatsApp এবং Phone button dynamic করবে।
+                | Admin panel থেকেও create/edit করা যাবে।
+                */
+                'hero_whatsapp' => '01812345678',
+                'hero_phone' => '01712345678',
+
+                'order_form_title' => 'ডেলিভারি এড্রেস',
+                'order_form_subtitle' => 'সঠিক তথ্য দিয়ে অর্ডার করুন।',
 
                 'enable_bulk_order' => false,
 
+                'hero_section_status' => true,
+                'benefits_section_status' => true,
+                'category_section_status' => true,
+                'product_section_status' => true,
+                'comparison_section_status' => true,
+                'service_section_status' => true,
+                'review_section_status' => true,
+                'gallery_section_status' => true,
+                'faq_section_status' => true,
+                'order_section_status' => true,
+
                 'status' => true,
+                'meta_title' => 'Shanto Gift Shop BD',
+                'meta_description' => 'Premium ecommerce landing campaign.',
+            ]
+        );
 
-                'meta_title' => $campaign['title'],
-                'meta_description' => $campaign['title'] . ' - বিশেষ ছাড়ে এখনই অর্ডার করুন।',
-            ]);
+        /*
+        |--------------------------------------------------------------------------
+        | Selected Categories
+        |--------------------------------------------------------------------------
+        | Admin je order-e select korbe, frontend-e sei order-e show hobe.
+        */
+        $categoryIds = Category::query()
+            ->where('status', true)
+            ->whereIn('name', [
+                'Clothing',
+                'Natural Oil',
+                'Organic Food',
+                'Home & Kitchen',
+            ])
+            ->pluck('id')
+            ->values()
+            ->toArray();
+
+        if (empty($categoryIds)) {
+            $categoryIds = Category::query()
+                ->where('status', true)
+                ->take(4)
+                ->pluck('id')
+                ->values()
+                ->toArray();
         }
-    }
 
-    private function generateUniqueSlug(string $title): string
-    {
-        $baseSlug = Str::slug($title);
+        $categorySyncData = [];
 
-        if (! $baseSlug) {
-            $baseSlug = 'campaign-' . time();
+        foreach ($categoryIds as $index => $categoryId) {
+            $categorySyncData[$categoryId] = [
+                'sort_order' => $index + 1,
+            ];
         }
 
-        $slug = $baseSlug;
-        $count = 1;
+        $campaign->categories()->sync($categorySyncData);
 
-        while (Campaign::where('slug', $slug)->exists()) {
-            $slug = $baseSlug . '-' . $count;
-            $count++;
+        /*
+        |--------------------------------------------------------------------------
+        | Selected Brands
+        |--------------------------------------------------------------------------
+        */
+        $brandIds = Brand::query()
+            ->where('status', true)
+            ->whereIn('name', [
+                'Apple',
+                'Samsung',
+                'Nike',
+                'Sony',
+            ])
+            ->pluck('id')
+            ->values()
+            ->toArray();
+
+        if (empty($brandIds)) {
+            $brandIds = Brand::query()
+                ->where('status', true)
+                ->take(4)
+                ->pluck('id')
+                ->values()
+                ->toArray();
         }
 
-        return $slug;
+        $brandSyncData = [];
+
+        foreach ($brandIds as $index => $brandId) {
+            $brandSyncData[$brandId] = [
+                'sort_order' => $index + 1,
+            ];
+        }
+
+        $campaign->brands()->sync($brandSyncData);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Selected Products
+        |--------------------------------------------------------------------------
+        */
+        $productIds = Product::query()
+            ->where('status', true)
+            ->take(8)
+            ->pluck('id')
+            ->values()
+            ->toArray();
+
+        $products = Product::query()
+            ->whereIn('id', $productIds)
+            ->get()
+            ->keyBy('id');
+
+        $productSyncData = [];
+
+        foreach ($productIds as $index => $productId) {
+            if (! isset($products[$productId])) {
+                continue;
+            }
+
+            $product = $products[$productId];
+
+            $productSyncData[$productId] = [
+                'campaign_price' => $product->new_price,
+                'sort_order' => $index + 1,
+                'is_default' => $index === 0,
+            ];
+        }
+
+        $campaign->products()->sync($productSyncData);
+
+        $this->command?->info('Campaign seeded successfully with categories, brands, products and hero contact numbers.');
     }
 }

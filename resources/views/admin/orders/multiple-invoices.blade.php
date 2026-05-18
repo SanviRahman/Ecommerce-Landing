@@ -182,13 +182,6 @@
 
                     <strong>{{ $siteSetting->website_name ?? config('app.name') }}</strong>
 
-                    @if($siteSetting?->address)
-                    <br>{{ $siteSetting->address }}
-                    @endif
-
-                    @if($siteSetting?->phone)
-                    <br>Phone: {{ $siteSetting->phone }}
-                    @endif
 
                     @if($courierName || $courierMerchantId || $courierPhoneNumber)
                     <div class="merchant-box">

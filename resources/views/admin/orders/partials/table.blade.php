@@ -18,7 +18,7 @@
                 <th>Admin Note</th>
                 <th>Employee</th>
                 <th>Date</th>
-                <th width="230" class="text-right px-4">Actions</th>
+                <th width="210" class="text-right px-4">Actions</th>
             </tr>
         </thead>
 
@@ -37,7 +37,20 @@
                             #{{ $order->invoice_id }}
                         </div>
 
-                        <div class="small text-muted">
+                        @if(empty($isTrash))
+                            <button type="button"
+                                    class="btn btn-xs btn-outline-primary btnFraudCheck mt-1"
+                                    data-url="{{ route('admin.orders.fraud_check', $order->id) }}"
+                                    data-phone="{{ $order->phone }}"
+                                    data-customer="{{ $order->customer_name }}"
+                                    data-invoice="{{ $order->invoice_id }}"
+                                    title="Fraud Check">
+                                <i class="fas fa-user-shield mr-1"></i>
+                                Check
+                            </button>
+                        @endif
+
+                        <div class="small text-muted mt-1">
                             Source:
                             <span title="{{ $order->source_url }}">
                                 {{ $order->source_url ? \Illuminate\Support\Str::limit($order->source_url, 28) : '-' }}
@@ -310,16 +323,6 @@
                                     <i class="fas fa-file-download"></i>
                                 </a>
 
-                                <button type="button"
-                                        class="btn btn-sm btn-white text-primary btnFraudCheck"
-                                        data-url="{{ route('admin.orders.fraud_check', $order->id) }}"
-                                        data-phone="{{ $order->phone }}"
-                                        data-customer="{{ $order->customer_name }}"
-                                        data-invoice="{{ $order->invoice_id }}"
-                                        title="Fraud Check">
-                                    <i class="fas fa-user-shield"></i>
-                                </button>
-
                                 @if(auth()->user()->isAdmin() && $order->courier_service === 'steadfast')
                                     @if(empty($order->steadfast_consignment_id))
                                         <button type="button"
@@ -399,6 +402,13 @@
 .btn-white:hover {
     background: #f8f9fa;
     transform: translateY(-1px);
+}
+
+.btn-xs {
+    padding: 2px 7px;
+    font-size: 11px;
+    line-height: 1.4;
+    border-radius: 4px;
 }
 
 .pagination {

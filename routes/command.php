@@ -70,10 +70,29 @@ Route::prefix('command')
             return $redirectWithToast('success', 'Database seeded successfully.');
         })->name('seed');
 
-        Route::get('/storage-link', function () use ($redirectWithToast) {
+        Route::get('/storage-link-old', function () use ($redirectWithToast) {
             Artisan::call('storage:link');
 
             return $redirectWithToast('success', 'Storage link created successfully.');
+        })->name('storage-link');
+
+        Route::get('/storage-link', function () use ($redirectWithToast) {
+            $target = storage_path('app/public');
+            $shortcut = base_path('../storage');
+
+            if (file_exists($shortcut) || is_link($shortcut)) {
+                if (is_link($shortcut)) {
+                    unlink($shortcut);
+                } else {
+                    Illuminate\Support\Facades\File::deleteDirectory($shortcut);
+                }
+            }
+
+            if (symlink($target, $shortcut)) {
+                return $redirectWithToast('success', 'Storage link created successfully in public_html.');
+            }
+
+            return $redirectWithToast('error', 'Failed to create symbolic link. Check folder permissions.');
         })->name('storage-link');
 
         Route::get('/migrate-fresh', function () use ($redirectWithToast) {

@@ -124,14 +124,43 @@
 @stop
 
 @section('js')
-    <script>
-        $(document).ready(function () {
-            $('.select2-products').select2({
-                placeholder: 'Click here and select products',
-                allowClear: true,
-                width: '100%',
-                closeOnSelect: false
-            });
+<script>
+$(document).ready(function () {
+    $('.select2-categories').select2({
+        placeholder: 'Click here and select categories',
+        allowClear: true,
+        width: '100%',
+        closeOnSelect: false
+    });
+
+    $('.select2-brands').select2({
+        placeholder: 'Click here and select brands',
+        allowClear: true,
+        width: '100%',
+        closeOnSelect: false
+    });
+
+    $('.select2-products').select2({
+        placeholder: 'Click here and select products',
+        allowClear: true,
+        width: '100%',
+        closeOnSelect: false
+    });
+
+    function preserveSelect2SelectionOrder(selector) {
+        $(selector).on('select2:select', function (event) {
+            const element = event.params.data.element;
+            const $element = $(element);
+
+            $element.detach();
+            $(this).append($element);
+            $(this).trigger('change');
         });
-    </script>
+    }
+
+    preserveSelect2SelectionOrder('.select2-categories');
+    preserveSelect2SelectionOrder('.select2-brands');
+    preserveSelect2SelectionOrder('.select2-products');
+});
+</script>
 @stop
