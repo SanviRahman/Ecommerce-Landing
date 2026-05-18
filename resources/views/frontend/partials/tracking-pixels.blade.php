@@ -14,14 +14,35 @@
         ->orderByRaw("FIELD(platform, 'gtm', 'meta', 'tiktok', 'google_analytics')")
         ->get();
 
-    $gtmPixels = $activePixels->where('platform', 'gtm');
-    $metaPixels = $activePixels->where('platform', 'meta')->filter(fn ($pixel) => ! empty($pixel->pixel_id))->unique('pixel_id')->values();
-    $tiktokPixels = $activePixels->where('platform', 'tiktok')->filter(fn ($pixel) => ! empty($pixel->pixel_id))->unique('pixel_id')->values();
-    $gaPixels = $activePixels->where('platform', 'google_analytics')->filter(fn ($pixel) => ! empty($pixel->pixel_id))->unique('pixel_id')->values();
+    $gtmPixels = $activePixels
+        ->where('platform', 'gtm')
+        ->filter(fn ($pixel) => ! empty($pixel->script_code))
+        ->values();
+
+    $metaPixels = $activePixels
+        ->where('platform', 'meta')
+        ->filter(fn ($pixel) => ! empty($pixel->pixel_id))
+        ->unique('pixel_id')
+        ->values();
+
+    $tiktokPixels = $activePixels
+        ->where('platform', 'tiktok')
+        ->filter(fn ($pixel) => ! empty($pixel->pixel_id))
+        ->unique('pixel_id')
+        ->values();
+
+    $gaPixels = $activePixels
+        ->where('platform', 'google_analytics')
+        ->filter(fn ($pixel) => ! empty($pixel->pixel_id))
+        ->unique('pixel_id')
+        ->values();
+
+    $metaPixelIds = $metaPixels->pluck('pixel_id')->filter()->unique()->values();
 @endphp
 
 <script>
     window.dataLayer = window.dataLayer || [];
+    window.SFA_META_PIXEL_IDS = @json($metaPixelIds);
 </script>
 
 {{-- Google Tag Manager --}}
@@ -37,7 +58,7 @@
         !(function(f,b,e,v,n,t,s){
             if(f.fbq) return;
             n=f.fbq=function(){
-                n.callMethod ? n.callMethod.apply(n,arguments) : n.queue.push(arguments);
+                n.callMethod ? n.callMethod.apply(n, arguments) : n.queue.push(arguments);
             };
             if(!f._fbq) f._fbq=n;
             n.push=n;
@@ -73,40 +94,50 @@
         !(function (w, d, t) {
             w.TiktokAnalyticsObject = t;
             var ttq = w[t] = w[t] || [];
+
             ttq.methods = [
                 'page', 'track', 'identify', 'instances', 'debug', 'on', 'off',
                 'once', 'ready', 'alias', 'group', 'enableCookie', 'disableCookie'
             ];
-            ttq.setAndDefer = function (t, e) {
-                t[e] = function () {
-                    t.push([e].concat(Array.prototype.slice.call(arguments, 0)));
+
+            ttq.setAndDefer = function (target, method) {
+                target[method] = function () {
+                    target.push([method].concat(Array.prototype.slice.call(arguments, 0)));
                 };
             };
+
             for (var i = 0; i < ttq.methods.length; i++) {
                 ttq.setAndDefer(ttq, ttq.methods[i]);
             }
-            ttq.instance = function (t) {
-                var e = ttq._i[t] || [];
-                for (var n = 0; n < ttq.methods.length; n++) {
-                    ttq.setAndDefer(e, ttq.methods[n]);
+
+            ttq.instance = function (pixelId) {
+                var instance = ttq._i[pixelId] || [];
+
+                for (var i = 0; i < ttq.methods.length; i++) {
+                    ttq.setAndDefer(instance, ttq.methods[i]);
                 }
-                return e;
+
+                return instance;
             };
-            ttq.load = function (e, n) {
-                var i = 'https://analytics.tiktok.com/i18n/pixel/events.js';
+
+            ttq.load = function (pixelId, options) {
+                var url = 'https://analytics.tiktok.com/i18n/pixel/events.js';
+
                 ttq._i = ttq._i || {};
-                ttq._i[e] = [];
-                ttq._i[e]._u = i;
+                ttq._i[pixelId] = [];
+                ttq._i[pixelId]._u = url;
                 ttq._t = ttq._t || {};
-                ttq._t[e] = +new Date;
+                ttq._t[pixelId] = +new Date;
                 ttq._o = ttq._o || {};
-                ttq._o[e] = n || {};
-                var o = document.createElement('script');
-                o.type = 'text/javascript';
-                o.async = true;
-                o.src = i + '?sdkid=' + e + '&lib=' + t;
-                var a = document.getElementsByTagName('script')[0];
-                a.parentNode.insertBefore(o, a);
+                ttq._o[pixelId] = options || {};
+
+                var script = document.createElement('script');
+                script.type = 'text/javascript';
+                script.async = true;
+                script.src = url + '?sdkid=' + pixelId + '&lib=' + t;
+
+                var firstScript = document.getElementsByTagName('script')[0];
+                firstScript.parentNode.insertBefore(script, firstScript);
             };
 
             @foreach($tiktokPixels as $pixel)
@@ -130,7 +161,7 @@
             dataLayer.push(arguments);
         }
 
-        gtag('js', new Date);
+        gtag('js', new Date());
 
         @foreach($gaPixels as $pixel)
             gtag('config', @json($pixel->pixel_id), {

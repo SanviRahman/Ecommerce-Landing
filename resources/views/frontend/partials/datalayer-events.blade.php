@@ -48,6 +48,10 @@
         return 'sfa_' + eventName + '_' + base;
     }
 
+    function currentUrl() {
+        return window.location.href;
+    }
+
     function pushDataLayer(eventName, ecommerce, extra) {
         ecommerce = ecommerce || {};
         extra = extra || {};
@@ -85,7 +89,9 @@
                     quantity: item.quantity,
                     item_price: item.price
                 };
-            })
+            }),
+            page_url: extra.page_url || currentUrl(),
+            event_source_url: extra.page_url || currentUrl()
         };
 
         if (extra.content_id && payload.content_ids.length === 0) {
@@ -103,12 +109,28 @@
         return payload;
     }
 
-    function sendMetaEvent(eventName, ecommerce, extra) {
+    function sendMetaTrack(eventName, payload, options) {
         if (typeof window.fbq !== 'function') {
-            debugLog('meta_not_loaded_' + eventName, ecommerce);
+            debugLog('meta_not_loaded_' + eventName, payload);
             return;
         }
 
+        const pixelIds = Array.isArray(window.SFA_META_PIXEL_IDS)
+            ? window.SFA_META_PIXEL_IDS.filter(Boolean)
+            : [];
+
+        if (pixelIds.length) {
+            pixelIds.forEach(function (pixelId) {
+                window.fbq('trackSingle', String(pixelId), eventName, payload || {}, options || {});
+            });
+
+            return;
+        }
+
+        window.fbq('track', eventName, payload || {}, options || {});
+    }
+
+    function sendMetaEvent(eventName, ecommerce, extra) {
         const eventMap = {
             page_view: 'PageView',
             view_content: 'ViewContent',
@@ -128,10 +150,11 @@
         const eventId = makeEventId(eventName, transactionId);
 
         if (eventName === 'page_view') {
-            window.fbq('track', 'PageView', {
+            sendMetaTrack('PageView', {
                 page_type: extra.page_type || 'other',
                 page_title: extra.page_title || document.title,
-                page_url: extra.page_url || window.location.href
+                page_url: extra.page_url || currentUrl(),
+                event_source_url: extra.page_url || currentUrl()
             }, {
                 eventID: eventId
             });
@@ -139,7 +162,7 @@
             return;
         }
 
-        window.fbq('track', eventMap[eventName], metaPayloadFrom(eventName, ecommerce, extra), {
+        sendMetaTrack(eventMap[eventName], metaPayloadFrom(eventName, ecommerce, extra), {
             eventID: eventId
         });
     }
@@ -216,7 +239,7 @@
         if (eventName === 'page_view') {
             window.gtag('event', 'page_view', {
                 page_title: extra.page_title || document.title,
-                page_location: extra.page_url || window.location.href,
+                page_location: extra.page_url || currentUrl(),
                 page_type: extra.page_type || 'other'
             });
 
@@ -256,7 +279,7 @@
             return track('page_view', {}, {
                 page_type: data.page_type || 'other',
                 page_title: data.page_title || document.title,
-                page_url: data.page_url || window.location.href
+                page_url: data.page_url || currentUrl()
             });
         },
 
@@ -271,7 +294,7 @@
                 content_type: data.content_type || 'product',
                 content_id: data.content_id || null,
                 content_name: data.content_name || null,
-                page_url: data.page_url || window.location.href
+                page_url: data.page_url || currentUrl()
             });
         },
 
@@ -290,7 +313,8 @@
                     item_brand: item.item_brand || item.brand || undefined
                 }])
             }, {
-                content_type: 'product'
+                content_type: 'product',
+                page_url: currentUrl()
             });
         },
 
@@ -304,7 +328,8 @@
                 tax: cleanNumber(data.tax || 0),
                 items: cleanItems(data.items || [])
             }, {
-                content_type: 'product'
+                content_type: 'product',
+                page_url: currentUrl()
             });
         },
 
@@ -333,7 +358,8 @@
                 tax: cleanNumber(data.tax || 0),
                 items: cleanItems(data.items || [])
             }, {
-                content_type: 'product'
+                content_type: 'product',
+                page_url: currentUrl()
             });
         }
     };
