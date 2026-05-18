@@ -80,6 +80,17 @@ class Campaign extends Model implements HasMedia
         $this->addMediaCollection('image_three')->singleFile();
         $this->addMediaCollection('review_image')->singleFile();
         $this->addMediaCollection('campaign_video')->singleFile();
+
+        // Campaign form product gallery images
+        $this->addMediaCollection('campaign_product_gallery');
+    }
+
+    public function getCampaignProductGalleryUrlsAttribute(): array
+    {
+        return $this->getMedia('campaign_product_gallery')
+            ->map(fn($media) => $media->getUrl())
+            ->values()
+            ->toArray();
     }
 
     public function products()

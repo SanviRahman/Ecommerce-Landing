@@ -1,554 +1,577 @@
 @extends('frontend.layouts.master')
 
 @php
-$websiteName = $siteSetting->website_name;
-
-$pageTitle = $campaign?->meta_title
-?: $campaign?->title
-?: $websiteName;
-
-$pageDescription = $campaign?->meta_description
-?: $siteSetting?->business_short_description
-?: 'Premium ecommerce landing page.';
-
-$noImage = asset('frontend/images/no-image.svg');
-
-$imageOf = function ($model, $fallback = null) use ($noImage) {
-$fallback = $fallback ?: $noImage;
-
-if (! $model) {
-return $fallback;
-}
-
-foreach ([
-'image_url',
-'photo_url',
-'avatar_url',
-'customer_image',
-'customer_image_url',
-'customer_photo_url',
-'review_image_url',
-'thumbnail',
-'thumbnail_url',
-'featured_image_url',
-'primary_image_url',
-'main_image_url',
-'banner_image_url',
-'image_one_url',
-'image_two_url',
-'image_three_url',
-'logo',
-] as $attribute) {
-try {
-if (! empty($model->{$attribute})) {
-return $model->{$attribute};
-}
-} catch (\Throwable $e) {
-//
-}
-}
-
-foreach ([
-'image',
-'photo',
-'avatar',
-'customer_photo',
-'review_image',
-'profile_photo',
-'thumbnail',
-'featured_image',
-'main_image',
-] as $attribute) {
-try {
-if (! empty($model->{$attribute})) {
-$value = $model->{$attribute};
-
-if (\Illuminate\Support\Str::startsWith($value, ['http://', 'https://'])) {
-return $value;
-}
-
-$value = ltrim($value, '/');
-
-if (\Illuminate\Support\Str::startsWith($value, ['storage/'])) {
-return asset($value);
-}
-
-if (\Illuminate\Support\Str::startsWith($value, ['public/'])) {
-return \Illuminate\Support\Facades\Storage::url(str_replace('public/', '', $value));
-}
-
-return \Illuminate\Support\Facades\Storage::url($value);
-}
-} catch (\Throwable $e) {
-//
-}
-}
-
-if (method_exists($model, 'getFirstMediaUrl')) {
-foreach ([
-'review_customer_image',
-'review_image',
-'customer_image',
-'customer_photo',
-'avatar',
-'photo',
-'image',
-'images',
-'product_image',
-'product_images',
-'product_thumbnail',
-'product_gallery',
-'gallery',
-'thumbnail',
-'main_image',
-'featured_image',
-'banner_image',
-'image_one',
-'image_two',
-'image_three',
-'site_logo',
-'default',
-] as $collection) {
-try {
-$url = $model->getFirstMediaUrl($collection);
-
-if (! empty($url)) {
-return $url;
-}
-} catch (\Throwable $e) {
-//
-}
-}
-}
-
-try {
-if (method_exists($model, 'getMedia')) {
-foreach ([
-'product_images',
-'product_gallery',
-'gallery',
-'images',
-'image',
-'product_image',
-'thumbnail',
-'main_image',
-'featured_image',
-'default',
-] as $collection) {
-$media = $model->getMedia($collection)->first();
-
-if ($media) {
-return $media->getUrl();
-}
-}
-}
-} catch (\Throwable $e) {
-//
-}
-
-return $fallback;
-};
-
-$galleryImageOf = function ($model, $fallback = null) use ($imageOf, $noImage) {
-$fallback = $fallback ?: $noImage;
-
-if (! $model) {
-return $fallback;
-}
-
-if (method_exists($model, 'getFirstMediaUrl')) {
-foreach ([
-'product_gallery',
-'product_images',
-'gallery',
-'images',
-'image',
-'product_image',
-'thumbnail',
-'main_image',
-'featured_image',
-'default',
-] as $collection) {
-try {
-$url = $model->getFirstMediaUrl($collection);
-
-if (! empty($url)) {
-return $url;
-}
-} catch (\Throwable $e) {
-//
-}
-}
-}
-
-return $imageOf($model, $fallback);
-};
-
-$valueOf = function ($model, array $attributes, $fallback = null) {
-foreach ($attributes as $attribute) {
-try {
-if ($model && ! empty($model->{$attribute})) {
-return $model->{$attribute};
-}
-} catch (\Throwable $e) {
-//
-}
-}
-
-return $fallback;
-};
-
-$socialMedias = $socialMedias ?? collect();
-
-try {
-if ($socialMedias->isEmpty() && class_exists(\App\Models\SocialMedia::class)) {
-$socialMedias = \App\Models\SocialMedia::active()->get();
-}
-} catch (\Throwable $e) {
-$socialMedias = collect();
-}
-
-$socialLinkByPlatform = function (array $platforms) use ($socialMedias) {
-foreach ($platforms as $platform) {
-$platform = \Illuminate\Support\Str::lower($platform);
-
-$social = $socialMedias->first(function ($item) use ($platform) {
-$platformName = \Illuminate\Support\Str::lower($item->platform_name ?? '');
-$iconClass = \Illuminate\Support\Str::lower($item->icon_class ?? '');
-$link = \Illuminate\Support\Str::lower($item->link ?? '');
-
-return \Illuminate\Support\Str::contains($platformName, $platform)
-|| \Illuminate\Support\Str::contains($iconClass, $platform)
-|| \Illuminate\Support\Str::contains($link, $platform);
-});
-
-if ($social && ! empty($social->link)) {
-return trim($social->link);
-}
-}
-
-return null;
-};
-
-$makePhoneUrl = function ($phone) {
-if (! $phone) {
-return null;
-}
-
-$phone = trim($phone);
-
-if (\Illuminate\Support\Str::startsWith($phone, ['tel:'])) {
-return $phone;
-}
-
-$cleanPhone = preg_replace('/[^\d+]/', '', $phone);
-
-return $cleanPhone ? 'tel:' . $cleanPhone : null;
-};
-
-$makeWhatsappUrl = function ($value) {
-if (! $value) {
-return null;
-}
-
-$value = trim($value);
-
-if (\Illuminate\Support\Str::startsWith($value, ['http://', 'https://'])) {
-return $value;
-}
-
-if (\Illuminate\Support\Str::startsWith($value, ['//'])) {
-return 'https:' . $value;
-}
-
-$number = preg_replace('/\D+/', '', $value);
-
-if (! $number) {
-return null;
-}
-
-if (\Illuminate\Support\Str::startsWith($number, '01')) {
-$number = '88' . $number;
-}
-
-return 'https://wa.me/' . $number;
-};
-
-$makeMessengerUrl = function ($value) {
-if (! $value) {
-return null;
-}
-
-$value = trim($value);
-
-if (\Illuminate\Support\Str::startsWith($value, ['http://', 'https://'])) {
-return $value;
-}
-
-if (\Illuminate\Support\Str::startsWith($value, ['m.me/', 'www.m.me/'])) {
-return 'https://' . $value;
-}
-
-if (\Illuminate\Support\Str::startsWith($value, ['facebook.com/', 'www.facebook.com/'])) {
-return 'https://' . $value;
-}
-
-return 'https://m.me/' . ltrim($value, '@/');
-};
-
-$categories = $categories ?? collect();
-$brands = $brands ?? collect();
-$products = $products ?? collect();
-$orderProducts = $orderProducts ?? collect();
-$reviews = $reviews ?? collect();
-$faqs = $faqs ?? collect();
-
-$defaultCategoryId = $categories->first()?->id;
-$defaultBrandId = 'all';
-
-$heroImage = $campaign
-? ($campaign->image_three_url ?: ($campaign->banner_image_url ?: $noImage))
-: $noImage;
-
-$heroVideoUrl = $campaign?->embed_video_url ?: null;
-
-try {
-if (! $heroVideoUrl && $campaign && method_exists($campaign, 'getFirstMediaUrl')) {
-$heroVideoUrl = $campaign->getFirstMediaUrl('campaign_video') ?: null;
-}
-} catch (\Throwable $e) {
-$heroVideoUrl = null;
-}
-
-$heroVideoUrl = $heroVideoUrl ?: $valueOf($campaign, [
-'campaign_video_url',
-'video_url',
-'video_link',
-'youtube_url',
-'youtube_link',
-'video',
-]);
-
-$heroVideoPoster = $heroImage;
-$videoEmbedUrl = null;
-$videoFileUrl = null;
-
-$youtubeEmbedFromUrl = function (?string $url): ?string {
-if (! $url) {
-return null;
-}
-
-$url = trim($url);
-$videoId = null;
-$start = 0;
-
-$parts = parse_url($url);
-$host = strtolower($parts['host'] ?? '');
-$path = trim($parts['path'] ?? '', '/');
-$query = [];
-
-if (! empty($parts['query'])) {
-parse_str($parts['query'], $query);
-}
-
-if (isset($query['t'])) {
-$timeValue = (string) $query['t'];
-
-if (preg_match('/^(\d+)$/', $timeValue, $timeMatches)) {
-$start = (int) $timeMatches[1];
-} elseif (preg_match('/(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?/', $timeValue, $timeMatches)) {
-$start = ((int) ($timeMatches[1] ?? 0) * 3600)
-+ ((int) ($timeMatches[2] ?? 0) * 60)
-+ ((int) ($timeMatches[3] ?? 0));
-}
-}
-
-if (isset($query['start'])) {
-$start = (int) $query['start'];
-}
-
-if (str_contains($host, 'youtu.be')) {
-$videoId = explode('/', $path)[0] ?? null;
-} elseif (str_contains($host, 'youtube.com') || str_contains($host, 'youtube-nocookie.com')) {
-if (isset($query['v'])) {
-$videoId = $query['v'];
-} elseif (preg_match('/(?:shorts|embed|live)\/([^\/?]+)/', $path, $matches)) {
-$videoId = $matches[1] ?? null;
-}
-}
-
-if (! $videoId && preg_match('/(?:v=|youtu\.be\/|shorts\/|embed\/)([A-Za-z0-9_-]{6,})/', $url, $matches)) {
-$videoId = $matches[1] ?? null;
-}
-
-if (! $videoId) {
-return null;
-}
-
-$videoId = preg_replace('/[^A-Za-z0-9_-]/', '', $videoId);
-
-if (! $videoId) {
-return null;
-}
-
-$params = [
-'rel' => 0,
-'autoplay' => 0,
-'modestbranding' => 1,
-'playsinline' => 1,
-];
-
-if ($start > 0) {
-$params['start'] = $start;
-}
-
-return 'https://www.youtube-nocookie.com/embed/' . $videoId . '?' . http_build_query($params);
-};
-
-if ($heroVideoUrl) {
-if (\Illuminate\Support\Str::contains($heroVideoUrl, ['youtube.com', 'youtu.be', 'youtube-nocookie.com'])) {
-$videoEmbedUrl = $youtubeEmbedFromUrl($heroVideoUrl);
-} elseif (\Illuminate\Support\Str::contains($heroVideoUrl, ['facebook.com/plugins/video'])) {
-$videoEmbedUrl = $heroVideoUrl;
-} elseif (\Illuminate\Support\Str::contains($heroVideoUrl, ['facebook.com', 'fb.watch'])) {
-$videoEmbedUrl = 'https://www.facebook.com/plugins/video.php?href=' . urlencode($heroVideoUrl) .
-'&show_text=false&width=560';
-} else {
-$videoFileUrl = \Illuminate\Support\Str::startsWith($heroVideoUrl, ['http://', 'https://', '/'])
-? $heroVideoUrl
-: \Illuminate\Support\Facades\Storage::url($heroVideoUrl);
-}
-}
-
-$heroTitle = $campaign?->title ?: 'খুলনার বিখ্যাত চুইঝাল!';
-
-$heroSubtitle = $campaign?->short_description
-?: 'ঘরে বসেই অর্ডার করুন পছন্দের প্রিমিয়াম পণ্য। ক্যাশ অন ডেলিভারি এবং দ্রুত ডেলিভারি সুবিধা।';
-
-$defaultBenefits = [
-'গাছের মাছ',
-'হাঁসের মাংস',
-'মাছ',
-'দেশী',
-'খাসির মাংস',
-'মুরগী ঘন্ট',
-'সরিষা',
-'কালিজিরা',
-'চটপটি',
-];
-
-$benefits = collect($campaign?->benefits_text ?: $defaultBenefits)
-->filter()
-->values();
-
-$sectionTitles = $campaign?->section_titles ?? [];
-
-$categorySectionTitle = $sectionTitles['category_title'] ?? 'ক্যাটাগরি সমূহ';
-$brandSectionTitle = $sectionTitles['brand_title'] ?? 'ব্র্যান্ড সমূহ';
-$productSectionTitle = $sectionTitles['product_title'] ?? 'আমাদের প্রোডাক্ট';
-$categoryFilterTitle = $sectionTitles['category_filter_title'] ?? 'ক্যাটাগরি দিয়ে ফিল্টার';
-$brandFilterTitle = $sectionTitles['brand_filter_title'] ?? 'ব্র্যান্ড দিয়ে ফিল্টার';
-$comparisonSectionTitle = $sectionTitles['comparison_title'] ?? 'চুইঝালের পার্থক্যসমূহ';
-$serviceSectionTitle = $sectionTitles['service_title'] ?? 'কেন আমরাই সেরা';
-$reviewSectionTitle = $sectionTitles['review_title'] ?? 'কাস্টমার রিভিউ';
-$faqSectionTitle = $sectionTitles['faq_title'] ?? 'সচরাচর জিজ্ঞাস্য প্রশ্নাবলি';
-$gallerySectionTitle = $sectionTitles['gallery_title'] ?? 'প্রোডাক্ট গ্যালারি';
-$orderSectionTitle = $sectionTitles['order_title'] ?? ($campaign?->order_form_title ?: 'অর্ডার করুন এখনই');
-
-$comparisonLeftTitle = $campaign?->comparison_text['left_title'] ?? 'গাছ চুইঝাল';
-$comparisonRightTitle = $campaign?->comparison_text['right_title'] ?? 'এটা চুইঝাল';
-
-$comparisonLeft = $campaign?->comparison_text['left'] ?? [
-'চুইঝাল গাছের কাঠকে গাছ চুইঝাল বলা হয়।',
-'গাছ চুইঝাল সাধারণত রান্নায় সহজে গলে যায়।',
-'রান্নায় ঝাঁজ ও ঘ্রাণ বাড়াতে ব্যবহার করা হয়।',
-'সাধারণত বড় পরিমাণে ব্যবহার করা হয়।',
-'এটি রান্নার স্বাদকে আলাদা করে তোলে।',
-];
-
-$comparisonRight = $campaign?->comparison_text['right'] ?? [
-'চুইঝাল গাছের গোড়া এবং গোড়া সংলগ্ন অংশকে এটা চুইঝাল বলা হয়।',
-'এটা চুইঝাল ফাইবার কম থাকায় রান্নায় ভালো ফ্লেভার দেয়।',
-'মাংস, ডাল ও তরকারিতে ব্যবহার করা যায়।',
-'মসলা হিসেবে স্বাদ ও ঘ্রাণ বাড়াতে ব্যবহার করা হয়।',
-'এটি সাধারণ খাবারকেও সুস্বাদু করে তোলে।',
-];
-
-$comparisonMaxRows = max(count($comparisonLeft), count($comparisonRight));
-
-$serviceItems = collect($campaign?->service_items ?? [
-[
-'icon' => 'fas fa-award',
-'title' => 'অর্গানিক প্রোডাক্ট',
-'description' => 'আমাদের কাছে পাবেন সেরা মানের প্রিমিয়াম পণ্য।',
-],
-[
-'icon' => 'fas fa-crown',
-'title' => 'প্রিমিয়াম কোয়ালিটি',
-'description' => 'সেরা কোয়ালিটির পণ্য সংগ্রহ করে সরবরাহ করা হয়।',
-],
-[
-'icon' => 'fas fa-undo-alt',
-'title' => 'রিটার্ন পলিসি',
-'description' => 'সমস্যা হলে সহজ রিটার্ন ও রিপ্লেসমেন্ট সুবিধা।',
-],
-[
-'icon' => 'fas fa-truck',
-'title' => 'ক্যাশ অন ডেলিভারি',
-'description' => 'পণ্য হাতে পেয়ে টাকা পরিশোধ করার সুবিধা।',
-],
-])->filter(fn ($item) => ! empty($item['title']))->values();
-
-$helpContent = $campaign?->help_content ?? [
-'title' => 'সাহায্য প্রয়োজন?',
-'description' => 'যেকোনো জিজ্ঞাসা ও অর্ডারজনিত সমস্যায় কল করুন আমাদের হেল্পলাইনে অথবা নক করুন আমাদের হোয়াটসঅ্যাপ বা
-ফেসবুক পেজে। আমরা আছি সকাল ১০ টা থেকে রাত ৮ টা পর্যন্ত আপনার সেবায়।',
-'button_text' => 'হেল্পলাইন',
-];
-
-$reviewItems = $reviews->values();
-
-$phoneNumber = $campaign?->hero_phone
-?: $valueOf($siteSetting, [
-'phone',
-'hotline',
-'phone_number',
-'mobile',
-'mobile_number',
-'helpline',
-'contact_number',
-])
-?: $socialLinkByPlatform([
-'phone',
-'hotline',
-'call',
-'mobile',
-'helpline',
-'telephone',
-'fa-phone',
-'phone-alt',
-]);
-
-$whatsappNumber = $campaign?->hero_whatsapp
-?: $valueOf($siteSetting, [
-'whatsapp_number',
-'whatsapp',
-'whats_app',
-'whatsapp_phone',
-])
-?: $socialLinkByPlatform([
-'whatsapp',
-'whats app',
-'wa.me',
-'api.whatsapp',
-'fa-whatsapp',
-]);
-
-$phoneUrl = $makePhoneUrl($phoneNumber);
-$whatsappUrl = $makeWhatsappUrl($whatsappNumber);
-
-
-$serviceBannerImage = $campaign?->banner_image_url ?: null;
+    $websiteName = $siteSetting->website_name ?? config('app.name', 'Laravel');
+
+    $pageTitle = $campaign?->meta_title
+        ?: $campaign?->title
+        ?: $websiteName;
+
+    $pageDescription = $campaign?->meta_description
+        ?: $siteSetting?->business_short_description
+        ?: 'Premium ecommerce landing page.';
+
+    $noImage = asset('frontend/images/no-image.svg');
+
+    $imageOf = function ($model, $fallback = null) use ($noImage) {
+        $fallback = $fallback ?: $noImage;
+
+        if (! $model) {
+            return $fallback;
+        }
+
+        foreach ([
+            'image_url',
+            'photo_url',
+            'avatar_url',
+            'customer_image',
+            'customer_image_url',
+            'customer_photo_url',
+            'review_image_url',
+            'thumbnail',
+            'thumbnail_url',
+            'featured_image_url',
+            'primary_image_url',
+            'main_image_url',
+            'banner_image_url',
+            'image_one_url',
+            'image_two_url',
+            'image_three_url',
+            'logo',
+        ] as $attribute) {
+            try {
+                if (! empty($model->{$attribute})) {
+                    return $model->{$attribute};
+                }
+            } catch (\Throwable $e) {
+                //
+            }
+        }
+
+        foreach ([
+            'image',
+            'photo',
+            'avatar',
+            'customer_photo',
+            'review_image',
+            'profile_photo',
+            'thumbnail',
+            'featured_image',
+            'main_image',
+        ] as $attribute) {
+            try {
+                if (! empty($model->{$attribute})) {
+                    $value = $model->{$attribute};
+
+                    if (\Illuminate\Support\Str::startsWith($value, ['http://', 'https://'])) {
+                        return $value;
+                    }
+
+                    $value = ltrim($value, '/');
+
+                    if (\Illuminate\Support\Str::startsWith($value, ['storage/'])) {
+                        return asset($value);
+                    }
+
+                    if (\Illuminate\Support\Str::startsWith($value, ['public/'])) {
+                        return \Illuminate\Support\Facades\Storage::url(str_replace('public/', '', $value));
+                    }
+
+                    return \Illuminate\Support\Facades\Storage::url($value);
+                }
+            } catch (\Throwable $e) {
+                //
+            }
+        }
+
+        if (method_exists($model, 'getFirstMediaUrl')) {
+            foreach ([
+                'review_customer_image',
+                'review_image',
+                'customer_image',
+                'customer_photo',
+                'avatar',
+                'photo',
+                'image',
+                'images',
+                'product_image',
+                'product_images',
+                'product_thumbnail',
+                'product_gallery',
+                'gallery',
+                'thumbnail',
+                'main_image',
+                'featured_image',
+                'banner_image',
+                'image_one',
+                'image_two',
+                'image_three',
+                'site_logo',
+                'default',
+            ] as $collection) {
+                try {
+                    $url = $model->getFirstMediaUrl($collection);
+
+                    if (! empty($url)) {
+                        return $url;
+                    }
+                } catch (\Throwable $e) {
+                    //
+                }
+            }
+        }
+
+        try {
+            if (method_exists($model, 'getMedia')) {
+                foreach ([
+                    'product_images',
+                    'product_gallery',
+                    'gallery',
+                    'images',
+                    'image',
+                    'product_image',
+                    'thumbnail',
+                    'main_image',
+                    'featured_image',
+                    'default',
+                ] as $collection) {
+                    $media = $model->getMedia($collection)->first();
+
+                    if ($media) {
+                        return $media->getUrl();
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            //
+        }
+
+        return $fallback;
+    };
+
+    $galleryImageOf = function ($model, $fallback = null) use ($imageOf, $noImage) {
+        $fallback = $fallback ?: $noImage;
+
+        if (! $model) {
+            return $fallback;
+        }
+
+        if (method_exists($model, 'getFirstMediaUrl')) {
+            foreach ([
+                'product_gallery',
+                'product_images',
+                'gallery',
+                'images',
+                'image',
+                'product_image',
+                'thumbnail',
+                'main_image',
+                'featured_image',
+                'default',
+            ] as $collection) {
+                try {
+                    $url = $model->getFirstMediaUrl($collection);
+
+                    if (! empty($url)) {
+                        return $url;
+                    }
+                } catch (\Throwable $e) {
+                    //
+                }
+            }
+        }
+
+        return $imageOf($model, $fallback);
+    };
+
+    $valueOf = function ($model, array $attributes, $fallback = null) {
+        foreach ($attributes as $attribute) {
+            try {
+                if ($model && ! empty($model->{$attribute})) {
+                    return $model->{$attribute};
+                }
+            } catch (\Throwable $e) {
+                //
+            }
+        }
+
+        return $fallback;
+    };
+
+    $socialMedias = $socialMedias ?? collect();
+
+    try {
+        if ($socialMedias->isEmpty() && class_exists(\App\Models\SocialMedia::class)) {
+            $socialMedias = \App\Models\SocialMedia::active()->get();
+        }
+    } catch (\Throwable $e) {
+        $socialMedias = collect();
+    }
+
+    $socialLinkByPlatform = function (array $platforms) use ($socialMedias) {
+        foreach ($platforms as $platform) {
+            $platform = \Illuminate\Support\Str::lower($platform);
+
+            $social = $socialMedias->first(function ($item) use ($platform) {
+                $platformName = \Illuminate\Support\Str::lower($item->platform_name ?? '');
+                $iconClass = \Illuminate\Support\Str::lower($item->icon_class ?? '');
+                $link = \Illuminate\Support\Str::lower($item->link ?? '');
+
+                return \Illuminate\Support\Str::contains($platformName, $platform)
+                    || \Illuminate\Support\Str::contains($iconClass, $platform)
+                    || \Illuminate\Support\Str::contains($link, $platform);
+            });
+
+            if ($social && ! empty($social->link)) {
+                return trim($social->link);
+            }
+        }
+
+        return null;
+    };
+
+    $makePhoneUrl = function ($phone) {
+        if (! $phone) {
+            return null;
+        }
+
+        $phone = trim((string) $phone);
+
+        if ($phone === '') {
+            return null;
+        }
+
+        if (\Illuminate\Support\Str::startsWith($phone, ['tel:'])) {
+            return $phone;
+        }
+
+        if (\Illuminate\Support\Str::startsWith($phone, ['http://', 'https://'])) {
+            return $phone;
+        }
+
+        $cleanPhone = preg_replace('/[^\d+]/', '', $phone);
+
+        return $cleanPhone ? 'tel:' . $cleanPhone : null;
+    };
+
+    $makeWhatsappUrl = function ($value) {
+        if (! $value) {
+            return null;
+        }
+
+        $value = trim((string) $value);
+
+        if ($value === '') {
+            return null;
+        }
+
+        if (\Illuminate\Support\Str::startsWith($value, ['http://', 'https://'])) {
+            return $value;
+        }
+
+        if (\Illuminate\Support\Str::startsWith($value, ['//'])) {
+            return 'https:' . $value;
+        }
+
+        $number = preg_replace('/\D+/', '', $value);
+
+        if (! $number) {
+            return null;
+        }
+
+        if (\Illuminate\Support\Str::startsWith($number, '01')) {
+            $number = '88' . $number;
+        }
+
+        if (\Illuminate\Support\Str::startsWith($number, '1') && strlen($number) === 10) {
+            $number = '880' . $number;
+        }
+
+        return 'https://wa.me/' . $number;
+    };
+
+    $makeMessengerUrl = function ($value) {
+        if (! $value) {
+            return null;
+        }
+
+        $value = trim((string) $value);
+
+        if (\Illuminate\Support\Str::startsWith($value, ['http://', 'https://'])) {
+            return $value;
+        }
+
+        if (\Illuminate\Support\Str::startsWith($value, ['m.me/', 'www.m.me/'])) {
+            return 'https://' . $value;
+        }
+
+        if (\Illuminate\Support\Str::startsWith($value, ['facebook.com/', 'www.facebook.com/'])) {
+            return 'https://' . $value;
+        }
+
+        return 'https://m.me/' . ltrim($value, '@/');
+    };
+
+    $categories = $categories ?? collect();
+    $brands = $brands ?? collect();
+    $products = $products ?? collect();
+    $orderProducts = $orderProducts ?? collect();
+    $reviews = $reviews ?? collect();
+    $faqs = $faqs ?? collect();
+
+    $defaultCategoryId = $categories->first()?->id;
+    $defaultBrandId = 'all';
+
+    $heroImage = $campaign
+        ? ($campaign->image_three_url ?: ($campaign->banner_image_url ?: $noImage))
+        : $noImage;
+
+    $heroVideoUrl = $campaign?->embed_video_url ?: null;
+
+    try {
+        if (! $heroVideoUrl && $campaign && method_exists($campaign, 'getFirstMediaUrl')) {
+            $heroVideoUrl = $campaign->getFirstMediaUrl('campaign_video') ?: null;
+        }
+    } catch (\Throwable $e) {
+        $heroVideoUrl = null;
+    }
+
+    $heroVideoUrl = $heroVideoUrl ?: $valueOf($campaign, [
+        'campaign_video_url',
+        'video_url',
+        'video_link',
+        'youtube_url',
+        'youtube_link',
+        'video',
+    ]);
+
+    $heroVideoPoster = $heroImage;
+    $videoEmbedUrl = null;
+    $videoFileUrl = null;
+
+    $youtubeEmbedFromUrl = function (?string $url): ?string {
+        if (! $url) {
+            return null;
+        }
+
+        $url = trim($url);
+        $videoId = null;
+        $start = 0;
+
+        $parts = parse_url($url);
+        $host = strtolower($parts['host'] ?? '');
+        $path = trim($parts['path'] ?? '', '/');
+        $query = [];
+
+        if (! empty($parts['query'])) {
+            parse_str($parts['query'], $query);
+        }
+
+        if (isset($query['t'])) {
+            $timeValue = (string) $query['t'];
+
+            if (preg_match('/^(\d+)$/', $timeValue, $timeMatches)) {
+                $start = (int) $timeMatches[1];
+            } elseif (preg_match('/(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?/', $timeValue, $timeMatches)) {
+                $start = ((int) ($timeMatches[1] ?? 0) * 3600)
+                    + ((int) ($timeMatches[2] ?? 0) * 60)
+                    + ((int) ($timeMatches[3] ?? 0));
+            }
+        }
+
+        if (isset($query['start'])) {
+            $start = (int) $query['start'];
+        }
+
+        if (str_contains($host, 'youtu.be')) {
+            $videoId = explode('/', $path)[0] ?? null;
+        } elseif (str_contains($host, 'youtube.com') || str_contains($host, 'youtube-nocookie.com')) {
+            if (isset($query['v'])) {
+                $videoId = $query['v'];
+            } elseif (preg_match('/(?:shorts|embed|live)\/([^\/?]+)/', $path, $matches)) {
+                $videoId = $matches[1] ?? null;
+            }
+        }
+
+        if (! $videoId && preg_match('/(?:v=|youtu\.be\/|shorts\/|embed\/)([A-Za-z0-9_-]{6,})/', $url, $matches)) {
+            $videoId = $matches[1] ?? null;
+        }
+
+        if (! $videoId) {
+            return null;
+        }
+
+        $videoId = preg_replace('/[^A-Za-z0-9_-]/', '', $videoId);
+
+        if (! $videoId) {
+            return null;
+        }
+
+        $params = [
+            'rel' => 0,
+            'autoplay' => 0,
+            'modestbranding' => 1,
+            'playsinline' => 1,
+        ];
+
+        if ($start > 0) {
+            $params['start'] = $start;
+        }
+
+        return 'https://www.youtube-nocookie.com/embed/' . $videoId . '?' . http_build_query($params);
+    };
+
+    if ($heroVideoUrl) {
+        if (\Illuminate\Support\Str::contains($heroVideoUrl, ['youtube.com', 'youtu.be', 'youtube-nocookie.com'])) {
+            $videoEmbedUrl = $youtubeEmbedFromUrl($heroVideoUrl);
+        } elseif (\Illuminate\Support\Str::contains($heroVideoUrl, ['facebook.com/plugins/video'])) {
+            $videoEmbedUrl = $heroVideoUrl;
+        } elseif (\Illuminate\Support\Str::contains($heroVideoUrl, ['facebook.com', 'fb.watch'])) {
+            $videoEmbedUrl = 'https://www.facebook.com/plugins/video.php?href=' . urlencode($heroVideoUrl) . '&show_text=false&width=560';
+        } else {
+            $videoFileUrl = \Illuminate\Support\Str::startsWith($heroVideoUrl, ['http://', 'https://', '/'])
+                ? $heroVideoUrl
+                : \Illuminate\Support\Facades\Storage::url($heroVideoUrl);
+        }
+    }
+
+    $heroTitle = $campaign?->title ?: 'খুলনার বিখ্যাত চুইঝাল!';
+
+    $heroSubtitle = $campaign?->short_description
+        ?: 'ঘরে বসেই অর্ডার করুন পছন্দের প্রিমিয়াম পণ্য। ক্যাশ অন ডেলিভারি এবং দ্রুত ডেলিভারি সুবিধা।';
+
+    $defaultBenefits = [
+        'গাছের মাছ',
+        'হাঁসের মাংস',
+        'মাছ',
+        'দেশী',
+        'খাসির মাংস',
+        'মুরগী ঘন্ট',
+        'সরিষা',
+        'কালিজিরা',
+        'চটপটি',
+    ];
+
+    $benefits = collect($campaign?->benefits_text ?: $defaultBenefits)
+        ->filter()
+        ->values();
+
+    $sectionTitles = $campaign?->section_titles ?? [];
+
+    $categorySectionTitle = $sectionTitles['category_title'] ?? 'ক্যাটাগরি সমূহ';
+    $brandSectionTitle = $sectionTitles['brand_title'] ?? 'ব্র্যান্ড সমূহ';
+    $productSectionTitle = $sectionTitles['product_title'] ?? 'আমাদের প্রোডাক্ট';
+    $categoryFilterTitle = $sectionTitles['category_filter_title'] ?? 'ক্যাটাগরি দিয়ে ফিল্টার';
+    $brandFilterTitle = $sectionTitles['brand_filter_title'] ?? 'ব্র্যান্ড দিয়ে ফিল্টার';
+    $comparisonSectionTitle = $sectionTitles['comparison_title'] ?? 'চুইঝালের পার্থক্যসমূহ';
+    $serviceSectionTitle = $sectionTitles['service_title'] ?? 'কেন আমরাই সেরা';
+    $reviewSectionTitle = $sectionTitles['review_title'] ?? 'কাস্টমার রিভিউ';
+    $faqSectionTitle = $sectionTitles['faq_title'] ?? 'সচরাচর জিজ্ঞাস্য প্রশ্নাবলি';
+    $gallerySectionTitle = $sectionTitles['gallery_title'] ?? 'প্রোডাক্ট গ্যালারি';
+    $orderSectionTitle = $sectionTitles['order_title'] ?? ($campaign?->order_form_title ?: 'অর্ডার করুন এখনই');
+
+    $comparisonLeftTitle = $campaign?->comparison_text['left_title'] ?? 'গাছ চুইঝাল';
+    $comparisonRightTitle = $campaign?->comparison_text['right_title'] ?? 'এটা চুইঝাল';
+
+    $comparisonLeft = $campaign?->comparison_text['left'] ?? [
+        'চুইঝাল গাছের কাঠকে গাছ চুইঝাল বলা হয়।',
+        'গাছ চুইঝাল সাধারণত রান্নায় সহজে গলে যায়।',
+        'রান্নায় ঝাঁজ ও ঘ্রাণ বাড়াতে ব্যবহার করা হয়।',
+        'সাধারণত বড় পরিমাণে ব্যবহার করা হয়।',
+        'এটি রান্নার স্বাদকে আলাদা করে তোলে।',
+    ];
+
+    $comparisonRight = $campaign?->comparison_text['right'] ?? [
+        'চুইঝাল গাছের গোড়া এবং গোড়া সংলগ্ন অংশকে এটা চুইঝাল বলা হয়।',
+        'এটা চুইঝাল ফাইবার কম থাকায় রান্নায় ভালো ফ্লেভার দেয়।',
+        'মাংস, ডাল ও তরকারিতে ব্যবহার করা যায়।',
+        'মসলা হিসেবে স্বাদ ও ঘ্রাণ বাড়াতে ব্যবহার করা হয়।',
+        'এটি সাধারণ খাবারকেও সুস্বাদু করে তোলে।',
+    ];
+
+    $comparisonMaxRows = max(count($comparisonLeft), count($comparisonRight));
+
+    $serviceItems = collect($campaign?->service_items ?? [
+        [
+            'icon' => 'fas fa-award',
+            'title' => 'অর্গানিক প্রোডাক্ট',
+            'description' => 'আমাদের কাছে পাবেন সেরা মানের প্রিমিয়াম পণ্য।',
+        ],
+        [
+            'icon' => 'fas fa-crown',
+            'title' => 'প্রিমিয়াম কোয়ালিটি',
+            'description' => 'সেরা কোয়ালিটির পণ্য সংগ্রহ করে সরবরাহ করা হয়।',
+        ],
+        [
+            'icon' => 'fas fa-undo-alt',
+            'title' => 'রিটার্ন পলিসি',
+            'description' => 'সমস্যা হলে সহজ রিটার্ন ও রিপ্লেসমেন্ট সুবিধা।',
+        ],
+        [
+            'icon' => 'fas fa-truck',
+            'title' => 'ক্যাশ অন ডেলিভারি',
+            'description' => 'পণ্য হাতে পেয়ে টাকা পরিশোধ করার সুবিধা।',
+        ],
+    ])->filter(fn ($item) => ! empty($item['title']))->values();
+
+    $helpContent = $campaign?->help_content ?? [
+        'title' => 'সাহায্য প্রয়োজন?',
+        'description' => 'যেকোনো জিজ্ঞাসা ও অর্ডারজনিত সমস্যায় কল করুন আমাদের হেল্পলাইনে অথবা নক করুন আমাদের হোয়াটসঅ্যাপ বা ফেসবুক পেজে। আমরা আছি সকাল ১০ টা থেকে রাত ৮ টা পর্যন্ত আপনার সেবায়।',
+        'button_text' => 'হেল্পলাইন',
+    ];
+
+    $reviewItems = $reviews->values();
+
+    $phoneNumber = $campaign?->hero_phone
+        ?: $valueOf($siteSetting, [
+            'phone',
+            'hotline',
+            'phone_number',
+            'mobile',
+            'mobile_number',
+            'helpline',
+            'contact_number',
+        ])
+        ?: $socialLinkByPlatform([
+            'phone',
+            'hotline',
+            'call',
+            'mobile',
+            'helpline',
+            'telephone',
+            'fa-phone',
+            'phone-alt',
+        ]);
+
+    $whatsappNumber = $campaign?->hero_whatsapp
+        ?: $valueOf($siteSetting, [
+            'whatsapp_number',
+            'whatsapp',
+            'whats_app',
+            'whatsapp_phone',
+        ])
+        ?: $socialLinkByPlatform([
+            'whatsapp',
+            'whats app',
+            'wa.me',
+            'api.whatsapp',
+            'fa-whatsapp',
+        ]);
+
+    $phoneUrl = $makePhoneUrl($phoneNumber);
+    $whatsappUrl = $makeWhatsappUrl($whatsappNumber);
+
+    $serviceBannerImage = $campaign?->banner_image_url ?: null;
+
+    $campaignGalleryImages = collect();
+
+    try {
+        if ($campaign && method_exists($campaign, 'getMedia')) {
+            $campaignGalleryImages = $campaign->getMedia('campaign_product_gallery');
+        }
+    } catch (\Throwable $e) {
+        $campaignGalleryImages = collect();
+    }
 @endphp
 
 @section('title', $pageTitle)
@@ -1997,25 +2020,23 @@ body {
 @endif
 
 {{-- Product Gallery --}}
-@if(($campaign?->gallery_section_status ?? true) && $products->isNotEmpty())
-<section class="section-space gallery-section" id="gallery-section">
-    <div class="container">
-        <h2 class="section-title">{{ $gallerySectionTitle }}</h2>
+@if(($campaign?->gallery_section_status ?? true) && $campaignGalleryImages->isNotEmpty())
+    <section class="section-space gallery-section" id="gallery-section">
+        <div class="container">
+            <h2 class="section-title">{{ $gallerySectionTitle }}</h2>
 
-        <div class="gallery-grid">
-            @foreach($products as $product)
-            @php
-            $galleryImage = $galleryImageOf($product);
-            @endphp
-
-            <div class="gallery-card">
-                <img src="{{ $galleryImage }}" alt="{{ $product->name }}" loading="lazy"
-                    onerror="this.onerror=null;this.src='{{ $noImage }}';">
+            <div class="gallery-grid">
+                @foreach($campaignGalleryImages as $media)
+                    <div class="gallery-card">
+                        <img src="{{ $media->getUrl() }}"
+                             alt="{{ $gallerySectionTitle }} {{ $loop->iteration }}"
+                             loading="lazy"
+                             onerror="this.onerror=null;this.src='{{ $noImage }}';">
+                    </div>
+                @endforeach
             </div>
-            @endforeach
         </div>
-    </div>
-</section>
+    </section>
 @endif
 
 {{-- Reviews --}}

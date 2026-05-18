@@ -262,6 +262,8 @@ class CampaignController extends Controller
             'campaign_video'              => ['nullable', 'file', 'mimes:mp4,webm,ogg', 'max:51200'],
             'hero_whatsapp'               => ['nullable', 'string', 'max:255'],
             'hero_phone'                  => ['nullable', 'string', 'max:255'],
+            'campaign_product_gallery'    => ['nullable', 'array'],
+            'campaign_product_gallery.*'  => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
         ];
     }
 
@@ -518,7 +520,15 @@ class CampaignController extends Controller
 
         $campaign = Campaign::onlyTrashed()->findOrFail($id);
 
-        foreach (['banner_image', 'image_one', 'image_two', 'image_three', 'review_image', 'campaign_video'] as $collection) {
+        foreach ([
+            'banner_image',
+            'image_one',
+            'image_two',
+            'image_three',
+            'review_image',
+            'campaign_video',
+            'campaign_product_gallery',
+        ] as $collection) {
             $campaign->clearMediaCollection($collection);
         }
 
@@ -556,7 +566,15 @@ class CampaignController extends Controller
             $campaigns = Campaign::onlyTrashed()->whereIn('id', $request->ids)->get();
 
             foreach ($campaigns as $campaign) {
-                foreach (['banner_image', 'image_one', 'image_two', 'image_three', 'review_image', 'campaign_video'] as $collection) {
+                foreach ([
+                    'banner_image',
+                    'image_one',
+                    'image_two',
+                    'image_three',
+                    'review_image',
+                    'campaign_video',
+                    'campaign_product_gallery',
+                ] as $collection) {
                     $campaign->clearMediaCollection($collection);
                 }
 
@@ -615,11 +633,37 @@ class CampaignController extends Controller
         $this->adminOnly();
 
         $media = \Spatie\MediaLibrary\MediaCollections\Models\Media::findOrFail($id);
+
+        if ($media->model_type !== Campaign::class) {
+            return response()->json([
+                'status'  => false,
+                'message' => 'Invalid campaign media.',
+            ], 403);
+        }
+
+        $allowedCollections = [
+            'banner_image',
+            'image_one',
+            'image_two',
+            'image_three',
+            'review_image',
+            'campaign_video',
+            'campaign_product_gallery',
+        ];
+
+        if (! in_array($media->collection_name, $allowedCollections, true)) {
+            return response()->json([
+                'status'  => false,
+                'message' => 'Invalid media collection.',
+            ], 422);
+        }
+
         $media->delete();
 
         return response()->json([
-            'status'  => true,
-            'message' => 'Campaign media deleted successfully.',
+            'status'   => true,
+            'message'  => 'Campaign media deleted successfully.',
+            'media_id' => $id,
         ]);
     }
 
@@ -686,6 +730,18 @@ class CampaignController extends Controller
             if ($request->hasFile($field)) {
                 $campaign->clearMediaCollection($field);
                 $campaign->addMediaFromRequest($field)->toMediaCollection($field);
+            }
+        }
+
+        // Multiple product gallery images from campaign form.
+        // Existing gallery images will stay; newly selected images will be added.
+        if ($request->hasFile('campaign_product_gallery')) {
+            foreach ($request->file('campaign_product_gallery') as $image) {
+                if ($image && $image->isValid()) {
+                    $campaign
+                        ->addMedia($image)
+                        ->toMediaCollection('campaign_product_gallery');
+                }
             }
         }
     }
