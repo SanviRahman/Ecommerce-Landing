@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
@@ -48,14 +47,14 @@ class ProductController extends Controller
             $baseSlug = 'product-' . time();
         }
 
-        $slug = $baseSlug;
+        $slug  = $baseSlug;
         $count = 1;
 
         while (
             Product::withTrashed()
-                ->where('slug', $slug)
-                ->when($ignoreId, fn ($query) => $query->where('id', '!=', $ignoreId))
-                ->exists()
+            ->where('slug', $slug)
+            ->when($ignoreId, fn($query) => $query->where('id', '!=', $ignoreId))
+            ->exists()
         ) {
             $slug = $baseSlug . '-' . $count;
             $count++;
@@ -160,27 +159,27 @@ class ProductController extends Controller
         if ($isTrash) {
             $breadcrumb[] = [
                 'text' => 'Trash',
-                'url' => route('admin.products.trashed'),
+                'url'  => route('admin.products.trashed'),
             ];
         }
 
         if ($request->ajax()) {
             return response()->json([
                 'status' => true,
-                'html' => view('admin.products.partials.table', [
+                'html'   => view('admin.products.partials.table', [
                     'products' => $products,
-                    'isTrash' => $isTrash,
+                    'isTrash'  => $isTrash,
                 ])->render(),
             ]);
         }
 
         return view('admin.products.index', [
-            'products' => $products,
+            'products'   => $products,
             'categories' => $this->activeCategories(),
-            'brands' => $this->activeBrands(),
-            'title' => $title,
+            'brands'     => $this->activeBrands(),
+            'title'      => $title,
             'breadcrumb' => $breadcrumb,
-            'isTrash' => $isTrash,
+            'isTrash'    => $isTrash,
         ]);
     }
 
@@ -207,8 +206,8 @@ class ProductController extends Controller
         $product->load(['category', 'brand']);
 
         return view('admin.products.show', [
-            'product' => $product,
-            'title' => 'Product Details',
+            'product'    => $product,
+            'title'      => 'Product Details',
             'breadcrumb' => [
                 ['text' => 'Dashboard', 'url' => route('admin.dashboard')],
                 ['text' => 'Products', 'url' => route('admin.products.index')],
@@ -227,12 +226,12 @@ class ProductController extends Controller
         $this->adminOnly();
 
         $data = [
-            'product' => null,
+            'product'    => null,
             'categories' => $this->activeCategories(),
-            'brands' => $this->activeBrands(),
-            'isEdit' => false,
-            'action' => route('admin.products.store'),
-            'title' => 'Product Create',
+            'brands'     => $this->activeBrands(),
+            'isEdit'     => false,
+            'action'     => route('admin.products.store'),
+            'title'      => 'Product Create',
             'breadcrumb' => [
                 ['text' => 'Dashboard', 'url' => route('admin.dashboard')],
                 ['text' => 'Products', 'url' => route('admin.products.index')],
@@ -243,7 +242,7 @@ class ProductController extends Controller
         if ($request->ajax()) {
             return response()->json([
                 'status' => true,
-                'html' => view('admin.products.partials.form', $data)->render(),
+                'html'   => view('admin.products.partials.form', $data)->render(),
             ]);
         }
 
@@ -255,76 +254,76 @@ class ProductController extends Controller
         $this->adminOnly();
 
         $request->validate([
-            'category_id' => ['required', 'integer', 'exists:categories,id'],
-            'brand_id' => ['nullable', 'integer', 'exists:brands,id'],
+            'category_id'       => ['required', 'integer', 'exists:categories,id'],
+            'brand_id'          => ['nullable', 'integer', 'exists:brands,id'],
 
-            'name' => ['required', 'string', 'max:255'],
-            'slug' => ['nullable', 'string', 'max:255', 'unique:products,slug'],
-            'product_code' => ['nullable', 'string', 'max:255', 'unique:products,product_code'],
+            'name'              => ['required', 'string', 'max:255'],
+            'slug'              => ['nullable', 'string', 'max:255', 'unique:products,slug'],
+            'product_code'      => ['nullable', 'string', 'max:255', 'unique:products,product_code'],
 
-            'purchase_price' => ['nullable', 'integer', 'min:0'],
-            'old_price' => ['nullable', 'integer', 'min:0'],
-            'new_price' => ['required', 'integer', 'min:0'],
+            'purchase_price'    => ['nullable', 'integer', 'min:0'],
+            'old_price'         => ['nullable', 'integer', 'min:0'],
+            'new_price'         => ['required', 'integer', 'min:0'],
 
-            'stock' => ['nullable', 'integer', 'min:0'],
-            'sold_quantity' => ['nullable', 'integer', 'min:0'],
-            'weight_size' => ['nullable', 'string', 'max:255'],
+            'stock'             => ['nullable', 'integer', 'min:0'],
+            'sold_quantity'     => ['nullable', 'integer', 'min:0'],
+            'weight_size'       => ['nullable', 'string', 'max:255'],
 
             'short_description' => ['nullable', 'string'],
-            'full_description' => ['nullable', 'string'],
+            'full_description'  => ['nullable', 'string'],
 
-            'is_top_sale' => ['nullable', 'boolean'],
-            'is_feature' => ['nullable', 'boolean'],
-            'is_flash_sale' => ['nullable', 'boolean'],
-            'is_free_delivery' => ['nullable', 'boolean'],
-            'status' => ['nullable', 'boolean'],
+            'is_top_sale'       => ['nullable', 'boolean'],
+            'is_feature'        => ['nullable', 'boolean'],
+            'is_flash_sale'     => ['nullable', 'boolean'],
+            'is_free_delivery'  => ['nullable', 'boolean'],
+            'status'            => ['nullable', 'boolean'],
 
-            'meta_title' => ['nullable', 'string', 'max:255'],
-            'meta_description' => ['nullable', 'string'],
+            'meta_title'        => ['nullable', 'string', 'max:255'],
+            'meta_description'  => ['nullable', 'string'],
 
             'product_thumbnail' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
-            'product_gallery' => ['nullable', 'array'],
+            'product_gallery'   => ['nullable', 'array'],
             'product_gallery.*' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
         ]);
 
         return DB::transaction(function () use ($request) {
             $product = Product::create([
-                'category_id' => $request->category_id,
-                'brand_id' => $request->brand_id,
+                'category_id'       => $request->category_id,
+                'brand_id'          => $request->brand_id,
 
-                'name' => $request->name,
-                'slug' => $request->slug
+                'name'              => $request->name,
+                'slug'              => $request->slug
                     ? Str::slug($request->slug)
                     : $this->generateUniqueSlug($request->name),
 
-                'product_code' => $request->product_code,
+                'product_code'      => $request->product_code,
 
-                'purchase_price' => $request->purchase_price ?: 0,
-                'old_price' => $request->old_price ?: 0,
-                'new_price' => $request->new_price,
+                'purchase_price'    => $request->purchase_price ?: 0,
+                'old_price'         => $request->old_price ?: 0,
+                'new_price'         => $request->new_price,
 
-                'stock' => $request->stock ?: 0,
-                'sold_quantity' => $request->sold_quantity ?: 0,
-                'weight_size' => $request->weight_size,
+                'stock'             => $request->stock ?: 0,
+                'sold_quantity'     => $request->sold_quantity ?: 0,
+                'weight_size'       => $request->weight_size,
 
                 'short_description' => $request->short_description,
-                'full_description' => $request->full_description,
+                'full_description'  => $request->full_description,
 
-                'is_top_sale' => $request->boolean('is_top_sale'),
-                'is_feature' => $request->boolean('is_feature'),
-                'is_flash_sale' => $request->boolean('is_flash_sale'),
-                'is_free_delivery' => $request->boolean('is_free_delivery'),
-                'status' => $request->has('status') ? $request->boolean('status') : true,
+                'is_top_sale'       => $request->boolean('is_top_sale'),
+                'is_feature'        => $request->boolean('is_feature'),
+                'is_flash_sale'     => $request->boolean('is_flash_sale'),
+                'is_free_delivery'  => $request->boolean('is_free_delivery'),
+                'status'            => $request->has('status') ? $request->boolean('status') : true,
 
-                'meta_title' => $request->meta_title,
-                'meta_description' => $request->meta_description,
+                'meta_title'        => $request->meta_title,
+                'meta_description'  => $request->meta_description,
             ]);
 
             $this->uploadProductMedia($product, $request);
 
             if ($request->ajax()) {
                 return response()->json([
-                    'status' => true,
+                    'status'  => true,
                     'message' => 'Product created successfully.',
                 ]);
             }
@@ -342,12 +341,12 @@ class ProductController extends Controller
         $product->load(['category', 'brand']);
 
         $data = [
-            'product' => $product,
+            'product'    => $product,
             'categories' => $this->activeCategories(),
-            'brands' => $this->activeBrands(),
-            'isEdit' => true,
-            'action' => route('admin.products.update', $product->id),
-            'title' => 'Product Edit',
+            'brands'     => $this->activeBrands(),
+            'isEdit'     => true,
+            'action'     => route('admin.products.update', $product->id),
+            'title'      => 'Product Edit',
             'breadcrumb' => [
                 ['text' => 'Dashboard', 'url' => route('admin.dashboard')],
                 ['text' => 'Products', 'url' => route('admin.products.index')],
@@ -358,7 +357,7 @@ class ProductController extends Controller
         if ($request->ajax()) {
             return response()->json([
                 'status' => true,
-                'html' => view('admin.products.partials.form', $data)->render(),
+                'html'   => view('admin.products.partials.form', $data)->render(),
             ]);
         }
 
@@ -370,86 +369,86 @@ class ProductController extends Controller
         $this->adminOnly();
 
         $request->validate([
-            'category_id' => ['required', 'integer', 'exists:categories,id'],
-            'brand_id' => ['nullable', 'integer', 'exists:brands,id'],
+            'category_id'       => ['required', 'integer', 'exists:categories,id'],
+            'brand_id'          => ['nullable', 'integer', 'exists:brands,id'],
 
-            'name' => ['required', 'string', 'max:255'],
-            'slug' => [
+            'name'              => ['required', 'string', 'max:255'],
+            'slug'              => [
                 'nullable',
                 'string',
                 'max:255',
                 Rule::unique('products', 'slug')->ignore($product->id),
             ],
-            'product_code' => [
+            'product_code'      => [
                 'nullable',
                 'string',
                 'max:255',
                 Rule::unique('products', 'product_code')->ignore($product->id),
             ],
 
-            'purchase_price' => ['nullable', 'integer', 'min:0'],
-            'old_price' => ['nullable', 'integer', 'min:0'],
-            'new_price' => ['required', 'integer', 'min:0'],
+            'purchase_price'    => ['nullable', 'integer', 'min:0'],
+            'old_price'         => ['nullable', 'integer', 'min:0'],
+            'new_price'         => ['required', 'integer', 'min:0'],
 
-            'stock' => ['nullable', 'integer', 'min:0'],
-            'sold_quantity' => ['nullable', 'integer', 'min:0'],
-            'weight_size' => ['nullable', 'string', 'max:255'],
+            'stock'             => ['nullable', 'integer', 'min:0'],
+            'sold_quantity'     => ['nullable', 'integer', 'min:0'],
+            'weight_size'       => ['nullable', 'string', 'max:255'],
 
             'short_description' => ['nullable', 'string'],
-            'full_description' => ['nullable', 'string'],
+            'full_description'  => ['nullable', 'string'],
 
-            'is_top_sale' => ['nullable', 'boolean'],
-            'is_feature' => ['nullable', 'boolean'],
-            'is_flash_sale' => ['nullable', 'boolean'],
-            'is_free_delivery' => ['nullable', 'boolean'],
-            'status' => ['nullable', 'boolean'],
+            'is_top_sale'       => ['nullable', 'boolean'],
+            'is_feature'        => ['nullable', 'boolean'],
+            'is_flash_sale'     => ['nullable', 'boolean'],
+            'is_free_delivery'  => ['nullable', 'boolean'],
+            'status'            => ['nullable', 'boolean'],
 
-            'meta_title' => ['nullable', 'string', 'max:255'],
-            'meta_description' => ['nullable', 'string'],
+            'meta_title'        => ['nullable', 'string', 'max:255'],
+            'meta_description'  => ['nullable', 'string'],
 
             'product_thumbnail' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
-            'product_gallery' => ['nullable', 'array'],
+            'product_gallery'   => ['nullable', 'array'],
             'product_gallery.*' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
         ]);
 
         return DB::transaction(function () use ($request, $product) {
             $product->update([
-                'category_id' => $request->category_id,
-                'brand_id' => $request->brand_id,
+                'category_id'       => $request->category_id,
+                'brand_id'          => $request->brand_id,
 
-                'name' => $request->name,
-                'slug' => $request->slug
+                'name'              => $request->name,
+                'slug'              => $request->slug
                     ? Str::slug($request->slug)
                     : $this->generateUniqueSlug($request->name, $product->id),
 
-                'product_code' => $request->product_code,
+                'product_code'      => $request->product_code,
 
-                'purchase_price' => $request->purchase_price ?: 0,
-                'old_price' => $request->old_price ?: 0,
-                'new_price' => $request->new_price,
+                'purchase_price'    => $request->purchase_price ?: 0,
+                'old_price'         => $request->old_price ?: 0,
+                'new_price'         => $request->new_price,
 
-                'stock' => $request->stock ?: 0,
-                'sold_quantity' => $request->sold_quantity ?: 0,
-                'weight_size' => $request->weight_size,
+                'stock'             => $request->stock ?: 0,
+                'sold_quantity'     => $request->sold_quantity ?: 0,
+                'weight_size'       => $request->weight_size,
 
                 'short_description' => $request->short_description,
-                'full_description' => $request->full_description,
+                'full_description'  => $request->full_description,
 
-                'is_top_sale' => $request->boolean('is_top_sale'),
-                'is_feature' => $request->boolean('is_feature'),
-                'is_flash_sale' => $request->boolean('is_flash_sale'),
-                'is_free_delivery' => $request->boolean('is_free_delivery'),
-                'status' => $request->has('status') ? $request->boolean('status') : false,
+                'is_top_sale'       => $request->boolean('is_top_sale'),
+                'is_feature'        => $request->boolean('is_feature'),
+                'is_flash_sale'     => $request->boolean('is_flash_sale'),
+                'is_free_delivery'  => $request->boolean('is_free_delivery'),
+                'status'            => $request->has('status') ? $request->boolean('status') : false,
 
-                'meta_title' => $request->meta_title,
-                'meta_description' => $request->meta_description,
+                'meta_title'        => $request->meta_title,
+                'meta_description'  => $request->meta_description,
             ]);
 
             $this->uploadProductMedia($product, $request);
 
             if ($request->ajax()) {
                 return response()->json([
-                    'status' => true,
+                    'status'  => true,
                     'message' => 'Product updated successfully.',
                 ]);
             }
@@ -467,7 +466,7 @@ class ProductController extends Controller
         $product->delete();
 
         return response()->json([
-            'status' => true,
+            'status'  => true,
             'message' => 'Product moved to trash successfully.',
         ]);
     }
@@ -491,7 +490,7 @@ class ProductController extends Controller
         Product::onlyTrashed()->findOrFail($id)->restore();
 
         return response()->json([
-            'status' => true,
+            'status'  => true,
             'message' => 'Product restored successfully.',
         ]);
     }
@@ -508,7 +507,7 @@ class ProductController extends Controller
         $product->forceDelete();
 
         return response()->json([
-            'status' => true,
+            'status'  => true,
             'message' => 'Product permanently deleted successfully.',
         ]);
     }
@@ -522,18 +521,18 @@ class ProductController extends Controller
                 'required',
                 'in:delete,restore,force_delete,active,inactive,top_sale,remove_top_sale,featured,remove_featured,flash_sale,remove_flash_sale,free_delivery,remove_free_delivery',
             ],
-            'ids' => ['required', 'array'],
-            'ids.*' => ['integer'],
+            'ids'    => ['required', 'array'],
+            'ids.*'  => ['integer'],
         ]);
 
         $action = $request->action;
-        $ids = $request->ids;
+        $ids    = $request->ids;
 
         if ($action === 'delete') {
             Product::whereIn('id', $ids)->delete();
 
             return response()->json([
-                'status' => true,
+                'status'  => true,
                 'message' => 'Selected products moved to trash.',
             ]);
         }
@@ -542,7 +541,7 @@ class ProductController extends Controller
             Product::onlyTrashed()->whereIn('id', $ids)->restore();
 
             return response()->json([
-                'status' => true,
+                'status'  => true,
                 'message' => 'Selected products restored.',
             ]);
         }
@@ -557,28 +556,28 @@ class ProductController extends Controller
             }
 
             return response()->json([
-                'status' => true,
+                'status'  => true,
                 'message' => 'Selected products permanently deleted.',
             ]);
         }
 
         $updateData = match ($action) {
-            'active' => ['status' => true],
-            'inactive' => ['status' => false],
-            'top_sale' => ['is_top_sale' => true],
-            'remove_top_sale' => ['is_top_sale' => false],
-            'featured' => ['is_feature' => true],
-            'remove_featured' => ['is_feature' => false],
-            'flash_sale' => ['is_flash_sale' => true],
-            'remove_flash_sale' => ['is_flash_sale' => false],
-            'free_delivery' => ['is_free_delivery' => true],
+            'active'               => ['status' => true],
+            'inactive'             => ['status' => false],
+            'top_sale'             => ['is_top_sale' => true],
+            'remove_top_sale'      => ['is_top_sale' => false],
+            'featured'             => ['is_feature' => true],
+            'remove_featured'      => ['is_feature' => false],
+            'flash_sale'           => ['is_flash_sale' => true],
+            'remove_flash_sale'    => ['is_flash_sale' => false],
+            'free_delivery'        => ['is_free_delivery' => true],
             'remove_free_delivery' => ['is_free_delivery' => false],
-            default => [],
+            default                => [],
         };
 
         if (empty($updateData)) {
             return response()->json([
-                'status' => false,
+                'status'  => false,
                 'message' => 'Invalid bulk action.',
             ], 422);
         }
@@ -586,7 +585,7 @@ class ProductController extends Controller
         Product::whereIn('id', $ids)->update($updateData);
 
         return response()->json([
-            'status' => true,
+            'status'  => true,
             'message' => 'Selected products updated successfully.',
         ]);
     }
@@ -596,11 +595,27 @@ class ProductController extends Controller
         $this->adminOnly();
 
         $media = Media::findOrFail($id);
+
+        if ($media->model_type !== Product::class) {
+            return response()->json([
+                'status'  => false,
+                'message' => 'Invalid product media.',
+            ], 403);
+        }
+
+        if (! in_array($media->collection_name, ['product_gallery', 'product_thumbnail'], true)) {
+            return response()->json([
+                'status'  => false,
+                'message' => 'Invalid media collection.',
+            ], 422);
+        }
+
         $media->delete();
 
         return response()->json([
-            'status' => true,
-            'message' => 'Product media deleted successfully.',
+            'status'   => true,
+            'message'  => 'Product media deleted successfully.',
+            'media_id' => $id,
         ]);
     }
 

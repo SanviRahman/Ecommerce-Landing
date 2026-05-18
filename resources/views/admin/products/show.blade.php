@@ -289,6 +289,33 @@
 @section('js')
 <script>
 $(document).ready(function() {
+    function swalConfirmed(result) {
+        return result.isConfirmed || result.value;
+    }
+
+    function showToast(type, message) {
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({
+                icon: type,
+                type: type,
+                title: message,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 2200,
+                timerProgressBar: true,
+                toast: true
+            });
+        } else {
+            alert(message);
+        }
+    }
+
+    $.ajaxSetup({
+        headers: {
+            'X-CSRF-TOKEN': '{{ csrf_token() }}'
+        }
+    });
+
     $('.btnEditFromShow').on('click', function() {
         let url = $(this).data('url');
 
@@ -305,6 +332,8 @@ $(document).ready(function() {
 
         let form = $(this);
         let formData = new FormData(this);
+        let btn = form.find('button[type="submit"]');
+        let oldHtml = btn.html();
 
         $.ajax({
             url: form.attr('action'),
@@ -313,12 +342,18 @@ $(document).ready(function() {
             processData: false,
             contentType: false,
 
+            beforeSend: function () {
+                btn.prop('disabled', true)
+                    .html('<i class="fas fa-spinner fa-spin mr-1"></i> Saving...');
+            },
+
             success: function(res) {
                 $('#ajaxModal').modal('hide');
 
                 Swal.fire({
                     icon: 'success',
-                    title: res.message,
+                    type: 'success',
+                    title: res.message || 'Product updated successfully.',
                     timer: 1200,
                     showConfirmButton: false
                 });
@@ -329,6 +364,8 @@ $(document).ready(function() {
             },
 
             error: function(xhr) {
+                btn.prop('disabled', false).html(oldHtml);
+
                 let message = 'Validation error.';
 
                 if (xhr.responseJSON && xhr.responseJSON.errors) {
@@ -337,14 +374,74 @@ $(document).ready(function() {
                     message = xhr.responseJSON.message;
                 }
 
-                Swal.fire('Error', message, 'error');
+                Swal.fire({
+                    icon: 'error',
+                    type: 'error',
+                    title: 'Error',
+                    html: message
+                });
             }
+        });
+    });
+
+    $(document).on('click', '.btnDeleteProductMedia', function () {
+        let button = $(this);
+        let url = button.data('url');
+        let mediaId = button.data('id');
+
+        Swal.fire({
+            title: 'Delete gallery image?',
+            text: 'This image will be removed permanently.',
+            icon: 'warning',
+            type: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, Delete',
+            cancelButtonText: 'Cancel',
+            confirmButtonColor: '#dc3545'
+        }).then((result) => {
+            if (!swalConfirmed(result)) {
+                return;
+            }
+
+            $.ajax({
+                url: url,
+                type: 'DELETE',
+                data: {
+                    _token: '{{ csrf_token() }}'
+                },
+                beforeSend: function () {
+                    button.prop('disabled', true)
+                        .html('<i class="fas fa-spinner fa-spin"></i>');
+                },
+                success: function (res) {
+                    if (res.status) {
+                        $('#product-media-box-' + mediaId).fadeOut(250, function () {
+                            $(this).remove();
+                        });
+
+                        showToast('success', res.message || 'Gallery image deleted successfully.');
+                    } else {
+                        button.prop('disabled', false).html('Delete');
+                        showToast('error', res.message || 'Image delete failed.');
+                    }
+                },
+                error: function (xhr) {
+                    button.prop('disabled', false).html('Delete');
+
+                    let message = 'Image delete failed.';
+
+                    if (xhr.responseJSON && xhr.responseJSON.message) {
+                        message = xhr.responseJSON.message;
+                    }
+
+                    showToast('error', message);
+                }
+            });
         });
     });
 });
 </script>
 @endsection
-
 @section('css')
 <style>
 .breadcrumb-item+.breadcrumb-item::before {

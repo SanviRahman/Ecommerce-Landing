@@ -197,6 +197,7 @@
 
 @section('plugins.Sweetalert2', true)
 
+
 @section('js')
 <script>
 $(document).ready(function () {
@@ -430,6 +431,63 @@ $(document).ready(function () {
                     html: message
                 });
             }
+        });
+    });
+
+    $(document).on('click', '.btnDeleteProductMedia', function () {
+        let button = $(this);
+        let url = button.data('url');
+        let mediaId = button.data('id');
+
+        Swal.fire({
+            title: 'Delete gallery image?',
+            text: 'This image will be removed permanently.',
+            icon: 'warning',
+            type: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, Delete',
+            cancelButtonText: 'Cancel',
+            confirmButtonColor: '#dc3545'
+        }).then((result) => {
+            if (!swalConfirmed(result)) {
+                return;
+            }
+
+            $.ajax({
+                url: url,
+                type: 'DELETE',
+                data: {
+                    _token: '{{ csrf_token() }}'
+                },
+                beforeSend: function () {
+                    button.prop('disabled', true)
+                        .html('<i class="fas fa-spinner fa-spin"></i>');
+                },
+                success: function (res) {
+                    if (res.status) {
+                        $('#product-media-box-' + mediaId).fadeOut(250, function () {
+                            $(this).remove();
+                        });
+
+                        showToast('success', res.message || 'Gallery image deleted successfully.');
+                        reloadTable();
+                    } else {
+                        button.prop('disabled', false).html('Delete');
+                        showToast('error', res.message || 'Image delete failed.');
+                    }
+                },
+                error: function (xhr) {
+                    button.prop('disabled', false).html('Delete');
+
+                    let message = 'Image delete failed.';
+
+                    if (xhr.responseJSON && xhr.responseJSON.message) {
+                        message = xhr.responseJSON.message;
+                    }
+
+                    showToast('error', message);
+                }
+            });
         });
     });
 
