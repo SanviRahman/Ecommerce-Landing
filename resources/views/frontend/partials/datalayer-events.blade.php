@@ -23,17 +23,36 @@
             return [];
         }
 
-        return items.map(function (item) {
+        return items.map(function (item, index) {
+            const itemId = cleanString(
+                item.item_id ||
+                item.id ||
+                item.product_id ||
+                item.sku ||
+                item.code ||
+                ('item_' + (index + 1))
+            );
+
+            const itemName = cleanString(
+                item.item_name ||
+                item.name ||
+                item.product_name ||
+                ('Product ' + (index + 1))
+            );
+
+            const price = cleanNumber(item.price || item.item_price || item.unit_price || 0);
+            const quantity = Number(item.quantity || item.qty || 1);
+
             return {
-                item_id: cleanString(item.item_id || item.id || item.product_id),
-                item_name: cleanString(item.item_name || item.name || item.product_name),
-                price: cleanNumber(item.price || item.item_price || 0),
-                quantity: Number(item.quantity || item.qty || 1),
-                item_category: item.item_category || item.category || undefined,
-                item_brand: item.item_brand || item.brand || undefined
+                item_id: itemId,
+                item_name: itemName,
+                price: price,
+                quantity: quantity > 0 ? quantity : 1,
+                item_category: cleanString(item.item_category || item.category || ''),
+                item_brand: cleanString(item.item_brand || item.brand || '')
             };
         }).filter(function (item) {
-            return item.item_id || item.item_name;
+            return item.item_id && item.item_name;
         });
     }
 
@@ -43,13 +62,31 @@
         }
     }
 
-    function makeEventId(eventName, transactionId) {
-        const base = transactionId || Date.now() + '_' + Math.random().toString(36).slice(2);
-        return 'sfa_' + eventName + '_' + base;
-    }
-
     function currentUrl() {
         return window.location.href;
+    }
+
+    function makeEventId(eventName, transactionId) {
+        const safeName = cleanString(eventName).replace(/[^a-zA-Z0-9_-]/g, '_');
+        const safeTransaction = cleanString(transactionId).replace(/[^a-zA-Z0-9_-]/g, '_');
+
+        if (safeTransaction) {
+            return 'sfa_' + safeName + '_' + safeTransaction;
+        }
+
+        return 'sfa_' + safeName + '_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
+    }
+
+    function totalQuantity(items) {
+        return cleanItems(items).reduce(function (total, item) {
+            return total + Number(item.quantity || 1);
+        }, 0);
+    }
+
+    function totalValue(items) {
+        return cleanItems(items).reduce(function (total, item) {
+            return total + (cleanNumber(item.price) * Number(item.quantity || 1));
+        }, 0);
     }
 
     function pushDataLayer(eventName, ecommerce, extra) {
@@ -62,7 +99,6 @@
         });
 
         window.dataLayer.push(payload);
-
         debugLog(eventName, payload);
 
         return payload;
@@ -73,33 +109,48 @@
         extra = extra || {};
 
         const items = cleanItems(ecommerce.items || []);
-        const value = cleanNumber(ecommerce.value || extra.value || 0);
+        const calculatedValue = totalValue(items);
+        const value = cleanNumber(ecommerce.value || extra.value || calculatedValue || 0);
         const currency = ecommerce.currency || extra.currency || DEFAULT_CURRENCY;
 
+        const contentIds = items.map(function (item) {
+            return cleanString(item.item_id);
+        }).filter(Boolean);
+
+        const contents = items.map(function (item) {
+            return {
+                id: cleanString(item.item_id),
+                quantity: Number(item.quantity || 1),
+                item_price: cleanNumber(item.price || 0)
+            };
+        });
+
+        const firstItem = items.length ? items[0] : null;
+
         const payload = {
-            currency: currency,
             value: value,
+            currency: currency,
             content_type: extra.content_type || 'product',
-            content_ids: items.map(function (item) {
-                return item.item_id;
-            }).filter(Boolean),
-            contents: items.map(function (item) {
-                return {
-                    id: item.item_id,
-                    quantity: item.quantity,
-                    item_price: item.price
-                };
-            }),
-            page_url: extra.page_url || currentUrl(),
+            content_ids: contentIds,
+            contents: contents,
+            num_items: totalQuantity(items),
+            content_name: cleanString(extra.content_name || (firstItem ? firstItem.item_name : 'Product')),
+            content_category: cleanString(extra.content_category || (firstItem ? firstItem.item_category : '')),
             event_source_url: extra.page_url || currentUrl()
         };
 
-        if (extra.content_id && payload.content_ids.length === 0) {
+        if (!payload.content_ids.length && extra.content_id) {
             payload.content_ids = [cleanString(extra.content_id)];
         }
 
-        if (extra.content_name) {
-            payload.content_name = cleanString(extra.content_name);
+        if (!payload.contents.length && extra.content_id) {
+            payload.contents = [{
+                id: cleanString(extra.content_id),
+                quantity: 1,
+                item_price: value
+            }];
+
+            payload.num_items = 1;
         }
 
         if (ecommerce.transaction_id) {
@@ -131,6 +182,9 @@
     }
 
     function sendMetaEvent(eventName, ecommerce, extra) {
+        ecommerce = ecommerce || {};
+        extra = extra || {};
+
         const eventMap = {
             page_view: 'PageView',
             view_content: 'ViewContent',
@@ -143,9 +197,6 @@
             return;
         }
 
-        ecommerce = ecommerce || {};
-        extra = extra || {};
-
         const transactionId = ecommerce.transaction_id || null;
         const eventId = makeEventId(eventName, transactionId);
 
@@ -153,7 +204,6 @@
             sendMetaTrack('PageView', {
                 page_type: extra.page_type || 'other',
                 page_title: extra.page_title || document.title,
-                page_url: extra.page_url || currentUrl(),
                 event_source_url: extra.page_url || currentUrl()
             }, {
                 eventID: eventId
@@ -189,13 +239,15 @@
         extra = extra || {};
 
         const items = cleanItems(ecommerce.items || []);
+        const firstItem = items.length ? items[0] : null;
 
         const payload = {
-            value: cleanNumber(ecommerce.value || extra.value || 0),
+            value: cleanNumber(ecommerce.value || extra.value || totalValue(items) || 0),
             currency: ecommerce.currency || extra.currency || DEFAULT_CURRENCY,
             content_type: extra.content_type || 'product',
-            content_id: items.length ? items[0].item_id : (extra.content_id || undefined),
-            content_name: items.length ? items[0].item_name : (extra.content_name || undefined),
+            content_id: firstItem ? firstItem.item_id : (extra.content_id || undefined),
+            content_name: firstItem ? firstItem.item_name : (extra.content_name || undefined),
+            quantity: totalQuantity(items),
             contents: items.map(function (item) {
                 return {
                     content_id: item.item_id,
@@ -249,11 +301,20 @@
         window.gtag('event', gaEventMap[eventName], {
             transaction_id: ecommerce.transaction_id || undefined,
             affiliation: ecommerce.affiliation || undefined,
-            value: cleanNumber(ecommerce.value || extra.value || 0),
+            value: cleanNumber(ecommerce.value || extra.value || totalValue(items) || 0),
             shipping: cleanNumber(ecommerce.shipping || 0),
             tax: cleanNumber(ecommerce.tax || 0),
             currency: ecommerce.currency || extra.currency || DEFAULT_CURRENCY,
-            items: items
+            items: items.map(function (item) {
+                return {
+                    item_id: item.item_id,
+                    item_name: item.item_name,
+                    price: item.price,
+                    quantity: item.quantity,
+                    item_category: item.item_category || undefined,
+                    item_brand: item.item_brand || undefined
+                };
+            })
         });
     }
 
@@ -286,14 +347,18 @@
         viewContent: function (data) {
             data = data || {};
 
+            const items = cleanItems(data.items || []);
+            const value = cleanNumber(data.value || totalValue(items) || 0);
+
             return track('view_content', {
                 currency: data.currency || DEFAULT_CURRENCY,
-                value: cleanNumber(data.value || 0),
-                items: cleanItems(data.items || [])
+                value: value,
+                items: items
             }, {
                 content_type: data.content_type || 'product',
-                content_id: data.content_id || null,
-                content_name: data.content_name || null,
+                content_id: data.content_id || (items[0] ? items[0].item_id : null),
+                content_name: data.content_name || (items[0] ? items[0].item_name : null),
+                content_category: data.content_category || (items[0] ? items[0].item_category : null),
                 page_url: data.page_url || currentUrl()
             });
         },
@@ -301,19 +366,24 @@
         addToCart: function (item) {
             item = item || {};
 
+            const items = cleanItems([{
+                item_id: item.item_id || item.id || item.product_id,
+                item_name: item.item_name || item.name || item.product_name,
+                price: item.price || 0,
+                quantity: item.quantity || 1,
+                item_category: item.item_category || item.category || undefined,
+                item_brand: item.item_brand || item.brand || undefined
+            }]);
+
             return track('add_to_cart', {
                 currency: item.currency || DEFAULT_CURRENCY,
-                value: cleanNumber((item.price || 0) * (item.quantity || 1)),
-                items: cleanItems([{
-                    item_id: item.item_id || item.id || item.product_id,
-                    item_name: item.item_name || item.name || item.product_name,
-                    price: item.price || 0,
-                    quantity: item.quantity || 1,
-                    item_category: item.item_category || item.category || undefined,
-                    item_brand: item.item_brand || item.brand || undefined
-                }])
+                value: cleanNumber(totalValue(items)),
+                items: items
             }, {
                 content_type: 'product',
+                content_id: items[0] ? items[0].item_id : null,
+                content_name: items[0] ? items[0].item_name : null,
+                content_category: items[0] ? items[0].item_category : null,
                 page_url: currentUrl()
             });
         },
@@ -321,14 +391,20 @@
         beginCheckout: function (data) {
             data = data || {};
 
+            const items = cleanItems(data.items || []);
+            const value = cleanNumber(data.value || totalValue(items) || 0);
+
             return track('begin_checkout', {
                 currency: data.currency || DEFAULT_CURRENCY,
-                value: cleanNumber(data.value || 0),
+                value: value,
                 shipping: cleanNumber(data.shipping || 0),
                 tax: cleanNumber(data.tax || 0),
-                items: cleanItems(data.items || [])
+                items: items
             }, {
                 content_type: 'product',
+                content_id: items[0] ? items[0].item_id : null,
+                content_name: items[0] ? items[0].item_name : null,
+                content_category: items[0] ? items[0].item_category : null,
                 page_url: currentUrl()
             });
         },
@@ -337,6 +413,8 @@
             data = data || {};
 
             const transactionId = cleanString(data.transaction_id || data.order_id || '');
+            const items = cleanItems(data.items || []);
+            const value = cleanNumber(data.value || totalValue(items) || 0);
 
             if (transactionId) {
                 const storageKey = 'sfa_purchase_' + transactionId;
@@ -353,12 +431,15 @@
                 transaction_id: transactionId,
                 affiliation: data.affiliation || @json(config('app.name') . ' Online Store'),
                 currency: data.currency || DEFAULT_CURRENCY,
-                value: cleanNumber(data.value || 0),
+                value: value,
                 shipping: cleanNumber(data.shipping || 0),
                 tax: cleanNumber(data.tax || 0),
-                items: cleanItems(data.items || [])
+                items: items
             }, {
                 content_type: 'product',
+                content_id: items[0] ? items[0].item_id : null,
+                content_name: items[0] ? items[0].item_name : null,
+                content_category: items[0] ? items[0].item_category : null,
                 page_url: currentUrl()
             });
         }
