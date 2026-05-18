@@ -2319,9 +2319,19 @@ $(document).ready(function() {
     let selectedCategory = @json($defaultCategoryId ? (string) $defaultCategoryId : 'all');
     let selectedBrand = 'all';
     let selectedProducts = {};
+    let suppressTracking = false;
 
     function money(amount) {
         return '৳' + Number(amount || 0).toLocaleString('en-US');
+    }
+
+    function number(value) {
+        value = Number(value || 0);
+        return isNaN(value) ? 0 : value;
+    }
+
+    function trackingReady() {
+        return typeof window.SFATracking !== 'undefined';
     }
 
     function filterProducts() {
@@ -2372,7 +2382,6 @@ $(document).ready(function() {
         }
 
         button.addClass('active');
-
         filterProducts();
     });
 
@@ -2397,23 +2406,46 @@ $(document).ready(function() {
 
         selectedProducts[id] = {
             id: id,
-            name: card.data('name'),
-            price: Number(card.data('price') || 0),
-            weight: card.data('weight') || '',
+            name: String(card.data('name') || ''),
+            price: number(card.data('price') || 0),
+            weight: String(card.data('weight') || ''),
             image: card.data('image') || noImage,
             isFreeDelivery: Number(card.data('free-delivery') || 0) === 1,
-            quantity: selectedProducts[id] ? selectedProducts[id].quantity : 1
+            quantity: selectedProducts[id] ? Number(selectedProducts[id].quantity || 1) : 1
+        };
+
+        return selectedProducts[id];
+    }
+
+    function itemPayload(item) {
+        return {
+            item_id: String(item.id || ''),
+            item_name: String(item.name || ''),
+            price: number(item.price || 0),
+            quantity: Number(item.quantity || 1)
         };
     }
 
     function getCheckoutItems() {
         return Object.values(selectedProducts).map(function(item) {
+            return itemPayload(item);
+        }).filter(function(item) {
+            return item.item_id || item.item_name;
+        });
+    }
+
+    function getAllOrderItems() {
+        return $('.order-product-card').map(function() {
+            const card = $(this);
+
             return {
-                item_id: String(item.id),
-                item_name: String(item.name),
-                price: Number(item.price || 0),
-                quantity: Number(item.quantity || 1)
+                item_id: String(card.data('id') || ''),
+                item_name: String(card.data('name') || ''),
+                price: number(card.data('price') || 0),
+                quantity: 1
             };
+        }).get().filter(function(item) {
+            return item.item_id || item.item_name;
         });
     }
 
@@ -2421,13 +2453,16 @@ $(document).ready(function() {
         let subTotal = 0;
 
         Object.values(selectedProducts).forEach(function(item) {
-            subTotal += Number(item.price || 0) * Number(item.quantity || 1);
+            subTotal += number(item.price || 0) * Number(item.quantity || 1);
         });
 
         const hasAnyFreeDeliveryProduct = hasFreeDeliveryProduct();
-        const deliveryArea = $('#deliveryAreaSelect').val() || $('input[name="delivery_area"]:checked').val() ||
-            'inside_dhaka';
-        const deliveryCharge = hasAnyFreeDeliveryProduct ? 0 : (deliveryCharges[deliveryArea] || 0);
+
+        const deliveryArea = $('#deliveryAreaSelect').val()
+            || $('input[name="delivery_area"]:checked').val()
+            || 'inside_dhaka';
+
+        const deliveryCharge = hasAnyFreeDeliveryProduct ? 0 : number(deliveryCharges[deliveryArea] || 0);
         const codCharge = 0;
         const grandTotal = subTotal + deliveryCharge + codCharge;
 
@@ -2438,6 +2473,67 @@ $(document).ready(function() {
             grandTotal: grandTotal,
             hasAnyFreeDeliveryProduct: hasAnyFreeDeliveryProduct
         };
+    }
+
+    function trackViewContentOnce() {
+        if (!trackingReady()) {
+            return;
+        }
+
+        const items = getAllOrderItems();
+
+        if (!items.length) {
+            return;
+        }
+
+        const value = items.reduce(function(total, item) {
+            return total + (number(item.price) * Number(item.quantity || 1));
+        }, 0);
+
+        window.SFATracking.viewContent({
+            currency: 'BDT',
+            value: value,
+            content_type: 'product',
+            content_id: items[0].item_id,
+            content_name: items[0].item_name,
+            items: items
+        });
+    }
+
+    function trackAddToCart(item) {
+        if (!trackingReady() || !item || suppressTracking) {
+            return;
+        }
+
+        window.SFATracking.addToCart({
+            item_id: item.id,
+            item_name: item.name,
+            price: item.price,
+            quantity: item.quantity || 1,
+            currency: 'BDT'
+        });
+    }
+
+    function trackBeginCheckout() {
+        if (!trackingReady()) {
+            return;
+        }
+
+        const items = getCheckoutItems();
+
+        if (!items.length) {
+            return;
+        }
+
+        const totals = getOrderTotals();
+
+        window.SFATracking.beginCheckout({
+            currency: 'BDT',
+            value: totals.grandTotal,
+            shipping: totals.deliveryCharge,
+            tax: totals.codCharge,
+            items: items
+        });
     }
 
     function renderSummary() {
@@ -2465,7 +2561,7 @@ $(document).ready(function() {
 
                         <select class="summary-qty" data-id="${item.id}">
                             ${[1,2,3,4,5,6,7,8,9,10].map(function(qty) {
-                                return `<option value="${qty}" ${qty === item.quantity ? 'selected' : ''}>${qty}</option>`;
+                                return `<option value="${qty}" ${qty === Number(item.quantity) ? 'selected' : ''}>${qty}</option>`;
                             }).join('')}
                         </select>
                     </div>
@@ -2494,8 +2590,7 @@ $(document).ready(function() {
         const totals = getOrderTotals();
 
         $('#summarySubTotal').text(money(totals.subTotal));
-        $('#summaryDeliveryCharge').text(totals.hasAnyFreeDeliveryProduct ? 'Free Delivery' : money(totals
-            .deliveryCharge));
+        $('#summaryDeliveryCharge').text(totals.hasAnyFreeDeliveryProduct ? 'Free Delivery' : money(totals.deliveryCharge));
         $('#summaryCodCharge').text(money(totals.codCharge));
         $('#summaryGrandTotal').text(money(totals.grandTotal));
 
@@ -2510,8 +2605,9 @@ $(document).ready(function() {
             delete selectedProducts[id];
             card.removeClass('active');
         } else {
-            addProductFromCard(card);
+            const item = addProductFromCard(card);
             card.addClass('active');
+            trackAddToCart(item);
         }
 
         renderSummary();
@@ -2522,14 +2618,20 @@ $(document).ready(function() {
         const orderCard = $('.order-product-card[data-id="' + productId + '"]');
 
         if (orderCard.length) {
-            addProductFromCard(orderCard);
+            const item = addProductFromCard(orderCard);
+
             orderCard.addClass('active');
             renderSummary();
+            trackAddToCart(item);
 
             $('html, body').animate({
                 scrollTop: $('#order-section').offset().top - 80
             }, 500);
         }
+    });
+
+    $(document).on('click', 'a[href="#order-section"]', function() {
+        trackBeginCheckout();
     });
 
     $(document).on('click', '.remove-summary-item', function() {
@@ -2569,23 +2671,17 @@ $(document).ready(function() {
             return false;
         }
 
-        const totals = getOrderTotals();
+        trackBeginCheckout();
 
-        window.dataLayer = window.dataLayer || [];
-        window.dataLayer.push({
-            event: 'initiate_checkout',
-            ecommerce: {
-                currency: 'BDT',
-                value: totals.grandTotal,
-                shipping: totals.deliveryCharge,
-                items: getCheckoutItems()
-            }
-        });
+        return true;
     });
 
+    suppressTracking = true;
     $('.order-product-card').first().trigger('click');
+    suppressTracking = false;
 
     filterProducts();
+    trackViewContentOnce();
 });
 </script>
 @endpush

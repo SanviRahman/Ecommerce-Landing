@@ -10,20 +10,157 @@
 
     $noImage = asset('frontend/images/no-image.svg');
 
+    try {
+        $order->loadMissing(['items.product']);
+    } catch (\Throwable $e) {
+        //
+    }
+
     $items = $order->items ?? collect();
 
+    $imageOf = function ($model, $fallback = null) use ($noImage) {
+        $fallback = $fallback ?: $noImage;
+
+        if (! $model) {
+            return $fallback;
+        }
+
+        foreach ([
+            'image_url',
+            'thumbnail_url',
+            'featured_image_url',
+            'primary_image_url',
+            'main_image_url',
+            'thumbnail',
+            'featured_image',
+            'main_image',
+            'image',
+            'photo',
+        ] as $attribute) {
+            try {
+                if (! empty($model->{$attribute})) {
+                    $value = $model->{$attribute};
+
+                    if (\Illuminate\Support\Str::startsWith($value, ['http://', 'https://'])) {
+                        return $value;
+                    }
+
+                    $value = ltrim($value, '/');
+
+                    if (\Illuminate\Support\Str::startsWith($value, ['storage/'])) {
+                        return asset($value);
+                    }
+
+                    return \Illuminate\Support\Facades\Storage::url($value);
+                }
+            } catch (\Throwable $e) {
+                //
+            }
+        }
+
+        if (method_exists($model, 'getFirstMediaUrl')) {
+            foreach ([
+                'product_images',
+                'product_gallery',
+                'gallery',
+                'images',
+                'image',
+                'product_image',
+                'thumbnail',
+                'main_image',
+                'featured_image',
+                'default',
+            ] as $collection) {
+                try {
+                    $url = $model->getFirstMediaUrl($collection);
+
+                    if (! empty($url)) {
+                        return $url;
+                    }
+                } catch (\Throwable $e) {
+                    //
+                }
+            }
+        }
+
+        return $fallback;
+    };
+
+    $invoiceId = $order->invoice_id
+        ?? $order->invoice_no
+        ?? $order->invoice_number
+        ?? ('ORDER-' . $order->id);
+
+    $shippingCharge = (float) (
+        $order->shipping_charge
+        ?? $order->delivery_charge
+        ?? 0
+    );
+
+    $codCharge = (float) (
+        $order->cod_charge
+        ?? 0
+    );
+
+    $subTotal = (float) (
+        $order->sub_total
+        ?? $order->subtotal
+        ?? $items->sum(function ($item) {
+            $price = (float) ($item->unit_price ?? $item->price ?? 0);
+            $quantity = (int) ($item->quantity ?? 1);
+
+            return $price * $quantity;
+        })
+    );
+
+    $totalAmount = (float) (
+        $order->total_amount
+        ?? $order->grand_total
+        ?? ($subTotal + $shippingCharge + $codCharge)
+    );
+
+    $isFreeDelivery = (bool) (
+        $order->is_free_delivery
+        ?? ($shippingCharge <= 0)
+    );
+
     $purchaseItems = $items->map(function ($item) {
+        $product = $item->product ?? null;
+
+        $productId = $item->product_id
+            ?? $product?->id
+            ?? '';
+
+        $productName = $product?->name
+            ?? $item->product_name
+            ?? $item->name
+            ?? 'Product';
+
+        $unitPrice = (float) (
+            $item->unit_price
+            ?? $item->price
+            ?? 0
+        );
+
+        $quantity = (int) ($item->quantity ?? 1);
+
         return [
-            'item_id' => (string) ($item->product_id ?? ''),
-            'item_name' => $item->product_name ?? 'Product',
-            'price' => (float) ($item->unit_price ?? 0),
-            'quantity' => (int) ($item->quantity ?? 1),
+            'item_id' => (string) $productId,
+            'item_name' => (string) $productName,
+            'price' => $unitPrice,
+            'quantity' => $quantity,
         ];
     })->values();
 
-    $shippingCharge = (float) ($order->shipping_charge ?? 0);
-    $codCharge = (float) ($order->cod_charge ?? 0);
-    $totalAmount = (float) ($order->total_amount ?? 0);
+    $purchasePayload = [
+        'transaction_id' => (string) $invoiceId,
+        'affiliation' => $websiteName . ' Online Store',
+        'currency' => 'BDT',
+        'value' => $totalAmount,
+        'shipping' => $isFreeDelivery ? 0 : $shippingCharge,
+        'tax' => $codCharge,
+        'items' => $purchaseItems,
+    ];
 @endphp
 
 @section('title', 'Order Successful - ' . $websiteName)
@@ -147,6 +284,15 @@
         .success-title {
             font-size: 30px;
         }
+
+        .success-item {
+            align-items: flex-start;
+        }
+
+        .success-item img {
+            width: 68px;
+            height: 68px;
+        }
     }
 </style>
 @endpush
@@ -166,50 +312,63 @@
             </p>
 
             <div class="invoice-text">
-                Invoice # {{ $order->invoice_id }}
+                Invoice # {{ $invoiceId }}
             </div>
 
             @foreach($items as $item)
                 @php
-                    $productImage = $noImage;
+                    $product = $item->product ?? null;
 
-                    try {
-                        if ($item->product && ! empty($item->product->thumbnail)) {
-                            $productImage = $item->product->thumbnail;
-                        }
-                    } catch (\Throwable $e) {
-                        $productImage = $noImage;
-                    }
+                    $productName = $product?->name
+                        ?? $item->product_name
+                        ?? $item->name
+                        ?? 'Product';
+
+                    $unitPrice = (float) (
+                        $item->unit_price
+                        ?? $item->price
+                        ?? 0
+                    );
+
+                    $quantity = (int) ($item->quantity ?? 1);
+
+                    $lineTotal = (float) (
+                        $item->total_price
+                        ?? $item->line_total
+                        ?? ($unitPrice * $quantity)
+                    );
+
+                    $productImage = $imageOf($product);
                 @endphp
 
                 <div class="success-item">
                     <img src="{{ $productImage }}"
-                         alt="{{ $item->product_name }}"
+                         alt="{{ $productName }}"
                          onerror="this.onerror=null;this.src='{{ $noImage }}';">
 
                     <div class="flex-grow-1">
-                        <h5>{{ $item->product_name }}</h5>
+                        <h5>{{ $productName }}</h5>
                         <span>
-                            ৳{{ number_format($item->unit_price ?? 0) }}
-                            x {{ $item->quantity }}
+                            ৳{{ number_format($unitPrice) }}
+                            x {{ $quantity }}
                         </span>
                     </div>
 
                     <strong>
-                        ৳{{ number_format($item->total_price ?? 0) }}
+                        ৳{{ number_format($lineTotal) }}
                     </strong>
                 </div>
             @endforeach
 
             <div class="success-line">
                 <span>SUBTOTAL</span>
-                <strong>{{ number_format($order->sub_total ?? 0, 2) }} tk</strong>
+                <strong>{{ number_format($subTotal, 2) }} tk</strong>
             </div>
 
             <div class="success-line">
                 <span>DELIVERY</span>
                 <strong>
-                    @if($order->is_free_delivery)
+                    @if($isFreeDelivery)
                         Free Delivery
                     @else
                         {{ number_format($shippingCharge, 2) }} tk
@@ -240,7 +399,7 @@
                         <h5>Delivery</h5>
                         <div>ক্যাশ অন ডেলিভারি</div>
 
-                        @if($order->is_free_delivery)
+                        @if($isFreeDelivery)
                             <div>ফ্রি ডেলিভারি</div>
                         @else
                             <div>
@@ -258,17 +417,25 @@
 @push('js')
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-    if (window.SFATracking) {
-        window.SFATracking.purchase({
-            transaction_id: @json($order->invoice_id),
-            affiliation: @json($websiteName . ' Online Store'),
-            currency: 'BDT',
-            value: Number(@json($totalAmount)),
-            shipping: Number(@json($shippingCharge)),
-            tax: Number(@json($codCharge)),
-            items: @json($purchaseItems)
-        });
+    const purchasePayload = @json($purchasePayload);
+    let retryCount = 0;
+    const maxRetry = 20;
+
+    function firePurchase() {
+        if (!window.SFATracking || typeof window.SFATracking.purchase !== 'function') {
+            retryCount++;
+
+            if (retryCount <= maxRetry) {
+                setTimeout(firePurchase, 300);
+            }
+
+            return;
+        }
+
+        window.SFATracking.purchase(purchasePayload);
     }
+
+    firePurchase();
 });
 </script>
 @endpush
