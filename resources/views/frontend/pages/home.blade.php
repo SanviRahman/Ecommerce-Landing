@@ -2486,7 +2486,7 @@ body {
 
                         <div class="summary-line">
                             <span>ডেলিভারি চার্জ</span>
-                            <strong id="summaryDeliveryCharge">৳100</strong>
+                            <strong id="summaryDeliveryCharge">৳70</strong>
                         </div>
 
                         <div class="summary-line">
@@ -2556,9 +2556,9 @@ $(document).ready(function() {
     const noImage = @json($noImage);
 
     const deliveryCharges = {
-        inside_dhaka: 100,
-        outside_dhaka: 150
-    };
+    inside_dhaka: 70,
+    outside_dhaka: 130
+};
 
     let selectedCategory = @json($defaultCategoryId ? (string) $defaultCategoryId : 'all');
     let selectedBrand = 'all';
