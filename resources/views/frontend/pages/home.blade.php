@@ -1519,6 +1519,15 @@ body {
     white-space: nowrap;
 }
 
+.order-product-meta-line {
+    min-width: 0;
+}
+
+.order-free-delivery-badge {
+    display: inline-block;
+    max-width: 100%;
+}
+
 .order-info-box {
     border-top: 2px dashed #dbe4ef;
     padding-top: 20px;
@@ -1572,11 +1581,45 @@ body {
 
 @media (max-width: 991px) {
     .hero-section {
-        padding-top: 24px;
+        padding: 18px 0 44px;
+    }
+
+    .hero-section .row {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .hero-section .hero-video-col {
+        order: 1;
+        margin-bottom: 28px;
     }
 
     .hero-section .hero-content {
-        display: none;
+        order: 2;
+        display: block !important;
+        text-align: center;
+    }
+
+    .hero-title {
+        font-size: 34px;
+        margin-bottom: 18px;
+    }
+
+    .hero-text {
+        font-size: 17px;
+        line-height: 1.8;
+    }
+
+    .hero-check-list {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px 18px;
+        max-width: 650px;
+        margin: 28px auto;
+        text-align: left;
+    }
+
+    .hero-actions {
+        justify-content: center;
     }
 
     .hero-video-box {
@@ -1595,16 +1638,32 @@ body {
         padding: 58px 0;
     }
 
-    .hero-check-list {
-        grid-template-columns: repeat(2, 1fr);
-    }
-
     .gallery-grid {
         grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 
     .review-slide-card {
         width: 520px;
+    }
+
+    .difference-mobile-images {
+        display: grid !important;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+        margin-bottom: 20px;
+    }
+
+    .difference-mobile-images img {
+        width: 100%;
+        height: 155px;
+        object-fit: cover;
+        border-radius: 14px;
+        box-shadow: var(--front-shadow);
+        background: var(--front-soft);
+    }
+
+    .difference-desktop-image {
+        display: none !important;
     }
 }
 
@@ -1649,6 +1708,62 @@ body {
     .service-banner {
         height: 200px;
     }
+
+    .order-products-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+    }
+
+    .order-product-card {
+        min-height: 105px;
+        align-items: flex-start;
+        padding: 9px;
+        overflow: hidden;
+    }
+
+    .order-product-card img {
+        width: 58px;
+        height: 58px;
+        margin-right: 8px;
+        border-radius: 8px;
+    }
+
+    .order-product-card h5 {
+        font-size: 14px;
+        line-height: 1.22;
+        margin-bottom: 4px;
+        word-break: break-word;
+    }
+
+    .order-product-card p {
+        display: block;
+        font-size: 12px;
+        line-height: 1.3;
+    }
+
+    .order-product-price,
+    .order-product-weight {
+        display: block;
+        white-space: normal;
+    }
+
+    .order-product-card .badge {
+        font-size: 10px;
+        line-height: 1.2;
+        padding: 3px 5px;
+        white-space: normal;
+    }
+
+    .selected-check {
+        right: 8px;
+        top: 8px;
+        z-index: 5;
+    }
+
+    .order-summary-card {
+        position: static;
+        top: auto;
+    }
 }
 
 @media (max-width: 575px) {
@@ -1657,9 +1772,44 @@ body {
         padding-right: 16px;
     }
 
+    .hero-section {
+        padding-top: 12px;
+    }
+
     .hero-video-box video,
     .hero-video-box iframe {
-        height: 490px;
+        height: 325px;
+    }
+
+    .hero-title {
+        font-size: 30px;
+    }
+
+    .hero-text {
+        font-size: 16px;
+    }
+
+    .hero-check-list {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 11px 14px;
+    }
+
+    .hero-check-item {
+        font-size: 14px;
+    }
+
+    .rating-stars {
+        font-size: 20px;
+    }
+
+    .hero-actions .btn {
+        padding: 12px 18px;
+    }
+
+    .side-action-btn,
+    .help-icon-btn {
+        width: 44px;
+        height: 44px;
     }
 
     .summary-product-info {
@@ -1696,7 +1846,62 @@ body {
     .review-control-next {
         right: 0;
     }
+
+    .order-products-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    .order-product-card {
+        min-height: 118px;
+        padding: 8px;
+    }
+
+    .order-product-card img {
+        width: 52px;
+        height: 52px;
+        margin-right: 7px;
+    }
+
+    .order-product-card h5 {
+        font-size: 13px;
+        line-height: 1.2;
+    }
+
+    .order-product-card p {
+        font-size: 11px;
+    }
+
+    .difference-mobile-images img {
+        height: 125px;
+    }
 }
+
+@media (max-width: 380px) {
+    .order-products-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .order-product-card {
+        min-height: auto;
+    }
+
+    .order-product-card h5 {
+        font-size: 15px;
+    }
+
+    .order-product-card p {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+    }
+
+    .order-product-price,
+    .order-product-weight {
+        display: inline-block;
+    }
+}
+
 </style>
 @endpush
 
@@ -1746,14 +1951,14 @@ body {
                 </div>
 
                 @if(($campaign?->benefits_section_status ?? true) && $benefits->isNotEmpty())
-                <div class="hero-check-list">
-                    @foreach($benefits as $benefit)
-                    <div class="hero-check-item">
-                        <i class="fas fa-check-circle"></i>
-                        {{ $benefit }}
+                    <div class="hero-check-list">
+                        @foreach($benefits as $benefit)
+                            <div class="hero-check-item">
+                                <i class="fas fa-check-circle"></i>
+                                {{ $benefit }}
+                            </div>
+                        @endforeach
                     </div>
-                    @endforeach
-                </div>
                 @endif
 
                 <div class="rating-stars">
@@ -1776,33 +1981,35 @@ body {
                     </a>
 
                     @if($whatsappUrl)
-                    <a href="{{ $whatsappUrl }}" target="_blank" class="side-action-btn" title="WhatsApp">
-                        <i class="fab fa-whatsapp"></i>
-                    </a>
+                        <a href="{{ $whatsappUrl }}" target="_blank" class="side-action-btn" title="WhatsApp">
+                            <i class="fab fa-whatsapp"></i>
+                        </a>
                     @endif
 
                     @if($phoneUrl)
-                    <a href="{{ $phoneUrl }}" class="side-action-btn" title="Call">
-                        <i class="fas fa-phone-alt"></i>
-                    </a>
+                        <a href="{{ $phoneUrl }}" class="side-action-btn" title="Call">
+                            <i class="fas fa-phone-alt"></i>
+                        </a>
                     @endif
                 </div>
             </div>
 
             @if($videoEmbedUrl || $videoFileUrl)
-            <div class="col-lg-5">
-                <div class="hero-video-box">
-                    @if($videoEmbedUrl)
-                    <iframe src="{{ $videoEmbedUrl }}" title="{{ $heroTitle }}" allowfullscreen
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture">
-                    </iframe>
-                    @elseif($videoFileUrl)
-                    <video controls preload="metadata" poster="{{ $heroVideoPoster }}">
-                        <source src="{{ $videoFileUrl }}" type="video/mp4">
-                    </video>
-                    @endif
+                <div class="col-lg-5 hero-video-col">
+                    <div class="hero-video-box">
+                        @if($videoEmbedUrl)
+                            <iframe src="{{ $videoEmbedUrl }}"
+                                    title="{{ $heroTitle }}"
+                                    allowfullscreen
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture">
+                            </iframe>
+                        @elseif($videoFileUrl)
+                            <video controls preload="metadata" poster="{{ $heroVideoPoster }}">
+                                <source src="{{ $videoFileUrl }}" type="video/mp4">
+                            </video>
+                        @endif
+                    </div>
                 </div>
-            </div>
             @endif
         </div>
     </div>
@@ -1957,12 +2164,24 @@ body {
         <h2 class="section-title">{{ $comparisonSectionTitle }}</h2>
 
         <div class="row align-items-center">
-            <div class="col-lg-3 d-none d-lg-block">
-                <img src="{{ $campaign?->image_one_url ?: $noImage }}" class="side-product-img"
-                    alt="{{ $comparisonLeftTitle }}" onerror="this.onerror=null;this.src='{{ $noImage }}';">
+            <div class="col-lg-3 difference-desktop-image">
+                <img src="{{ $campaign?->image_one_url ?: $noImage }}"
+                     class="side-product-img"
+                     alt="{{ $comparisonLeftTitle }}"
+                     onerror="this.onerror=null;this.src='{{ $noImage }}';">
             </div>
 
             <div class="col-lg-6">
+                <div class="difference-mobile-images d-none">
+                    <img src="{{ $campaign?->image_one_url ?: $noImage }}"
+                         alt="{{ $comparisonLeftTitle }}"
+                         onerror="this.onerror=null;this.src='{{ $noImage }}';">
+
+                    <img src="{{ $campaign?->image_two_url ?: $noImage }}"
+                         alt="{{ $comparisonRightTitle }}"
+                         onerror="this.onerror=null;this.src='{{ $noImage }}';">
+                </div>
+
                 <h4 class="text-center font-weight-bold mb-4">
                     {{ $comparisonLeftTitle }} &nbsp;&nbsp; {{ $comparisonRightTitle }}
                 </h4>
@@ -1970,19 +2189,22 @@ body {
                 <div class="table-responsive">
                     <table class="table difference-table mb-0">
                         <tbody>
-                            @for($i = 0; $i < $comparisonMaxRows; $i++) <tr>
-                                <td>{{ $comparisonLeft[$i] ?? '' }}</td>
-                                <td>{{ $comparisonRight[$i] ?? '' }}</td>
+                            @for($i = 0; $i < $comparisonMaxRows; $i++)
+                                <tr>
+                                    <td>{{ $comparisonLeft[$i] ?? '' }}</td>
+                                    <td>{{ $comparisonRight[$i] ?? '' }}</td>
                                 </tr>
-                                @endfor
+                            @endfor
                         </tbody>
                     </table>
                 </div>
             </div>
 
-            <div class="col-lg-3 d-none d-lg-block">
-                <img src="{{ $campaign?->image_two_url ?: $noImage }}" class="side-product-img"
-                    alt="{{ $comparisonRightTitle }}" onerror="this.onerror=null;this.src='{{ $noImage }}';">
+            <div class="col-lg-3 difference-desktop-image">
+                <img src="{{ $campaign?->image_two_url ?: $noImage }}"
+                     class="side-product-img"
+                     alt="{{ $comparisonRightTitle }}"
+                     onerror="this.onerror=null;this.src='{{ $noImage }}';">
             </div>
         </div>
     </div>
@@ -2172,17 +2394,18 @@ body {
                             <div class="flex-grow-1">
                                 <h5>{{ $product->name }}</h5>
 
-                                <p>
-                                    <span class="order-product-price">৳ {{ number_format($unitPrice) }}</span>
+                                <p class="order-product-meta-line">
+    <span class="order-product-price">৳ {{ number_format($unitPrice) }}</span>
 
-                                    @if($weight)
-                                    <span class="order-product-weight">{{ $weight }}</span>
-                                    @endif
-                                </p>
+    @if($weight)
+        <span class="order-product-weight">{{ $weight }}</span>
+    @endif
+</p>
 
-                                @if($product->is_free_delivery)
-                                <span class="badge badge-success mt-1">ফ্রি ডেলিভারি</span>
-                                @endif
+@if($product->is_free_delivery)
+    <span class="badge badge-success order-free-delivery-badge mt-1">ফ্রি ডেলিভারি</span>
+@endif
+                               
                             </div>
 
                             <span class="selected-check">
