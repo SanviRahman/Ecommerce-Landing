@@ -1,3 +1,4 @@
+
 @php
     $campaign = $campaign ?? null;
     $isEdit = $isEdit ?? false;
@@ -55,6 +56,8 @@
         'faq_title' => 'সচরাচর জিজ্ঞাস্য প্রশ্নাবলি',
         'gallery_title' => 'প্রোডাক্ট গ্যালারি',
         'order_title' => 'অর্ডার করুন এখনই',
+        'hero_star_count' => '5',
+        'hero_rating_text' => '৩০,০০০ হাজারও অধিক গ্রাহকের কাছে<br>আমরা হয়েছি জনপ্রিয়',
     ]);
 
     $serviceItems = old('service_items', $campaign->service_items ?? [
@@ -86,19 +89,6 @@
         'button_text' => 'হেল্পলাইন',
     ]);
 
-    $sectionSwitches = [
-        'hero_section_status' => 'Hero Section',
-        'benefits_section_status' => 'Hero Benefits Section',
-        'category_section_status' => 'Category / Brand Filter Section',
-        'product_section_status' => 'Product Section',
-        'comparison_section_status' => 'Comparison Section',
-        'service_section_status' => 'Why Choose Us / Service Section',
-        'review_section_status' => 'Review Section',
-        'gallery_section_status' => 'Gallery Section',
-        'faq_section_status' => 'FAQ Section',
-        'order_section_status' => 'Order Section',
-    ];
-
     $mediaFields = [
         'banner_image' => [
             'label' => 'Banner Image',
@@ -108,17 +98,17 @@
         'image_one' => [
             'label' => 'Image One',
             'type' => 'image',
-            'hint' => 'Used in campaign sections',
+            'hint' => 'Used in comparison left image',
         ],
         'image_two' => [
             'label' => 'Image Two',
             'type' => 'image',
-            'hint' => 'Used in comparison left image',
+            'hint' => 'Used in comparison right image',
         ],
         'image_three' => [
             'label' => 'Image Three',
             'type' => 'image',
-            'hint' => 'Used in comparison right image',
+            'hint' => 'Used in campaign sections',
         ],
         'review_image' => [
             'label' => 'Review Image',
@@ -131,6 +121,25 @@
             'hint' => 'Allowed: mp4, webm, ogg. Maximum size: 50MB.',
         ],
     ];
+
+    $sectionSwitch = function ($field, $label) use ($campaign) {
+        $checked = old($field, $campaign->{$field} ?? true);
+
+        return '
+            <div class="custom-control custom-switch section-status-switch">
+                <input type="checkbox"
+                       name="' . e($field) . '"
+                       value="1"
+                       class="custom-control-input"
+                       id="' . e($field) . '"
+                       ' . ($checked ? 'checked' : '') . '>
+
+                <label class="custom-control-label font-weight-bold" for="' . e($field) . '">
+                    ' . e($label) . '
+                </label>
+            </div>
+        ';
+    };
 @endphp
 
 <form action="{{ $action }}" method="POST" enctype="multipart/form-data" id="campaignForm">
@@ -140,12 +149,12 @@
         @method('PUT')
     @endif
 
-    {{-- Basic Campaign Information --}}
+    {{-- Basic Information --}}
     <div class="card shadow-sm border-0 mb-3" style="border-radius: 12px;">
         <div class="card-header bg-white">
             <h5 class="mb-0 font-weight-bold">
                 <i class="fas fa-bullhorn text-primary mr-1"></i>
-                Basic Campaign Information
+                Basic Information
             </h5>
         </div>
 
@@ -191,19 +200,6 @@
                               placeholder="Short campaign description">{{ old('short_description', $campaign->short_description ?? '') }}</textarea>
 
                     @error('short_description')
-                        <span class="invalid-feedback">{{ $message }}</span>
-                    @enderror
-                </div>
-
-                <div class="col-md-12 mb-3">
-                    <label class="font-weight-bold">Full Description</label>
-
-                    <textarea name="full_description"
-                              rows="5"
-                              class="form-control @error('full_description') is-invalid @enderror"
-                              placeholder="Full campaign description">{{ old('full_description', $campaign->full_description ?? '') }}</textarea>
-
-                    @error('full_description')
                         <span class="invalid-feedback">{{ $message }}</span>
                     @enderror
                 </div>
@@ -299,128 +295,194 @@
                         <span class="invalid-feedback">{{ $message }}</span>
                     @enderror
                 </div>
-
-                <div class="col-md-6 mb-2">
-                    <div class="custom-control custom-switch">
-                        <input type="checkbox"
-                               name="enable_bulk_order"
-                               value="1"
-                               class="custom-control-input"
-                               id="enable_bulk_order"
-                               @checked(old('enable_bulk_order', $campaign->enable_bulk_order ?? false))>
-
-                        <label class="custom-control-label font-weight-bold" for="enable_bulk_order">
-                            Enable Bulk Order
-                        </label>
-                    </div>
-                </div>
-
-                <div class="col-md-6 mb-2">
-                    <div class="custom-control custom-switch">
-                        <input type="checkbox"
-                               name="status"
-                               value="1"
-                               class="custom-control-input"
-                               id="campaign_status"
-                               @checked(old('status', $campaign->status ?? true))>
-
-                        <label class="custom-control-label font-weight-bold" for="campaign_status">
-                            Active Campaign
-                        </label>
-                    </div>
-                </div>
             </div>
         </div>
     </div>
 
-    {{-- Frontend Section Active / Inactive --}}
+    {{-- Hero Section --}}
     <div class="card shadow-sm border-0 mb-3" style="border-radius: 12px;">
-        <div class="card-header bg-white">
-            <h5 class="mb-0 font-weight-bold">
-                <i class="fas fa-toggle-on text-success mr-1"></i>
-                Frontend Section Active / Inactive
-            </h5>
+        <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap">
+            <div>
+                <h5 class="mb-0 font-weight-bold">
+                    <i class="fas fa-home text-success mr-1"></i>
+                    Hero Section
+                </h5>
 
-            <small class="text-muted">
-                Switch active থাকলে frontend home page-এ section show হবে, inactive থাকলে hide হবে।
-            </small>
+                <small class="text-muted">
+                    1st Embed Video, 2nd Multiple Image Slider, 3rd Uploaded Video. Frontend এই priority follow করবে।
+                </small>
+            </div>
+
+            {!! $sectionSwitch('hero_section_status', 'Active / Inactive') !!}
         </div>
 
         <div class="card-body">
-            <div class="row">
-                @foreach($sectionSwitches as $field => $label)
-                    <div class="col-md-4 mb-2">
-                        <div class="custom-control custom-switch">
-                            <input type="checkbox"
-                                   name="{{ $field }}"
-                                   value="1"
-                                   class="custom-control-input"
-                                   id="{{ $field }}"
-                                   @checked(old($field, $campaign->{$field} ?? true))>
+            {{-- 1st Priority: Embed Video --}}
+            <div class="form-group mb-4">
+                <label class="font-weight-bold">1. Embed Video URL</label>
 
-                            <label class="custom-control-label" for="{{ $field }}">
-                                {{ $label }}
-                            </label>
+                <input type="url"
+                       name="embed_video_url"
+                       value="{{ old('embed_video_url', $campaign->embed_video_url ?? '') }}"
+                       class="form-control @error('embed_video_url') is-invalid @enderror"
+                       placeholder="YouTube/Facebook video URL. Example: https://youtu.be/VIDEO_ID">
+
+                <small class="text-muted">
+                    Embed URL থাকলে frontend hero media হিসেবে প্রথমে এটিই show হবে।
+                </small>
+
+                @error('embed_video_url')
+                    <span class="invalid-feedback d-block">{{ $message }}</span>
+                @enderror
+            </div>
+
+            {{-- 2nd Priority: Multiple Hero Images --}}
+            <div class="border rounded p-3 bg-light mb-4">
+                <label class="font-weight-bold d-block">
+                    <i class="fas fa-images text-success mr-1"></i>
+                    2. Hero Multiple Images / Auto Slider
+                </label>
+
+                <input type="file"
+                       name="hero_slider_images[]"
+                       id="heroSliderImagesInput"
+                       class="form-control-file @error('hero_slider_images') is-invalid @enderror @error('hero_slider_images.*') is-invalid @enderror"
+                       accept="image/*"
+                       multiple>
+
+                <small class="text-muted d-block mt-1">
+                    একসাথে multiple image select করা যাবে, preview হবে, selected image instant remove করা যাবে।
+                    Embed video না থাকলে frontend hero section-এ এগুলো auto slider with indicators হিসেবে show হবে।
+                </small>
+
+                @error('hero_slider_images')
+                    <div class="text-danger small mt-1">{{ $message }}</div>
+                @enderror
+
+                @error('hero_slider_images.*')
+                    <div class="text-danger small mt-1">{{ $message }}</div>
+                @enderror
+
+                <div class="row mt-3" id="heroSliderImagesSelectedPreview"></div>
+
+                @if($isEdit && $campaign && method_exists($campaign, 'getMedia'))
+                    <div class="row mt-3" id="heroSliderImagesExistingPreview">
+                        @foreach($campaign->getMedia('hero_slider_images') as $media)
+                            <div class="col-md-3 col-lg-2 mb-3" id="hero-slider-media-box-{{ $media->id }}">
+                                <div class="campaign-gallery-preview-item border rounded bg-white p-1">
+                                    <img src="{{ $media->getUrl() }}"
+                                         alt="Hero Slider Image"
+                                         class="campaign-gallery-preview-img">
+
+                                    <button type="button"
+                                            class="btn btn-xs btn-danger btn-block mt-1 hero-slider-delete-btn"
+                                            data-id="{{ $media->id }}"
+                                            data-url="{{ route('admin.campaigns.delete_media', $media->id) }}">
+                                        Delete
+                                    </button>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                @endif
+            </div>
+
+            {{-- 3rd Priority: Uploaded Video --}}
+            @php
+                $field = 'campaign_video';
+                $mediaConfig = $mediaFields[$field];
+                $existingMedia = $campaign ? $campaign->getFirstMedia($field) : null;
+                $existingUrl = $existingMedia ? $existingMedia->getUrl() : null;
+            @endphp
+
+            <div class="form-group mb-4">
+                <label class="font-weight-bold">3. Campaign Video Upload</label>
+
+                <input type="file"
+                       name="{{ $field }}"
+                       class="form-control-file campaign-media-input @error($field) is-invalid @enderror"
+                       data-preview="#preview_{{ $field }}"
+                       data-type="{{ $mediaConfig['type'] }}"
+                       accept="video/mp4,video/webm,video/ogg">
+
+                <small class="text-muted d-block mt-1">
+                    Embed video এবং hero multiple image না থাকলে এই uploaded video frontend hero media হিসেবে show হবে।
+                </small>
+
+                @error($field)
+                    <div class="text-danger small mt-1">{{ $message }}</div>
+                @enderror
+
+                <div class="campaign-preview-box mt-2" id="preview_{{ $field }}">
+                    @if($existingUrl)
+                        <div class="existing-media-box position-relative d-inline-block">
+                            <video src="{{ $existingUrl }}" controls class="campaign-video-preview"></video>
+
+                            <button type="button"
+                                    class="btn btn-sm btn-danger campaign-media-delete-btn"
+                                    data-url="{{ route('admin.campaigns.delete_media', $existingMedia->id) }}"
+                                    data-target="#preview_{{ $field }}"
+                                    title="Delete">
+                                <i class="fas fa-trash"></i>
+                            </button>
                         </div>
+                    @else
+                        <div class="text-muted small border rounded p-3 bg-light">No file selected</div>
+                    @endif
+                </div>
+            </div>
+
+            {{-- Dynamic Star / Rating Text --}}
+            <div class="border rounded p-3 bg-white">
+                <h6 class="font-weight-bold mb-3">
+                    <i class="fas fa-star text-warning mr-1"></i>
+                    Hero Star & Rating Text
+                </h6>
+
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label class="font-weight-bold">Star Count</label>
+
+                        <select name="section_titles[hero_star_count]" class="form-control">
+                            @for($star = 1; $star <= 5; $star++)
+                                <option value="{{ $star }}"
+                                    @selected((string) old('section_titles.hero_star_count', $sectionTitles['hero_star_count'] ?? 5) === (string) $star)>
+                                    {{ $star }} Star
+                                </option>
+                            @endfor
+                        </select>
                     </div>
-                @endforeach
+
+                    <div class="col-md-8 mb-3">
+                        <label class="font-weight-bold">Rating Text</label>
+
+                        <textarea name="section_titles[hero_rating_text]"
+                                  rows="3"
+                                  class="form-control"
+                                  placeholder="Example: ৩০,০০০ হাজারও অধিক গ্রাহকের কাছে&lt;br&gt;আমরা হয়েছি জনপ্রিয়">{{ old('section_titles.hero_rating_text', $sectionTitles['hero_rating_text'] ?? '৩০,০০০ হাজারও অধিক গ্রাহকের কাছে<br>আমরা হয়েছি জনপ্রিয়') }}</textarea>
+
+                        <small class="text-muted">
+                            Line break দিতে চাইলে &lt;br&gt; use করতে পারবেন।
+                        </small>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
-    {{-- Frontend Section Titles --}}
+    {{-- Hero Benefits Section --}}
     <div class="card shadow-sm border-0 mb-3" style="border-radius: 12px;">
-        <div class="card-header bg-white">
-            <h5 class="mb-0 font-weight-bold">
-                <i class="fas fa-heading text-success mr-1"></i>
-                Frontend Section Titles
-            </h5>
+        <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap">
+            <div>
+                <h5 class="mb-0 font-weight-bold">
+                    <i class="fas fa-check-circle text-success mr-1"></i>
+                    Hero Benefits Section
+                </h5>
 
-            <small class="text-muted">
-                Frontend home page-এর section title এখান থেকে dynamic হবে।
-            </small>
-        </div>
-
-        <div class="card-body">
-            <div class="row">
-                @foreach([
-                    'category_title' => 'Category Section Title',
-                    'brand_title' => 'Brand Section Title',
-                    'product_title' => 'Product Section Title',
-                    'category_filter_title' => 'Category Filter Title',
-                    'brand_filter_title' => 'Brand Filter Title',
-                    'comparison_title' => 'Comparison Section Title',
-                    'service_title' => 'Service Section Title',
-                    'review_title' => 'Review Section Title',
-                    'faq_title' => 'FAQ Section Title',
-                    'gallery_title' => 'Gallery Section Title',
-                    'order_title' => 'Order Section Title',
-                ] as $field => $label)
-                    <div class="col-md-6 mb-3">
-                        <label class="font-weight-bold">{{ $label }}</label>
-
-                        <input type="text"
-                               name="section_titles[{{ $field }}]"
-                               value="{{ old('section_titles.' . $field, $sectionTitles[$field] ?? '') }}"
-                               class="form-control"
-                               placeholder="{{ $label }}">
-                    </div>
-                @endforeach
+                <small class="text-muted">Frontend hero section-er benefit list ekhane theke dynamic hobe.</small>
             </div>
-        </div>
-    </div>
 
-    {{-- Hero Benefits Text --}}
-    <div class="card shadow-sm border-0 mb-3" style="border-radius: 12px;">
-        <div class="card-header bg-white">
-            <h5 class="mb-0 font-weight-bold">
-                <i class="fas fa-check-circle text-success mr-1"></i>
-                Hero Benefits Text
-            </h5>
-
-            <small class="text-muted">
-                Frontend hero section-er benefit list ekhane theke dynamic hobe.
-            </small>
+            {!! $sectionSwitch('benefits_section_status', 'Active / Inactive') !!}
         </div>
 
         <div class="card-body">
@@ -454,20 +516,191 @@
         </div>
     </div>
 
-    {{-- Comparison Section --}}
+    {{-- Category / Brand Section --}}
     <div class="card shadow-sm border-0 mb-3" style="border-radius: 12px;">
-        <div class="card-header bg-white">
-            <h5 class="mb-0 font-weight-bold">
-                <i class="fas fa-balance-scale text-success mr-1"></i>
-                Comparison Section
-            </h5>
+        <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap">
+            <div>
+                <h5 class="mb-0 font-weight-bold">
+                    <i class="fas fa-layer-group text-primary mr-1"></i>
+                    Category / Brand Section
+                </h5>
 
-            <small class="text-muted">
-                Frontend-er comparison section ekhane theke dynamic hobe.
-            </small>
+                <small class="text-muted">Home page sequence অনুযায়ী category এবং brand section.</small>
+            </div>
+
+            {!! $sectionSwitch('category_section_status', 'Active / Inactive') !!}
         </div>
 
         <div class="card-body">
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label class="font-weight-bold">Category Section Title</label>
+
+                    <input type="text"
+                           name="section_titles[category_title]"
+                           value="{{ old('section_titles.category_title', $sectionTitles['category_title'] ?? 'ক্যাটাগরি সমূহ') }}"
+                           class="form-control"
+                           placeholder="Category Section Title">
+                </div>
+
+                <div class="col-md-6 mb-3">
+                    <label class="font-weight-bold">Brand Section Title</label>
+
+                    <input type="text"
+                           name="section_titles[brand_title]"
+                           value="{{ old('section_titles.brand_title', $sectionTitles['brand_title'] ?? 'ব্র্যান্ড সমূহ') }}"
+                           class="form-control"
+                           placeholder="Brand Section Title">
+                </div>
+
+                <div class="col-md-6 mb-3">
+                    <label class="font-weight-bold">Categories</label>
+
+                    <select name="categories[]"
+                            class="form-control select2-categories @error('categories') is-invalid @enderror"
+                            multiple>
+                        @foreach($categories as $category)
+                            <option value="{{ $category->id }}" @selected(in_array($category->id, $selectedCategories))>
+                                {{ $category->name }}
+                            </option>
+                        @endforeach
+                    </select>
+
+                    <small class="text-muted">
+                        Search kore multiple category select koro. Jeta age select korbe frontend-e age show hobe.
+                    </small>
+
+                    @error('categories')
+                        <div class="text-danger small mt-1">{{ $message }}</div>
+                    @enderror
+                </div>
+
+                <div class="col-md-6 mb-3">
+                    <label class="font-weight-bold">Brands</label>
+
+                    <select name="brands[]"
+                            class="form-control select2-brands @error('brands') is-invalid @enderror"
+                            multiple>
+                        @foreach($brands as $brand)
+                            <option value="{{ $brand->id }}" @selected(in_array($brand->id, $selectedBrands))>
+                                {{ $brand->name }}
+                            </option>
+                        @endforeach
+                    </select>
+
+                    <small class="text-muted">
+                        Search kore multiple brand select koro. Jeta age select korbe frontend-e age show hobe.
+                    </small>
+
+                    @error('brands')
+                        <div class="text-danger small mt-1">{{ $message }}</div>
+                    @enderror
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {{-- Product Section --}}
+    <div class="card shadow-sm border-0 mb-3" style="border-radius: 12px;">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap">
+            <div>
+                <h5 class="mb-0 font-weight-bold">
+                    <i class="fas fa-box-open text-primary mr-1"></i>
+                    Product Section
+                </h5>
+
+                <small class="text-muted">Frontend product grid/order section-e sudhu selected products show hobe.</small>
+            </div>
+
+            {!! $sectionSwitch('product_section_status', 'Active / Inactive') !!}
+        </div>
+
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <label class="font-weight-bold">Product Section Title</label>
+
+                    <input type="text"
+                           name="section_titles[product_title]"
+                           value="{{ old('section_titles.product_title', $sectionTitles['product_title'] ?? 'আমাদের প্রোডাক্ট') }}"
+                           class="form-control"
+                           placeholder="Product Section Title">
+                </div>
+
+                <div class="col-md-4 mb-3">
+                    <label class="font-weight-bold">Category Filter Title</label>
+
+                    <input type="text"
+                           name="section_titles[category_filter_title]"
+                           value="{{ old('section_titles.category_filter_title', $sectionTitles['category_filter_title'] ?? 'ক্যাটাগরি দিয়ে ফিল্টার') }}"
+                           class="form-control"
+                           placeholder="Category Filter Title">
+                </div>
+
+                <div class="col-md-4 mb-3">
+                    <label class="font-weight-bold">Brand Filter Title</label>
+
+                    <input type="text"
+                           name="section_titles[brand_filter_title]"
+                           value="{{ old('section_titles.brand_filter_title', $sectionTitles['brand_filter_title'] ?? 'ব্র্যান্ড দিয়ে ফিল্টার') }}"
+                           class="form-control"
+                           placeholder="Brand Filter Title">
+                </div>
+            </div>
+
+            <div class="form-group mb-0">
+                <label class="font-weight-bold">
+                    Products <span class="text-danger">*</span>
+                </label>
+
+                <select name="products[]"
+                        class="form-control select2-products @error('products') is-invalid @enderror"
+                        multiple
+                        required>
+                    @foreach($products as $product)
+                        <option value="{{ $product->id }}" @selected(in_array($product->id, $selectedProducts))>
+                            {{ $product->name }} — ৳{{ number_format($product->new_price ?? 0) }}
+                        </option>
+                    @endforeach
+                </select>
+
+                <small class="text-muted">
+                    Search kore multiple product select koro. Frontend product grid/order section-e sudhu selected products show hobe.
+                </small>
+
+                @error('products')
+                    <div class="text-danger small mt-1">{{ $message }}</div>
+                @enderror
+            </div>
+        </div>
+    </div>
+
+    {{-- Difference / Comparison Section --}}
+    <div class="card shadow-sm border-0 mb-3" style="border-radius: 12px;">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap">
+            <div>
+                <h5 class="mb-0 font-weight-bold">
+                    <i class="fas fa-balance-scale text-success mr-1"></i>
+                    Comparison Section
+                </h5>
+
+                <small class="text-muted">Frontend-er comparison section ekhane theke dynamic hobe.</small>
+            </div>
+
+            {!! $sectionSwitch('comparison_section_status', 'Active / Inactive') !!}
+        </div>
+
+        <div class="card-body">
+            <div class="form-group">
+                <label class="font-weight-bold">Comparison Section Title</label>
+
+                <input type="text"
+                       name="section_titles[comparison_title]"
+                       value="{{ old('section_titles.comparison_title', $sectionTitles['comparison_title'] ?? 'চুইঝালের পার্থক্যসমূহ') }}"
+                       class="form-control"
+                       placeholder="Comparison Section Title">
+            </div>
+
             <div class="row mb-3">
                 <div class="col-md-6">
                     <label class="font-weight-bold">Left Column Title</label>
@@ -488,6 +721,51 @@
                            class="form-control"
                            placeholder="Example: এটা চুইঝাল">
                 </div>
+            </div>
+
+            <div class="row mb-4">
+                @foreach(['image_one', 'image_two'] as $field)
+                    @php
+                        $mediaConfig = $mediaFields[$field];
+                        $existingMedia = $campaign ? $campaign->getFirstMedia($field) : null;
+                        $existingUrl = $existingMedia ? $existingMedia->getUrl() : null;
+                    @endphp
+
+                    <div class="col-md-6 mb-3">
+                        <label class="font-weight-bold">{{ $mediaConfig['label'] }}</label>
+
+                        <input type="file"
+                               name="{{ $field }}"
+                               class="form-control-file campaign-media-input @error($field) is-invalid @enderror"
+                               data-preview="#preview_{{ $field }}"
+                               data-type="{{ $mediaConfig['type'] }}"
+                               accept="image/*">
+
+                        <small class="text-muted d-block mt-1">{{ $mediaConfig['hint'] }}</small>
+
+                        @error($field)
+                            <div class="text-danger small mt-1">{{ $message }}</div>
+                        @enderror
+
+                        <div class="campaign-preview-box mt-2" id="preview_{{ $field }}">
+                            @if($existingUrl)
+                                <div class="existing-media-box position-relative d-inline-block">
+                                    <img src="{{ $existingUrl }}" alt="{{ $mediaConfig['label'] }}" class="campaign-image-preview">
+
+                                    <button type="button"
+                                            class="btn btn-sm btn-danger campaign-media-delete-btn"
+                                            data-url="{{ route('admin.campaigns.delete_media', $existingMedia->id) }}"
+                                            data-target="#preview_{{ $field }}"
+                                            title="Delete">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            @else
+                                <div class="text-muted small border rounded p-3 bg-light">No file selected</div>
+                            @endif
+                        </div>
+                    </div>
+                @endforeach
             </div>
 
             <div class="row">
@@ -546,105 +824,32 @@
         </div>
     </div>
 
-    {{-- Campaign Category / Brand / Product Selection --}}
+    {{-- Service Section --}}
     <div class="card shadow-sm border-0 mb-3" style="border-radius: 12px;">
-        <div class="card-header bg-white">
-            <h5 class="mb-0 font-weight-bold">
-                <i class="fas fa-layer-group text-primary mr-1"></i>
-                Campaign Category / Brand / Product Selection
-            </h5>
+        <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap">
+            <div>
+                <h5 class="mb-0 font-weight-bold">
+                    <i class="fas fa-truck text-success mr-1"></i>
+                    Service Section
+                </h5>
 
-            <small class="text-muted">
-                Admin যে order-এ select করবে, frontend-এ সেই order-এ category, brand এবং product show হবে।
-            </small>
+                <small class="text-muted">Frontend “কেন আমরাই সেরা” section-er icon/title/description ekhane theke dynamic hobe.</small>
+            </div>
+
+            {!! $sectionSwitch('service_section_status', 'Active / Inactive') !!}
         </div>
 
         <div class="card-body">
             <div class="form-group">
-                <label class="font-weight-bold">Categories</label>
+                <label class="font-weight-bold">Service Section Title</label>
 
-                <select name="categories[]"
-                        class="form-control select2-categories @error('categories') is-invalid @enderror"
-                        multiple>
-                    @foreach($categories as $category)
-                        <option value="{{ $category->id }}" @selected(in_array($category->id, $selectedCategories))>
-                            {{ $category->name }}
-                        </option>
-                    @endforeach
-                </select>
-
-                <small class="text-muted">
-                    Search kore multiple category select koro. Jeta age select korbe frontend-e age show hobe.
-                </small>
-
-                @error('categories')
-                    <div class="text-danger small mt-1">{{ $message }}</div>
-                @enderror
+                <input type="text"
+                       name="section_titles[service_title]"
+                       value="{{ old('section_titles.service_title', $sectionTitles['service_title'] ?? 'কেন আমরাই সেরা') }}"
+                       class="form-control"
+                       placeholder="Service Section Title">
             </div>
 
-            <div class="form-group">
-                <label class="font-weight-bold">Brands</label>
-
-                <select name="brands[]"
-                        class="form-control select2-brands @error('brands') is-invalid @enderror"
-                        multiple>
-                    @foreach($brands as $brand)
-                        <option value="{{ $brand->id }}" @selected(in_array($brand->id, $selectedBrands))>
-                            {{ $brand->name }}
-                        </option>
-                    @endforeach
-                </select>
-
-                <small class="text-muted">
-                    Search kore multiple brand select koro. Jeta age select korbe frontend-e age show hobe.
-                </small>
-
-                @error('brands')
-                    <div class="text-danger small mt-1">{{ $message }}</div>
-                @enderror
-            </div>
-
-            <div class="form-group mb-0">
-                <label class="font-weight-bold">
-                    Products <span class="text-danger">*</span>
-                </label>
-
-                <select name="products[]"
-                        class="form-control select2-products @error('products') is-invalid @enderror"
-                        multiple
-                        required>
-                    @foreach($products as $product)
-                        <option value="{{ $product->id }}" @selected(in_array($product->id, $selectedProducts))>
-                            {{ $product->name }} — ৳{{ number_format($product->new_price ?? 0) }}
-                        </option>
-                    @endforeach
-                </select>
-
-                <small class="text-muted">
-                    Search kore multiple product select koro. Frontend product grid/order section-e sudhu selected products show hobe.
-                </small>
-
-                @error('products')
-                    <div class="text-danger small mt-1">{{ $message }}</div>
-                @enderror
-            </div>
-        </div>
-    </div>
-
-    {{-- Service Section Items --}}
-    <div class="card shadow-sm border-0 mb-3" style="border-radius: 12px;">
-        <div class="card-header bg-white">
-            <h5 class="mb-0 font-weight-bold">
-                <i class="fas fa-truck text-success mr-1"></i>
-                Service Section Items
-            </h5>
-
-            <small class="text-muted">
-                Frontend “কেন আমরাই সেরা” section-er icon/title/description ekhane theke dynamic hobe.
-            </small>
-        </div>
-
-        <div class="card-body">
             <div class="row">
                 @foreach($serviceItems as $index => $item)
                     <div class="col-md-6 mb-3">
@@ -678,12 +883,216 @@
         </div>
     </div>
 
-    {{-- Help Section Content --}}
+    {{-- Gallery Section --}}
+    <div class="card shadow-sm border-0 mb-3" style="border-radius: 12px;">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap">
+            <div>
+                <h5 class="mb-0 font-weight-bold">
+                    <i class="fas fa-images text-success mr-1"></i>
+                    Product Gallery Section
+                </h5>
+
+                <small class="text-muted">Campaign form থেকে selected gallery images frontend home blade-এ show হবে।</small>
+            </div>
+
+            {!! $sectionSwitch('gallery_section_status', 'Active / Inactive') !!}
+        </div>
+
+        <div class="card-body">
+            <div class="form-group">
+                <label class="font-weight-bold">Gallery Section Title</label>
+
+                <input type="text"
+                       name="section_titles[gallery_title]"
+                       value="{{ old('section_titles.gallery_title', $sectionTitles['gallery_title'] ?? 'প্রোডাক্ট গ্যালারি') }}"
+                       class="form-control"
+                       placeholder="Gallery Section Title">
+            </div>
+
+            <div class="border rounded p-3 bg-light">
+                <label class="font-weight-bold d-block">
+                    <i class="fas fa-images text-success mr-1"></i>
+                    প্রোডাক্ট গ্যালারি
+                </label>
+
+                <input type="file"
+                       name="campaign_product_gallery[]"
+                       id="campaignProductGalleryInput"
+                       class="form-control-file @error('campaign_product_gallery') is-invalid @enderror @error('campaign_product_gallery.*') is-invalid @enderror"
+                       accept="image/*"
+                       multiple>
+
+                <small class="text-muted d-block mt-1">
+                    Campaign-wise product gallery images. একসাথে multiple photo select করা যাবে, preview হবে, selected photo instant remove করা যাবে।
+                </small>
+
+                @error('campaign_product_gallery')
+                    <div class="text-danger small mt-1">{{ $message }}</div>
+                @enderror
+
+                @error('campaign_product_gallery.*')
+                    <div class="text-danger small mt-1">{{ $message }}</div>
+                @enderror
+
+                <div class="row mt-3" id="campaignProductGallerySelectedPreview"></div>
+
+                @if($isEdit && $campaign && method_exists($campaign, 'getMedia'))
+                    <div class="row mt-3" id="campaignProductGalleryExistingPreview">
+                        @foreach($campaign->getMedia('campaign_product_gallery') as $media)
+                            <div class="col-md-3 col-lg-2 mb-3" id="campaign-gallery-media-box-{{ $media->id }}">
+                                <div class="campaign-gallery-preview-item border rounded bg-white p-1">
+                                    <img src="{{ $media->getUrl() }}"
+                                         alt="Campaign Gallery Image"
+                                         class="campaign-gallery-preview-img">
+
+                                    <button type="button"
+                                            class="btn btn-xs btn-danger btn-block mt-1 campaign-gallery-delete-btn"
+                                            data-id="{{ $media->id }}"
+                                            data-url="{{ route('admin.campaigns.delete_media', $media->id) }}">
+                                        Delete
+                                    </button>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                @endif
+            </div>
+        </div>
+    </div>
+
+    {{-- Review Section --}}
+    <div class="card shadow-sm border-0 mb-3" style="border-radius: 12px;">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap">
+            <div>
+                <h5 class="mb-0 font-weight-bold">
+                    <i class="fas fa-star text-warning mr-1"></i>
+                    Review Section
+                </h5>
+
+                <small class="text-muted">Review section title and review image.</small>
+            </div>
+
+            {!! $sectionSwitch('review_section_status', 'Active / Inactive') !!}
+        </div>
+
+        <div class="card-body">
+            <div class="form-group">
+                <label class="font-weight-bold">Review Section Title</label>
+
+                <input type="text"
+                       name="section_titles[review_title]"
+                       value="{{ old('section_titles.review_title', $sectionTitles['review_title'] ?? 'কাস্টমার রিভিউ') }}"
+                       class="form-control"
+                       placeholder="Review Section Title">
+            </div>
+
+            @php
+                $field = 'review_image';
+                $mediaConfig = $mediaFields[$field];
+                $existingMedia = $campaign ? $campaign->getFirstMedia($field) : null;
+                $existingUrl = $existingMedia ? $existingMedia->getUrl() : null;
+            @endphp
+
+            <label class="font-weight-bold">{{ $mediaConfig['label'] }}</label>
+
+            <input type="file"
+                   name="{{ $field }}"
+                   class="form-control-file campaign-media-input @error($field) is-invalid @enderror"
+                   data-preview="#preview_{{ $field }}"
+                   data-type="{{ $mediaConfig['type'] }}"
+                   accept="image/*">
+
+            <small class="text-muted d-block mt-1">{{ $mediaConfig['hint'] }}</small>
+
+            @error($field)
+                <div class="text-danger small mt-1">{{ $message }}</div>
+            @enderror
+
+            <div class="campaign-preview-box mt-2" id="preview_{{ $field }}">
+                @if($existingUrl)
+                    <div class="existing-media-box position-relative d-inline-block">
+                        <img src="{{ $existingUrl }}" alt="{{ $mediaConfig['label'] }}" class="campaign-image-preview">
+
+                        <button type="button"
+                                class="btn btn-sm btn-danger campaign-media-delete-btn"
+                                data-url="{{ route('admin.campaigns.delete_media', $existingMedia->id) }}"
+                                data-target="#preview_{{ $field }}"
+                                title="Delete">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                @else
+                    <div class="text-muted small border rounded p-3 bg-light">No file selected</div>
+                @endif
+            </div>
+        </div>
+    </div>
+
+    {{-- FAQ Section --}}
+    <div class="card shadow-sm border-0 mb-3" style="border-radius: 12px;">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap">
+            <div>
+                <h5 class="mb-0 font-weight-bold">
+                    <i class="fas fa-question-circle text-info mr-1"></i>
+                    FAQ Section
+                </h5>
+
+                <small class="text-muted">Frontend FAQ section title.</small>
+            </div>
+
+            {!! $sectionSwitch('faq_section_status', 'Active / Inactive') !!}
+        </div>
+
+        <div class="card-body">
+            <label class="font-weight-bold">FAQ Section Title</label>
+
+            <input type="text"
+                   name="section_titles[faq_title]"
+                   value="{{ old('section_titles.faq_title', $sectionTitles['faq_title'] ?? 'সচরাচর জিজ্ঞাস্য প্রশ্নাবলি') }}"
+                   class="form-control"
+                   placeholder="FAQ Section Title">
+        </div>
+    </div>
+
+    {{-- Order Section --}}
+    <div class="card shadow-sm border-0 mb-3" style="border-radius: 12px;">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap">
+            <div>
+                <h5 class="mb-0 font-weight-bold">
+                    <i class="fas fa-shopping-cart text-success mr-1"></i>
+                    Order Section
+                </h5>
+
+                <small class="text-muted">Frontend order section title and order form text.</small>
+            </div>
+
+            {!! $sectionSwitch('order_section_status', 'Active / Inactive') !!}
+        </div>
+
+        <div class="card-body">
+            <div class="form-group">
+                <label class="font-weight-bold">Order Section Title</label>
+
+                <input type="text"
+                       name="section_titles[order_title]"
+                       value="{{ old('section_titles.order_title', $sectionTitles['order_title'] ?? 'অর্ডার করুন এখনই') }}"
+                       class="form-control"
+                       placeholder="Order Section Title">
+            </div>
+
+            <div class="alert alert-light border mb-0">
+                <i class="fas fa-info-circle text-primary mr-1"></i>
+                Order Form Title এবং Order Form Subtitle উপরের Basic Information section থেকে manage হবে।
+            </div>
+        </div>
+    </div>
+
+    {{-- Help Section --}}
     <div class="card shadow-sm border-0 mb-3" style="border-radius: 12px;">
         <div class="card-header bg-white">
             <h5 class="mb-0 font-weight-bold">
                 <i class="fas fa-headset text-success mr-1"></i>
-                Help Section Content
+                Help Section
             </h5>
 
             <small class="text-muted">
@@ -720,146 +1129,6 @@
         </div>
     </div>
 
-    {{-- Media Upload --}}
-    <div class="card shadow-sm border-0 mb-3" style="border-radius: 12px;">
-        <div class="card-header bg-white">
-            <h5 class="mb-0 font-weight-bold">
-                <i class="fas fa-images text-primary mr-1"></i>
-                Campaign Media
-            </h5>
-
-            <small class="text-muted">
-                Image/video select korar por preview dekhabe. Embed video URL ekhanei add kora jabe. Existing media delete option thakbe.
-            </small>
-        </div>
-
-        <div class="card-body">
-            <div class="form-group mb-4">
-                <label class="font-weight-bold">Embed Video URL</label>
-
-                <input type="url"
-                       name="embed_video_url"
-                       value="{{ old('embed_video_url', $campaign->embed_video_url ?? '') }}"
-                       class="form-control @error('embed_video_url') is-invalid @enderror"
-                       placeholder="YouTube/Facebook video URL. Example: https://youtu.be/VIDEO_ID">
-
-                <small class="text-muted">
-                    Campaign Video upload অথবা Embed Video URL — যেকোনো একটা use করতে পারবে। Embed URL দিলে frontend-এ embed video আগে show হবে।
-                </small>
-
-                @error('embed_video_url')
-                    <span class="invalid-feedback d-block">{{ $message }}</span>
-                @enderror
-            </div>
-
-            <div class="row">
-                @foreach($mediaFields as $field => $mediaConfig)
-                    @php
-                        $existingMedia = $campaign ? $campaign->getFirstMedia($field) : null;
-                        $existingUrl = $existingMedia ? $existingMedia->getUrl() : null;
-                    @endphp
-
-                    <div class="col-md-6 col-lg-4 mb-4">
-                        <label class="font-weight-bold">{{ $mediaConfig['label'] }}</label>
-
-                        <input type="file"
-                               name="{{ $field }}"
-                               class="form-control-file campaign-media-input @error($field) is-invalid @enderror"
-                               data-preview="#preview_{{ $field }}"
-                               data-type="{{ $mediaConfig['type'] }}"
-                               accept="{{ $mediaConfig['type'] === 'video' ? 'video/mp4,video/webm,video/ogg' : 'image/*' }}">
-
-                        <small class="text-muted d-block mt-1">
-                            {{ $mediaConfig['hint'] }}
-                        </small>
-
-                        @error($field)
-                            <div class="text-danger small mt-1">{{ $message }}</div>
-                        @enderror
-
-                        <div class="campaign-preview-box mt-2" id="preview_{{ $field }}">
-                            @if($existingUrl)
-                                <div class="existing-media-box position-relative d-inline-block">
-                                    @if($mediaConfig['type'] === 'video')
-                                        <video src="{{ $existingUrl }}" controls class="campaign-video-preview"></video>
-                                    @else
-                                        <img src="{{ $existingUrl }}"
-                                             alt="{{ $mediaConfig['label'] }}"
-                                             class="campaign-image-preview">
-                                    @endif
-
-                                    <button type="button"
-                                            class="btn btn-sm btn-danger campaign-media-delete-btn"
-                                            data-url="{{ route('admin.campaigns.delete_media', $existingMedia->id) }}"
-                                            data-target="#preview_{{ $field }}"
-                                            title="Delete">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                </div>
-                            @else
-                                <div class="text-muted small border rounded p-3 bg-light">
-                                    No file selected
-                                </div>
-                            @endif
-                        </div>
-                    </div>
-                @endforeach
-
-                {{-- Campaign Product Gallery --}}
-                <div class="col-12 mt-2">
-                    <div class="border rounded p-3 bg-light">
-                        <label class="font-weight-bold d-block">
-                            <i class="fas fa-images text-success mr-1"></i>
-                            প্রোডাক্ট গ্যালারি
-                        </label>
-
-                        <input type="file"
-                               name="campaign_product_gallery[]"
-                               id="campaignProductGalleryInput"
-                               class="form-control-file @error('campaign_product_gallery') is-invalid @enderror @error('campaign_product_gallery.*') is-invalid @enderror"
-                               accept="image/*"
-                               multiple>
-
-                        <small class="text-muted d-block mt-1">
-                            Campaign-wise product gallery images. একসাথে multiple photo select করা যাবে, preview হবে, selected photo instant remove করা যাবে।
-                        </small>
-
-                        @error('campaign_product_gallery')
-                            <div class="text-danger small mt-1">{{ $message }}</div>
-                        @enderror
-
-                        @error('campaign_product_gallery.*')
-                            <div class="text-danger small mt-1">{{ $message }}</div>
-                        @enderror
-
-                        <div class="row mt-3" id="campaignProductGallerySelectedPreview"></div>
-
-                        @if($isEdit && $campaign && method_exists($campaign, 'getMedia'))
-                            <div class="row mt-3" id="campaignProductGalleryExistingPreview">
-                                @foreach($campaign->getMedia('campaign_product_gallery') as $media)
-                                    <div class="col-md-3 col-lg-2 mb-3" id="campaign-gallery-media-box-{{ $media->id }}">
-                                        <div class="campaign-gallery-preview-item border rounded bg-white p-1">
-                                            <img src="{{ $media->getUrl() }}"
-                                                 alt="Campaign Gallery Image"
-                                                 class="campaign-gallery-preview-img">
-
-                                            <button type="button"
-                                                    class="btn btn-xs btn-danger btn-block mt-1 campaign-gallery-delete-btn"
-                                                    data-id="{{ $media->id }}"
-                                                    data-url="{{ route('admin.campaigns.delete_media', $media->id) }}">
-                                                Delete
-                                            </button>
-                                        </div>
-                                    </div>
-                                @endforeach
-                            </div>
-                        @endif
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
     {{-- SEO --}}
     <div class="card shadow-sm border-0 mb-3" style="border-radius: 12px;">
         <div class="card-header bg-white">
@@ -870,7 +1139,7 @@
         </div>
 
         <div class="card-body">
-            <div class="form-group">
+            <div class="form-group mb-0">
                 <label class="font-weight-bold">Meta Title</label>
 
                 <input type="text"
@@ -883,34 +1152,49 @@
                     <span class="invalid-feedback">{{ $message }}</span>
                 @enderror
             </div>
-
-            <div class="form-group mb-0">
-                <label class="font-weight-bold">Meta Description</label>
-
-                <textarea name="meta_description"
-                          rows="3"
-                          class="form-control @error('meta_description') is-invalid @enderror"
-                          placeholder="Meta description">{{ old('meta_description', $campaign->meta_description ?? '') }}</textarea>
-
-                @error('meta_description')
-                    <span class="invalid-feedback">{{ $message }}</span>
-                @enderror
-            </div>
         </div>
     </div>
 
     {{-- Submit --}}
     <div class="card shadow-sm border-0" style="border-radius: 12px;">
         <div class="card-body d-flex justify-content-between align-items-center flex-wrap">
-            <a href="{{ route('admin.campaigns.index') }}" class="btn btn-secondary">
+            <a href="{{ route('admin.campaigns.index') }}" class="btn btn-secondary mb-2 mb-md-0">
                 <i class="fas fa-arrow-left mr-1"></i>
                 Back
             </a>
 
-            <button type="submit" class="btn btn-primary px-4">
-                <i class="fas fa-save mr-1"></i>
-                {{ $isEdit ? 'Update Campaign' : 'Save Campaign' }}
-            </button>
+            <div class="d-flex align-items-center flex-wrap justify-content-end">
+                <div class="custom-control custom-switch mr-4 mb-2 mb-md-0">
+                    <input type="checkbox"
+                           name="enable_bulk_order"
+                           value="1"
+                           class="custom-control-input"
+                           id="enable_bulk_order"
+                           @checked(old('enable_bulk_order', $campaign->enable_bulk_order ?? false))>
+
+                    <label class="custom-control-label font-weight-bold" for="enable_bulk_order">
+                        Enable Bulk Order
+                    </label>
+                </div>
+
+                <div class="custom-control custom-switch mr-4 mb-2 mb-md-0">
+                    <input type="checkbox"
+                           name="status"
+                           value="1"
+                           class="custom-control-input"
+                           id="campaign_status"
+                           @checked(old('status', $campaign->status ?? true))>
+
+                    <label class="custom-control-label font-weight-bold" for="campaign_status">
+                        Active Campaign
+                    </label>
+                </div>
+
+                <button type="submit" class="btn btn-primary px-4">
+                    <i class="fas fa-save mr-1"></i>
+                    {{ $isEdit ? 'Update Campaign' : 'Save Campaign' }}
+                </button>
+            </div>
         </div>
     </div>
 </form>
@@ -918,6 +1202,10 @@
 @once
 @push('css')
 <style>
+.section-status-switch {
+    margin-top: 4px;
+}
+
 .campaign-image-preview {
     width: 150px;
     height: 110px;
@@ -1245,6 +1533,140 @@ $(document).ready(function() {
         });
     });
 
+
+    let heroSliderFiles = [];
+
+    function refreshHeroSliderInput() {
+        const input = document.getElementById('heroSliderImagesInput');
+
+        if (!input) {
+            return;
+        }
+
+        const dataTransfer = new DataTransfer();
+
+        heroSliderFiles.forEach(function(file) {
+            dataTransfer.items.add(file);
+        });
+
+        input.files = dataTransfer.files;
+    }
+
+    function renderHeroSliderSelectedPreview() {
+        const wrapper = $('#heroSliderImagesSelectedPreview');
+
+        wrapper.html('');
+
+        if (!heroSliderFiles.length) {
+            return;
+        }
+
+        heroSliderFiles.forEach(function(file, index) {
+            const fileUrl = URL.createObjectURL(file);
+
+            wrapper.append(`
+                <div class="col-md-3 col-lg-2 mb-3">
+                    <div class="campaign-gallery-preview-item border rounded bg-white p-1">
+                        <img src="${fileUrl}"
+                             alt="Selected Hero Slider Image"
+                             class="campaign-gallery-preview-img">
+
+                        <button type="button"
+                                class="btn btn-sm btn-danger campaign-gallery-remove-selected hero-slider-remove-selected"
+                                data-index="${index}"
+                                title="Remove selected image">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+            `);
+        });
+    }
+
+    $(document).on('change', '#heroSliderImagesInput', function() {
+        const files = Array.from(this.files || []);
+
+        files.forEach(function(file) {
+            if (file && file.type && file.type.startsWith('image/')) {
+                heroSliderFiles.push(file);
+            }
+        });
+
+        refreshHeroSliderInput();
+        renderHeroSliderSelectedPreview();
+    });
+
+    $(document).on('click', '.hero-slider-remove-selected', function() {
+        const index = Number($(this).data('index'));
+
+        heroSliderFiles.splice(index, 1);
+
+        refreshHeroSliderInput();
+        renderHeroSliderSelectedPreview();
+    });
+
+    $(document).on('click', '.hero-slider-delete-btn', function() {
+        const button = $(this);
+        const url = button.data('url');
+        const mediaId = button.data('id');
+
+        if (!url) {
+            showToast('error', 'Delete URL not found.');
+            return;
+        }
+
+        Swal.fire({
+            title: 'Delete hero slider image?',
+            text: 'This image will be deleted permanently.',
+            icon: 'warning',
+            type: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, Delete',
+            cancelButtonText: 'Cancel',
+            confirmButtonColor: '#dc3545'
+        }).then(function(result) {
+            if (!(result.isConfirmed || result.value)) {
+                return;
+            }
+
+            $.ajax({
+                url: url,
+                type: 'DELETE',
+                data: {
+                    _token: '{{ csrf_token() }}'
+                },
+                beforeSend: function() {
+                    button.prop('disabled', true)
+                        .html('<i class="fas fa-spinner fa-spin"></i>');
+                },
+                success: function(res) {
+                    if (res.status) {
+                        $('#hero-slider-media-box-' + mediaId).fadeOut(250, function() {
+                            $(this).remove();
+                        });
+
+                        showToast('success', res.message || 'Hero slider image deleted successfully.');
+                    } else {
+                        button.prop('disabled', false).html('Delete');
+                        showToast('error', res.message || 'Hero slider image delete failed.');
+                    }
+                },
+                error: function(xhr) {
+                    button.prop('disabled', false).html('Delete');
+
+                    let message = 'Hero slider image delete failed.';
+
+                    if (xhr.responseJSON && xhr.responseJSON.message) {
+                        message = xhr.responseJSON.message;
+                    }
+
+                    showToast('error', message);
+                }
+            });
+        });
+    });
+
+
     let campaignGalleryFiles = [];
 
     function refreshCampaignGalleryInput() {
@@ -1380,3 +1802,4 @@ $(document).ready(function() {
 </script>
 @endpush
 @endonce
+

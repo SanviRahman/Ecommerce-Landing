@@ -146,6 +146,9 @@ class CampaignController extends Controller
             'faq_title'             => trim((string) ($titles['faq_title'] ?? 'সচরাচর জিজ্ঞাস্য প্রশ্নাবলি')),
             'gallery_title'         => trim((string) ($titles['gallery_title'] ?? 'প্রোডাক্ট গ্যালারি')),
             'order_title'           => trim((string) ($titles['order_title'] ?? 'অর্ডার করুন এখনই')),
+
+            'hero_star_count'       => (int) ($titles['hero_star_count'] ?? 5),
+            'hero_rating_text'      => trim((string) ($titles['hero_rating_text'] ?? '৩০,০০০ হাজারও অধিক গ্রাহকের কাছে<br>আমরা হয়েছি জনপ্রিয়')),
         ];
     }
 
@@ -264,6 +267,8 @@ class CampaignController extends Controller
             'hero_phone'                  => ['nullable', 'string', 'max:255'],
             'campaign_product_gallery'    => ['nullable', 'array'],
             'campaign_product_gallery.*'  => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
+            'hero_slider_images'          => ['nullable', 'array'],
+            'hero_slider_images.*'        => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
         ];
     }
 
@@ -527,6 +532,7 @@ class CampaignController extends Controller
             'image_three',
             'review_image',
             'campaign_video',
+            'hero_slider_images',
             'campaign_product_gallery',
         ] as $collection) {
             $campaign->clearMediaCollection($collection);
@@ -573,6 +579,7 @@ class CampaignController extends Controller
                     'image_three',
                     'review_image',
                     'campaign_video',
+                    'hero_slider_images',
                     'campaign_product_gallery',
                 ] as $collection) {
                     $campaign->clearMediaCollection($collection);
@@ -648,6 +655,7 @@ class CampaignController extends Controller
             'image_three',
             'review_image',
             'campaign_video',
+            'hero_slider_images',
             'campaign_product_gallery',
         ];
 
@@ -717,7 +725,7 @@ class CampaignController extends Controller
 
     private function uploadCampaignMedia(Campaign $campaign, Request $request): void
     {
-        $mediaFields = [
+        $singleMediaFields = [
             'banner_image',
             'image_one',
             'image_two',
@@ -726,14 +734,26 @@ class CampaignController extends Controller
             'campaign_video',
         ];
 
-        foreach ($mediaFields as $field) {
+        foreach ($singleMediaFields as $field) {
             if ($request->hasFile($field)) {
                 $campaign->clearMediaCollection($field);
                 $campaign->addMediaFromRequest($field)->toMediaCollection($field);
             }
         }
 
-        // Multiple product gallery images from campaign form.
+        // Hero multiple slider images.
+        // Existing hero slider images will stay; newly selected images will be added.
+        if ($request->hasFile('hero_slider_images')) {
+            foreach ($request->file('hero_slider_images') as $image) {
+                if ($image && $image->isValid()) {
+                    $campaign
+                        ->addMedia($image)
+                        ->toMediaCollection('hero_slider_images');
+                }
+            }
+        }
+
+        // Campaign product gallery images.
         // Existing gallery images will stay; newly selected images will be added.
         if ($request->hasFile('campaign_product_gallery')) {
             foreach ($request->file('campaign_product_gallery') as $image) {

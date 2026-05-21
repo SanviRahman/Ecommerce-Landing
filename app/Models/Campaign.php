@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
@@ -81,40 +82,11 @@ class Campaign extends Model implements HasMedia
         $this->addMediaCollection('review_image')->singleFile();
         $this->addMediaCollection('campaign_video')->singleFile();
 
-        // Campaign form product gallery images
+        // Hero section multiple slider images.
+        $this->addMediaCollection('hero_slider_images');
+
+        // Campaign product gallery images.
         $this->addMediaCollection('campaign_product_gallery');
-    }
-
-    public function getCampaignProductGalleryUrlsAttribute(): array
-    {
-        return $this->getMedia('campaign_product_gallery')
-            ->map(fn($media) => $media->getUrl())
-            ->values()
-            ->toArray();
-    }
-
-    public function products()
-    {
-        return $this->belongsToMany(Product::class, 'campaign_product')
-            ->withPivot(['campaign_price', 'sort_order', 'is_default'])
-            ->withTimestamps()
-            ->orderByPivot('sort_order');
-    }
-
-    public function categories()
-    {
-        return $this->belongsToMany(Category::class, 'campaign_category')
-            ->withPivot(['sort_order'])
-            ->withTimestamps()
-            ->orderByPivot('sort_order');
-    }
-
-    public function brands()
-    {
-        return $this->belongsToMany(Brand::class, 'campaign_brand')
-            ->withPivot(['sort_order'])
-            ->withTimestamps()
-            ->orderByPivot('sort_order');
     }
 
     public function getBannerImageUrlAttribute(): ?string
@@ -145,6 +117,46 @@ class Campaign extends Model implements HasMedia
     public function getCampaignVideoUrlAttribute(): ?string
     {
         return $this->getFirstMediaUrl('campaign_video') ?: null;
+    }
+
+    public function getHeroSliderImageUrlsAttribute(): array
+    {
+        return $this->getMedia('hero_slider_images')
+            ->map(fn ($media) => $media->getUrl())
+            ->values()
+            ->toArray();
+    }
+
+    public function getCampaignProductGalleryUrlsAttribute(): array
+    {
+        return $this->getMedia('campaign_product_gallery')
+            ->map(fn ($media) => $media->getUrl())
+            ->values()
+            ->toArray();
+    }
+
+    public function products()
+    {
+        return $this->belongsToMany(Product::class, 'campaign_product')
+            ->withPivot(['campaign_price', 'sort_order', 'is_default'])
+            ->withTimestamps()
+            ->orderByPivot('sort_order');
+    }
+
+    public function categories()
+    {
+        return $this->belongsToMany(Category::class, 'campaign_category')
+            ->withPivot(['sort_order'])
+            ->withTimestamps()
+            ->orderByPivot('sort_order');
+    }
+
+    public function brands()
+    {
+        return $this->belongsToMany(Brand::class, 'campaign_brand')
+            ->withPivot(['sort_order'])
+            ->withTimestamps()
+            ->orderByPivot('sort_order');
     }
 
     public function scopeActive($query)

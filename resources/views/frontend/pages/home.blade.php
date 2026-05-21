@@ -1,3 +1,4 @@
+
 @extends('frontend.layouts.master')
 
 @php
@@ -12,6 +13,22 @@
         ?: 'Premium ecommerce landing page.';
 
     $noImage = asset('frontend/images/no-image.svg');
+
+    $siteLogoUrl = null;
+    $siteFaviconUrl = null;
+
+    try {
+        if ($siteSetting && method_exists($siteSetting, 'getFirstMediaUrl')) {
+            $siteLogoUrl = $siteSetting->getFirstMediaUrl('site_logo') ?: null;
+            $siteFaviconUrl = $siteSetting->getFirstMediaUrl('site_favicon') ?: null;
+        }
+    } catch (\Throwable $e) {
+        $siteLogoUrl = null;
+        $siteFaviconUrl = null;
+    }
+
+    $siteLogoUrl = $siteLogoUrl ?: ($siteSetting->logo ?? null);
+    $siteFaviconUrl = $siteFaviconUrl ?: ($siteSetting->favicon ?? null);
 
     $imageOf = function ($model, $fallback = null) use ($noImage) {
         $fallback = $fallback ?: $noImage;
@@ -326,17 +343,37 @@
         ? ($campaign->image_three_url ?: ($campaign->banner_image_url ?: $noImage))
         : $noImage;
 
-    $heroVideoUrl = $campaign?->embed_video_url ?: null;
+    /*
+     |--------------------------------------------------------------------------
+     | Hero Media Priority
+     |--------------------------------------------------------------------------
+     | 1. Embed Video URL
+     | 2. Multiple Hero Slider Images
+     | 3. Uploaded Campaign Video
+     | 4. Fallback Image
+     */
+    $heroEmbedUrl = trim((string) ($campaign?->embed_video_url ?: ''));
+    $heroSliderImages = collect();
 
     try {
-        if (! $heroVideoUrl && $campaign && method_exists($campaign, 'getFirstMediaUrl')) {
-            $heroVideoUrl = $campaign->getFirstMediaUrl('campaign_video') ?: null;
+        if ($campaign && method_exists($campaign, 'getMedia')) {
+            $heroSliderImages = $campaign->getMedia('hero_slider_images');
         }
     } catch (\Throwable $e) {
-        $heroVideoUrl = null;
+        $heroSliderImages = collect();
     }
 
-    $heroVideoUrl = $heroVideoUrl ?: $valueOf($campaign, [
+    $uploadedCampaignVideoUrl = null;
+
+    try {
+        if ($campaign && method_exists($campaign, 'getFirstMediaUrl')) {
+            $uploadedCampaignVideoUrl = $campaign->getFirstMediaUrl('campaign_video') ?: null;
+        }
+    } catch (\Throwable $e) {
+        $uploadedCampaignVideoUrl = null;
+    }
+
+    $uploadedCampaignVideoUrl = $uploadedCampaignVideoUrl ?: $valueOf($campaign, [
         'campaign_video_url',
         'video_url',
         'video_link',
@@ -421,17 +458,35 @@
         return 'https://www.youtube-nocookie.com/embed/' . $videoId . '?' . http_build_query($params);
     };
 
-    if ($heroVideoUrl) {
-        if (\Illuminate\Support\Str::contains($heroVideoUrl, ['youtube.com', 'youtu.be', 'youtube-nocookie.com'])) {
-            $videoEmbedUrl = $youtubeEmbedFromUrl($heroVideoUrl);
-        } elseif (\Illuminate\Support\Str::contains($heroVideoUrl, ['facebook.com/plugins/video'])) {
-            $videoEmbedUrl = $heroVideoUrl;
-        } elseif (\Illuminate\Support\Str::contains($heroVideoUrl, ['facebook.com', 'fb.watch'])) {
-            $videoEmbedUrl = 'https://www.facebook.com/plugins/video.php?href=' . urlencode($heroVideoUrl) . '&show_text=false&width=560';
+    if ($heroEmbedUrl) {
+        if (\Illuminate\Support\Str::contains($heroEmbedUrl, ['youtube.com', 'youtu.be', 'youtube-nocookie.com'])) {
+            $videoEmbedUrl = $youtubeEmbedFromUrl($heroEmbedUrl);
+        } elseif (\Illuminate\Support\Str::contains($heroEmbedUrl, ['facebook.com/plugins/video'])) {
+            $videoEmbedUrl = $heroEmbedUrl;
+        } elseif (\Illuminate\Support\Str::contains($heroEmbedUrl, ['facebook.com', 'fb.watch'])) {
+            $videoEmbedUrl = 'https://www.facebook.com/plugins/video.php?href=' . urlencode($heroEmbedUrl) . '&show_text=false&width=560';
         } else {
-            $videoFileUrl = \Illuminate\Support\Str::startsWith($heroVideoUrl, ['http://', 'https://', '/'])
-                ? $heroVideoUrl
-                : \Illuminate\Support\Facades\Storage::url($heroVideoUrl);
+            $videoFileUrl = \Illuminate\Support\Str::startsWith($heroEmbedUrl, ['http://', 'https://', '/'])
+                ? $heroEmbedUrl
+                : \Illuminate\Support\Facades\Storage::url($heroEmbedUrl);
+        }
+    }
+
+    $fallbackVideoFileUrl = null;
+
+    if (! $videoEmbedUrl && ! $videoFileUrl && $heroSliderImages->isEmpty() && $uploadedCampaignVideoUrl) {
+        if (\Illuminate\Support\Str::contains($uploadedCampaignVideoUrl, ['youtube.com', 'youtu.be', 'youtube-nocookie.com'])) {
+            $videoEmbedUrl = $youtubeEmbedFromUrl($uploadedCampaignVideoUrl);
+        } elseif (\Illuminate\Support\Str::contains($uploadedCampaignVideoUrl, ['facebook.com/plugins/video'])) {
+            $videoEmbedUrl = $uploadedCampaignVideoUrl;
+        } elseif (\Illuminate\Support\Str::contains($uploadedCampaignVideoUrl, ['facebook.com', 'fb.watch'])) {
+            $videoEmbedUrl = 'https://www.facebook.com/plugins/video.php?href=' . urlencode($uploadedCampaignVideoUrl) . '&show_text=false&width=560';
+        } else {
+            $fallbackVideoFileUrl = \Illuminate\Support\Str::startsWith($uploadedCampaignVideoUrl, ['http://', 'https://', '/'])
+                ? $uploadedCampaignVideoUrl
+                : \Illuminate\Support\Facades\Storage::url($uploadedCampaignVideoUrl);
+
+            $videoFileUrl = $fallbackVideoFileUrl;
         }
     }
 
@@ -469,6 +524,11 @@
     $faqSectionTitle = $sectionTitles['faq_title'] ?? 'সচরাচর জিজ্ঞাস্য প্রশ্নাবলি';
     $gallerySectionTitle = $sectionTitles['gallery_title'] ?? 'প্রোডাক্ট গ্যালারি';
     $orderSectionTitle = $sectionTitles['order_title'] ?? ($campaign?->order_form_title ?: 'অর্ডার করুন এখনই');
+
+    $heroStarCount = (int) ($sectionTitles['hero_star_count'] ?? 5);
+    $heroStarCount = max(1, min(5, $heroStarCount));
+
+    $heroRatingText = $sectionTitles['hero_rating_text'] ?? '৩০,০০০ হাজারও অধিক গ্রাহকের কাছে<br>আমরা হয়েছি জনপ্রিয়';
 
     $comparisonLeftTitle = $campaign?->comparison_text['left_title'] ?? 'গাছ চুইঝাল';
     $comparisonRightTitle = $campaign?->comparison_text['right_title'] ?? 'এটা চুইঝাল';
@@ -577,6 +637,14 @@
 @section('title', $pageTitle)
 @section('meta_description', $pageDescription)
 
+@push('head')
+    @if($siteFaviconUrl)
+        <link rel="icon" href="{{ $siteFaviconUrl }}" type="image/x-icon">
+        <link rel="shortcut icon" href="{{ $siteFaviconUrl }}" type="image/x-icon">
+        <link rel="apple-touch-icon" href="{{ $siteFaviconUrl }}">
+    @endif
+@endpush
+
 @push('css')
 <style>
 :root {
@@ -599,6 +667,63 @@ body {
     color: var(--front-dark);
     background: #ffffff;
 }
+
+/* Site logo size fix */
+.site-logo-img,
+.frontend-site-logo,
+.navbar-brand img,
+.site-header-logo img {
+    width: 280px !important;
+    height: 80px !important;
+    object-fit: contain !important;
+    max-width: 280px !important;
+}
+
+/* Hero slider */
+.hero-slider-box,
+.hero-media-fallback-box {
+    position: relative;
+    overflow: hidden;
+    max-width: 445px;
+    margin-left: auto;
+    border-radius: 20px;
+    background: var(--front-soft);
+    box-shadow: var(--front-shadow);
+}
+
+.hero-slider-box .carousel,
+.hero-slider-box .carousel-inner,
+.hero-slider-box .carousel-item {
+    height: 500px;
+}
+
+.hero-slider-box img,
+.hero-media-fallback-box img {
+    width: 100%;
+    height: 500px;
+    object-fit: cover;
+    display: block;
+}
+
+.hero-slider-box .carousel-indicators {
+    bottom: 14px;
+}
+
+.hero-slider-box .carousel-indicators li {
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    border: 0;
+    background: rgba(255, 255, 255, 0.75);
+    opacity: 1;
+}
+
+.hero-slider-box .carousel-indicators li.active {
+    width: 28px;
+    background: var(--front-green);
+}
+
+
 
 .section-space {
     padding: 76px 0;
@@ -1767,6 +1892,15 @@ body {
 }
 
 @media (max-width: 575px) {
+    .site-logo-img,
+    .frontend-site-logo,
+    .navbar-brand img,
+    .site-header-logo img {
+        width: 180px !important;
+        height: auto !important;
+        max-width: 180px !important;
+    }
+
     .container {
         padding-left: 16px;
         padding-right: 16px;
@@ -1962,16 +2096,13 @@ body {
                 @endif
 
                 <div class="rating-stars">
-                    <i class="fas fa-star"></i>
-                    <i class="fas fa-star"></i>
-                    <i class="fas fa-star"></i>
-                    <i class="fas fa-star"></i>
-                    <i class="fas fa-star"></i>
+                    @for($star = 1; $star <= $heroStarCount; $star++)
+                        <i class="fas fa-star"></i>
+                    @endfor
                 </div>
 
                 <div class="hero-rating-text mb-4">
-                    ৩০,০০০ হাজারও অধিক গ্রাহকের কাছে <br>
-                    আমরা হয়েছি জনপ্রিয়
+                    {!! $heroRatingText !!}
                 </div>
 
                 <div class="hero-actions">
@@ -1994,8 +2125,8 @@ body {
                 </div>
             </div>
 
-            @if($videoEmbedUrl || $videoFileUrl)
-                <div class="col-lg-5 hero-video-col">
+            <div class="col-lg-5 hero-video-col">
+                @if($videoEmbedUrl || $videoFileUrl)
                     <div class="hero-video-box">
                         @if($videoEmbedUrl)
                             <iframe src="{{ $videoEmbedUrl }}"
@@ -2009,8 +2140,49 @@ body {
                             </video>
                         @endif
                     </div>
-                </div>
-            @endif
+                @elseif($heroSliderImages->isNotEmpty())
+                    <div class="hero-slider-box">
+                        <div id="heroMediaSlider" class="carousel slide" data-ride="carousel" data-interval="3500">
+                            @if($heroSliderImages->count() > 1)
+                                <ol class="carousel-indicators">
+                                    @foreach($heroSliderImages as $media)
+                                        <li data-target="#heroMediaSlider"
+                                            data-slide-to="{{ $loop->index }}"
+                                            class="{{ $loop->first ? 'active' : '' }}">
+                                        </li>
+                                    @endforeach
+                                </ol>
+                            @endif
+
+                            <div class="carousel-inner">
+                                @foreach($heroSliderImages as $media)
+                                    <div class="carousel-item {{ $loop->first ? 'active' : '' }}">
+                                        <img src="{{ $media->getUrl() }}"
+                                             alt="{{ $heroTitle }}"
+                                             loading="{{ $loop->first ? 'eager' : 'lazy' }}">
+                                    </div>
+                                @endforeach
+                            </div>
+
+                            @if($heroSliderImages->count() > 1)
+                                <a class="carousel-control-prev" href="#heroMediaSlider" role="button" data-slide="prev">
+                                    <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+                                    <span class="sr-only">Previous</span>
+                                </a>
+
+                                <a class="carousel-control-next" href="#heroMediaSlider" role="button" data-slide="next">
+                                    <span class="carousel-control-next-icon" aria-hidden="true"></span>
+                                    <span class="sr-only">Next</span>
+                                </a>
+                            @endif
+                        </div>
+                    </div>
+                @else
+                    <div class="hero-media-fallback-box">
+                        <img src="{{ $heroImage }}" alt="{{ $heroTitle }}">
+                    </div>
+                @endif
+            </div>
         </div>
     </div>
 </section>

@@ -5,9 +5,51 @@
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>@yield('title', config('app.name', 'EcoEats'))</title>
+    <title>@yield('title', config('app.name'))</title>
 
     <meta name="description" content="@yield('meta_description', '')">
+
+    {{-- Dynamic Favicon From Site Settings --}}
+    @php
+        $activeSiteSetting = $siteSetting ?? null;
+
+        if (! $activeSiteSetting && class_exists(\App\Models\SiteSetting::class)) {
+            try {
+                $activeSiteSetting = \App\Models\SiteSetting::where('status', true)->latest()->first();
+            } catch (\Throwable $e) {
+                $activeSiteSetting = null;
+            }
+        }
+
+        $faviconUrl = null;
+
+        try {
+            if ($activeSiteSetting && method_exists($activeSiteSetting, 'getFirstMediaUrl')) {
+                $faviconUrl = $activeSiteSetting->getFirstMediaUrl('site_favicon') ?: null;
+            }
+        } catch (\Throwable $e) {
+            $faviconUrl = null;
+        }
+
+        try {
+            if (! $faviconUrl && $activeSiteSetting && ! empty($activeSiteSetting->favicon)) {
+                $faviconUrl = $activeSiteSetting->favicon;
+            }
+        } catch (\Throwable $e) {
+            $faviconUrl = null;
+        }
+
+        $faviconVersion = optional($activeSiteSetting?->updated_at)->timestamp ?? time();
+    @endphp
+
+    @if($faviconUrl)
+        <link rel="icon" type="image/png" href="{{ $faviconUrl }}?v={{ $faviconVersion }}">
+        <link rel="shortcut icon" href="{{ $faviconUrl }}?v={{ $faviconVersion }}">
+        <link rel="apple-touch-icon" href="{{ $faviconUrl }}?v={{ $faviconVersion }}">
+    @endif
+
+    {{-- Page Specific Head Content --}}
+    @stack('head')
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -90,8 +132,10 @@
         }
 
         .site-logo-img {
-            max-height: 42px;
-            max-width: 170px;
+            width: 280px;
+            height: 80px;
+            max-width: 280px;
+            max-height: 80px;
             object-fit: contain;
         }
 
@@ -241,7 +285,11 @@
 
         @media (max-width: 575px) {
             .site-logo-img {
-                max-width: 135px;
+                width: 180px;
+                height: auto;
+                max-width: 180px;
+                max-height: 70px;
+                object-fit: contain;
             }
 
             .brand-text {
