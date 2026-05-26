@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Brand;
 use App\Models\Campaign;
+use App\Models\Faq;
 use App\Models\Category;
 use App\Models\Product;
+use App\Models\Review;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -25,7 +27,7 @@ class CampaignController extends Controller
     {
         $query = $trash ? Campaign::onlyTrashed() : Campaign::query();
 
-        return $query->with(['products', 'categories', 'brands'])->latest();
+        return $query->with(['products', 'categories', 'brands', 'faqs', 'reviews'])->latest();
     }
 
     private function activeProducts()
@@ -197,6 +199,7 @@ class CampaignController extends Controller
             'review_section_status'     => $request->has('review_section_status'),
             'gallery_section_status'    => $request->has('gallery_section_status'),
             'faq_section_status'        => $request->has('faq_section_status'),
+            'help_section_status'       => $request->has('help_section_status'),
             'order_section_status'      => $request->has('order_section_status'),
         ];
     }
@@ -224,7 +227,6 @@ class CampaignController extends Controller
 
             'short_description'           => ['nullable', 'string'],
             'full_description'            => ['nullable', 'string'],
-            'offer_text'                  => ['nullable', 'string', 'max:255'],
             'embed_video_url'             => ['nullable', 'url', 'max:2000'],
 
             'benefits_text'               => ['nullable', 'array'],
@@ -269,6 +271,24 @@ class CampaignController extends Controller
             'campaign_product_gallery.*'  => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
             'hero_slider_images'          => ['nullable', 'array'],
             'hero_slider_images.*'        => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
+
+            'campaign_faqs'                       => ['nullable', 'array'],
+            'campaign_faqs.*.id'                  => ['nullable', 'integer', 'exists:faqs,id'],
+            'campaign_faqs.*.question'            => ['nullable', 'string', 'max:255'],
+            'campaign_faqs.*.answer'              => ['nullable', 'string'],
+            'campaign_faqs.*.sort_order'          => ['nullable', 'integer', 'min:0'],
+            'campaign_faqs.*.status'              => ['nullable', 'boolean'],
+
+            'campaign_reviews'                    => ['nullable', 'array'],
+            'campaign_reviews.*.id'               => ['nullable', 'integer', 'exists:reviews,id'],
+            'campaign_reviews.*.customer_name'    => ['nullable', 'string', 'max:255'],
+            'campaign_reviews.*.location'         => ['nullable', 'string', 'max:255'],
+            'campaign_reviews.*.rating'           => ['nullable', 'integer', 'min:1', 'max:5'],
+            'campaign_reviews.*.review_text'      => ['nullable', 'string'],
+            'campaign_reviews.*.social_link'      => ['nullable', 'url', 'max:255'],
+            'campaign_reviews.*.status'           => ['nullable', 'boolean'],
+            'campaign_reviews.*.remove_image'     => ['nullable', 'boolean'],
+            'campaign_reviews.*.customer_image'   => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
         ];
     }
 
@@ -285,7 +305,7 @@ class CampaignController extends Controller
 
             'short_description'   => $request->short_description,
             'full_description'    => $request->full_description,
-            'offer_text'          => $request->offer_text ?: $request->input('banner_title'),
+            'offer_text'          => null,
             'embed_video_url'     => $request->embed_video_url,
 
             'benefits_text'       => $this->cleanBenefits($request->input('benefits_text', [])),
@@ -380,6 +400,8 @@ class CampaignController extends Controller
             'selectedCategories' => [],
             'selectedBrands'     => [],
             'selectedProducts'   => [],
+            'campaignFaqs'       => collect(),
+            'campaignReviews'    => collect(),
             'isEdit'             => false,
             'action'             => route('admin.campaigns.store'),
             'title'              => 'Landing Page Create',
@@ -409,6 +431,8 @@ class CampaignController extends Controller
             $this->syncBrands($campaign, $brandIds);
             $this->syncProducts($campaign, $productIds);
             $this->uploadCampaignMedia($campaign, $request);
+            $this->syncCampaignFaqs($campaign, $request);
+            $this->syncCampaignReviews($campaign, $request);
 
             return redirect()
                 ->route('admin.campaigns.index')
@@ -437,7 +461,18 @@ class CampaignController extends Controller
     {
         $this->adminOnly();
 
-        $campaign->load(['products', 'categories', 'brands']);
+        $campaign->load([
+            'products',
+            'categories',
+            'brands',
+            'faqs' => function ($query) {
+                $query->orderBy('sort_order')->orderBy('id');
+            },
+            'reviews' => function ($query) {
+                $query->latest();
+            },
+            'reviews.media',
+        ]);
 
         return view('admin.campaigns.edit', [
             'campaign'           => $campaign,
@@ -447,6 +482,8 @@ class CampaignController extends Controller
             'selectedCategories' => $campaign->categories()->pluck('categories.id')->toArray(),
             'selectedBrands'     => $campaign->brands()->pluck('brands.id')->toArray(),
             'selectedProducts'   => $campaign->products()->pluck('products.id')->toArray(),
+            'campaignFaqs'       => $campaign->faqs,
+            'campaignReviews'    => $campaign->reviews,
             'isEdit'             => true,
             'action'             => route('admin.campaigns.update', $campaign->id),
             'title'              => 'Edit Campaign',
@@ -476,6 +513,8 @@ class CampaignController extends Controller
             $this->syncBrands($campaign, $brandIds);
             $this->syncProducts($campaign, $productIds);
             $this->uploadCampaignMedia($campaign, $request);
+            $this->syncCampaignFaqs($campaign, $request);
+            $this->syncCampaignReviews($campaign, $request);
 
             return redirect()
                 ->route('admin.campaigns.index')
@@ -765,4 +804,112 @@ class CampaignController extends Controller
             }
         }
     }
+
+    private function syncCampaignFaqs(Campaign $campaign, Request $request): void
+    {
+        $rows = collect($request->input('campaign_faqs', []));
+        $keptIds = [];
+
+        foreach ($rows as $index => $row) {
+            $question = trim((string) ($row['question'] ?? ''));
+            $answer = trim((string) ($row['answer'] ?? ''));
+
+            if ($question === '' && $answer === '') {
+                continue;
+            }
+
+            $faqId = ! empty($row['id']) ? (int) $row['id'] : null;
+
+            $faq = $faqId
+                ? $campaign->faqs()->whereKey($faqId)->first()
+                : new Faq(['campaign_id' => $campaign->id]);
+
+            if (! $faq) {
+                continue;
+            }
+
+            $faq->fill([
+                'campaign_id' => $campaign->id,
+                'question' => $question,
+                'answer' => $answer,
+                'sort_order' => isset($row['sort_order']) ? (int) $row['sort_order'] : $index,
+                'status' => array_key_exists('status', $row) ? (bool) $row['status'] : true,
+            ]);
+
+            $faq->save();
+            $keptIds[] = $faq->id;
+        }
+
+        $deleteQuery = $campaign->faqs();
+
+        if (count($keptIds)) {
+            $deleteQuery->whereNotIn('id', $keptIds);
+        }
+
+        $deleteQuery->get()->each(function (Faq $faq) {
+            $faq->delete();
+        });
+    }
+
+    private function syncCampaignReviews(Campaign $campaign, Request $request): void
+    {
+        $rows = collect($request->input('campaign_reviews', []));
+        $keptIds = [];
+
+        foreach ($rows as $index => $row) {
+            $customerName = trim((string) ($row['customer_name'] ?? ''));
+            $reviewText = trim((string) ($row['review_text'] ?? ''));
+
+            if ($customerName === '' && $reviewText === '') {
+                continue;
+            }
+
+            $reviewId = ! empty($row['id']) ? (int) $row['id'] : null;
+
+            $review = $reviewId
+                ? $campaign->reviews()->whereKey($reviewId)->first()
+                : new Review(['campaign_id' => $campaign->id]);
+
+            if (! $review) {
+                continue;
+            }
+
+            $review->fill([
+                'campaign_id' => $campaign->id,
+                'customer_name' => $customerName ?: 'Customer',
+                'location' => trim((string) ($row['location'] ?? '')) ?: null,
+                'rating' => max(1, min(5, (int) ($row['rating'] ?? 5))),
+                'review_text' => $reviewText ?: null,
+                'social_link' => trim((string) ($row['social_link'] ?? '')) ?: null,
+                'status' => array_key_exists('status', $row) ? (bool) $row['status'] : true,
+            ]);
+
+            $review->save();
+
+            if (! empty($row['remove_image'])) {
+                $review->clearMediaCollection('review_customer_image');
+            }
+
+            $image = $request->file("campaign_reviews.$index.customer_image");
+
+            if ($image && $image->isValid()) {
+                $review->clearMediaCollection('review_customer_image');
+                $review->addMedia($image)->toMediaCollection('review_customer_image');
+            }
+
+            $keptIds[] = $review->id;
+        }
+
+        $deleteQuery = $campaign->reviews();
+
+        if (count($keptIds)) {
+            $deleteQuery->whereNotIn('id', $keptIds);
+        }
+
+        $deleteQuery->get()->each(function (Review $review) {
+            $review->clearMediaCollection('review_customer_image');
+            $review->delete();
+        });
+    }
+
 }

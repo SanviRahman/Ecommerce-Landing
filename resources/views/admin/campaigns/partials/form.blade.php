@@ -1,4 +1,3 @@
-
 @php
     $campaign = $campaign ?? null;
     $isEdit = $isEdit ?? false;
@@ -88,6 +87,87 @@
         'description' => 'যেকোনো জিজ্ঞাসা ও অর্ডারজনিত সমস্যায় কল করুন আমাদের হেল্পলাইনে অথবা নক করুন আমাদের হোয়াটসঅ্যাপ বা ফেসবুক পেজে। আমরা আছি সকাল ১০ টা থেকে রাত ৮ টা পর্যন্ত আপনার সেবায়।',
         'button_text' => 'হেল্পলাইন',
     ]);
+
+
+
+    $faqSource = old('campaign_faqs');
+
+    if ($faqSource === null) {
+        $faqSource = $campaignFaqs ?? ($campaign?->faqs ?? collect());
+    }
+
+    $campaignFaqRows = collect($faqSource)->map(function ($faq, $index) {
+        if (is_array($faq)) {
+            return [
+                'id' => $faq['id'] ?? null,
+                'question' => $faq['question'] ?? '',
+                'answer' => $faq['answer'] ?? '',
+                'sort_order' => $faq['sort_order'] ?? $index,
+                'status' => array_key_exists('status', $faq) ? (bool) $faq['status'] : true,
+            ];
+        }
+
+        return [
+            'id' => $faq->id ?? null,
+            'question' => $faq->question ?? '',
+            'answer' => $faq->answer ?? '',
+            'sort_order' => $faq->sort_order ?? $index,
+            'status' => (bool) ($faq->status ?? true),
+        ];
+    })->values();
+
+    if ($campaignFaqRows->isEmpty()) {
+        $campaignFaqRows = collect([
+            ['id' => null, 'question' => '', 'answer' => '', 'sort_order' => 0, 'status' => true],
+        ]);
+    }
+
+    $reviewSource = old('campaign_reviews');
+
+    if ($reviewSource === null) {
+        $reviewSource = $campaignReviews ?? ($campaign?->reviews ?? collect());
+    }
+
+    $campaignReviewRows = collect($reviewSource)->map(function ($review) {
+        if (is_array($review)) {
+            return [
+                'id' => $review['id'] ?? null,
+                'customer_name' => $review['customer_name'] ?? '',
+                'location' => $review['location'] ?? '',
+                'rating' => $review['rating'] ?? 5,
+                'review_text' => $review['review_text'] ?? '',
+                'social_link' => $review['social_link'] ?? '',
+                'status' => array_key_exists('status', $review) ? (bool) $review['status'] : true,
+                'image_url' => null,
+            ];
+        }
+
+        return [
+            'id' => $review->id ?? null,
+            'customer_name' => $review->customer_name ?? '',
+            'location' => $review->location ?? '',
+            'rating' => $review->rating ?? 5,
+            'review_text' => $review->review_text ?? '',
+            'social_link' => $review->social_link ?? '',
+            'status' => (bool) ($review->status ?? true),
+            'image_url' => $review->customer_image ?? null,
+        ];
+    })->values();
+
+    if ($campaignReviewRows->isEmpty()) {
+        $campaignReviewRows = collect([
+            [
+                'id' => null,
+                'customer_name' => '',
+                'location' => '',
+                'rating' => 5,
+                'review_text' => '',
+                'social_link' => '',
+                'status' => true,
+                'image_url' => null,
+            ],
+        ]);
+    }
 
     $mediaFields = [
         'banner_image' => [
@@ -200,20 +280,6 @@
                               placeholder="Short campaign description">{{ old('short_description', $campaign->short_description ?? '') }}</textarea>
 
                     @error('short_description')
-                        <span class="invalid-feedback">{{ $message }}</span>
-                    @enderror
-                </div>
-
-                <div class="col-md-4 mb-3">
-                    <label class="font-weight-bold">Offer Text</label>
-
-                    <input type="text"
-                           name="offer_text"
-                           value="{{ old('offer_text', $campaign->offer_text ?? '') }}"
-                           class="form-control @error('offer_text') is-invalid @enderror"
-                           placeholder="Example: Limited time offer">
-
-                    @error('offer_text')
                         <span class="invalid-feedback">{{ $message }}</span>
                     @enderror
                 </div>
@@ -850,6 +916,50 @@
                        placeholder="Service Section Title">
             </div>
 
+            @php
+                $field = 'image_three';
+                $mediaConfig = $mediaFields[$field];
+                $existingMedia = $campaign ? $campaign->getFirstMedia($field) : null;
+                $existingUrl = $existingMedia ? $existingMedia->getUrl() : null;
+            @endphp
+
+            <div class="form-group">
+                <label class="font-weight-bold">কেন আমরাই সেরা Section Image</label>
+
+                <input type="file"
+                       name="{{ $field }}"
+                       class="form-control-file campaign-media-input @error($field) is-invalid @enderror"
+                       data-preview="#preview_{{ $field }}"
+                       data-type="{{ $mediaConfig['type'] }}"
+                       accept="image/*">
+
+                <small class="text-muted d-block mt-1">
+                    এই image frontend home blade-এর “কেন আমরাই সেরা” section banner হিসেবে show হবে।
+                </small>
+
+                @error($field)
+                    <div class="text-danger small mt-1">{{ $message }}</div>
+                @enderror
+
+                <div class="campaign-preview-box mt-2" id="preview_{{ $field }}">
+                    @if($existingUrl)
+                        <div class="existing-media-box position-relative d-inline-block">
+                            <img src="{{ $existingUrl }}" alt="{{ $mediaConfig['label'] }}" class="campaign-image-preview">
+
+                            <button type="button"
+                                    class="btn btn-sm btn-danger campaign-media-delete-btn"
+                                    data-url="{{ route('admin.campaigns.delete_media', $existingMedia->id) }}"
+                                    data-target="#preview_{{ $field }}"
+                                    title="Delete">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    @else
+                        <div class="text-muted small border rounded p-3 bg-light">No file selected</div>
+                    @endif
+                </div>
+            </div>
+
             <div class="row">
                 @foreach($serviceItems as $index => $item)
                     <div class="col-md-6 mb-3">
@@ -968,8 +1078,7 @@
                     <i class="fas fa-star text-warning mr-1"></i>
                     Review Section
                 </h5>
-
-                <small class="text-muted">Review section title and review image.</small>
+                <small class="text-muted">Campaign form থেকে review add/update হবে।</small>
             </div>
 
             {!! $sectionSwitch('review_section_status', 'Active / Inactive') !!}
@@ -978,7 +1087,6 @@
         <div class="card-body">
             <div class="form-group">
                 <label class="font-weight-bold">Review Section Title</label>
-
                 <input type="text"
                        name="section_titles[review_title]"
                        value="{{ old('section_titles.review_title', $sectionTitles['review_title'] ?? 'কাস্টমার রিভিউ') }}"
@@ -986,45 +1094,88 @@
                        placeholder="Review Section Title">
             </div>
 
-            @php
-                $field = 'review_image';
-                $mediaConfig = $mediaFields[$field];
-                $existingMedia = $campaign ? $campaign->getFirstMedia($field) : null;
-                $existingUrl = $existingMedia ? $existingMedia->getUrl() : null;
-            @endphp
+            <div id="campaignReviewWrapper">
+                @foreach($campaignReviewRows as $index => $review)
+                    <div class="border rounded p-3 mb-3 campaign-review-item bg-light">
+                        <input type="hidden" name="campaign_reviews[{{ $index }}][id]" value="{{ $review['id'] ?? '' }}">
 
-            <label class="font-weight-bold">{{ $mediaConfig['label'] }}</label>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <strong>Review #{{ $loop->iteration }}</strong>
+                            <button type="button" class="btn btn-sm btn-outline-danger btn-remove-campaign-review">
+                                <i class="fas fa-times"></i> Remove
+                            </button>
+                        </div>
 
-            <input type="file"
-                   name="{{ $field }}"
-                   class="form-control-file campaign-media-input @error($field) is-invalid @enderror"
-                   data-preview="#preview_{{ $field }}"
-                   data-type="{{ $mediaConfig['type'] }}"
-                   accept="image/*">
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label class="font-weight-bold">Customer Name</label>
+                                <input type="text" name="campaign_reviews[{{ $index }}][customer_name]"
+                                       value="{{ $review['customer_name'] ?? '' }}" class="form-control">
+                            </div>
 
-            <small class="text-muted d-block mt-1">{{ $mediaConfig['hint'] }}</small>
+                            <div class="col-md-4 mb-3">
+                                <label class="font-weight-bold">Location</label>
+                                <input type="text" name="campaign_reviews[{{ $index }}][location]"
+                                       value="{{ $review['location'] ?? '' }}" class="form-control">
+                            </div>
 
-            @error($field)
-                <div class="text-danger small mt-1">{{ $message }}</div>
-            @enderror
+                            <div class="col-md-4 mb-3">
+                                <label class="font-weight-bold">Rating</label>
+                                <select name="campaign_reviews[{{ $index }}][rating]" class="form-control">
+                                    @for($rating = 1; $rating <= 5; $rating++)
+                                        <option value="{{ $rating }}" @selected((int)($review['rating'] ?? 5) === $rating)>
+                                            {{ $rating }} Star
+                                        </option>
+                                    @endfor
+                                </select>
+                            </div>
 
-            <div class="campaign-preview-box mt-2" id="preview_{{ $field }}">
-                @if($existingUrl)
-                    <div class="existing-media-box position-relative d-inline-block">
-                        <img src="{{ $existingUrl }}" alt="{{ $mediaConfig['label'] }}" class="campaign-image-preview">
+                            <div class="col-md-6 mb-3">
+                                <label class="font-weight-bold">Social Link</label>
+                                <input type="url" name="campaign_reviews[{{ $index }}][social_link]"
+                                       value="{{ $review['social_link'] ?? '' }}" class="form-control">
+                            </div>
 
-                        <button type="button"
-                                class="btn btn-sm btn-danger campaign-media-delete-btn"
-                                data-url="{{ route('admin.campaigns.delete_media', $existingMedia->id) }}"
-                                data-target="#preview_{{ $field }}"
-                                title="Delete">
-                            <i class="fas fa-trash"></i>
-                        </button>
+                            <div class="col-md-6 mb-3">
+                                <label class="font-weight-bold">Customer Image</label>
+                                <input type="file" name="campaign_reviews[{{ $index }}][customer_image]"
+                                       class="form-control-file" accept="image/*">
+
+                                @if(! empty($review['image_url']))
+                                    <div class="mt-2">
+                                        <img src="{{ $review['image_url'] }}" class="campaign-image-preview" alt="Review Image">
+                                        <div class="custom-control custom-checkbox mt-1">
+                                            <input type="checkbox" class="custom-control-input"
+                                                   id="remove_review_image_{{ $index }}"
+                                                   name="campaign_reviews[{{ $index }}][remove_image]" value="1">
+                                            <label class="custom-control-label" for="remove_review_image_{{ $index }}">Remove current image</label>
+                                        </div>
+                                    </div>
+                                @endif
+                            </div>
+
+                            <div class="col-md-12 mb-3">
+                                <label class="font-weight-bold">Review Text</label>
+                                <textarea name="campaign_reviews[{{ $index }}][review_text]" rows="3" class="form-control">{{ $review['review_text'] ?? '' }}</textarea>
+                            </div>
+
+                            <div class="col-md-12">
+                                <div class="custom-control custom-switch">
+                                    <input type="checkbox" class="custom-control-input"
+                                           id="campaign_review_status_{{ $index }}"
+                                           name="campaign_reviews[{{ $index }}][status]" value="1"
+                                           @checked($review['status'] ?? true)>
+                                    <label class="custom-control-label" for="campaign_review_status_{{ $index }}">Active</label>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                @else
-                    <div class="text-muted small border rounded p-3 bg-light">No file selected</div>
-                @endif
+                @endforeach
             </div>
+
+            <button type="button" class="btn btn-sm btn-outline-primary" id="btnAddCampaignReview">
+                <i class="fas fa-plus mr-1"></i> Add Review
+            </button>
         </div>
     </div>
 
@@ -1036,21 +1187,60 @@
                     <i class="fas fa-question-circle text-info mr-1"></i>
                     FAQ Section
                 </h5>
-
-                <small class="text-muted">Frontend FAQ section title.</small>
+                <small class="text-muted">Campaign form থেকে FAQ add/update হবে।</small>
             </div>
 
             {!! $sectionSwitch('faq_section_status', 'Active / Inactive') !!}
         </div>
 
         <div class="card-body">
-            <label class="font-weight-bold">FAQ Section Title</label>
+            <div class="form-group">
+                <label class="font-weight-bold">FAQ Section Title</label>
+                <input type="text"
+                       name="section_titles[faq_title]"
+                       value="{{ old('section_titles.faq_title', $sectionTitles['faq_title'] ?? 'সচরাচর জিজ্ঞাস্য প্রশ্নাবলি') }}"
+                       class="form-control"
+                       placeholder="FAQ Section Title">
+            </div>
 
-            <input type="text"
-                   name="section_titles[faq_title]"
-                   value="{{ old('section_titles.faq_title', $sectionTitles['faq_title'] ?? 'সচরাচর জিজ্ঞাস্য প্রশ্নাবলি') }}"
-                   class="form-control"
-                   placeholder="FAQ Section Title">
+            <div id="campaignFaqWrapper">
+                @foreach($campaignFaqRows as $index => $faq)
+                    <div class="border rounded p-3 mb-3 campaign-faq-item bg-light">
+                        <input type="hidden" name="campaign_faqs[{{ $index }}][id]" value="{{ $faq['id'] ?? '' }}">
+                        <input type="hidden" name="campaign_faqs[{{ $index }}][sort_order]" value="{{ $faq['sort_order'] ?? $index }}">
+
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <strong>FAQ #{{ $loop->iteration }}</strong>
+                            <button type="button" class="btn btn-sm btn-outline-danger btn-remove-campaign-faq">
+                                <i class="fas fa-times"></i> Remove
+                            </button>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="font-weight-bold">Question</label>
+                            <input type="text" name="campaign_faqs[{{ $index }}][question]"
+                                   value="{{ $faq['question'] ?? '' }}" class="form-control">
+                        </div>
+
+                        <div class="form-group">
+                            <label class="font-weight-bold">Answer</label>
+                            <textarea name="campaign_faqs[{{ $index }}][answer]" rows="3" class="form-control">{{ $faq['answer'] ?? '' }}</textarea>
+                        </div>
+
+                        <div class="custom-control custom-switch">
+                            <input type="checkbox" class="custom-control-input"
+                                   id="campaign_faq_status_{{ $index }}"
+                                   name="campaign_faqs[{{ $index }}][status]" value="1"
+                                   @checked($faq['status'] ?? true)>
+                            <label class="custom-control-label" for="campaign_faq_status_{{ $index }}">Active</label>
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+
+            <button type="button" class="btn btn-sm btn-outline-primary" id="btnAddCampaignFaq">
+                <i class="fas fa-plus mr-1"></i> Add FAQ
+            </button>
         </div>
     </div>
 
@@ -1089,15 +1279,19 @@
 
     {{-- Help Section --}}
     <div class="card shadow-sm border-0 mb-3" style="border-radius: 12px;">
-        <div class="card-header bg-white">
-            <h5 class="mb-0 font-weight-bold">
-                <i class="fas fa-headset text-success mr-1"></i>
-                Help Section
-            </h5>
+        <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap">
+            <div>
+                <h5 class="mb-0 font-weight-bold">
+                    <i class="fas fa-headset text-success mr-1"></i>
+                    Help Section
+                </h5>
 
-            <small class="text-muted">
-                Frontend help CTA section dynamic হবে।
-            </small>
+                <small class="text-muted">
+                    Frontend help CTA section dynamic হবে।
+                </small>
+            </div>
+
+            {!! $sectionSwitch('help_section_status', 'Active / Inactive') !!}
         </div>
 
         <div class="card-body">
@@ -1286,6 +1480,43 @@
 .select2-container--default .select2-selection--multiple .select2-selection__choice__remove {
     color: #ffffff;
     margin-right: 5px;
+}
+
+.section-header-field-inactive {
+    opacity: 0.55;
+    position: relative;
+}
+
+.section-header-field-inactive > label::after,
+.section-header-field-inactive label.font-weight-bold::after {
+    content: " Inactive";
+    display: inline-block;
+    margin-left: 8px;
+    padding: 2px 7px;
+    font-size: 10px;
+    font-weight: 700;
+    color: #dc3545;
+    background: #fff5f5;
+    border: 1px solid #f5c2c7;
+    border-radius: 20px;
+}
+
+.section-header-field-inactive input:disabled,
+.section-header-field-inactive textarea:disabled,
+.section-header-field-inactive select:disabled {
+    background-color: #f8f9fa !important;
+    cursor: not-allowed;
+}
+
+.section-header-field-inactive .select2-container--disabled .select2-selection,
+.section-header-field-inactive .select2-container--default.select2-container--disabled .select2-selection--single,
+.section-header-field-inactive .select2-container--default.select2-container--disabled .select2-selection--multiple {
+    background-color: #f8f9fa !important;
+    cursor: not-allowed;
+}
+
+.section-header-hidden-mirror {
+    display: none !important;
 }
 </style>
 @endpush
@@ -1798,8 +2029,353 @@ $(document).ready(function() {
             });
         });
     });
+
+    let campaignFaqIndex = {{ $campaignFaqRows->count() }};
+    let campaignReviewIndex = {{ $campaignReviewRows->count() }};
+
+    $('#btnAddCampaignFaq').on('click', function () {
+        const index = campaignFaqIndex++;
+
+        $('#campaignFaqWrapper').append(`
+            <div class="border rounded p-3 mb-3 campaign-faq-item bg-light">
+                <input type="hidden" name="campaign_faqs[${index}][id]" value="">
+                <input type="hidden" name="campaign_faqs[${index}][sort_order]" value="${index}">
+
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <strong>FAQ</strong>
+                    <button type="button" class="btn btn-sm btn-outline-danger btn-remove-campaign-faq">
+                        <i class="fas fa-times"></i> Remove
+                    </button>
+                </div>
+
+                <div class="form-group">
+                    <label class="font-weight-bold">Question</label>
+                    <input type="text" name="campaign_faqs[${index}][question]" class="form-control">
+                </div>
+
+                <div class="form-group">
+                    <label class="font-weight-bold">Answer</label>
+                    <textarea name="campaign_faqs[${index}][answer]" rows="3" class="form-control"></textarea>
+                </div>
+
+                <div class="custom-control custom-switch">
+                    <input type="checkbox" class="custom-control-input"
+                           id="campaign_faq_status_${index}"
+                           name="campaign_faqs[${index}][status]" value="1" checked>
+                    <label class="custom-control-label" for="campaign_faq_status_${index}">Active</label>
+                </div>
+            </div>
+        `);
+    });
+
+    $(document).on('click', '.btn-remove-campaign-faq', function () {
+        $(this).closest('.campaign-faq-item').remove();
+    });
+
+    $('#btnAddCampaignReview').on('click', function () {
+        const index = campaignReviewIndex++;
+
+        $('#campaignReviewWrapper').append(`
+            <div class="border rounded p-3 mb-3 campaign-review-item bg-light">
+                <input type="hidden" name="campaign_reviews[${index}][id]" value="">
+
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <strong>Review</strong>
+                    <button type="button" class="btn btn-sm btn-outline-danger btn-remove-campaign-review">
+                        <i class="fas fa-times"></i> Remove
+                    </button>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label class="font-weight-bold">Customer Name</label>
+                        <input type="text" name="campaign_reviews[${index}][customer_name]" class="form-control">
+                    </div>
+
+                    <div class="col-md-4 mb-3">
+                        <label class="font-weight-bold">Location</label>
+                        <input type="text" name="campaign_reviews[${index}][location]" class="form-control">
+                    </div>
+
+                    <div class="col-md-4 mb-3">
+                        <label class="font-weight-bold">Rating</label>
+                        <select name="campaign_reviews[${index}][rating]" class="form-control">
+                            <option value="1">1 Star</option>
+                            <option value="2">2 Star</option>
+                            <option value="3">3 Star</option>
+                            <option value="4">4 Star</option>
+                            <option value="5" selected>5 Star</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-6 mb-3">
+                        <label class="font-weight-bold">Social Link</label>
+                        <input type="url" name="campaign_reviews[${index}][social_link]" class="form-control">
+                    </div>
+
+                    <div class="col-md-6 mb-3">
+                        <label class="font-weight-bold">Customer Image</label>
+                        <input type="file" name="campaign_reviews[${index}][customer_image]" class="form-control-file" accept="image/*">
+                    </div>
+
+                    <div class="col-md-12 mb-3">
+                        <label class="font-weight-bold">Review Text</label>
+                        <textarea name="campaign_reviews[${index}][review_text]" rows="3" class="form-control"></textarea>
+                    </div>
+
+                    <div class="col-md-12">
+                        <div class="custom-control custom-switch">
+                            <input type="checkbox" class="custom-control-input"
+                                   id="campaign_review_status_${index}"
+                                   name="campaign_reviews[${index}][status]" value="1" checked>
+                            <label class="custom-control-label" for="campaign_review_status_${index}">Active</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `);
+    });
+
+    $(document).on('click', '.btn-remove-campaign-review', function () {
+        $(this).closest('.campaign-review-item').remove();
+    });
+
 });
+</script>
+<script>
+(function ($) {
+    'use strict';
+
+    /*
+    |--------------------------------------------------------------------------
+    | Campaign Section Header Active / Inactive Toggle
+    |--------------------------------------------------------------------------
+    | Section switch OFF করলে related header/title fields সত্যিকারের disabled
+    | থাকবে। Disabled field submit হয় না, তাই hidden mirror field ব্যবহার করা
+    | হয়েছে যেন existing title value হারিয়ে না যায়।
+    */
+
+    const sectionHeaderFieldMap = {
+        hero_section_status: [
+            'section_titles[hero_star_count]',
+            'section_titles[hero_rating_text]'
+        ],
+
+        category_section_status: [
+            'section_titles[category_title]',
+            'section_titles[brand_title]'
+        ],
+
+        product_section_status: [
+            'section_titles[product_title]',
+            'section_titles[category_filter_title]',
+            'section_titles[brand_filter_title]'
+        ],
+
+        comparison_section_status: [
+            'section_titles[comparison_title]',
+            'comparison_text[left_title]',
+            'comparison_text[right_title]'
+        ],
+
+        service_section_status: [
+            'section_titles[service_title]'
+        ],
+
+        review_section_status: [
+            'section_titles[review_title]'
+        ],
+
+        gallery_section_status: [
+            'section_titles[gallery_title]'
+        ],
+
+        faq_section_status: [
+            'section_titles[faq_title]'
+        ],
+
+        help_section_status: [
+            'help_content[title]',
+            'help_content[description]',
+            'help_content[button_text]'
+        ],
+
+        order_section_status: [
+            'section_titles[order_title]'
+        ]
+    };
+
+    function injectSectionHeaderToggleStyle() {
+        if ($('#campaign-section-toggle-style').length) {
+            return;
+        }
+
+        $('head').append(`
+            <style id="campaign-section-toggle-style">
+                .section-header-field-inactive {
+                    opacity: 0.55;
+                    position: relative;
+                }
+
+                .section-header-field-inactive > label::after,
+                .section-header-field-inactive label.font-weight-bold::after {
+                    content: " Inactive";
+                    display: inline-block;
+                    margin-left: 8px;
+                    padding: 2px 7px;
+                    font-size: 10px;
+                    font-weight: 700;
+                    color: #dc3545;
+                    background: #fff5f5;
+                    border: 1px solid #f5c2c7;
+                    border-radius: 20px;
+                }
+
+                .section-header-field-inactive input:disabled,
+                .section-header-field-inactive textarea:disabled,
+                .section-header-field-inactive select:disabled {
+                    background-color: #f8f9fa !important;
+                    cursor: not-allowed;
+                }
+
+                .section-header-field-inactive .select2-container--disabled .select2-selection,
+                .section-header-field-inactive .select2-container--default.select2-container--disabled .select2-selection--single,
+                .section-header-field-inactive .select2-container--default.select2-container--disabled .select2-selection--multiple {
+                    background-color: #f8f9fa !important;
+                    cursor: not-allowed;
+                }
+
+                .section-header-hidden-mirror {
+                    display: none !important;
+                }
+            </style>
+        `);
+    }
+
+    function getFormFieldByExactName(fieldName) {
+        return $('[name]').filter(function () {
+            return this.name === fieldName && !$(this).is('[data-section-header-hidden-mirror]');
+        });
+    }
+
+    function getFieldWrapper(field) {
+        return field.closest(
+            '.form-group, .col-md-3, .col-md-4, .col-md-6, .col-md-8, .col-md-12'
+        );
+    }
+
+    function ensureHiddenMirror(field) {
+        const fieldName = field.attr('name');
+        const wrapper = getFieldWrapper(field);
+
+        let mirror = wrapper.find('input[type="hidden"][data-section-header-hidden-mirror="1"]').filter(function () {
+            return this.name === fieldName;
+        }).first();
+
+        if (!mirror.length) {
+            mirror = $('<input>', {
+                type: 'hidden',
+                name: fieldName,
+                class: 'section-header-hidden-mirror',
+                'data-section-header-hidden-mirror': '1',
+                disabled: true
+            });
+
+            field.after(mirror);
+        }
+
+        mirror.val(field.val());
+
+        field.off('input.sectionHeaderMirror change.sectionHeaderMirror')
+            .on('input.sectionHeaderMirror change.sectionHeaderMirror', function () {
+                mirror.val($(this).val());
+            });
+
+        return mirror;
+    }
+
+    function toggleRelatedHeaderFields(sectionSwitchId) {
+        const switchInput = $('#' + sectionSwitchId);
+
+        if (!switchInput.length) {
+            return;
+        }
+
+        const isActive = switchInput.is(':checked');
+        const fieldNames = sectionHeaderFieldMap[sectionSwitchId] || [];
+
+        fieldNames.forEach(function (fieldName) {
+            const field = getFormFieldByExactName(fieldName);
+
+            if (!field.length) {
+                return;
+            }
+
+            field.each(function () {
+                const currentField = $(this);
+                const wrapper = getFieldWrapper(currentField);
+                const mirror = ensureHiddenMirror(currentField);
+
+                wrapper.toggleClass('section-header-field-inactive', !isActive);
+
+                if (isActive) {
+                    currentField.prop('disabled', false);
+                    mirror.prop('disabled', true);
+                } else {
+                    mirror.val(currentField.val()).prop('disabled', false);
+                    currentField.prop('disabled', true);
+                }
+
+                if (currentField.hasClass('select2-hidden-accessible')) {
+                    currentField.trigger('change.select2');
+                }
+            });
+        });
+    }
+
+    function syncDisabledHeaderFieldsBeforeSubmit() {
+        Object.keys(sectionHeaderFieldMap).forEach(function (sectionSwitchId) {
+            const isActive = $('#' + sectionSwitchId).is(':checked');
+
+            if (isActive) {
+                return;
+            }
+
+            (sectionHeaderFieldMap[sectionSwitchId] || []).forEach(function (fieldName) {
+                const field = getFormFieldByExactName(fieldName);
+
+                field.each(function () {
+                    const currentField = $(this);
+                    const mirror = ensureHiddenMirror(currentField);
+
+                    mirror.val(currentField.val()).prop('disabled', false);
+                    currentField.prop('disabled', true);
+                });
+            });
+        });
+    }
+
+    function initCampaignSectionToggle() {
+        injectSectionHeaderToggleStyle();
+
+        Object.keys(sectionHeaderFieldMap).forEach(function (sectionSwitchId) {
+            toggleRelatedHeaderFields(sectionSwitchId);
+
+            $(document).on('change', '#' + sectionSwitchId, function () {
+                toggleRelatedHeaderFields(sectionSwitchId);
+            });
+        });
+
+        $(document).on('submit', '#campaignForm', function () {
+            syncDisabledHeaderFieldsBeforeSubmit();
+        });
+    }
+
+    $(document).ready(function () {
+        initCampaignSectionToggle();
+    });
+
+})(jQuery);
 </script>
 @endpush
 @endonce
-

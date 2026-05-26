@@ -38,23 +38,13 @@ class HomeController extends Controller
             ->latest()
             ->first();
 
-        $products = $campaign ? $campaign->products->values() : collect();
-
-        $categories = $campaign
-            ? $campaign->categories->filter(function ($category) use ($products) {
-                return $products->pluck('category_id')->contains($category->id);
-            })->values()
-            : collect();
-
-        $brands = $campaign
-            ? $campaign->brands->filter(function ($brand) use ($products) {
-                return $products->pluck('brand_id')->contains($brand->id);
-            })->values()
-            : collect();
-
+        $categories = $campaign ? $campaign->categories->values() : collect();
+        $brands = $campaign ? $campaign->brands->values() : collect();
+        $products = $campaign ? $this->sortProductsBySelectedCategory($campaign) : collect();
         $orderProducts = $products;
 
         $reviews = Review::query()
+            ->with('media')
             ->where('status', true)
             ->when($campaign, function ($query) use ($campaign) {
                 $query->where(function ($q) use ($campaign) {
@@ -96,5 +86,22 @@ class HomeController extends Controller
             'socialMedias' => $socialMedias,
             'courierServices' => config('couriers.list', []),
         ]);
+    }
+
+    private function sortProductsBySelectedCategory(Campaign $campaign)
+    {
+        $categoryOrder = $campaign->categories->pluck('id')->flip();
+
+        return $campaign->products
+            ->sortBy(function ($product) use ($categoryOrder) {
+                $categoryIndex = $categoryOrder->has($product->category_id)
+                    ? (int) $categoryOrder[$product->category_id]
+                    : 999999;
+
+                $productOrder = (int) ($product->pivot->sort_order ?? 999999);
+
+                return sprintf('%06d-%06d-%06d', $categoryIndex, $productOrder, $product->id);
+            })
+            ->values();
     }
 }

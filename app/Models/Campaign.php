@@ -41,6 +41,7 @@ class Campaign extends Model implements HasMedia
         'review_section_status',
         'gallery_section_status',
         'faq_section_status',
+        'help_section_status',
         'order_section_status',
 
         'status',
@@ -68,6 +69,7 @@ class Campaign extends Model implements HasMedia
         'review_section_status'     => 'boolean',
         'gallery_section_status'    => 'boolean',
         'faq_section_status'        => 'boolean',
+        'help_section_status'       => 'boolean',
         'order_section_status'      => 'boolean',
 
         'status'                    => 'boolean',
@@ -157,6 +159,20 @@ class Campaign extends Model implements HasMedia
             ->withPivot(['sort_order'])
             ->withTimestamps()
             ->orderByPivot('sort_order');
+    }
+
+
+    public function faqs()
+    {
+        return $this->hasMany(Faq::class)
+            ->orderBy('sort_order')
+            ->orderBy('id');
+    }
+
+    public function reviews()
+    {
+        return $this->hasMany(Review::class)
+            ->latest();
     }
 
     public function scopeActive($query)

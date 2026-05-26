@@ -50,8 +50,6 @@ class DatabaseSeeder extends Seeder
         $this->call([
             CampaignSeeder::class,
             BannerSeeder::class,
-            FaqSeeder::class,
-            ReviewSeeder::class,
             SocialMediaSeeder::class,
             PageSeeder::class,
             TrackingPixelSeeder::class,

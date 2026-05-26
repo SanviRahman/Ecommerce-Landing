@@ -1,4 +1,3 @@
-
 @extends('frontend.layouts.master')
 
 @php
@@ -329,14 +328,14 @@
         return 'https://m.me/' . ltrim($value, '@/');
     };
 
-    $categories = $categories ?? collect();
-    $brands = $brands ?? collect();
-    $products = $products ?? collect();
-    $orderProducts = $orderProducts ?? collect();
-    $reviews = $reviews ?? collect();
-    $faqs = $faqs ?? collect();
+    $categories = collect($categories ?? []);
+    $brands = collect($brands ?? []);
+    $products = collect($products ?? []);
+    $orderProducts = collect($orderProducts ?? []);
+    $reviews = collect($reviews ?? []);
+    $faqs = collect($faqs ?? []);
 
-    $defaultCategoryId = $categories->first()?->id;
+    $defaultCategoryId = 'all';
     $defaultBrandId = 'all';
 
     $heroImage = $campaign
@@ -580,7 +579,96 @@
         'button_text' => 'হেল্পলাইন',
     ];
 
-    $reviewItems = $reviews->values();
+    /*
+     |--------------------------------------------------------------------------
+     | Campaign FAQ & Review Data
+     |--------------------------------------------------------------------------
+     | Campaign form থেকে add/update করা FAQ ও Review home blade-এ আগে show হবে।
+     | Controller relation eager load না করলেও blade safe fallback হিসেবে relation/query
+     | থেকে campaign-specific active data collect করবে। Campaign-specific data না থাকলে
+     | পুরোনো/global $reviews এবং $faqs data fallback হিসেবে show হবে।
+     */
+    $isVisibleItem = function ($item): bool {
+        if (is_array($item)) {
+            return array_key_exists('status', $item) ? (bool) $item['status'] : true;
+        }
+
+        return isset($item->status) ? (bool) $item->status : true;
+    };
+
+    $campaignReviewItems = collect();
+
+    try {
+        if ($campaign && method_exists($campaign, 'relationLoaded') && $campaign->relationLoaded('reviews')) {
+            $campaignReviewItems = collect($campaign->getRelation('reviews'));
+        } elseif ($campaign && method_exists($campaign, 'reviews')) {
+            $campaignReviewItems = $campaign->reviews()
+                ->where('status', true)
+                ->latest()
+                ->get();
+        }
+    } catch (\Throwable $e) {
+        $campaignReviewItems = collect();
+    }
+
+    $reviewItems = ($campaignReviewItems->isNotEmpty() ? $campaignReviewItems : $reviews)
+        ->filter(function ($review) use ($isVisibleItem) {
+            if (! $isVisibleItem($review)) {
+                return false;
+            }
+
+            $name = is_array($review)
+                ? ($review['customer_name'] ?? $review['name'] ?? '')
+                : ($review->customer_name ?? $review->name ?? '');
+
+            $text = is_array($review)
+                ? ($review['review_text'] ?? $review['comment'] ?? $review['message'] ?? '')
+                : ($review->review_text ?? $review->comment ?? $review->message ?? '');
+
+            return trim((string) $name) !== '' || trim((string) $text) !== '';
+        })
+        ->values();
+
+    $campaignFaqItems = collect();
+
+    try {
+        if ($campaign && method_exists($campaign, 'relationLoaded') && $campaign->relationLoaded('faqs')) {
+            $campaignFaqItems = collect($campaign->getRelation('faqs'));
+        } elseif ($campaign && method_exists($campaign, 'faqs')) {
+            $campaignFaqItems = $campaign->faqs()
+                ->where('status', true)
+                ->orderBy('sort_order')
+                ->latest()
+                ->get();
+        }
+    } catch (\Throwable $e) {
+        $campaignFaqItems = collect();
+    }
+
+    $faqItems = ($campaignFaqItems->isNotEmpty() ? $campaignFaqItems : $faqs)
+        ->filter(function ($faq) use ($isVisibleItem) {
+            if (! $isVisibleItem($faq)) {
+                return false;
+            }
+
+            $question = is_array($faq)
+                ? ($faq['question'] ?? $faq['title'] ?? '')
+                : ($faq->question ?? $faq->title ?? '');
+
+            $answer = is_array($faq)
+                ? ($faq['answer'] ?? $faq['description'] ?? '')
+                : ($faq->answer ?? $faq->description ?? '');
+
+            return trim((string) $question) !== '' || trim((string) $answer) !== '';
+        })
+        ->sortBy(function ($faq, $index) {
+            if (is_array($faq)) {
+                return $faq['sort_order'] ?? $index;
+            }
+
+            return $faq->sort_order ?? $index;
+        })
+        ->values();
 
     $phoneNumber = $campaign?->hero_phone
         ?: $valueOf($siteSetting, [
@@ -621,7 +709,7 @@
     $phoneUrl = $makePhoneUrl($phoneNumber);
     $whatsappUrl = $makeWhatsappUrl($whatsappNumber);
 
-    $serviceBannerImage = $campaign?->banner_image_url ?: null;
+    $serviceBannerImage = $campaign?->image_three_url ?: ($campaign?->banner_image_url ?: null);
 
     $campaignGalleryImages = collect();
 
@@ -632,6 +720,27 @@
     } catch (\Throwable $e) {
         $campaignGalleryImages = collect();
     }
+
+    /*
+     |--------------------------------------------------------------------------
+     | Frontend Section Active Flags
+     |--------------------------------------------------------------------------
+     | Campaign form-er section active/inactive switch onujayi frontend section,
+     | section title/header and related action link show/hide hobe.
+     */
+    $isHeroSectionActive = (bool) ($campaign?->hero_section_status ?? true);
+    $isBenefitsSectionActive = (bool) ($campaign?->benefits_section_status ?? true);
+    $isCategorySectionActive = (bool) ($campaign?->category_section_status ?? true) && $categories->isNotEmpty();
+    $isBrandSectionActive = (bool) ($campaign?->category_section_status ?? true) && $brands->isNotEmpty();
+    $isProductSectionActive = (bool) ($campaign?->product_section_status ?? true);
+    $isComparisonSectionActive = (bool) ($campaign?->comparison_section_status ?? true) && $comparisonMaxRows > 0;
+    $isServiceSectionActive = (bool) ($campaign?->service_section_status ?? true);
+    $isGallerySectionActive = (bool) ($campaign?->gallery_section_status ?? true) && $campaignGalleryImages->isNotEmpty();
+    $isReviewSectionActive = (bool) ($campaign?->review_section_status ?? true) && $reviewItems->isNotEmpty();
+    $isFaqSectionActive = (bool) ($campaign?->faq_section_status ?? true) && $faqItems->isNotEmpty();
+    $isHelpSectionActive = (bool) ($campaign?->help_section_status ?? true);
+    $isOrderSectionActive = (bool) ($campaign?->order_section_status ?? true) && (bool) $campaign;
+
 @endphp
 
 @section('title', $pageTitle)
@@ -1173,6 +1282,22 @@ body {
 .review-user span {
     color: var(--front-muted);
     font-size: 15px;
+}
+
+.review-social-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 4px;
+    color: var(--front-primary);
+    font-size: 13px;
+    font-weight: 800;
+    text-decoration: none;
+}
+
+.review-social-link:hover {
+    color: var(--front-secondary);
+    text-decoration: none;
 }
 
 .review-control {
@@ -2073,7 +2198,7 @@ body {
 @endif
 
 {{-- Hero --}}
-@if($campaign?->hero_section_status ?? true)
+@if($isHeroSectionActive)
 <section class="hero-section" id="video-section">
     <div class="container">
         <div class="row align-items-center">
@@ -2084,7 +2209,7 @@ body {
                     {!! $heroSubtitle !!}
                 </div>
 
-                @if(($campaign?->benefits_section_status ?? true) && $benefits->isNotEmpty())
+                @if($isBenefitsSectionActive && $benefits->isNotEmpty())
                     <div class="hero-check-list">
                         @foreach($benefits as $benefit)
                             <div class="hero-check-item">
@@ -2106,10 +2231,12 @@ body {
                 </div>
 
                 <div class="hero-actions">
-                    <a href="#order-section" class="btn btn-success">
-                        <i class="fas fa-shopping-cart mr-1"></i>
-                        {{ $campaign?->button_text ?: 'অর্ডার করুন' }}
-                    </a>
+                    @if($isOrderSectionActive)
+                        <a href="#order-section" class="btn btn-success">
+                            <i class="fas fa-shopping-cart mr-1"></i>
+                            {{ $campaign?->button_text ?: 'অর্ডার করুন' }}
+                        </a>
+                    @endif
 
                     @if($whatsappUrl)
                         <a href="{{ $whatsappUrl }}" target="_blank" class="side-action-btn" title="WhatsApp">
@@ -2189,7 +2316,7 @@ body {
 @endif
 
 {{-- Category --}}
-@if(($campaign?->category_section_status ?? true) && $categories->isNotEmpty())
+@if($isCategorySectionActive)
 <section class="section-space" id="category-section">
     <div class="container">
         <h2 class="section-title">{{ $categorySectionTitle }}</h2>
@@ -2209,7 +2336,7 @@ body {
 @endif
 
 {{-- Brand --}}
-@if(($campaign?->category_section_status ?? true) && $brands->isNotEmpty())
+@if($isBrandSectionActive)
 <section class="pb-5" id="brand-section">
     <div class="container">
         <h2 class="section-title">{{ $brandSectionTitle }}</h2>
@@ -2229,7 +2356,7 @@ body {
 @endif
 
 {{-- Products --}}
-@if($campaign?->product_section_status ?? true)
+@if($isProductSectionActive)
 <section class="section-space bg-white" id="products-section">
     <div class="container">
         <h2 class="section-title">{{ $productSectionTitle }}</h2>
@@ -2240,18 +2367,21 @@ body {
                 <div class="col-lg-6 mb-3 mb-lg-0">
                     <div class="filter-title">{{ $categoryFilterTitle }}</div>
 
+                    <button type="button"
+                        class="filter-chip product-filter active"
+                        data-filter-type="category"
+                        data-filter-value="all">
+                        All Categories
+                    </button>
+
                     @foreach($categories as $category)
                     <button type="button"
-                        class="filter-chip product-filter {{ (string) $defaultCategoryId === (string) $category->id ? 'active' : '' }}"
-                        data-filter-type="category" data-filter-value="{{ $category->id }}">
+                        class="filter-chip product-filter"
+                        data-filter-type="category"
+                        data-filter-value="{{ $category->id }}">
                         {{ $category->name }}
                     </button>
                     @endforeach
-
-                    <button type="button" class="filter-chip product-filter {{ $defaultCategoryId ? '' : 'active' }}"
-                        data-filter-type="category" data-filter-value="all">
-                        All Categories
-                    </button>
                 </div>
 
                 <div class="col-lg-6">
@@ -2308,12 +2438,14 @@ body {
                             @endif
                         </div>
 
-                        <button type="button"
-                            class="btn btn-success btn-block add-order-btn add-product-to-order {{ $product->is_free_delivery ? 'free-delivery-btn' : '' }}"
-                            data-product-id="{{ $product->id }}">
-                            <i class="fas fa-cart-plus mr-1"></i>
-                            {{ $product->is_free_delivery ? 'ফ্রি ডেলিভারিতে অর্ডার করুন' : 'অর্ডারে যোগ করুন' }}
-                        </button>
+                        @if($isOrderSectionActive)
+                            <button type="button"
+                                class="btn btn-success btn-block add-order-btn add-product-to-order {{ $product->is_free_delivery ? 'free-delivery-btn' : '' }}"
+                                data-product-id="{{ $product->id }}">
+                                <i class="fas fa-cart-plus mr-1"></i>
+                                {{ $product->is_free_delivery ? 'ফ্রি ডেলিভারিতে অর্ডার করুন' : 'অর্ডারে যোগ করুন' }}
+                            </button>
+                        @endif
                     </div>
                 </div>
             </div>
@@ -2330,7 +2462,7 @@ body {
 @endif
 
 {{-- Difference --}}
-@if(($campaign?->comparison_section_status ?? true) && $comparisonMaxRows > 0)
+@if($isComparisonSectionActive)
 <section class="section-space difference-section" id="difference-section">
     <div class="container">
         <h2 class="section-title">{{ $comparisonSectionTitle }}</h2>
@@ -2384,7 +2516,7 @@ body {
 @endif
 
 {{-- Services + Banner --}}
-@if($campaign?->service_section_status ?? true)
+@if($isServiceSectionActive)
 <section class="section-space" id="services-section">
     <div class="container">
         <h2 class="section-title">{{ $serviceSectionTitle }}</h2>
@@ -2414,7 +2546,7 @@ body {
 @endif
 
 {{-- Product Gallery --}}
-@if(($campaign?->gallery_section_status ?? true) && $campaignGalleryImages->isNotEmpty())
+@if($isGallerySectionActive)
     <section class="section-space gallery-section" id="gallery-section">
         <div class="container">
             <h2 class="section-title">{{ $gallerySectionTitle }}</h2>
@@ -2434,7 +2566,7 @@ body {
 @endif
 
 {{-- Reviews --}}
-@if(($campaign?->review_section_status ?? true) && $reviewItems->isNotEmpty())
+@if($isReviewSectionActive)
 <section class="section-space review-section" id="reviews-section">
     <div class="container">
         <h2 class="section-title">{{ $reviewSectionTitle }}</h2>
@@ -2445,11 +2577,27 @@ body {
             <div class="carousel-inner review-carousel-inner">
                 @foreach($reviewItems as $review)
                 @php
-                $reviewImage = $imageOf($review);
-                $reviewName = $review->customer_name ?? $review->name ?? 'Customer';
-                $reviewLocation = $review->location ?? $review->designation ?? 'Happy Customer';
-                $reviewText = $review->review_text ?? $review->comment ?? $review->message ?? '';
-                $rating = (int) ($review->rating ?? 5);
+                $reviewImage = is_array($review)
+                    ? ($review['image_url'] ?? $review['customer_image'] ?? $noImage)
+                    : $imageOf($review);
+
+                $reviewName = is_array($review)
+                    ? ($review['customer_name'] ?? $review['name'] ?? 'Customer')
+                    : ($review->customer_name ?? $review->name ?? 'Customer');
+
+                $reviewLocation = is_array($review)
+                    ? ($review['location'] ?? $review['designation'] ?? 'Happy Customer')
+                    : ($review->location ?? $review->designation ?? 'Happy Customer');
+
+                $reviewText = is_array($review)
+                    ? ($review['review_text'] ?? $review['comment'] ?? $review['message'] ?? '')
+                    : ($review->review_text ?? $review->comment ?? $review->message ?? '');
+
+                $reviewSocialLink = is_array($review)
+                    ? ($review['social_link'] ?? null)
+                    : ($review->social_link ?? null);
+
+                $rating = (int) (is_array($review) ? ($review['rating'] ?? 5) : ($review->rating ?? 5));
                 $rating = $rating > 0 ? min($rating, 5) : 5;
                 @endphp
 
@@ -2469,6 +2617,16 @@ body {
                             <div>
                                 <strong>{{ $reviewName }}</strong>
                                 <span>{{ $reviewLocation }}</span>
+
+                                @if(! empty($reviewSocialLink))
+                                    <a href="{{ $reviewSocialLink }}"
+                                       target="_blank"
+                                       rel="noopener noreferrer"
+                                       class="review-social-link">
+                                        <i class="fas fa-external-link-alt"></i>
+                                        রিভিউ লিংক
+                                    </a>
+                                @endif
                             </div>
                         </div>
                     </div>
@@ -2500,26 +2658,35 @@ body {
 @endif
 
 {{-- FAQ --}}
-@if(($campaign?->faq_section_status ?? true) && $faqs->isNotEmpty())
+@if($isFaqSectionActive)
 <section class="section-space bg-white" id="faq-section">
     <div class="container">
         <h2 class="section-title">{{ $faqSectionTitle }}</h2>
 
         <div class="faq-wrapper" id="faqAccordion">
-            @foreach($faqs as $faq)
+            @foreach($faqItems as $faq)
             @php
-            $question = $faq->question ?? $faq->title ?? '';
-            $answer = $faq->answer ?? $faq->description ?? '';
+            $question = is_array($faq)
+                ? ($faq['question'] ?? $faq['title'] ?? '')
+                : ($faq->question ?? $faq->title ?? '');
+
+            $answer = is_array($faq)
+                ? ($faq['answer'] ?? $faq['description'] ?? '')
+                : ($faq->answer ?? $faq->description ?? '');
+
+            $faqId = is_array($faq)
+                ? ($faq['id'] ?? 'item_' . $loop->index)
+                : ($faq->id ?? 'item_' . $loop->index);
             @endphp
 
             <div class="faq-item">
-                <button class="faq-button" type="button" data-toggle="collapse" data-target="#faq_{{ $faq->id }}"
+                <button class="faq-button" type="button" data-toggle="collapse" data-target="#faq_{{ $faqId }}"
                     aria-expanded="{{ $loop->first ? 'true' : 'false' }}">
                     <span>{{ $question }}</span>
                     <i class="fas fa-chevron-down"></i>
                 </button>
 
-                <div id="faq_{{ $faq->id }}" class="collapse {{ $loop->first ? 'show' : '' }}"
+                <div id="faq_{{ $faqId }}" class="collapse {{ $loop->first ? 'show' : '' }}"
                     data-parent="#faqAccordion">
                     <div class="faq-body">
                         {!! $answer !!}
@@ -2533,7 +2700,7 @@ body {
 @endif
 
 {{-- Order --}}
-@if(($campaign?->order_section_status ?? true) && $campaign)
+@if($isOrderSectionActive)
 <section class="order-section" id="order-section">
     <div class="container">
         <h2 class="section-title">{{ $orderSectionTitle }}</h2>
@@ -2693,6 +2860,7 @@ body {
 @endif
 
 {{-- Help --}}
+@if($isHelpSectionActive)
 <section class="help-cta-section" id="contact-section">
     <div class="container">
         <div class="help-box">
@@ -2719,6 +2887,7 @@ body {
         </div>
     </div>
 </section>
+@endif
 
 @endsection
 
@@ -2732,7 +2901,7 @@ $(document).ready(function() {
     outside_dhaka: 130
 };
 
-    let selectedCategory = @json($defaultCategoryId ? (string) $defaultCategoryId : 'all');
+    let selectedCategory = 'all';
     let selectedBrand = 'all';
     let selectedProducts = {};
     let suppressTracking = false;
@@ -3040,9 +3209,13 @@ $(document).ready(function() {
             renderSummary();
             trackAddToCart(item);
 
-            $('html, body').animate({
-                scrollTop: $('#order-section').offset().top - 80
-            }, 500);
+            const orderSection = $('#order-section');
+
+            if (orderSection.length) {
+                $('html, body').animate({
+                    scrollTop: orderSection.offset().top - 80
+                }, 500);
+            }
         }
     });
 

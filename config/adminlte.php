@@ -547,33 +547,6 @@ return [
                 ],
             ],
         ],
-        [
-            'text'    => 'Reviews',
-            'icon'    => 'fas fa-fw fa-star',
-            'can'     => 'admin-only',
-            'submenu' => [
-                [
-                    'text' => 'All Reviews',
-                    'url'  => 'admin/reviews',
-                    'icon' => 'far fa-fw fa-circle',
-                    'can'  => 'admin-only',
-                ],
-
-            ],
-        ],
-        [
-            'text'    => 'FAQ',
-            'icon'    => 'fas fa-fw fa-question-circle',
-            'can'     => 'admin-only',
-            'submenu' => [
-                [
-                    'text' => 'All FAQ',
-                    'url'  => 'admin/faqs',
-                    'icon' => 'far fa-fw fa-circle',
-                    'can'  => 'admin-only',
-                ],
-            ],
-        ],
 
         /*
     |--------------------------------------------------------------------------
