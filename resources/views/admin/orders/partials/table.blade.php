@@ -1,5 +1,5 @@
 <div class="table-responsive">
-    <table class="table table-hover align-middle mb-0">
+    <table class="table table-hover align-middle mb-0 order-index-table">
         <thead class="bg-light small text-uppercase font-weight-bold text-muted">
             <tr>
                 @if(auth()->user()->isAdmin())
@@ -13,17 +13,21 @@
                 <th>Products</th>
                 <th>Amount</th>
                 <th>Courier</th>
-                <th>Status</th>
-                <th>Payment</th>
-                <th>Admin Note</th>
-                <th>Employee</th>
                 <th>Date</th>
-                <th width="210" class="text-right px-4">Actions</th>
+                <th>Status</th>
+                <th>Admin Note</th>
+                <th width="130" class="text-center">Actions</th>
+                <th>Employee</th>
+                <th>Payment</th>
             </tr>
         </thead>
 
         <tbody>
             @forelse($orders as $order)
+                @php
+                    $firstProductImage = $order->first_product_image_url ?? null;
+                @endphp
+
                 <tr class="{{ !empty($isTrash) ? 'bg-light-red' : '' }}">
                     @if(auth()->user()->isAdmin())
                         <td class="text-center px-4">
@@ -62,6 +66,12 @@
                                 {{ \Illuminate\Support\Str::limit($order->campaign->title, 22) }}
                             </span>
                         @endif
+
+                        @if($order->orderField)
+                            <span class="badge mt-1 text-white" style="background: {{ $order->orderField->color ?: '#2563eb' }};">
+                                {{ $order->orderField->name }}
+                            </span>
+                        @endif
                     </td>
 
                     {{-- Customer --}}
@@ -91,23 +101,31 @@
                         @endforelse
                     </td>
 
-                    {{-- Amount --}}
+                    {{-- Amount + First Product Image --}}
                     <td>
                         <div class="font-weight-bold">
                             ৳{{ number_format($order->total_amount ?? 0) }}
                         </div>
 
-                        <small class="text-muted">
+                        <small class="text-muted d-block">
                             Sub: ৳{{ number_format($order->sub_total ?? 0) }}
                         </small>
+
+                        @if($firstProductImage)
+                            <img src="{{ $firstProductImage }}"
+                                 alt="{{ $order->items->first()->product_name ?? 'Product' }}"
+                                 class="order-first-product-img mt-2">
+                        @else
+                            <div class="order-first-product-img-placeholder mt-2">
+                                <i class="fas fa-image"></i>
+                            </div>
+                        @endif
                     </td>
 
                     {{-- Courier --}}
                     <td>
                         @if($order->courier)
-                            <span class="badge badge-info">
-                                {{ $order->courier->name }}
-                            </span>
+                            <span class="badge badge-info">{{ $order->courier->name }}</span>
                         @elseif($order->courier_service)
                             <span class="badge badge-info">
                                 {{ $courierServices[$order->courier_service] ?? ucwords(str_replace('_', ' ', $order->courier_service)) }}
@@ -116,7 +134,6 @@
                             <span class="badge badge-light border">Not selected</span>
                         @endif
 
-                        {{-- SteadFast Info --}}
                         @if($order->courier_service === 'steadfast')
                             <div class="mt-1 sf-courier-box">
                                 @if($order->steadfast_tracking_code)
@@ -133,28 +150,12 @@
 
                                 @if($order->steadfast_status)
                                     <small class="d-block text-muted">
-                                        <i class="fas fa-truck-loading mr-1"></i>
-                                        SF Status:
-                                        {{ ucwords(str_replace('_', ' ', $order->steadfast_status)) }}
-                                    </small>
-                                @endif
-
-                                @if($order->steadfast_consignment_id)
-                                    <small class="d-block text-muted">
-                                        CID: {{ $order->steadfast_consignment_id }}
-                                    </small>
-                                @endif
-
-                                @if($order->steadfast_synced_at)
-                                    <small class="d-block text-muted">
-                                        Sync:
-                                        {{ $order->steadfast_synced_at->format('d M, h:i A') }}
+                                        SF: {{ ucwords(str_replace('_', ' ', $order->steadfast_status)) }}
                                     </small>
                                 @endif
                             </div>
                         @endif
 
-                        {{-- Pathao Info --}}
                         @if($order->courier_service === 'pathao')
                             <div class="mt-1 sf-courier-box">
                                 @if($order->pathao_consignment_id)
@@ -171,26 +172,22 @@
 
                                 @if($order->pathao_status)
                                     <small class="d-block text-muted">
-                                        <i class="fas fa-truck-loading mr-1"></i>
-                                        Pathao:
-                                        {{ ucwords(str_replace('_', ' ', $order->pathao_status)) }}
-                                    </small>
-                                @endif
-
-                                @if($order->pathao_merchant_order_id)
-                                    <small class="d-block text-muted">
-                                        Order ID: {{ $order->pathao_merchant_order_id }}
-                                    </small>
-                                @endif
-
-                                @if($order->pathao_sent_at)
-                                    <small class="d-block text-muted">
-                                        Sent:
-                                        {{ $order->pathao_sent_at->format('d M, h:i A') }}
+                                        Pathao: {{ ucwords(str_replace('_', ' ', $order->pathao_status)) }}
                                     </small>
                                 @endif
                             </div>
                         @endif
+                    </td>
+
+                    {{-- Date --}}
+                    <td>
+                        <div class="small">
+                            {{ $order->created_at ? $order->created_at->format('d M Y') : '-' }}
+                        </div>
+
+                        <small class="text-muted">
+                            {{ $order->created_at ? $order->created_at->format('h:i A') : '' }}
+                        </small>
                     </td>
 
                     {{-- Status --}}
@@ -200,7 +197,7 @@
                         @elseif($order->order_status === 'confirmed')
                             <span class="badge badge-primary">Confirmed</span>
                         @elseif($order->order_status === 'processing')
-                            <span class="badge badge-secondary">Processing</span>
+                            <span class="badge badge-primary order-processing-badge">Processing</span>
                         @elseif($order->order_status === 'shipped')
                             <span class="badge badge-info">Shipped</span>
                         @elseif($order->order_status === 'delivered')
@@ -208,10 +205,10 @@
                         @elseif($order->order_status === 'cancelled')
                             <span class="badge badge-danger">Cancelled</span>
                         @elseif($order->order_status === 'fake')
-                            <span class="badge badge-danger">Fake</span>
+                            <span class="badge badge-dark">Fake</span>
                         @else
                             <span class="badge badge-light border">
-                                {{ ucfirst($order->order_status) }}
+                                {{ ucfirst(str_replace('_', ' ', $order->order_status)) }}
                             </span>
                         @endif
 
@@ -219,6 +216,97 @@
                             <div>
                                 <span class="badge badge-danger mt-1">Fake Order</span>
                             </div>
+                        @endif
+                    </td>
+
+                    {{-- Admin Note --}}
+                    <td style="min-width: 240px;">
+                        @if(auth()->user()->isAdmin() && empty($isTrash))
+                            <textarea class="form-control form-control-sm admin-note-input"
+                                      rows="2"
+                                      data-url="{{ route('admin.orders.update_admin_note', $order->id) }}"
+                                      data-order-id="{{ $order->id }}"
+                                      data-original="{{ e($order->admin_note ?? '') }}"
+                                      placeholder="Write admin note...">{{ $order->admin_note }}</textarea>
+
+                            <div class="admin-note-status small text-muted mt-1" data-order-id="{{ $order->id }}">
+                                Auto save enabled
+                            </div>
+                        @else
+                            <span class="small text-muted">{{ $order->admin_note ?: '-' }}</span>
+                        @endif
+                    </td>
+
+                    {{-- Actions --}}
+                    <td class="text-center">
+                        <div class="btn-group shadow-sm rounded border bg-white overflow-hidden">
+                            @if(!empty($isTrash))
+                                @if(auth()->user()->isAdmin())
+                                    <button type="button" class="btn btn-sm btn-white text-success btnRestore"
+                                            data-url="{{ route('admin.orders.restore', $order->id) }}" title="Restore">
+                                        <i class="fas fa-trash-restore"></i>
+                                    </button>
+
+                                    <button type="button" class="btn btn-sm btn-white text-danger btnForceDelete"
+                                            data-url="{{ route('admin.orders.force_delete', $order->id) }}" title="Delete Forever">
+                                        <i class="fas fa-skull-crossbones"></i>
+                                    </button>
+                                @endif
+                            @else
+                                <a href="{{ route('admin.orders.show', $order->id) }}" class="btn btn-sm btn-white text-info" title="View">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+
+                                @if(auth()->user()->isAdmin())
+                                    <a href="{{ route('admin.orders.edit', $order->id) }}" class="btn btn-sm btn-white text-primary" title="Edit Order">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                @endif
+
+                                <a href="{{ route('admin.orders.invoice', $order->id) }}" class="btn btn-sm btn-white text-secondary" title="Invoice Print">
+                                    <i class="fas fa-file-invoice"></i>
+                                </a>
+
+                                {{-- PDF download option removed from index action column as requested --}}
+
+                                @if(auth()->user()->isAdmin() && $order->courier_service === 'steadfast')
+                                    @if(empty($order->steadfast_consignment_id))
+                                        <button type="button" class="btn btn-sm btn-white text-primary btnSendSteadfast"
+                                                data-url="{{ route('admin.orders.send_steadfast', $order->id) }}" title="Send to SteadFast">
+                                            <i class="fas fa-paper-plane"></i>
+                                        </button>
+                                    @else
+                                        <button type="button" class="btn btn-sm btn-white text-warning btnSyncSteadfast"
+                                                data-url="{{ route('admin.orders.sync_steadfast_status', $order->id) }}" title="Sync SteadFast Status">
+                                            <i class="fas fa-sync-alt"></i>
+                                        </button>
+                                    @endif
+                                @endif
+
+                                @if(auth()->user()->isAdmin() && $order->courier_service === 'pathao')
+                                    <button type="button" class="btn btn-sm btn-white text-success btnSendPathao"
+                                            data-url="{{ route('admin.orders.send_pathao', $order->id) }}" title="Send to Pathao">
+                                        <i class="fas fa-shipping-fast"></i>
+                                    </button>
+                                @endif
+
+                                @if(auth()->user()->isAdmin())
+                                    <button type="button" class="btn btn-sm btn-white text-danger btnDelete"
+                                            data-url="{{ route('admin.orders.destroy', $order->id) }}" title="Move to Trash">
+                                        <i class="fas fa-trash-alt"></i>
+                                    </button>
+                                @endif
+                            @endif
+                        </div>
+                    </td>
+
+                    {{-- Employee --}}
+                    <td>
+                        @if($order->assignedEmployee)
+                            <div class="font-weight-bold">{{ $order->assignedEmployee->name }}</div>
+                            <small class="text-muted">{{ $order->assignedEmployee->email }}</small>
+                        @else
+                            <span class="badge badge-light border">Unassigned</span>
                         @endif
                     </td>
 
@@ -237,129 +325,6 @@
                                 {{ ucfirst(str_replace('_', ' ', $order->payment_status)) }}
                             </span>
                         @endif
-                    </td>
-
-                    {{-- Admin Note --}}
-                    <td style="min-width: 240px;">
-                        @if(auth()->user()->isAdmin() && empty($isTrash))
-                            <textarea class="form-control form-control-sm admin-note-input"
-                                      rows="2"
-                                      data-url="{{ route('admin.orders.update_admin_note', $order->id) }}"
-                                      data-order-id="{{ $order->id }}"
-                                      data-original="{{ e($order->admin_note ?? '') }}"
-                                      placeholder="Write admin note...">{{ $order->admin_note }}</textarea>
-
-                            <div class="admin-note-status small text-muted mt-1" data-order-id="{{ $order->id }}">
-                                Auto save enabled
-                            </div>
-                        @else
-                            <span class="small text-muted">
-                                {{ $order->admin_note ?: '-' }}
-                            </span>
-                        @endif
-                    </td>
-
-                    {{-- Employee --}}
-                    <td>
-                        @if($order->assignedEmployee)
-                            <div class="font-weight-bold">
-                                {{ $order->assignedEmployee->name }}
-                            </div>
-
-                            <small class="text-muted">
-                                {{ $order->assignedEmployee->email }}
-                            </small>
-                        @else
-                            <span class="badge badge-light border">Unassigned</span>
-                        @endif
-                    </td>
-
-                    {{-- Date --}}
-                    <td>
-                        <div class="small">
-                            {{ $order->created_at ? $order->created_at->format('d M Y') : '-' }}
-                        </div>
-
-                        <small class="text-muted">
-                            {{ $order->created_at ? $order->created_at->format('h:i A') : '' }}
-                        </small>
-                    </td>
-
-                    {{-- Actions --}}
-                    <td class="text-right px-4">
-                        <div class="btn-group shadow-sm rounded border bg-white overflow-hidden">
-                            @if(!empty($isTrash))
-                                @if(auth()->user()->isAdmin())
-                                    <button type="button"
-                                            class="btn btn-sm btn-white text-success btnRestore"
-                                            data-url="{{ route('admin.orders.restore', $order->id) }}"
-                                            title="Restore">
-                                        <i class="fas fa-trash-restore"></i>
-                                    </button>
-
-                                    <button type="button"
-                                            class="btn btn-sm btn-white text-danger btnForceDelete"
-                                            data-url="{{ route('admin.orders.force_delete', $order->id) }}"
-                                            title="Delete Forever">
-                                        <i class="fas fa-skull-crossbones"></i>
-                                    </button>
-                                @endif
-                            @else
-                                <a href="{{ route('admin.orders.show', $order->id) }}"
-                                   class="btn btn-sm btn-white text-info"
-                                   title="View">
-                                    <i class="fas fa-eye"></i>
-                                </a>
-
-                                <a href="{{ route('admin.orders.invoice', $order->id) }}"
-                                   class="btn btn-sm btn-white text-secondary"
-                                   title="Invoice Print">
-                                    <i class="fas fa-file-invoice"></i>
-                                </a>
-
-                                <a href="{{ route('admin.orders.invoice.download', $order->id) }}"
-                                   class="btn btn-sm btn-white text-success"
-                                   title="Download Invoice PDF">
-                                    <i class="fas fa-file-download"></i>
-                                </a>
-
-                                @if(auth()->user()->isAdmin() && $order->courier_service === 'steadfast')
-                                    @if(empty($order->steadfast_consignment_id))
-                                        <button type="button"
-                                                class="btn btn-sm btn-white text-primary btnSendSteadfast"
-                                                data-url="{{ route('admin.orders.send_steadfast', $order->id) }}"
-                                                title="Send to SteadFast">
-                                            <i class="fas fa-paper-plane"></i>
-                                        </button>
-                                    @else
-                                        <button type="button"
-                                                class="btn btn-sm btn-white text-warning btnSyncSteadfast"
-                                                data-url="{{ route('admin.orders.sync_steadfast_status', $order->id) }}"
-                                                title="Sync SteadFast Status">
-                                            <i class="fas fa-sync-alt"></i>
-                                        </button>
-                                    @endif
-                                @endif
-
-                                @if(auth()->user()->isAdmin() && $order->courier_service === 'pathao')
-                                    <button type="button"
-                                            class="btn btn-sm btn-white text-success btnSendPathao"
-                                            data-url="{{ route('admin.orders.send_pathao', $order->id) }}"
-                                            title="Send to Pathao">
-                                        <i class="fas fa-shipping-fast"></i>
-                                    </button>
-                                @endif
-
-                                @if(auth()->user()->isAdmin())
-                                    <button type="button"
-                                            class="btn btn-sm btn-white text-danger btnDelete"
-                                            data-url="{{ route('admin.orders.destroy', $order->id) }}"
-                                            title="Move to Trash">
-                                        <i class="fas fa-trash-alt"></i>
-                                    </button>
-                                @endif
-                            @endif
-                        </div>
                     </td>
                 </tr>
             @empty
@@ -381,83 +346,46 @@
 @endif
 
 <style>
-.bg-light-red {
-    background-color: #fffafa;
+.bg-light-red { background-color: #fffafa; }
+.shadow-xs { box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05); }
+.cursor-pointer { cursor: pointer; }
+.btn-white { background: #fff; border: none; transition: 0.2s; }
+.btn-white:hover { background: #f8f9fa; transform: translateY(-1px); }
+.btn-xs { padding: 2px 7px; font-size: 11px; line-height: 1.4; border-radius: 4px; }
+.pagination { margin-bottom: 0; }
+.page-item.active .page-link { background-color: #007bff; border-color: #007bff; }
+.page-link { color: #6c757d; border-radius: 5px !important; margin: 0 2px; }
+.admin-note-input { min-width: 210px; font-size: 12px; resize: vertical; }
+.admin-note-status { font-size: 11px; min-height: 15px; }
+.admin-note-status.saving { color: #2563eb !important; }
+.admin-note-status.saved { color: #16a34a !important; }
+.admin-note-status.error { color: #dc2626 !important; }
+.sf-courier-box { line-height: 1.3; }
+.sf-courier-box small { font-size: 11px; }
+.btn-group .btn { border-radius: 0 !important; }
+.order-index-table th,
+.order-index-table td { vertical-align: middle !important; }
+.order-first-product-img {
+    width: 58px;
+    height: 58px;
+    border-radius: 8px;
+    object-fit: cover;
+    border: 1px solid #e5e7eb;
+    background: #f8fafc;
 }
-
-.shadow-xs {
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+.order-first-product-img-placeholder {
+    width: 58px;
+    height: 58px;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+    background: #f8fafc;
+    color: #94a3b8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
-
-.cursor-pointer {
-    cursor: pointer;
-}
-
-.btn-white {
-    background: #fff;
-    border: none;
-    transition: 0.2s;
-}
-
-.btn-white:hover {
-    background: #f8f9fa;
-    transform: translateY(-1px);
-}
-
-.btn-xs {
-    padding: 2px 7px;
-    font-size: 11px;
-    line-height: 1.4;
-    border-radius: 4px;
-}
-
-.pagination {
-    margin-bottom: 0;
-}
-
-.page-item.active .page-link {
-    background-color: #007bff;
-    border-color: #007bff;
-}
-
-.page-link {
-    color: #6c757d;
-    border-radius: 5px !important;
-    margin: 0 2px;
-}
-
-.admin-note-input {
-    min-width: 210px;
-    font-size: 12px;
-    resize: vertical;
-}
-
-.admin-note-status {
-    font-size: 11px;
-    min-height: 15px;
-}
-
-.admin-note-status.saving {
-    color: #2563eb !important;
-}
-
-.admin-note-status.saved {
-    color: #16a34a !important;
-}
-
-.admin-note-status.error {
-    color: #dc2626 !important;
-}
-
-.sf-courier-box {
-    line-height: 1.3;
-}
-
-.sf-courier-box small {
-    font-size: 11px;
-}
-
-.btn-group .btn {
-    border-radius: 0 !important;
+.order-processing-badge {
+    background: #ec00ff !important;
+    color: #ffffff;
 }
 </style>

@@ -27,25 +27,24 @@ class Order extends Model
     public const PAYMENT_STATUS_COLLECTED   = 'collected';
     public const PAYMENT_STATUS_FAILED      = 'failed';
 
+    public const CUSTOM_LIST_ONE = 'order_list_1';
+    public const CUSTOM_LIST_TWO = 'order_list_2';
+
     protected $fillable = [
         'invoice_id',
+        'success_token',
         'campaign_id',
         'assigned_employee_id',
+        'order_field_id',
+        'invoice_printed_at',
+        'invoice_print_count',
+        'custom_order_list',
 
         'customer_name',
         'phone',
         'address',
         'delivery_area',
-        'success_token',
-        /*
-        |--------------------------------------------------------------------------
-        | Courier
-        |--------------------------------------------------------------------------
-        | courier_id = Add Courier CRUD থেকে selected courier
-        | courier_account_id = API account, only SteadFast/Pathao API send এর জন্য
-        | courier_service = courier code, filter/send logic এর জন্য রাখা হলো
-        |--------------------------------------------------------------------------
-        */
+
         'courier_service',
         'courier_account_id',
         'courier_id',
@@ -94,6 +93,10 @@ class Order extends Model
     protected $casts = [
         'campaign_id'          => 'integer',
         'assigned_employee_id' => 'integer',
+        'order_field_id'       => 'integer',
+        'invoice_printed_at'   => 'datetime',
+        'invoice_print_count'  => 'integer',
+        'custom_order_list'     => 'string',
         'courier_account_id'   => 'integer',
         'courier_id'           => 'integer',
 
@@ -149,6 +152,11 @@ class Order extends Model
         return $this->belongsTo(Courier::class);
     }
 
+    public function orderField(): BelongsTo
+    {
+        return $this->belongsTo(OrderField::class, 'order_field_id');
+    }
+
     public function items(): HasMany
     {
         return $this->hasMany(OrderItem::class);
@@ -184,6 +192,19 @@ class Order extends Model
     public function getIsCourierSelectedAttribute(): bool
     {
         return ! empty($this->courier_id) && ! empty($this->courier_service);
+    }
+
+    public function getFirstProductImageUrlAttribute(): ?string
+    {
+        $firstItem = $this->relationLoaded('items')
+            ? $this->items->first()
+            : $this->items()->with('product')->first();
+
+        if (! $firstItem) {
+            return null;
+        }
+
+        return $firstItem->product_image_url;
     }
 
     public function scopeForLoggedInUser(Builder $query): Builder
@@ -225,6 +246,11 @@ class Order extends Model
         return $query->where('order_status', self::STATUS_PROCESSING);
     }
 
+    public function scopeNewOrders(Builder $query): Builder
+    {
+        return $query->where('order_status', self::STATUS_PROCESSING);
+    }
+
     public function scopeShipped(Builder $query): Builder
     {
         return $query->where('order_status', self::STATUS_SHIPPED);
@@ -233,6 +259,16 @@ class Order extends Model
     public function scopeDelivered(Builder $query): Builder
     {
         return $query->where('order_status', self::STATUS_DELIVERED);
+    }
+
+    public function scopeOrderListOne(Builder $query): Builder
+    {
+        return $query->where('custom_order_list', self::CUSTOM_LIST_ONE);
+    }
+
+    public function scopeOrderListTwo(Builder $query): Builder
+    {
+        return $query->where('custom_order_list', self::CUSTOM_LIST_TWO);
     }
 
     public function scopeCancelled(Builder $query): Builder

@@ -1,4 +1,17 @@
 @php
+    /*
+    |--------------------------------------------------------------------------
+    | Safe Default Variables
+    |--------------------------------------------------------------------------
+    | Success page বা অন্য কোনো frontend page থেকে campaign না পাঠালেও
+    | header যেন error না দেয়।
+    */
+    $campaign = $campaign ?? null;
+    $categories = $categories ?? null;
+    $brands = $brands ?? null;
+    $reviews = $reviews ?? null;
+    $campaignGalleryImages = $campaignGalleryImages ?? null;
+
     $siteSetting = $siteSetting ?? \App\Models\SiteSetting::query()
         ->where('status', true)
         ->latest()
@@ -18,11 +31,11 @@
     | Dynamic Logo URL
     |--------------------------------------------------------------------------
     | Campaign page-e thakle logo click korle same campaign page-e thakbe.
-    | Normal home page-e thakle home page-e jabe.
+    | Normal home/success page-e thakle home page-e jabe.
     */
     $logoUrl = route('home');
 
-    if (isset($campaign) && $campaign && ! empty($campaign->slug)) {
+    if ($campaign && ! empty($campaign->slug)) {
         $logoUrl = route('campaign.show', $campaign->slug);
     }
 
@@ -34,7 +47,7 @@
     | related menu/header links show/hide hobe.
     */
     $sectionStatus = function (string $field, bool $default = true) use ($campaign): bool {
-        if (! isset($campaign) || ! $campaign) {
+        if (! $campaign) {
             return $default;
         }
 
@@ -54,10 +67,10 @@
     };
 
     $headerCategoryActive = $isCategorySectionActive
-        ?? ($sectionStatus('category_section_status') && $hasCollectionItems($categories ?? null));
+        ?? ($sectionStatus('category_section_status') && $hasCollectionItems($categories, false));
 
     $headerBrandActive = $isBrandSectionActive
-        ?? ($sectionStatus('category_section_status') && $hasCollectionItems($brands ?? null));
+        ?? ($sectionStatus('category_section_status') && $hasCollectionItems($brands, false));
 
     $headerProductActive = $isProductSectionActive
         ?? $sectionStatus('product_section_status');
@@ -69,13 +82,13 @@
         ?? $sectionStatus('service_section_status');
 
     $headerReviewActive = $isReviewSectionActive
-        ?? ($sectionStatus('review_section_status') && $hasCollectionItems($reviews ?? null));
+        ?? ($sectionStatus('review_section_status') && $hasCollectionItems($reviews, false));
 
     $headerGalleryHasItems = true;
 
-    if (isset($campaignGalleryImages)) {
-        $headerGalleryHasItems = $hasCollectionItems($campaignGalleryImages);
-    } elseif (isset($campaign) && $campaign && method_exists($campaign, 'getMedia')) {
+    if ($campaignGalleryImages !== null) {
+        $headerGalleryHasItems = $hasCollectionItems($campaignGalleryImages, false);
+    } elseif ($campaign && method_exists($campaign, 'getMedia')) {
         try {
             $headerGalleryHasItems = $campaign->getMedia('campaign_product_gallery')->isNotEmpty();
         } catch (\Throwable $e) {
@@ -106,7 +119,8 @@
 
             @if($headerOrderActive)
                 <div class="mobile-action d-lg-none ml-auto mr-2">
-                    <a href="#order-section" class="btn btn-success btn-sm order-nav-btn">
+                    <a href="{{ request()->routeIs('order.success') ? route('home') . '#order-section' : '#order-section' }}"
+                       class="btn btn-success btn-sm order-nav-btn">
                         <i class="fas fa-shopping-bag mr-1"></i>
                         অর্ডার করুন
                     </a>
@@ -129,55 +143,72 @@
                 <ul class="navbar-nav ml-auto align-items-lg-center">
                     @if($headerCategoryActive)
                         <li class="nav-item">
-                            <a class="nav-link" href="#category-section">ক্যাটাগরি</a>
+                            <a class="nav-link" href="{{ request()->routeIs('order.success') ? route('home') . '#category-section' : '#category-section' }}">
+                                ক্যাটাগরি
+                            </a>
                         </li>
                     @endif
 
                     @if($headerBrandActive)
                         <li class="nav-item">
-                            <a class="nav-link" href="#brand-section">ব্র্যান্ড</a>
+                            <a class="nav-link" href="{{ request()->routeIs('order.success') ? route('home') . '#brand-section' : '#brand-section' }}">
+                                ব্র্যান্ড
+                            </a>
                         </li>
                     @endif
 
                     @if($headerProductActive)
                         <li class="nav-item">
-                            <a class="nav-link" href="#products-section">প্রোডাক্ট</a>
+                            <a class="nav-link" href="{{ request()->routeIs('order.success') ? route('home') . '#products-section' : '#products-section' }}">
+                                প্রোডাক্ট
+                            </a>
                         </li>
                     @endif
 
                     @if($headerDifferenceActive)
                         <li class="nav-item">
-                            <a class="nav-link" href="#difference-section">পার্থক্য</a>
+                            <a class="nav-link" href="{{ request()->routeIs('order.success') ? route('home') . '#difference-section' : '#difference-section' }}">
+                                পার্থক্য
+                            </a>
                         </li>
                     @endif
 
                     @if($headerServiceActive)
                         <li class="nav-item">
-                            <a class="nav-link" href="#services-section">ফিচারস</a>
+                            <a class="nav-link" href="{{ request()->routeIs('order.success') ? route('home') . '#services-section' : '#services-section' }}">
+                                ফিচারস
+                            </a>
                         </li>
                     @endif
 
                     @if($headerReviewActive)
                         <li class="nav-item">
-                            <a class="nav-link" href="#reviews-section">রিভিউ</a>
+                            <a class="nav-link" href="{{ request()->routeIs('order.success') ? route('home') . '#reviews-section' : '#reviews-section' }}">
+                                রিভিউ
+                            </a>
                         </li>
                     @endif
 
                     @if($headerGalleryActive)
                         <li class="nav-item">
-                            <a class="nav-link" href="#gallery-section">গ্যালারি</a>
+                            <a class="nav-link" href="{{ request()->routeIs('order.success') ? route('home') . '#gallery-section' : '#gallery-section' }}">
+                                গ্যালারি
+                            </a>
                         </li>
                     @endif
 
                     @if($headerHelpActive)
                         <li class="nav-item">
-                            <a class="nav-link" href="#contact-section">যোগাযোগ</a>
+                            <a class="nav-link" href="{{ request()->routeIs('order.success') ? route('home') . '#contact-section' : '#contact-section' }}">
+                                যোগাযোগ
+                            </a>
                         </li>
                     @endif
 
                     @if($headerOrderActive)
                         <li class="nav-item ml-lg-3 d-none d-lg-block">
-                            <a href="#order-section" class="btn btn-success order-nav-btn">
+                            <a href="{{ request()->routeIs('order.success') ? route('home') . '#order-section' : '#order-section' }}"
+                               class="btn btn-success order-nav-btn">
                                 <i class="fas fa-shopping-bag mr-1"></i>
                                 অর্ডার করুন
                             </a>

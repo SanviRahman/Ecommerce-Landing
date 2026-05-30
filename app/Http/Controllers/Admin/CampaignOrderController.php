@@ -10,10 +10,136 @@ use App\Models\Product;
 use App\Services\OrderAssignmentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class CampaignOrderController extends Controller
 {
+    private function normalizeProductImagePath(?string $value): ?string
+    {
+        if (! $value) {
+            return null;
+        }
+
+        $value = trim($value);
+
+        if ($value === '') {
+            return null;
+        }
+
+        if (filter_var($value, FILTER_VALIDATE_URL) || str_starts_with($value, 'data:') || str_starts_with($value, '//')) {
+            return $value;
+        }
+
+        $value = ltrim($value, '/');
+
+        if (str_starts_with($value, 'public/')) {
+            return Storage::url(substr($value, 7));
+        }
+
+        if (str_starts_with($value, 'storage/app/public/')) {
+            return Storage::url(substr($value, 19));
+        }
+
+        if (str_starts_with($value, 'storage/')) {
+            return asset($value);
+        }
+
+        return Storage::url($value);
+    }
+
+    private function resolveProductImageUrl(?Product $product): ?string
+    {
+        if (! $product) {
+            return null;
+        }
+
+        foreach ([
+            'image_url',
+            'thumbnail_url',
+            'photo_url',
+            'product_image_url',
+            'image',
+            'photo',
+            'thumbnail',
+            'thumb',
+            'product_image',
+            'product_photo',
+            'main_image',
+            'featured_image',
+            'featured_photo',
+            'image_path',
+            'photo_path',
+            'thumbnail_path',
+            'picture',
+        ] as $attribute) {
+            try {
+                $value = $product->{$attribute} ?? null;
+            } catch (\Throwable $e) {
+                $value = null;
+            }
+
+            if (is_array($value)) {
+                $value = collect($value)->filter()->first();
+            }
+
+            if (is_string($value) && str_starts_with(trim($value), '[')) {
+                $decoded = json_decode($value, true);
+                if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                    $value = collect($decoded)->filter()->first();
+                }
+            }
+
+            if ($url = $this->normalizeProductImagePath(is_string($value) ? $value : null)) {
+                return $url;
+            }
+        }
+
+        if (method_exists($product, 'getFirstMediaUrl')) {
+            foreach ([
+                'product_image',
+                'product_images',
+                'product_thumbnail',
+                'product_photo',
+                'product_gallery',
+                'product',
+                'products',
+                'image',
+                'images',
+                'photo',
+                'photos',
+                'thumbnail',
+                'thumb',
+                'gallery',
+                'main_image',
+                'featured_image',
+                'default',
+            ] as $collection) {
+                try {
+                    $url = $product->getFirstMediaUrl($collection);
+
+                    if ($url) {
+                        return $url;
+                    }
+                } catch (\Throwable $e) {
+                    // Continue checking other media collections.
+                }
+            }
+
+            try {
+                $url = $product->getFirstMediaUrl();
+
+                if ($url) {
+                    return $url;
+                }
+            } catch (\Throwable $e) {
+                // No default media collection available.
+            }
+        }
+
+        return null;
+    }
+
     public function store(Request $request, Campaign $campaign)
     {
         abort_if(! $campaign->status, 404);
@@ -54,7 +180,6 @@ class CampaignOrderController extends Controller
 
             foreach ($submittedProducts as $submittedProduct) {
                 $productId = (int) $submittedProduct['id'];
-
                 $product = $campaignProducts->get($productId);
 
                 if (! $product) {
@@ -69,16 +194,8 @@ class CampaignOrderController extends Controller
                 }
 
                 $quantity = max(1, (int) $submittedProduct['quantity']);
-
-                $campaignPrice = 0;
-
-                if (isset($product->pivot)) {
-                    $campaignPrice = (int) ($product->pivot->campaign_price ?? 0);
-                }
-
-                $unitPrice = $campaignPrice > 0
-                    ? $campaignPrice
-                    : (int) $product->new_price;
+                $campaignPrice = isset($product->pivot) ? (int) ($product->pivot->campaign_price ?? 0) : 0;
+                $unitPrice = $campaignPrice > 0 ? $campaignPrice : (int) $product->new_price;
 
                 if ($unitPrice <= 0) {
                     continue;
@@ -92,7 +209,7 @@ class CampaignOrderController extends Controller
                     'quantity'         => $quantity,
                     'unit_price'       => $unitPrice,
                     'line_total'       => $lineTotal,
-                    'is_free_delivery' => (bool) $product->is_free_delivery,
+                    'is_free_delivery' => (bool) ($product->is_free_delivery ?? false),
                 ];
             }
 
@@ -102,14 +219,6 @@ class CampaignOrderController extends Controller
                     ->with('error', 'Please select at least one valid product.');
             }
 
-            /*
-            |--------------------------------------------------------------------------
-            | Free Delivery Logic
-            |--------------------------------------------------------------------------
-            | selected product list-er moddhe 1 ta free delivery product thaklei
-            | full order free delivery hobe.
-            |--------------------------------------------------------------------------
-            */
             $hasAnyFreeDeliveryProduct = collect($orderItems)
                 ->contains(fn ($item) => (bool) $item['is_free_delivery']);
 
@@ -142,7 +251,10 @@ class CampaignOrderController extends Controller
 
                 'payment_method'    => Order::PAYMENT_COD,
                 'payment_status'    => Order::PAYMENT_STATUS_COD_PENDING,
-                'order_status'      => Order::STATUS_PENDING,
+
+                // New customer order will be listed in both All Orders and New Orders.
+                // New Orders means Processing status according to your requirement.
+                'order_status'      => Order::STATUS_PROCESSING,
 
                 'is_fake'           => false,
                 'customer_note'     => $request->customer_note,
