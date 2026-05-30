@@ -8,15 +8,19 @@ use Illuminate\Support\Facades\Route;
 |--------------------------------------------------------------------------
 | Admin Artisan Command Routes
 |--------------------------------------------------------------------------
-| Note:
-| - Storage link command updated for Windows/XAMPP + shared hosting safety.
-| - If symlink permission denied, it will not throw 500 error.
-| - It will fallback by copying storage/app/public files to public/storage.
+| cPanel / shared hosting safe command routes.
+|
+| Storage Link Fix:
+| - Laravel project যদি public_html/website2 folder থেকে run হয়,
+|   public_path('storage') অনেক সময় website2/public/storage এ create হয়,
+|   কিন্তু website URL থেকে file serve হয় public_html/storage থেকে।
+| - তাই এখানে public_html/storage + public_path('storage') দুই জায়গাতেই
+|   storage/app/public link/copy prepare করা হবে।
+| - symlink permission denied হলেও 500 error দিবে না। fallback copy করবে।
 */
 
 $redirectWithToast = function (string $type, string $message) {
     $previousUrl = url()->previous() ?: route('admin.dashboard');
-
     $separator = str_contains($previousUrl, '?') ? '&' : '?';
 
     return redirect()->to($previousUrl . $separator . http_build_query([
@@ -25,22 +29,170 @@ $redirectWithToast = function (string $type, string $message) {
     ]));
 };
 
-$clearPublicStoragePath = function (string $linkPath): void {
+$normalizePath = function (?string $path): ?string {
+    if (! $path) {
+        return null;
+    }
+
+    $path = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $path);
+
+    return rtrim($path, DIRECTORY_SEPARATOR);
+};
+
+$uniquePaths = function (array $paths) use ($normalizePath): array {
+    $clean = [];
+
+    foreach ($paths as $path) {
+        $path = $normalizePath($path);
+
+        if (! $path) {
+            continue;
+        }
+
+        $clean[$path] = $path;
+    }
+
+    return array_values($clean);
+};
+
+$getPublicHtmlPath = function () use ($normalizePath): ?string {
+    /*
+     * Priority 1: server document root. Live URL usually points here.
+     */
+    $documentRoot = $normalizePath($_SERVER['DOCUMENT_ROOT'] ?? null);
+
+    if ($documentRoot && File::isDirectory($documentRoot)) {
+        return $documentRoot;
+    }
+
+    /*
+     * Priority 2: common cPanel layout.
+     * Example:
+     * base_path() = /home/username/public_html/website2
+     * public_html  = /home/username/public_html
+     */
+    $parentOfProject = $normalizePath(dirname(base_path()));
+
+    if ($parentOfProject && basename($parentOfProject) === 'public_html' && File::isDirectory($parentOfProject)) {
+        return $parentOfProject;
+    }
+
+    /*
+     * Priority 3: Laravel project outside public_html.
+     * Example:
+     * base_path() = /home/username/website2
+     * public_html  = /home/username/public_html
+     */
+    $homePublicHtml = $normalizePath(dirname(base_path()) . DIRECTORY_SEPARATOR . 'public_html');
+
+    if ($homePublicHtml && File::isDirectory($homePublicHtml)) {
+        return $homePublicHtml;
+    }
+
+    /*
+     * Fallback: Laravel public path.
+     */
+    return $normalizePath(public_path());
+};
+
+$removeBadStoragePath = function (string $linkPath): void {
+    /*
+     * Wrong/broken symlink হলে remove করা safe.
+     */
     if (is_link($linkPath)) {
         @unlink($linkPath);
         return;
     }
 
     /*
-     * public/storage যদি real directory হয়, সেটা delete করা risky.
-     * তাই delete না করে fallback copyDirectory দিয়ে overwrite/update করা হবে।
+     * storage নামে file থাকলে delete করা safe.
      */
+    if (File::exists($linkPath) && ! File::isDirectory($linkPath)) {
+        @File::delete($linkPath);
+    }
+
+    /*
+     * Real directory হলে delete করা হবে না।
+     * কারণ সেখানে আগে copy fallback দিয়ে file থাকতে পারে।
+     */
+};
+
+$copyStorageFallback = function (string $target, string $linkPath): void {
+    if (! File::isDirectory($linkPath)) {
+        File::makeDirectory($linkPath, 0755, true);
+    }
+
+    /*
+     * target empty হলেও directory ready থাকবে।
+     * File::copyDirectory existing folder update/overwrite করে।
+     */
+    if (File::isDirectory($target)) {
+        File::copyDirectory($target, $linkPath);
+    }
+};
+
+$prepareStoragePath = function (string $target, string $linkPath) use ($removeBadStoragePath, $copyStorageFallback): array {
+    $targetReal = realpath($target) ?: $target;
+
+    try {
+        if (! File::exists($target)) {
+            File::makeDirectory($target, 0755, true);
+        }
+
+        if (is_link($linkPath)) {
+            $currentReal = realpath($linkPath);
+
+            if ($currentReal && $currentReal === $targetReal) {
+                return [
+                    'status'  => true,
+                    'mode'    => 'exists',
+                    'message' => 'Storage link already exists: ' . $linkPath,
+                ];
+            }
+        }
+
+        $removeBadStoragePath($linkPath);
+
+        /*
+         * Try real symlink first.
+         */
+        if (! file_exists($linkPath) && @symlink($target, $linkPath)) {
+            return [
+                'status'  => true,
+                'mode'    => 'symlink',
+                'message' => 'Storage symlink created: ' . $linkPath,
+            ];
+        }
+
+        /*
+         * Shared hosting fallback: copy storage/app/public into public storage.
+         */
+        $copyStorageFallback($target, $linkPath);
+
+        return [
+            'status'  => true,
+            'mode'    => 'copy',
+            'message' => 'Storage files copied: ' . $linkPath,
+        ];
+    } catch (Throwable $exception) {
+        return [
+            'status'  => false,
+            'mode'    => 'failed',
+            'message' => $linkPath . ' => ' . $exception->getMessage(),
+        ];
+    }
 };
 
 Route::prefix('command')
     ->name('command.')
     ->middleware(['auth', 'role:admin', 'lte_context:admin'])
-    ->group(function () use ($redirectWithToast, $clearPublicStoragePath) {
+    ->group(function () use (
+        $redirectWithToast,
+        $normalizePath,
+        $uniquePaths,
+        $getPublicHtmlPath,
+        $prepareStoragePath
+    ) {
         Route::get('/clear-cache', function () use ($redirectWithToast) {
             Artisan::call('cache:clear');
 
@@ -93,57 +245,65 @@ Route::prefix('command')
             return $redirectWithToast('success', 'Database seeded successfully.');
         })->name('seed');
 
-        Route::get('/storage-link', function () use ($redirectWithToast, $clearPublicStoragePath) {
-            $target = storage_path('app/public');
-            $linkPath = public_path('storage');
+        Route::get('/storage-link', function () use (
+            $redirectWithToast,
+            $normalizePath,
+            $uniquePaths,
+            $getPublicHtmlPath,
+            $prepareStoragePath
+        ) {
+            $target = $normalizePath(storage_path('app/public'));
+            $publicHtml = $getPublicHtmlPath();
 
-            try {
-                if (! File::exists($target)) {
-                    File::makeDirectory($target, 0755, true);
+            /*
+             * Important for your cPanel structure:
+             * public_html/storage must exist because website URL loads /storage/...
+             * Also prepare public_path('storage') for normal Laravel behavior.
+             */
+            $candidateLinks = $uniquePaths([
+                $publicHtml ? $publicHtml . DIRECTORY_SEPARATOR . 'storage' : null,
+                base_path('..' . DIRECTORY_SEPARATOR . 'storage'),
+                public_path('storage'),
+            ]);
+
+            $results = [];
+            $successCount = 0;
+            $copyCount = 0;
+            $symlinkCount = 0;
+
+            foreach ($candidateLinks as $linkPath) {
+                if (! $target || $normalizePath($linkPath) === $normalizePath($target)) {
+                    continue;
                 }
 
-                /*
-                 * Already correct symlink থাকলে success return.
-                 */
-                if (is_link($linkPath) && realpath($linkPath) === realpath($target)) {
-                    return $redirectWithToast('success', 'Storage link already exists.');
+                $result = $prepareStoragePath($target, $linkPath);
+                $results[] = $result['message'];
+
+                if ($result['status']) {
+                    $successCount++;
                 }
 
-                /*
-                 * Broken/wrong symlink থাকলে remove.
-                 * Real directory হলে delete করা হবে না, fallback copy update করবে।
-                 */
-                $clearPublicStoragePath($linkPath);
-
-                /*
-                 * Normal Laravel path: public/storage -> storage/app/public
-                 * @symlink ব্যবহার করা হয়েছে যেন permission denied হলে 500 না দেয়।
-                 */
-                if (! file_exists($linkPath) && @symlink($target, $linkPath)) {
-                    return $redirectWithToast('success', 'Storage symbolic link created successfully.');
+                if (($result['mode'] ?? null) === 'copy') {
+                    $copyCount++;
                 }
 
-                /*
-                 * Windows/XAMPP/shared hosting fallback:
-                 * symlink permission না থাকলে public/storage directory বানিয়ে files copy করবে।
-                 * এতে admin panel থেকে 500 error আসবে না, images show করবে।
-                 */
-                if (! File::isDirectory($linkPath)) {
-                    File::makeDirectory($linkPath, 0755, true);
+                if (($result['mode'] ?? null) === 'symlink' || ($result['mode'] ?? null) === 'exists') {
+                    $symlinkCount++;
                 }
-
-                File::copyDirectory($target, $linkPath);
-
-                return $redirectWithToast(
-                    'success',
-                    'Storage symlink permission denied, but files copied to public/storage successfully.'
-                );
-            } catch (Throwable $e) {
-                return $redirectWithToast(
-                    'error',
-                    'Storage link failed: ' . $e->getMessage()
-                );
             }
+
+            if ($successCount > 0) {
+                $mainMessage = $symlinkCount > 0
+                    ? 'Storage link created successfully. public_html/storage is ready.'
+                    : 'Symlink blocked, but storage files copied successfully. public_html/storage is ready.';
+
+                return $redirectWithToast('success', $mainMessage);
+            }
+
+            return $redirectWithToast(
+                'error',
+                'Storage link failed. ' . implode(' | ', $results)
+            );
         })->name('storage-link');
 
         Route::get('/migrate-fresh', function () use ($redirectWithToast) {
