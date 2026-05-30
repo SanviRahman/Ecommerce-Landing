@@ -45,12 +45,12 @@ class ReportController extends Controller
     private function formats(): array
     {
         return [
-            'html'  => 'HTML Preview',
-            'csv'   => 'CSV Export',
-            'pdf'   => 'PDF Export',
-            'excel' => 'Excel Export',
+            'html' => 'HTML Preview',
+            'csv'  => 'CSV Excel Format',
         ];
     }
+
+
 
     private function groupByOptions(): array
     {
@@ -252,19 +252,125 @@ class ReportController extends Controller
         ]);
     }
 
+    private function normalizeProductFilterIds($value): array
+    {
+        if ($value === null || $value === '') {
+            return [];
+        }
+
+        if (is_string($value)) {
+            $value = str_contains($value, ',') ? explode(',', $value) : [$value];
+        }
+
+        if (! is_array($value)) {
+            $value = [$value];
+        }
+
+        return collect($value)
+            ->filter(fn ($id) => $id !== null && $id !== '')
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn ($id) => $id > 0)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function cleanReportFilters(array $filters): array
+    {
+        $productIds = [];
+
+        if (array_key_exists('product_ids', $filters)) {
+            $productIds = $this->normalizeProductFilterIds($filters['product_ids']);
+        } elseif (! empty($filters['product_id'])) {
+            $productIds = $this->normalizeProductFilterIds($filters['product_id']);
+        }
+
+        unset($filters['product_id']);
+
+        if (! empty($productIds)) {
+            $filters['product_ids'] = $productIds;
+        } else {
+            unset($filters['product_ids']);
+        }
+
+        return collect($filters)
+            ->reject(function ($value) {
+                if (is_array($value)) {
+                    return empty(array_filter($value, fn ($item) => $item !== null && $item !== ''));
+                }
+
+                return $value === null || $value === '';
+            })
+            ->toArray();
+    }
+
+    private function reportFilterLabels(array $filters): array
+    {
+        $labels = [];
+
+        foreach ($filters as $key => $value) {
+            $labels[$key] = $this->humanReadableFilterValue($key, $value);
+        }
+
+        return $labels;
+    }
+
+    private function humanReadableFilterValue(string $key, $value): string
+    {
+        if ($value === null || $value === '' || $value === []) {
+            return 'All';
+        }
+
+        if ($key === 'product_ids' || $key === 'product_id') {
+            $ids = $this->normalizeProductFilterIds($value);
+
+            if (empty($ids)) {
+                return 'All Products';
+            }
+
+            $names = Product::query()
+                ->whereIn('id', $ids)
+                ->orderBy('name')
+                ->pluck('name')
+                ->toArray();
+
+            return ! empty($names) ? implode(', ', $names) : implode(', ', $ids);
+        }
+
+        if ($key === 'campaign_id' && $value) {
+            return Campaign::query()->whereKey($value)->value('title') ?: (string) $value;
+        }
+
+        if ($key === 'employee_id' && $value) {
+            return User::query()->whereKey($value)->value('name') ?: (string) $value;
+        }
+
+        if ($key === 'is_fake') {
+            return (string) $value === '1' ? 'Fake Only' : ((string) $value === '0' ? 'Real Only' : 'All');
+        }
+
+        if (is_array($value) || is_object($value)) {
+            return json_encode($value, JSON_UNESCAPED_UNICODE);
+        }
+
+        return ucwords(str_replace('_', ' ', (string) $value));
+    }
+
     public function store(Request $request)
     {
         $this->adminOnly();
 
         $validated = $request->validate([
-            'title'       => ['nullable', 'string', 'max:255'],
-            'report_type' => ['required', 'string', 'in:' . implode(',', array_keys($this->reportTypes()))],
-            'date_from'   => ['nullable', 'date'],
-            'date_to'     => ['nullable', 'date', 'after_or_equal:date_from'],
-            'group_by'    => ['nullable', 'string', 'in:' . implode(',', array_keys($this->groupByOptions()))],
-            'format'      => ['required', 'string', 'in:html,csv,pdf,excel'],
-            'filters'     => ['nullable', 'array'],
-            'columns'     => ['nullable', 'array'],
+            'title'                 => ['nullable', 'string', 'max:255'],
+            'report_type'           => ['required', 'string', 'in:' . implode(',', array_keys($this->reportTypes()))],
+            'date_from'             => ['nullable', 'date'],
+            'date_to'               => ['nullable', 'date', 'after_or_equal:date_from'],
+            'group_by'              => ['nullable', 'string', 'in:' . implode(',', array_keys($this->groupByOptions()))],
+            'format'                => ['required', 'string', 'in:html,csv'],
+            'filters'               => ['nullable', 'array'],
+            'filters.product_ids'   => ['nullable', 'array'],
+            'filters.product_ids.*' => ['nullable', 'integer', 'exists:products,id'],
+            'columns'               => ['nullable', 'array'],
         ]);
 
         $reportType = $validated['report_type'];
@@ -272,7 +378,7 @@ class ReportController extends Controller
         $dateTo = $validated['date_to'] ?? null;
         $groupBy = $validated['group_by'] ?? 'daily';
         $format = $validated['format'];
-        $filters = $validated['filters'] ?? [];
+        $filters = $this->cleanReportFilters($validated['filters'] ?? []);
         $columns = $validated['columns'] ?? [];
 
         $payload = $this->generateReportPayload($reportType, $dateFrom, $dateTo, $groupBy, $filters);
@@ -297,30 +403,44 @@ class ReportController extends Controller
             $report->update($this->createCsvExport($report, $payload));
         }
 
-        if ($format === 'pdf') {
-            $report->update($this->createPdfExport($report, $payload));
-        }
-
         return redirect()
             ->route('admin.reports.show', $report->id)
             ->with('success', 'Report generated successfully.');
     }
 
+
+
     public function show(ReportExport $report)
     {
         $this->adminOnly();
 
+        $report->load('generatedBy');
+
+        $payload = $this->generateReportPayload(
+            $report->report_type,
+            optional($report->date_from)->format('Y-m-d'),
+            optional($report->date_to)->format('Y-m-d'),
+            $report->group_by ?: 'daily',
+            $report->filters ?? []
+        );
+
         return view('admin.reports.show', [
-            'report'      => $report->load('generatedBy'),
-            'reportTypes' => $this->reportTypes(),
-            'title'       => 'Report Details',
-            'breadcrumb'  => [
+            'report'       => $report,
+            'reportTypes'  => $this->reportTypes(),
+            'payload'      => $payload,
+            'productRows'  => $payload['product_rows'] ?? ($report->report_type === ReportExport::TYPE_PRODUCT ? ($payload['rows'] ?? []) : []),
+            'detailRows'   => $payload['detail_rows'] ?? [],
+            'filterLabels' => $this->reportFilterLabels($report->filters ?? []),
+            'title'        => 'Report Details',
+            'breadcrumb'   => [
                 ['text' => 'Dashboard', 'url' => route('admin.dashboard')],
                 ['text' => 'Reports', 'url' => route('admin.reports.index')],
                 ['text' => 'Report Details', 'url' => route('admin.reports.show', $report->id)],
             ],
         ]);
     }
+
+
 
     public function edit(ReportExport $report)
     {
@@ -348,18 +468,22 @@ class ReportController extends Controller
         $this->adminOnly();
 
         $validated = $request->validate([
-            'title'           => ['required', 'string', 'max:255'],
-            'report_type'     => ['required', 'string', 'in:' . implode(',', array_keys($this->reportTypes()))],
-            'date_from'       => ['nullable', 'date'],
-            'date_to'         => ['nullable', 'date', 'after_or_equal:date_from'],
-            'group_by'        => ['nullable', 'string', 'in:' . implode(',', array_keys($this->groupByOptions()))],
-            'format'          => ['required', 'string', 'in:html,csv,pdf,excel'],
-            'status'          => ['required', 'string', 'in:pending,processing,completed,failed'],
-            'filters'         => ['nullable', 'array'],
-            'columns'         => ['nullable', 'array'],
-            'error_message'   => ['nullable', 'string'],
-            'regenerate_file' => ['nullable', 'boolean'],
+            'title'                 => ['required', 'string', 'max:255'],
+            'report_type'           => ['required', 'string', 'in:' . implode(',', array_keys($this->reportTypes()))],
+            'date_from'             => ['nullable', 'date'],
+            'date_to'               => ['nullable', 'date', 'after_or_equal:date_from'],
+            'group_by'              => ['nullable', 'string', 'in:' . implode(',', array_keys($this->groupByOptions()))],
+            'format'                => ['required', 'string', 'in:html,csv'],
+            'status'                => ['required', 'string', 'in:pending,processing,completed,failed'],
+            'filters'               => ['nullable', 'array'],
+            'filters.product_ids'   => ['nullable', 'array'],
+            'filters.product_ids.*' => ['nullable', 'integer', 'exists:products,id'],
+            'columns'               => ['nullable', 'array'],
+            'error_message'         => ['nullable', 'string'],
+            'regenerate_file'       => ['nullable', 'boolean'],
         ]);
+
+        $filters = $this->cleanReportFilters($validated['filters'] ?? []);
 
         $report->update([
             'title'         => $validated['title'],
@@ -369,7 +493,7 @@ class ReportController extends Controller
             'group_by'      => $validated['group_by'] ?? null,
             'format'        => $validated['format'],
             'status'        => $validated['status'],
-            'filters'       => $validated['filters'] ?? [],
+            'filters'       => $filters,
             'columns'       => $validated['columns'] ?? [],
             'error_message' => $validated['error_message'] ?? null,
         ]);
@@ -399,10 +523,6 @@ class ReportController extends Controller
                 $fileData = $this->createCsvExport($report, $payload);
             }
 
-            if ($report->format === 'pdf') {
-                $fileData = $this->createPdfExport($report, $payload);
-            }
-
             $report->update(array_merge($fileData, [
                 'summary'      => $payload['summary'] ?? [],
                 'status'       => ReportExport::STATUS_COMPLETED,
@@ -414,6 +534,8 @@ class ReportController extends Controller
             ->route('admin.reports.show', $report->id)
             ->with('success', 'Report updated successfully.');
     }
+
+
 
     public function download(ReportExport $report)
     {
@@ -557,6 +679,14 @@ class ReportController extends Controller
             $query->where('campaign_id', $filters['campaign_id']);
         }
 
+        $productIds = $this->normalizeProductFilterIds($filters['product_ids'] ?? ($filters['product_id'] ?? []));
+
+        if (! empty($productIds)) {
+            $query->whereHas('items', function ($itemQuery) use ($productIds) {
+                $itemQuery->whereIn('product_id', $productIds);
+            });
+        }
+
         if (! empty($filters['order_status'])) {
             $query->where('order_status', $filters['order_status']);
         }
@@ -580,15 +710,21 @@ class ReportController extends Controller
         return $query;
     }
 
+
+
     private function orderBasedReportPayload(?string $dateFrom, ?string $dateTo, string $groupBy, array $filters): array
     {
         $query = $this->orderBaseQuery($dateFrom, $dateTo, $filters);
 
         return [
-            'summary' => $this->orderSummary($query),
-            'rows'    => $this->orderGroupedRows($query, $groupBy),
+            'summary'      => $this->orderSummary($query),
+            'rows'         => $this->orderGroupedRows($query, $groupBy),
+            'product_rows' => $this->orderProductSummaryRows($query),
+            'detail_rows'  => $this->orderDetailedRows($query),
         ];
     }
+
+
 
     private function orderSummary(Builder $query): array
     {
@@ -689,6 +825,98 @@ class ReportController extends Controller
             ->toArray();
     }
 
+    private function orderProductSummaryRows(Builder $query): array
+    {
+        if (! Schema::hasTable('order_items')) {
+            return [];
+        }
+
+        $orderIds = (clone $query)->pluck('orders.id')->filter()->values();
+
+        if ($orderIds->isEmpty()) {
+            return [];
+        }
+
+        return DB::table('order_items')
+            ->whereIn('order_items.order_id', $orderIds)
+            ->leftJoin('products', 'order_items.product_id', '=', 'products.id')
+            ->selectRaw("\n                COALESCE(order_items.product_name, products.name, 'Unknown Product') as product_name,\n                COUNT(DISTINCT order_items.order_id) as total_orders,\n                SUM(order_items.quantity) as total_quantity,\n                SUM(order_items.total_price) as total_sales\n            ")
+            ->groupBy('order_items.product_id', 'order_items.product_name', 'products.name')
+            ->orderByDesc('total_sales')
+            ->get()
+            ->map(fn ($row) => (array) $row)
+            ->toArray();
+    }
+
+    private function reportColumnLabels(): array
+    {
+        return [
+            'invoice_id'       => 'Invoice ID',
+            'campaign'         => 'Campaign',
+            'products'         => 'Products',
+            'customer_name'    => 'Customer Name',
+            'phone'            => 'Phone',
+            'address'          => 'Address',
+            'delivery_area'    => 'Delivery Area',
+            'payment_status'   => 'Payment Status',
+            'order_status'     => 'Order Status',
+            'sub_total'        => 'Sub Total',
+            'shipping_charge'  => 'Delivery Charge',
+            'cod_charge'       => 'COD Charge',
+            'total_amount'     => 'Total Amount',
+            'assigned_employee'=> 'Employee',
+            'admin_note'       => 'Admin Note',
+            'customer_note'    => 'Customer Note',
+            'created_at'       => 'Created At',
+        ];
+    }
+
+    private function orderDetailedRows(Builder $query): array
+    {
+        $orders = (clone $query)
+            ->with(['campaign', 'assignedEmployee', 'items.product'])
+            ->latest()
+            ->get();
+
+        return $orders->map(function (Order $order) {
+            return [
+                'invoice_id'        => $order->invoice_id,
+                'campaign'          => $order->campaign?->title ?? 'N/A',
+                'products'          => $order->items->map(function ($item) {
+                    $name = $item->product_name ?: ($item->product->name ?? 'Product');
+                    return $name . ' x ' . (int) $item->quantity;
+                })->implode(', '),
+                'customer_name'     => $order->customer_name,
+                'phone'             => $order->phone,
+                'address'           => $order->address,
+                'delivery_area'     => $order->delivery_area,
+                'payment_status'    => $order->payment_status,
+                'order_status'      => $order->order_status,
+                'sub_total'         => $order->sub_total,
+                'shipping_charge'   => $order->shipping_charge,
+                'cod_charge'        => $order->cod_charge,
+                'total_amount'      => $order->total_amount,
+                'assigned_employee' => $order->assignedEmployee?->name ?? 'Unassigned',
+                'admin_note'        => $order->admin_note,
+                'customer_note'     => $order->customer_note,
+                'created_at'        => optional($order->created_at)->format('d M Y, h:i A'),
+            ];
+        })->toArray();
+    }
+
+    private function selectedReportColumns(array $columns = []): array
+    {
+        $available = $this->reportColumnLabels();
+
+        if (empty($columns)) {
+            return array_keys($available);
+        }
+
+        $columns = array_values(array_filter($columns, fn ($column) => array_key_exists($column, $available)));
+
+        return empty($columns) ? array_keys($available) : $columns;
+    }
+
     private function productReportPayload(?string $dateFrom, ?string $dateTo, array $filters): array
     {
         if (! Schema::hasTable('order_items')) {
@@ -710,35 +938,58 @@ class ReportController extends Controller
             $query->whereDate('orders.created_at', '<=', $dateTo);
         }
 
-        if (! empty($filters['product_id'])) {
-            $query->where('order_items.product_id', $filters['product_id']);
+        $productIds = $this->normalizeProductFilterIds($filters['product_ids'] ?? ($filters['product_id'] ?? []));
+
+        if (! empty($productIds)) {
+            $query->whereIn('order_items.product_id', $productIds);
         }
 
         if (! empty($filters['campaign_id'])) {
             $query->where('orders.campaign_id', $filters['campaign_id']);
         }
 
+        if (! empty($filters['order_status'])) {
+            $query->where('orders.order_status', $filters['order_status']);
+        }
+
+        if (! empty($filters['payment_status'])) {
+            $query->where('orders.payment_status', $filters['payment_status']);
+        }
+
+        if (! empty($filters['delivery_area'])) {
+            $query->where('orders.delivery_area', $filters['delivery_area']);
+        }
+
+        if (isset($filters['is_fake']) && $filters['is_fake'] !== '') {
+            $query->where('orders.is_fake', (bool) $filters['is_fake']);
+        }
+
+        if (! empty($filters['employee_id']) && Schema::hasColumn('orders', 'assigned_employee_id')) {
+            $query->where('orders.assigned_employee_id', $filters['employee_id']);
+        }
+
         $rows = $query
-            ->selectRaw("
-                COALESCE(order_items.product_name, products.name, 'Unknown Product') as label,
-                COUNT(DISTINCT orders.id) as total_orders,
-                SUM(order_items.quantity) as total_quantity,
-                SUM(order_items.total_price) as total_sales
-            ")
+            ->selectRaw("\n                order_items.product_id as product_id,\n                COALESCE(order_items.product_name, products.name, 'Unknown Product') as product_name,\n                COUNT(DISTINCT orders.id) as total_orders,\n                SUM(order_items.quantity) as total_quantity,\n                SUM(order_items.total_price) as total_sales\n            ")
             ->groupBy('order_items.product_id', 'order_items.product_name', 'products.name')
             ->orderByDesc('total_sales')
             ->get()
+            ->map(fn ($row) => (array) $row)
             ->toArray();
 
         return [
             'summary' => [
                 'total_products' => count($rows),
+                'total_orders'   => collect($rows)->sum('total_orders'),
                 'total_quantity' => collect($rows)->sum('total_quantity'),
                 'total_sales'    => collect($rows)->sum('total_sales'),
             ],
-            'rows' => json_decode(json_encode($rows), true),
+            'rows'         => $rows,
+            'product_rows' => $rows,
+            'detail_rows'  => $rows,
         ];
     }
+
+
 
     private function trackingPixelReportPayload(): array
     {
@@ -759,6 +1010,50 @@ class ReportController extends Controller
         ];
     }
 
+    private function csvValue($value): string
+    {
+        if ($value === null) {
+            return '';
+        }
+
+        if (is_bool($value)) {
+            return $value ? 'Yes' : 'No';
+        }
+
+        if (is_array($value) || is_object($value)) {
+            return json_encode($value, JSON_UNESCAPED_UNICODE);
+        }
+
+        return (string) $value;
+    }
+
+    private function writeCsvSection($handle, string $title, array $rows, ?array $columns = null): void
+    {
+        fputcsv($handle, []);
+        fputcsv($handle, [$title]);
+
+        if (empty($rows)) {
+            fputcsv($handle, ['No data found']);
+            return;
+        }
+
+        $firstRow = (array) $rows[0];
+        $columns = $columns ?: array_keys($firstRow);
+
+        fputcsv($handle, array_map(
+            fn ($heading) => ucwords(str_replace('_', ' ', $heading)),
+            $columns
+        ));
+
+        foreach ($rows as $row) {
+            $row = (array) $row;
+            fputcsv($handle, array_map(
+                fn ($column) => $this->csvValue($row[$column] ?? ''),
+                $columns
+            ));
+        }
+    }
+
     private function createCsvExport(ReportExport $report, array $payload): array
     {
         $fileName = $report->report_uid . '.csv';
@@ -772,68 +1067,66 @@ class ReportController extends Controller
             'file_name' => $fileName,
             'file_path' => $filePath,
             'file_disk' => 'public',
-            'mime_type' => 'text/csv',
+            'mime_type' => 'application/vnd.ms-excel; charset=UTF-8',
             'file_size' => Storage::disk('public')->size($filePath),
         ];
     }
+
+
 
     private function buildDesignedCsv(ReportExport $report, array $payload): string
     {
         $handle = fopen('php://temp', 'r+');
 
+        // UTF-8 BOM দিলে Bangla text Excel-এ readable থাকে।
         fputs($handle, "\xEF\xBB\xBF");
 
         fputcsv($handle, ['Report Title', $report->title]);
         fputcsv($handle, ['Report UID', $report->report_uid]);
         fputcsv($handle, ['Report Type', $this->reportTypes()[$report->report_type] ?? $report->report_type]);
-        fputcsv($handle, ['Date Range', ($report->date_from ?: 'Start') . ' to ' . ($report->date_to ?: 'Today')]);
+        fputcsv($handle, ['Date Range', ($report->date_from ? optional($report->date_from)->format('d M Y') : 'Start') . ' to ' . ($report->date_to ? optional($report->date_to)->format('d M Y') : 'Today')]);
+        fputcsv($handle, ['Group By', $report->group_by ?: 'Default']);
+        fputcsv($handle, ['Generated By', optional($report->generatedBy)->name ?? auth()->user()?->name ?? 'System']);
         fputcsv($handle, ['Generated At', optional($report->generated_at)->format('d M Y, h:i A')]);
-        fputcsv($handle, []);
 
+        fputcsv($handle, []);
         fputcsv($handle, ['SUMMARY']);
 
         foreach (($payload['summary'] ?? []) as $key => $value) {
             fputcsv($handle, [
                 ucwords(str_replace('_', ' ', $key)),
-                is_array($value) || is_object($value) ? json_encode($value) : $value,
+                $this->csvValue($value),
             ]);
         }
 
         fputcsv($handle, []);
         fputcsv($handle, ['FILTERS']);
 
-        foreach (($report->filters ?? []) as $key => $value) {
-            fputcsv($handle, [
-                ucwords(str_replace('_', ' ', $key)),
-                is_array($value) || is_object($value) ? json_encode($value) : ($value ?: 'All'),
+        if (empty($report->filters)) {
+            fputcsv($handle, ['No filters applied']);
+        } else {
+            foreach (($report->filters ?? []) as $key => $value) {
+                fputcsv($handle, [
+                    ucwords(str_replace('_', ' ', $key)),
+                    $this->humanReadableFilterValue($key, $value),
+                ]);
+            }
+        }
+
+        if (! empty($payload['product_rows'])) {
+            $this->writeCsvSection($handle, 'PRODUCT SUMMARY', $payload['product_rows'], [
+                'product_name',
+                'total_orders',
+                'total_quantity',
+                'total_sales',
             ]);
         }
 
-        fputcsv($handle, []);
-        fputcsv($handle, ['DATA']);
+        $this->writeCsvSection($handle, 'REPORT DATA', $payload['rows'] ?? []);
 
-        $rows = collect($payload['rows'] ?? [])
-            ->map(fn ($row) => (array) $row)
-            ->values()
-            ->toArray();
-
-        if (empty($rows)) {
-            fputcsv($handle, ['No data found']);
-        } else {
-            fputcsv($handle, array_map(
-                fn ($heading) => ucwords(str_replace('_', ' ', $heading)),
-                array_keys($rows[0])
-            ));
-
-            foreach ($rows as $row) {
-                fputcsv($handle, array_map(function ($value) {
-                    if (is_array($value) || is_object($value)) {
-                        return json_encode($value);
-                    }
-
-                    return $value;
-                }, $row));
-            }
+        if (! empty($payload['detail_rows']) && $report->report_type !== ReportExport::TYPE_PRODUCT) {
+            $selectedColumns = $this->selectedReportColumns($report->columns ?? []);
+            $this->writeCsvSection($handle, 'DETAILED ORDERS', $payload['detail_rows'], $selectedColumns);
         }
 
         rewind($handle);
@@ -844,6 +1137,8 @@ class ReportController extends Controller
 
         return $csv;
     }
+
+
 
     private function createPdfExport(ReportExport $report, array $payload): array
     {

@@ -21,7 +21,7 @@
     <div>
         @if ($report->file_path)
             <a href="{{ route('admin.reports.download', $report->id) }}" class="btn btn-success">
-                <i class="fas fa-download mr-1"></i> Download
+                <i class="fas fa-download mr-1"></i> Download CSV
             </a>
         @endif
 
@@ -164,6 +164,48 @@
                 @endif
             </div>
         </div>
+
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 font-weight-bold">
+                    <i class="fas fa-box text-info mr-1"></i>
+                    Product Summary
+                </h5>
+                <span class="badge badge-light border">{{ count($productRows ?? []) }} Products</span>
+            </div>
+
+            <div class="card-body p-0">
+                @if (! empty($productRows))
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover mb-0">
+                            <thead class="thead-light">
+                                <tr>
+                                    <th>Product Name</th>
+                                    <th class="text-center">Orders</th>
+                                    <th class="text-center">Qty</th>
+                                    <th class="text-right">Sales</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach ($productRows as $row)
+                                    @php $row = (array) $row; @endphp
+                                    <tr>
+                                        <td class="font-weight-bold">
+                                            {{ $row['product_name'] ?? $row['label'] ?? 'Unknown Product' }}
+                                        </td>
+                                        <td class="text-center">{{ number_format((float) ($row['total_orders'] ?? 0)) }}</td>
+                                        <td class="text-center">{{ number_format((float) ($row['total_quantity'] ?? 0)) }}</td>
+                                        <td class="text-right">{{ number_format((float) ($row['total_sales'] ?? 0), 2) }}</td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @else
+                    <div class="p-3 text-muted">No product summary data available.</div>
+                @endif
+            </div>
+        </div>
     </div>
 
     <div class="col-md-4">
@@ -207,11 +249,11 @@
 
                 @if ($report->file_path)
                     <a href="{{ route('admin.reports.download', $report->id) }}" class="btn btn-success btn-block">
-                        <i class="fas fa-download mr-1"></i> Download File
+                        <i class="fas fa-download mr-1"></i> Download CSV File
                     </a>
                 @else
                     <div class="alert alert-warning mb-0">
-                        File not generated. CSV format generates file now.
+                        File not generated. CSV format select করলে Excel-readable file generate হবে।
                     </div>
                 @endif
             </div>
@@ -226,18 +268,12 @@
             </div>
 
             <div class="card-body">
-                @if (! empty($report->filters))
+                @if (! empty($filterLabels))
                     <ul class="list-group list-group-flush">
-                        @foreach ($report->filters as $key => $value)
-                            <li class="list-group-item px-0 d-flex justify-content-between">
+                        @foreach ($filterLabels as $key => $value)
+                            <li class="list-group-item px-0 d-flex justify-content-between align-items-start">
                                 <strong>{{ str_replace('_', ' ', $key) }}</strong>
-                                <span>
-                                    @if (is_array($value) || is_object($value))
-                                        {{ json_encode($value) }}
-                                    @else
-                                        {{ $value ?: 'N/A' }}
-                                    @endif
-                                </span>
+                                <span class="text-right">{{ $value ?: 'N/A' }}</span>
                             </li>
                         @endforeach
                     </ul>

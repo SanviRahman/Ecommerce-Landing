@@ -29,20 +29,20 @@
     </div>
 @endif
 
-<div class="card card-outline card-primary shadow-sm mb-4">
+<div class="card card-outline card-primary shadow-sm mb-3 dashboard-filter-card">
     <div class="card-header bg-white">
         <h3 class="card-title font-weight-bold">
-            <i class="fas fa-sliders-h mr-2"></i>Dashboard Analytics Filters
+            <i class="fas fa-sliders-h mr-2"></i> Dashboard Analytics Filters
         </h3>
     </div>
 
     <div class="card-body">
         <form id="filterForm">
             <div class="row align-items-end">
-                <div class="col-md-3">
+                <div class="col-md-3 col-sm-6">
                     <div class="form-group">
                         <label>Campaign</label>
-                        <select name="campaign_id" id="campaign_id" class="form-control">
+                        <select name="campaign_id" id="campaign_id" class="form-control dashboard-filter-input">
                             <option value="">All Campaigns</option>
                             @foreach($campaigns as $campaign)
                                 <option value="{{ $campaign->id }}">{{ $campaign->title }}</option>
@@ -51,10 +51,10 @@
                     </div>
                 </div>
 
-                <div class="col-md-2">
+                <div class="col-md-2 col-sm-6">
                     <div class="form-group">
                         <label>Date Filter</label>
-                        <select name="date_filter" id="dateFilter" class="form-control">
+                        <select name="date_filter" id="dateFilter" class="form-control dashboard-filter-input">
                             <option value="all">All Time</option>
                             <option value="today">Today</option>
                             <option value="yesterday">Yesterday</option>
@@ -67,23 +67,23 @@
                     </div>
                 </div>
 
-                <div class="col-md-3" id="customDateRange" style="display:none;">
+                <div class="col-md-3 col-sm-12" id="customDateRange" style="display:none;">
                     <div class="form-group">
                         <label>Custom Range</label>
                         <div class="input-group">
-                            <input type="date" name="start_date" id="start_date" class="form-control">
-                            <div class="input-group-prepend">
+                            <input type="date" name="start_date" id="start_date" class="form-control dashboard-filter-input">
+                            <div class="input-group-prepend input-group-append">
                                 <span class="input-group-text">to</span>
                             </div>
-                            <input type="date" name="end_date" id="end_date" class="form-control">
+                            <input type="date" name="end_date" id="end_date" class="form-control dashboard-filter-input">
                         </div>
                     </div>
                 </div>
 
-                <div class="col-md-2">
+                <div class="col-md-2 col-sm-6">
                     <div class="form-group">
                         <label>Order Status</label>
-                        <select name="order_status" id="order_status" class="form-control">
+                        <select name="order_status" id="order_status" class="form-control dashboard-filter-input">
                             <option value="">All Status</option>
                             <option value="pending">Pending</option>
                             <option value="confirmed">Confirmed</option>
@@ -95,31 +95,34 @@
                     </div>
                 </div>
 
-                <div class="col-md-2">
+                <div class="col-md-2 col-sm-6">
                     <div class="form-group">
                         <label>Payment</label>
-                        <select name="payment_status" id="payment_status" class="form-control">
+                        <select name="payment_status" id="payment_status" class="form-control dashboard-filter-input">
                             <option value="">All Payment</option>
                             <option value="cod_pending">COD Pending</option>
                             <option value="paid">Paid</option>
+                            <option value="collected">Collected</option>
                             <option value="failed">Failed</option>
                             <option value="refunded">Refunded</option>
+                            <option value="unpaid">Unpaid</option>
                         </select>
                     </div>
                 </div>
 
-                <div class="col-md-2">
+                <div class="col-md-2 col-sm-6">
                     <div class="form-group">
                         <label>Delivery Area</label>
-                        <select name="delivery_area" id="delivery_area" class="form-control">
+                        <select name="delivery_area" id="delivery_area" class="form-control dashboard-filter-input">
                             <option value="">All Area</option>
                             <option value="inside_dhaka">Inside Dhaka</option>
                             <option value="outside_dhaka">Outside Dhaka</option>
+                            <option value="free_delivery">Free Delivery</option>
                         </select>
                     </div>
                 </div>
 
-                <div class="col-md-2">
+                <div class="col-md-2 col-sm-6">
                     <div class="form-group">
                         <button type="button" id="resetBtn" class="btn btn-light border btn-block">
                             <i class="fas fa-sync mr-1"></i> Reset
@@ -133,7 +136,7 @@
 
 <div class="row" id="statsContainer">
     <div class="col-lg-3 col-md-6">
-        <div class="small-box bg-info shadow-sm">
+        <div class="small-box bg-info shadow-sm dashboard-stat-box">
             <div class="inner">
                 <h3 id="stat_totalOrders"><i class="fas fa-spinner fa-spin"></i></h3>
                 <p>Total Orders</p>
@@ -144,7 +147,7 @@
     </div>
 
     <div class="col-lg-3 col-md-6">
-        <div class="small-box bg-warning shadow-sm">
+        <div class="small-box bg-warning shadow-sm dashboard-stat-box">
             <div class="inner">
                 <h3 id="stat_pendingOrders"><i class="fas fa-spinner fa-spin"></i></h3>
                 <p>Pending Orders</p>
@@ -155,7 +158,7 @@
     </div>
 
     <div class="col-lg-3 col-md-6">
-        <div class="small-box bg-primary shadow-sm">
+        <div class="small-box bg-primary shadow-sm dashboard-stat-box">
             <div class="inner">
                 <h3 id="stat_confirmedOrders"><i class="fas fa-spinner fa-spin"></i></h3>
                 <p>Confirmed Orders</p>
@@ -166,7 +169,7 @@
     </div>
 
     <div class="col-lg-3 col-md-6">
-        <div class="small-box bg-secondary shadow-sm">
+        <div class="small-box bg-secondary shadow-sm dashboard-stat-box">
             <div class="inner">
                 <h3 id="stat_processingOrders"><i class="fas fa-spinner fa-spin"></i></h3>
                 <p>Processing Orders</p>
@@ -177,7 +180,7 @@
     </div>
 
     <div class="col-lg-3 col-md-6">
-        <div class="small-box bg-success shadow-sm">
+        <div class="small-box bg-success shadow-sm dashboard-stat-box">
             <div class="inner">
                 <h3 id="stat_deliveredOrders"><i class="fas fa-spinner fa-spin"></i></h3>
                 <p>Delivered Orders</p>
@@ -188,7 +191,7 @@
     </div>
 
     <div class="col-lg-3 col-md-6">
-        <div class="small-box bg-danger shadow-sm">
+        <div class="small-box bg-danger shadow-sm dashboard-stat-box">
             <div class="inner">
                 <h3 id="stat_cancelledOrders"><i class="fas fa-spinner fa-spin"></i></h3>
                 <p>Cancelled Orders</p>
@@ -199,7 +202,7 @@
     </div>
 
     <div class="col-lg-3 col-md-6">
-        <div class="small-box bg-maroon shadow-sm">
+        <div class="small-box bg-maroon shadow-sm dashboard-stat-box">
             <div class="inner">
                 <h3 id="stat_grossSales"><i class="fas fa-spinner fa-spin"></i></h3>
                 <p>Gross Sales</p>
@@ -210,7 +213,7 @@
     </div>
 
     <div class="col-lg-3 col-md-6">
-        <div class="small-box bg-dark shadow-sm">
+        <div class="small-box bg-dark shadow-sm dashboard-stat-box">
             <div class="inner">
                 <h3 id="stat_totalProducts"><i class="fas fa-spinner fa-spin"></i></h3>
                 <p>Total Products</p>
@@ -221,100 +224,150 @@
     </div>
 </div>
 
-<div class="row">
-    <div class="col-lg-6">
-        <div class="card card-outline card-primary shadow-sm">
-            <div class="card-header bg-white">
-                <h3 class="card-title">Order Trend</h3>
-            </div>
-            <div class="card-body">
-                <canvas id="orderTrendChart" height="220"></canvas>
-            </div>
-        </div>
+<div class="card card-outline card-info shadow-sm mb-3">
+    <div class="card-header bg-white">
+        <h3 class="card-title font-weight-bold">
+            <i class="fas fa-chart-pie text-info mr-2"></i> Todays Report
+        </h3>
+        <small class="d-block text-muted">Daily order, invoice and delivery summary</small>
     </div>
 
-    <div class="col-lg-6">
-        <div class="card card-outline card-success shadow-sm">
-            <div class="card-header bg-white">
-                <h3 class="card-title">Sales Trend</h3>
+    <div class="card-body">
+        <div class="row today-report-grid">
+            <div class="col-lg-3 col-md-6">
+                <div class="today-report-item">
+                    <span class="today-icon bg-primary"><i class="fas fa-shopping-cart"></i></span>
+                    <div>
+                        <strong>Today's Order</strong>
+                        <h5 id="today_todaysOrder">0</h5>
+                    </div>
+                </div>
             </div>
-            <div class="card-body">
-                <canvas id="salesTrendChart" height="220"></canvas>
-            </div>
-        </div>
-    </div>
 
-    <div class="col-lg-4">
-        <div class="card card-outline card-info shadow-sm">
-            <div class="card-header bg-white">
-                <h3 class="card-title">Order Status</h3>
+            <div class="col-lg-3 col-md-6">
+                <div class="today-report-item">
+                    <span class="today-icon bg-warning"><i class="fas fa-clock"></i></span>
+                    <div>
+                        <strong>Pending Order</strong>
+                        <h5 id="today_pendingOrder">0</h5>
+                    </div>
+                </div>
             </div>
-            <div class="card-body">
-                <canvas id="statusComparisonChart" height="240"></canvas>
-            </div>
-        </div>
-    </div>
 
-    <div class="col-lg-4">
-        <div class="card card-outline card-warning shadow-sm">
-            <div class="card-header bg-white">
-                <h3 class="card-title">Payment Status</h3>
+            <div class="col-lg-3 col-md-6">
+                <div class="today-report-item">
+                    <span class="today-icon bg-info"><i class="fas fa-spinner"></i></span>
+                    <div>
+                        <strong>Incompleted Order</strong>
+                        <h5 id="today_incompletedOrder">0</h5>
+                    </div>
+                </div>
             </div>
-            <div class="card-body">
-                <canvas id="paymentComparisonChart" height="240"></canvas>
-            </div>
-        </div>
-    </div>
 
-    <div class="col-lg-4">
-        <div class="card card-outline card-secondary shadow-sm">
-            <div class="card-header bg-white">
-                <h3 class="card-title">Campaign Performance</h3>
+            <div class="col-lg-3 col-md-6">
+                <div class="today-report-item">
+                    <span class="today-icon bg-success"><i class="fas fa-check-circle"></i></span>
+                    <div>
+                        <strong>Completed Order</strong>
+                        <h5 id="today_completedOrder">0</h5>
+                    </div>
+                </div>
             </div>
-            <div class="card-body">
-                <canvas id="campaignPerformanceChart" height="240"></canvas>
+
+            <div class="col-lg-3 col-md-6">
+                <div class="today-report-item">
+                    <span class="today-icon bg-danger"><i class="fas fa-file-invoice"></i></span>
+                    <div>
+                        <strong>Incompleted Invoice</strong>
+                        <h5 id="today_incompletedInvoice">0</h5>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-3 col-md-6">
+                <div class="today-report-item">
+                    <span class="today-icon bg-success"><i class="fas fa-file-invoice-dollar"></i></span>
+                    <div>
+                        <strong>Completed Invoice</strong>
+                        <h5 id="today_completedInvoice">0</h5>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-3 col-md-6">
+                <div class="today-report-item">
+                    <span class="today-icon bg-secondary"><i class="fas fa-cash-register"></i></span>
+                    <div>
+                        <strong>Total Checkout</strong>
+                        <h5 id="today_totalCheckout">0</h5>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-3 col-md-6">
+                <div class="today-report-item">
+                    <span class="today-icon bg-primary"><i class="fas fa-truck"></i></span>
+                    <div>
+                        <strong>Delivery</strong>
+                        <h5 id="today_delivery">0</h5>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-3 col-md-6">
+                <div class="today-report-item mb-0">
+                    <span class="today-icon bg-danger"><i class="fas fa-times-circle"></i></span>
+                    <div>
+                        <strong>Cancelled</strong>
+                        <h5 id="today_cancelled">0</h5>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 </div>
 
-<div class="row">
-    <div class="col-xl-6">
-        <div class="card card-outline card-primary shadow-sm">
-            <div class="card-header bg-white">
-                <h3 class="card-title">Recent Orders</h3>
-            </div>
-            <div class="card-body table-responsive p-0" id="recentOrdersContainer">
-                <div class="text-center p-4">
-                    <i class="fas fa-spinner fa-spin fa-2x text-primary"></i>
-                </div>
-            </div>
-        </div>
+<div class="card card-outline card-primary shadow-sm mb-3">
+    <div class="card-header bg-white">
+        <h3 class="card-title font-weight-bold">Product Sale Report</h3>
     </div>
 
-    <div class="col-xl-6">
-        <div class="card card-outline card-success shadow-sm">
-            <div class="card-header bg-white">
-                <h3 class="card-title">Recent Products</h3>
-            </div>
-            <div class="card-body table-responsive p-0" id="recentProductsContainer">
-                <div class="text-center p-4">
-                    <i class="fas fa-spinner fa-spin fa-2x text-primary"></i>
-                </div>
-            </div>
+    <div class="card-body" id="productSaleReportContainer">
+        <div class="text-center p-4">
+            <i class="fas fa-spinner fa-spin fa-2x text-primary"></i>
         </div>
     </div>
+</div>
 
-    <div class="col-xl-12">
-        <div class="card card-outline card-secondary shadow-sm">
-            <div class="card-header bg-white">
-                <h3 class="card-title">Recent Campaigns</h3>
-            </div>
-            <div class="card-body table-responsive p-0" id="recentCampaignsContainer">
-                <div class="text-center p-4">
-                    <i class="fas fa-spinner fa-spin fa-2x text-primary"></i>
+<div class="card card-outline card-secondary shadow-sm mb-3" id="userOrderReportCard">
+    <div class="card-header bg-white">
+        <h3 class="card-title font-weight-bold">User Order Report</h3>
+        <small class="d-block text-muted">
+            Date range will follow the Dashboard Analytics Filters above.
+        </small>
+    </div>
+
+    <div class="card-body border-bottom">
+        <form id="userReportForm">
+            <div class="row align-items-end">
+                <div class="col-md-4">
+                    <div class="form-group mb-0">
+                        <label>Select User</label>
+                        <select name="report_user_id" id="report_user_id" class="form-control">
+                            <option value="">All Users</option>
+                            @foreach($users as $reportUser)
+                                <option value="{{ $reportUser->id }}">{{ $reportUser->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
                 </div>
             </div>
+        </form>
+    </div>
+
+    <div class="card-body table-responsive p-0" id="userOrderReportContainer">
+        <div class="text-center p-4">
+            <i class="fas fa-spinner fa-spin fa-2x text-primary"></i>
         </div>
     </div>
 </div>
@@ -330,143 +383,100 @@
 @endsection
 
 @section('js')
-<script src="{{ asset('vendor/chart.js/Chart.min.js') }}"></script>
-
 <script>
 $(function() {
-    const lineOptions = {
-        maintainAspectRatio: false,
-        responsive: true,
-        legend: { display: false },
-        scales: {
-            xAxes: [{ gridLines: { display: false } }],
-            yAxes: [{
-                gridLines: { color: 'rgba(0,0,0,0.06)' },
-                ticks: { beginAtZero: true }
-            }]
-        }
-    };
+    const dashboardUrl = '{{ route("admin.dashboard") }}';
+    let dashboardRequest = null;
 
-    const doughnutOptions = {
-        maintainAspectRatio: false,
-        responsive: true,
-        legend: { display: true, position: 'bottom' }
-    };
+    function setLoadingState() {
+        const loader = '<i class="fas fa-spinner fa-spin"></i>';
 
-    function createLineChart(selector, color) {
-        return new Chart($(selector).get(0).getContext('2d'), {
-            type: 'line',
-            data: {
-                labels: [],
-                datasets: [{
-                    backgroundColor: color.replace('1)', '0.18)'),
-                    borderColor: color,
-                    pointRadius: 3,
-                    fill: true,
-                    data: []
-                }]
-            },
-            options: lineOptions
-        });
-    }
+        $('#stat_totalOrders, #stat_pendingOrders, #stat_confirmedOrders, #stat_processingOrders, #stat_deliveredOrders, #stat_cancelledOrders, #stat_grossSales, #stat_totalProducts').html(loader);
 
-    function createBarChart(selector, color) {
-        return new Chart($(selector).get(0).getContext('2d'), {
-            type: 'bar',
-            data: {
-                labels: [],
-                datasets: [{
-                    backgroundColor: color,
-                    borderColor: color,
-                    data: []
-                }]
-            },
-            options: lineOptions
-        });
-    }
+        $('#today_todaysOrder, #today_pendingOrder, #today_incompletedOrder, #today_completedOrder, #today_incompletedInvoice, #today_completedInvoice, #today_totalCheckout, #today_delivery, #today_cancelled').html(loader);
 
-    function createDoughnut(selector) {
-        return new Chart($(selector).get(0).getContext('2d'), {
-            type: 'doughnut',
-            data: {
-                labels: [],
-                datasets: [{
-                    data: [],
-                    backgroundColor: [
-                        '#0d6efd',
-                        '#198754',
-                        '#dc3545',
-                        '#ffc107',
-                        '#6c757d',
-                        '#20c997',
-                        '#6610f2',
-                        '#fd7e14'
-                    ]
-                }]
-            },
-            options: doughnutOptions
-        });
-    }
-
-    const orderTrendChart = createLineChart('#orderTrendChart', 'rgba(13,110,253,1)');
-    const salesTrendChart = createLineChart('#salesTrendChart', 'rgba(25,135,84,1)');
-    const statusComparisonChart = createDoughnut('#statusComparisonChart');
-    const paymentComparisonChart = createDoughnut('#paymentComparisonChart');
-    const campaignPerformanceChart = createBarChart('#campaignPerformanceChart', 'rgba(108,117,125,0.85)');
-
-    function updateChart(chart, chartData) {
-        if (! chartData) {
-            return;
-        }
-
-        chart.data.labels = chartData.labels || [];
-        chart.data.datasets[0].data = chartData.values || [];
-        chart.update();
-    }
-
-    function loadingState() {
-        $('#stat_totalOrders, #stat_pendingOrders, #stat_confirmedOrders, #stat_processingOrders, #stat_deliveredOrders, #stat_cancelledOrders, #stat_grossSales, #stat_totalProducts')
-            .html('<i class="fas fa-spinner fa-spin"></i>');
-
-        $('#recentOrdersContainer, #recentProductsContainer, #recentCampaignsContainer')
+        $('#productSaleReportContainer, #userOrderReportContainer')
             .html('<div class="text-center p-4"><i class="fas fa-spinner fa-spin fa-2x text-primary"></i></div>');
     }
 
+    function updateStats(stats) {
+        stats = stats || {};
+
+        $('#stat_totalOrders').text(stats.totalOrders || '0');
+        $('#stat_pendingOrders').text(stats.pendingOrders || '0');
+        $('#stat_confirmedOrders').text(stats.confirmedOrders || '0');
+        $('#stat_processingOrders').text(stats.processingOrders || '0');
+        $('#stat_deliveredOrders').text(stats.deliveredOrders || '0');
+        $('#stat_cancelledOrders').text(stats.cancelledOrders || '0');
+        $('#stat_grossSales').text(stats.grossSales || '৳0');
+        $('#stat_totalProducts').text(stats.totalProducts || '0');
+    }
+
+    function updateTodayReport(todayReport) {
+        todayReport = todayReport || {};
+
+        $('#today_todaysOrder').text(todayReport.todaysOrder || '0');
+        $('#today_pendingOrder').text(todayReport.pendingOrder || '0');
+        $('#today_incompletedOrder').text(todayReport.incompletedOrder || '0');
+        $('#today_completedOrder').text(todayReport.completedOrder || '0');
+        $('#today_incompletedInvoice').text(todayReport.incompletedInvoice || '0');
+        $('#today_completedInvoice').text(todayReport.completedInvoice || '0');
+        $('#today_totalCheckout').text(todayReport.totalCheckout || '0');
+        $('#today_delivery').text(todayReport.delivery || '0');
+        $('#today_cancelled').text(todayReport.cancelled || '0');
+    }
+
+    function requestPayload() {
+        return $('#filterForm').serialize() + '&' + $('#userReportForm').serialize();
+    }
+
     function loadDashboardData() {
-        loadingState();
+        setLoadingState();
 
-        $.get('{{ route("admin.dashboard") }}', $('#filterForm').serialize(), function(response) {
-            $('#stat_totalOrders').text(response.stats.totalOrders);
-            $('#stat_pendingOrders').text(response.stats.pendingOrders);
-            $('#stat_confirmedOrders').text(response.stats.confirmedOrders);
-            $('#stat_processingOrders').text(response.stats.processingOrders);
-            $('#stat_deliveredOrders').text(response.stats.deliveredOrders);
-            $('#stat_cancelledOrders').text(response.stats.cancelledOrders);
-            $('#stat_grossSales').text(response.stats.grossSales);
-            $('#stat_totalProducts').text(response.stats.totalProducts);
+        if (dashboardRequest) {
+            dashboardRequest.abort();
+        }
 
-            updateChart(orderTrendChart, response.charts.orderTrend);
-            updateChart(salesTrendChart, response.charts.salesTrend);
-            updateChart(statusComparisonChart, response.charts.statusComparison);
-            updateChart(paymentComparisonChart, response.charts.paymentComparison);
-            updateChart(campaignPerformanceChart, response.charts.campaignPerformance);
+        dashboardRequest = $.ajax({
+            url: dashboardUrl,
+            type: 'GET',
+            data: requestPayload(),
+            dataType: 'json',
+            success: function(response) {
+                updateStats(response.stats || {});
+                updateTodayReport(response.todayReport || {});
 
-            $('#recentOrdersContainer').html(response.sections.recentOrders);
-            $('#recentProductsContainer').html(response.sections.recentProducts);
-            $('#recentCampaignsContainer').html(response.sections.recentCampaigns);
-        }).fail(function() {
-            $('#recentOrdersContainer, #recentProductsContainer, #recentCampaignsContainer')
-                .html('<div class="text-center p-4 text-danger"><i class="fas fa-exclamation-triangle"></i> Error loading data</div>');
+                $('#productSaleReportContainer').html(response.sections?.productSaleReport || '<div class="text-center text-muted p-4">No product sale data found.</div>');
+                $('#userOrderReportContainer').html(response.sections?.userOrderReport || '<div class="text-center text-muted p-4">No user report data found.</div>');
+                initProductSalePagination(1);
 
-            $('#stat_totalOrders, #stat_pendingOrders, #stat_confirmedOrders, #stat_processingOrders, #stat_deliveredOrders, #stat_cancelledOrders, #stat_grossSales, #stat_totalProducts')
-                .text('Error');
+                if (response.status === false && response.message) {
+                    console.warn(response.message);
+                }
+            },
+            error: function(xhr, status) {
+                if (status === 'abort') {
+                    return;
+                }
+
+                updateStats({});
+                updateTodayReport({});
+
+                $('#productSaleReportContainer, #userOrderReportContainer')
+                    .html('<div class="text-center p-4 text-danger"><i class="fas fa-exclamation-triangle"></i> Error loading dashboard data.</div>');
+            },
+            complete: function() {
+                dashboardRequest = null;
+            }
         });
     }
 
     $('#dateFilter').on('change', function() {
-        $('#customDateRange').toggle($(this).val() === 'custom');
+        const isCustom = $(this).val() === 'custom';
+        $('#customDateRange').toggle(isCustom);
 
-        if ($(this).val() !== 'custom') {
+        if (! isCustom) {
+            $('#start_date, #end_date').val('');
             loadDashboardData();
         }
     });
@@ -474,15 +484,79 @@ $(function() {
     $('#campaign_id, #order_status, #payment_status, #delivery_area').on('change', loadDashboardData);
 
     $('#start_date, #end_date').on('change', function() {
-        if ($('#start_date').val() && $('#end_date').val()) {
+        if ($('#dateFilter').val() === 'custom') {
             loadDashboardData();
         }
     });
+
+    $('#report_user_id').on('change', loadDashboardData);
 
     $('#resetBtn').on('click', function() {
         $('#filterForm')[0].reset();
         $('#customDateRange').hide();
         loadDashboardData();
+    });
+
+    function productSaleFilteredRows() {
+        const keyword = ($('#productSaleSearch').val() || '').toLowerCase();
+        const rows = $('#productSaleTable tbody tr.product-sale-row');
+
+        if (! keyword) {
+            return rows;
+        }
+
+        return rows.filter(function() {
+            return $(this).text().toLowerCase().indexOf(keyword) > -1;
+        });
+    }
+
+    function initProductSalePagination(page) {
+        const perPage = 5;
+        const allRows = $('#productSaleTable tbody tr.product-sale-row');
+
+        if (! allRows.length) {
+            $('#productSalePagination').empty();
+            $('#productSaleInfo').text('Showing 0 to 0 of 0 entries');
+            return;
+        }
+
+        const filteredRows = productSaleFilteredRows();
+        const total = filteredRows.length;
+        const totalPages = Math.max(1, Math.ceil(total / perPage));
+        const currentPage = Math.min(Math.max(parseInt(page || 1, 10), 1), totalPages);
+        const startIndex = (currentPage - 1) * perPage;
+        const endIndex = Math.min(startIndex + perPage, total);
+
+        allRows.hide();
+        filteredRows.slice(startIndex, endIndex).show();
+
+        $('#productSaleInfo').text(total
+            ? `Showing ${startIndex + 1} to ${endIndex} of ${total} entries`
+            : 'Showing 0 to 0 of 0 entries'
+        );
+
+        let paginationHtml = '';
+        paginationHtml += `<button type="button" class="btn btn-sm btn-light border js-product-page" data-page="${currentPage - 1}" ${currentPage <= 1 ? 'disabled' : ''}>Previous</button>`;
+
+        for (let i = 1; i <= totalPages; i++) {
+            paginationHtml += `<button type="button" class="btn btn-sm ${i === currentPage ? 'btn-primary' : 'btn-light border'} js-product-page" data-page="${i}">${i}</button>`;
+        }
+
+        paginationHtml += `<button type="button" class="btn btn-sm btn-light border js-product-page" data-page="${currentPage + 1}" ${currentPage >= totalPages ? 'disabled' : ''}>Next</button>`;
+
+        $('#productSalePagination').html(paginationHtml);
+    }
+
+    $(document).on('keyup', '#productSaleSearch', function() {
+        initProductSalePagination(1);
+    });
+
+    $(document).on('click', '.js-product-page', function() {
+        if ($(this).prop('disabled')) {
+            return;
+        }
+
+        initProductSalePagination($(this).data('page'));
     });
 
     loadDashboardData();
@@ -500,8 +574,70 @@ $(function() {
     font-weight: 600;
 }
 
-.small-box h3 {
-    font-size: 1.8rem;
+.dashboard-filter-card .form-group {
+    margin-bottom: .75rem;
+}
+
+.dashboard-stat-box h3 {
+    font-size: 1.85rem;
+    font-weight: 700;
+}
+
+.today-report-item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    background: #fff;
+    border: 1px solid #edf0f5;
+    border-radius: 10px;
+    padding: 14px;
+    margin-bottom: 14px;
+    box-shadow: 0 4px 12px rgba(0,0,0,.03);
+}
+
+.today-report-item strong {
+    display: block;
+    color: #6c757d;
+    font-size: 13px;
+}
+
+.today-report-item h5 {
+    margin: 5px 0 0;
+    font-size: 20px;
+    font-weight: 700;
+}
+
+.today-icon {
+    width: 52px;
+    height: 52px;
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 22px;
+    flex: 0 0 52px;
+}
+
+.product-sale-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.product-sale-toolbar .form-control {
+    max-width: 240px;
+}
+
+#productSaleTable th,
+#productSaleTable td,
+#userOrderReportTable th,
+#userOrderReportTable td {
+    white-space: nowrap;
+    vertical-align: middle;
 }
 </style>
 @endsection

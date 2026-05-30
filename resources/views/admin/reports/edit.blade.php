@@ -123,7 +123,7 @@
                             @endforeach
                         </select>
                         <small class="text-muted">
-                            CSV and PDF can generate downloadable files.
+                            CSV select করলে Excel-readable .csv file generate হবে। HTML select করলে শুধু preview/history save হবে।
                         </small>
                     </div>
                 </div>
@@ -196,15 +196,62 @@
                         <div class="col-md-4">
                             <div class="form-group">
                                 <label>Product</label>
-                                <select name="filters[product_id]" class="form-control">
-                                    <option value="">All Products</option>
-                                    @foreach ($products as $product)
-                                        <option value="{{ $product->id }}"
-                                            @selected((string) ($filters['product_id'] ?? '') === (string) $product->id)>
-                                            {{ $product->name }}
-                                        </option>
-                                    @endforeach
-                                </select>
+                                @php
+                                    $selectedProductIds = $filters['product_ids']
+                                        ?? (isset($filters['product_id']) && $filters['product_id'] ? [$filters['product_id']] : []);
+
+                                    $selectedProductIds = collect($selectedProductIds)
+                                        ->flatten()
+                                        ->filter(fn ($id) => $id !== null && $id !== '')
+                                        ->map(fn ($id) => (string) $id)
+                                        ->unique()
+                                        ->values()
+                                        ->toArray();
+                                @endphp
+
+                                <div class="report-product-multiselect" data-placeholder="All Products">
+                                    <button type="button" class="form-control report-product-toggle">
+                                        <span class="report-product-label">All Products</span>
+                                        <i class="fas fa-chevron-down ml-2"></i>
+                                    </button>
+
+                                    <div class="report-product-menu">
+                                        <div class="p-2 border-bottom">
+                                            <input type="text"
+                                                   class="form-control form-control-sm report-product-search"
+                                                   placeholder="Search product...">
+                                        </div>
+
+                                        <div class="report-product-actions px-2 py-2 border-bottom">
+                                            <button type="button" class="btn btn-xs btn-outline-primary report-product-select-all">
+                                                Select All
+                                            </button>
+                                            <button type="button" class="btn btn-xs btn-outline-secondary report-product-clear ml-1">
+                                                Clear
+                                            </button>
+                                        </div>
+
+                                        <div class="report-product-options">
+                                            @forelse ($products as $product)
+                                                <label class="report-product-option">
+                                                    <input type="checkbox"
+                                                           name="filters[product_ids][]"
+                                                           value="{{ $product->id }}"
+                                                           @checked(in_array((string) $product->id, $selectedProductIds, true))>
+                                                    <span>{{ $product->name }}</span>
+                                                </label>
+                                            @empty
+                                                <div class="p-3 text-muted text-center">
+                                                    No product found.
+                                                </div>
+                                            @endforelse
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <small class="text-muted">
+                                    Dropdown click করলে product list show হবে। একাধিক product select করা যাবে। কিছু select না করলে All Products থাকবে।
+                                </small>
                             </div>
                         </div>
 
@@ -290,13 +337,21 @@
                         $selectedColumns = old('columns', $report->columns ?? []);
                         $columns = [
                             'invoice_id' => 'Invoice ID',
+                            'campaign' => 'Campaign',
+                            'products' => 'Products',
                             'customer_name' => 'Customer Name',
                             'phone' => 'Phone',
                             'address' => 'Address',
                             'delivery_area' => 'Delivery Area',
                             'payment_status' => 'Payment Status',
                             'order_status' => 'Order Status',
+                            'sub_total' => 'Sub Total',
+                            'shipping_charge' => 'Delivery Charge',
+                            'cod_charge' => 'COD Charge',
                             'total_amount' => 'Total Amount',
+                            'assigned_employee' => 'Employee',
+                            'admin_note' => 'Admin Note',
+                            'customer_note' => 'Customer Note',
                             'created_at' => 'Created At',
                         ];
                     @endphp
@@ -339,7 +394,7 @@
                     Regenerate File
                 </label>
                 <small class="form-text text-muted">
-                    Check this if you want to regenerate downloadable CSV/PDF file.
+                    Check this if you want to regenerate downloadable CSV file.
                 </small>
             </div>
 
@@ -363,9 +418,179 @@
 @endsection
 
 @section('css')
+
 <style>
 .breadcrumb-item+.breadcrumb-item::before {
     content: ">";
 }
+
+.report-product-multiselect {
+    position: relative;
+}
+
+.report-product-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    text-align: left;
+    background: #fff;
+    cursor: pointer;
+    height: auto;
+    min-height: 38px;
+    white-space: normal;
+}
+
+.report-product-label {
+    display: block;
+    max-width: calc(100% - 20px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.report-product-menu {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: calc(100% + 4px);
+    z-index: 2050;
+    display: none;
+    background: #fff;
+    border: 1px solid #ced4da;
+    border-radius: 6px;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, .16);
+    max-height: 310px;
+    overflow: hidden;
+}
+
+.report-product-multiselect.open .report-product-menu {
+    display: block;
+}
+
+.report-product-options {
+    max-height: 210px;
+    overflow-y: auto;
+}
+
+.report-product-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    margin: 0;
+    cursor: pointer;
+    font-weight: 500;
+    border-bottom: 1px solid #f1f3f5;
+}
+
+.report-product-option:hover {
+    background: #f8fafc;
+}
+
+.report-product-option input[type="checkbox"] {
+    margin: 0;
+}
+
+.report-product-option span {
+    line-height: 1.3;
+}
+
+.report-product-actions .btn-xs {
+    padding: 2px 8px;
+    font-size: 12px;
+}
 </style>
+@endsection
+
+
+@section('js')
+<script>
+(function ($) {
+    'use strict';
+
+    function updateProductLabel(wrapper) {
+        const placeholder = wrapper.data('placeholder') || 'All Products';
+        const checked = wrapper.find('.report-product-option input[type="checkbox"]:checked');
+        const label = wrapper.find('.report-product-label');
+
+        if (!checked.length) {
+            label.text(placeholder);
+            return;
+        }
+
+        const names = checked.map(function () {
+            return $(this).closest('.report-product-option').find('span').text().trim();
+        }).get();
+
+        if (names.length <= 2) {
+            label.text(names.join(', '));
+        } else {
+            label.text(names.length + ' Products Selected');
+        }
+    }
+
+    function closeAllProductDropdowns(exceptWrapper) {
+        $('.report-product-multiselect').not(exceptWrapper || $()).removeClass('open');
+    }
+
+    $(document).ready(function () {
+        $('.report-product-multiselect').each(function () {
+            updateProductLabel($(this));
+        });
+    });
+
+    $(document).on('click', '.report-product-toggle', function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const wrapper = $(this).closest('.report-product-multiselect');
+        closeAllProductDropdowns(wrapper);
+        wrapper.toggleClass('open');
+
+        if (wrapper.hasClass('open')) {
+            setTimeout(function () {
+                wrapper.find('.report-product-search').trigger('focus');
+            }, 50);
+        }
+    });
+
+    $(document).on('click', '.report-product-menu', function (event) {
+        event.stopPropagation();
+    });
+
+    $(document).on('click', function () {
+        closeAllProductDropdowns();
+    });
+
+    $(document).on('input', '.report-product-search', function () {
+        const keyword = $(this).val().toLowerCase().trim();
+        const wrapper = $(this).closest('.report-product-multiselect');
+
+        wrapper.find('.report-product-option').each(function () {
+            const text = $(this).text().toLowerCase();
+            $(this).toggle(text.indexOf(keyword) !== -1);
+        });
+    });
+
+    $(document).on('change', '.report-product-option input[type="checkbox"]', function () {
+        updateProductLabel($(this).closest('.report-product-multiselect'));
+    });
+
+    $(document).on('click', '.report-product-select-all', function () {
+        const wrapper = $(this).closest('.report-product-multiselect');
+
+        wrapper.find('.report-product-option:visible input[type="checkbox"]').prop('checked', true);
+        updateProductLabel(wrapper);
+    });
+
+    $(document).on('click', '.report-product-clear', function () {
+        const wrapper = $(this).closest('.report-product-multiselect');
+
+        wrapper.find('.report-product-option input[type="checkbox"]').prop('checked', false);
+        wrapper.find('.report-product-search').val('');
+        wrapper.find('.report-product-option').show();
+        updateProductLabel(wrapper);
+    });
+})(jQuery);
+</script>
 @endsection
