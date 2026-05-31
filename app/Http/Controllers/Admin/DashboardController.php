@@ -32,7 +32,7 @@ class DashboardController extends Controller
                 $stats = $this->dashboardStats(clone $orderQuery, $filters, $dateRange);
                 $todayReport = $this->dailyReportStats($filters, $dateRange);
                 $productSaleRows = $this->productSaleRows($filters, $dateRange);
-                $userReportRows = $this->userOrderReportRows($request, $dateRange);
+                $userReportRows = $this->userOrderReportRows($request, $dateRange, $filters);
 
                 return response()->json([
                     'status' => true,
@@ -117,6 +117,25 @@ class DashboardController extends Controller
             'custom' => $this->customDateRange($filters),
             default => [null, null],
         };
+    }
+
+    /**
+     * Dashboard Report/Todays Report rule:
+     * - All Time/Today view will use rolling last 24 hours for daily report.
+     * - Other date filters will use their selected calendar range.
+     * This makes previous day orders count when their status/invoice action happens today.
+     */
+    private function reportActivityRange(array $filters, array $dateRange): array
+    {
+        $dateFilter = $filters['date_filter'] ?? 'all';
+
+        if (in_array($dateFilter, ['all', 'today'], true)) {
+            $now = now();
+
+            return [$now->copy()->subHours(24), $now];
+        }
+
+        return $dateRange;
     }
 
     private function customDateRange(array $filters): array
@@ -230,36 +249,52 @@ class DashboardController extends Controller
 
     private function dailyReportStats(array $filters, array $dateRange): array
     {
-        $createdOrderQuery = $this->filteredOrderQuery($filters, $dateRange, true);
+        $reportRange = $this->reportActivityRange($filters, $dateRange);
+
+        // Orders created inside the report period. This is the real daily order count.
+        $createdOrderQuery = $this->filteredOrderQuery($filters, $reportRange, true);
+
+        // Action query does not use created_at. It counts status/invoice actions inside the period,
+        // so yesterday's order will count today if it is completed/invoiced today.
         $actionOrderQuery = $this->filteredOrderQuery($filters, [null, null], false);
 
-        $completedQuery = clone $actionOrderQuery;
-        $completedQuery->whereIn('order_status', ['delivered', 'complete', 'completed']);
-        $this->applyDateRange($completedQuery, $dateRange, 'updated_at');
+        $pendingOrderQuery = $this->statusActionQuery(
+            clone $actionOrderQuery,
+            ['pending'],
+            $reportRange,
+            ['created_at', 'updated_at']
+        );
 
-        $invoiceCompletedQuery = clone $actionOrderQuery;
-        if (Schema::hasColumn('orders', 'invoice_printed_at')) {
-            $invoiceCompletedQuery->whereNotNull('invoice_printed_at');
-            $this->applyDateRange($invoiceCompletedQuery, $dateRange, 'invoice_printed_at');
-        } else {
-            $invoiceCompletedQuery->whereIn('payment_status', ['paid', 'collected']);
-            $this->applyDateRange($invoiceCompletedQuery, $dateRange, 'updated_at');
-        }
+        $completedQuery = $this->statusActionQuery(
+            clone $actionOrderQuery,
+            ['delivered', 'complete', 'completed'],
+            $reportRange,
+            ['delivered_at', 'updated_at']
+        );
 
-        $deliveryQuery = clone $actionOrderQuery;
-        $deliveryQuery->whereIn('order_status', ['shipped', 'delivered', 'complete', 'completed']);
-        $this->applyDateRange($deliveryQuery, $dateRange, 'updated_at');
+        $invoiceCompletedQuery = $this->invoicedActionQuery(clone $actionOrderQuery, $reportRange);
+        $pendingInvoiceQuery = $this->pendingInvoiceActionQuery(clone $actionOrderQuery, $reportRange);
 
-        $cancelledQuery = clone $actionOrderQuery;
-        $cancelledQuery->where('order_status', 'cancelled');
-        $this->applyDateRange($cancelledQuery, $dateRange, 'updated_at');
+        $deliveryQuery = $this->statusActionQuery(
+            clone $actionOrderQuery,
+            ['shipped', 'delivered', 'complete', 'completed'],
+            $reportRange,
+            ['delivered_at', 'updated_at']
+        );
+
+        $cancelledQuery = $this->statusActionQuery(
+            clone $actionOrderQuery,
+            ['cancelled'],
+            $reportRange,
+            ['cancelled_at', 'updated_at']
+        );
 
         return [
             'todaysOrder' => number_format((clone $createdOrderQuery)->count()),
-            'pendingOrder' => number_format((clone $createdOrderQuery)->where('order_status', 'pending')->count()),
+            'pendingOrder' => number_format($pendingOrderQuery->count()),
             'incompletedOrder' => number_format((clone $createdOrderQuery)->whereNotIn('order_status', ['delivered', 'complete', 'completed', 'cancelled', 'fake'])->count()),
             'completedOrder' => number_format($completedQuery->count()),
-            'incompletedInvoice' => number_format($this->pendingInvoiceCount(clone $createdOrderQuery)),
+            'incompletedInvoice' => number_format($pendingInvoiceQuery->count()),
             'completedInvoice' => number_format($invoiceCompletedQuery->count()),
             'totalCheckout' => number_format((clone $createdOrderQuery)->count()),
             'delivery' => number_format($deliveryQuery->count()),
@@ -277,6 +312,101 @@ class DashboardController extends Controller
             $q->whereNull('payment_status')
                 ->orWhereNotIn('payment_status', ['paid', 'collected']);
         })->count();
+    }
+
+    private function statusActionQuery(Builder $query, array $statuses, array $dateRange, array $fallbackColumns = ['updated_at']): Builder
+    {
+        $statuses = array_values(array_unique(array_filter($statuses)));
+
+        $query->whereIn('order_status', $statuses);
+        $this->applyActionDateCondition($query, $dateRange, $statuses, $fallbackColumns);
+
+        return $query;
+    }
+
+    private function invoicedActionQuery(Builder $query, array $dateRange): Builder
+    {
+        if (Schema::hasColumn('orders', 'invoice_printed_at')) {
+            $query->whereNotNull('invoice_printed_at');
+            $this->applyDateRange($query, $dateRange, 'invoice_printed_at');
+
+            return $query;
+        }
+
+        $query->whereIn('payment_status', ['paid', 'collected']);
+        $this->applyActionDateCondition($query, $dateRange, ['invoiced', 'invoice_completed', 'paid', 'collected'], ['updated_at']);
+
+        return $query;
+    }
+
+    private function pendingInvoiceActionQuery(Builder $query, array $dateRange): Builder
+    {
+        if (Schema::hasColumn('orders', 'invoice_printed_at')) {
+            $query->whereNull('invoice_printed_at');
+        } else {
+            $query->where(function (Builder $q) {
+                $q->whereNull('payment_status')
+                    ->orWhereNotIn('payment_status', ['paid', 'collected']);
+            });
+        }
+
+        // Pending invoice has no dedicated timestamp in the current schema.
+        // So we count orders that are still pending invoice and were created/updated inside the report window.
+        // If order_status_logs contains pending_invoice/invoice_pending status, that will also be counted accurately.
+        $this->applyActionDateCondition(
+            $query,
+            $dateRange,
+            ['pending_invoice', 'invoice_pending', 'pending'],
+            ['created_at', 'updated_at']
+        );
+
+        return $query;
+    }
+
+    private function applyActionDateCondition(Builder $query, array $dateRange, array $statuses = [], array $fallbackColumns = ['updated_at']): void
+    {
+        [$start, $end] = $dateRange;
+
+        if (! $start && ! $end) {
+            return;
+        }
+
+        $hasCondition = false;
+
+        $query->where(function (Builder $dateQuery) use ($dateRange, $statuses, $fallbackColumns, &$hasCondition) {
+            foreach ($fallbackColumns as $column) {
+                if (! Schema::hasColumn('orders', $column)) {
+                    continue;
+                }
+
+                $hasCondition = true;
+
+                $dateQuery->orWhere(function (Builder $columnQuery) use ($dateRange, $column) {
+                    $this->applyDateRange($columnQuery, $dateRange, $column);
+                });
+            }
+
+            if ($statuses && Schema::hasTable('order_status_logs')) {
+                $hasCondition = true;
+
+                $dateQuery->orWhereExists(function ($subQuery) use ($dateRange, $statuses) {
+                    $subQuery->select(DB::raw(1))
+                        ->from('order_status_logs')
+                        ->whereColumn('order_status_logs.order_id', 'orders.id')
+                        ->whereIn('order_status_logs.status', $statuses);
+
+                    if (Schema::hasColumn('order_status_logs', 'deleted_at')) {
+                        $subQuery->whereNull('order_status_logs.deleted_at');
+                    }
+
+                    $this->applyDateRangeToQuery($subQuery, $dateRange, 'order_status_logs.created_at');
+                });
+            }
+        });
+
+        if (! $hasCondition) {
+            $query->whereRaw('1 = 0');
+        }
     }
 
     private function productSaleRows(array $filters, array $dateRange): array
@@ -326,10 +456,11 @@ class DashboardController extends Controller
             ->toArray();
     }
 
-    private function userOrderReportRows(Request $request, array $dateRange): array
+    private function userOrderReportRows(Request $request, array $dateRange, array $filters = []): array
     {
         $user = auth()->user();
         $selectedUserId = $request->input('report_user_id');
+        $reportRange = $this->reportActivityRange($filters, $dateRange);
 
         $usersQuery = User::query()->orderBy('name');
 
@@ -341,7 +472,7 @@ class DashboardController extends Controller
 
         $users = $usersQuery->get(['id', 'name']);
 
-        return $users->map(function (User $reportUser) use ($dateRange) {
+        return $users->map(function (User $reportUser) use ($reportRange) {
             $baseQuery = Order::query();
 
             if (Schema::hasColumn('orders', 'assigned_employee_id')) {
@@ -353,35 +484,39 @@ class DashboardController extends Controller
             }
 
             $createdQuery = clone $baseQuery;
-            $this->applyDateRange($createdQuery, $dateRange, 'created_at');
+            $this->applyDateRange($createdQuery, $reportRange, 'created_at');
 
-            $invoicedQuery = clone $baseQuery;
-            if (Schema::hasColumn('orders', 'invoice_printed_at')) {
-                $invoicedQuery->whereNotNull('invoice_printed_at');
-                $this->applyDateRange($invoicedQuery, $dateRange, 'invoice_printed_at');
-            } else {
-                $invoicedQuery->whereIn('payment_status', ['paid', 'collected']);
-                $this->applyDateRange($invoicedQuery, $dateRange, 'updated_at');
-            }
+            $processingQuery = $this->statusActionQuery(clone $baseQuery, ['processing'], $reportRange, ['created_at', 'updated_at']);
+            $cancelledQuery = $this->statusActionQuery(clone $baseQuery, ['cancelled'], $reportRange, ['cancelled_at', 'updated_at']);
+            $completedQuery = $this->statusActionQuery(clone $baseQuery, ['delivered', 'complete', 'completed'], $reportRange, ['delivered_at', 'updated_at']);
+            $deliveredQuery = $this->statusActionQuery(clone $baseQuery, ['delivered', 'complete', 'completed'], $reportRange, ['delivered_at', 'updated_at']);
+            $stockOutQuery = $this->statusActionQuery(clone $baseQuery, ['stock_out'], $reportRange, ['updated_at']);
+            $returnQuery = $this->statusActionQuery(clone $baseQuery, ['return', 'returned'], $reportRange, ['updated_at']);
+            $onHoldQuery = $this->statusActionQuery(clone $baseQuery, ['on_hold', 'hold', 'customer_on_hold'], $reportRange, ['updated_at']);
+            $invoicedQuery = $this->invoicedActionQuery(clone $baseQuery, $reportRange);
 
             $paidQuery = clone $baseQuery;
             $paidQuery->whereIn('payment_status', ['paid', 'collected']);
-            $this->applyDateRange($paidQuery, $dateRange, 'updated_at');
+            $this->applyActionDateCondition($paidQuery, $reportRange, ['paid', 'collected'], ['updated_at']);
+
+            $pendingPaymentQuery = clone $baseQuery;
+            $pendingPaymentQuery->whereIn('payment_status', ['cod_pending', 'pending', 'unpaid']);
+            $this->applyActionDateCondition($pendingPaymentQuery, $reportRange, ['cod_pending', 'payment_pending', 'pending', 'unpaid'], ['created_at', 'updated_at']);
 
             return [
-                'date' => $this->dateRangeLabel($dateRange),
+                'date' => $this->dateRangeLabel($reportRange),
                 'user_name' => $reportUser->name,
                 'total_order' => (clone $createdQuery)->count(),
-                'processing' => (clone $createdQuery)->where('order_status', 'processing')->count(),
-                'pending_payment' => (clone $createdQuery)->whereIn('payment_status', ['cod_pending', 'pending', 'unpaid'])->count(),
-                'on_hold' => (clone $createdQuery)->whereIn('order_status', ['on_hold', 'hold', 'customer_on_hold'])->count(),
-                'cancelled' => (clone $createdQuery)->where('order_status', 'cancelled')->count(),
-                'completed' => (clone $createdQuery)->whereIn('order_status', ['delivered', 'complete', 'completed'])->count(),
+                'processing' => $processingQuery->count(),
+                'pending_payment' => $pendingPaymentQuery->count(),
+                'on_hold' => $onHoldQuery->count(),
+                'cancelled' => $cancelledQuery->count(),
+                'completed' => $completedQuery->count(),
                 'invoiced' => $invoicedQuery->count(),
-                'stock_out' => (clone $createdQuery)->where('order_status', 'stock_out')->count(),
-                'delivered' => (clone $createdQuery)->whereIn('order_status', ['delivered', 'complete', 'completed'])->count(),
+                'stock_out' => $stockOutQuery->count(),
+                'delivered' => $deliveredQuery->count(),
                 'paid' => $paidQuery->count(),
-                'return' => (clone $createdQuery)->whereIn('order_status', ['return', 'returned'])->count(),
+                'return' => $returnQuery->count(),
                 'paid_amount' => $paidQuery->sum('total_amount'),
             ];
         })->toArray();

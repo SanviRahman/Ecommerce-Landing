@@ -8,6 +8,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Schema;
 
 class Order extends Model
 {
@@ -125,11 +127,71 @@ class Order extends Model
 
     protected static function booted(): void
     {
+        static::creating(function (Order $order) {
+            if (! $order->order_status) {
+                $order->order_status = self::STATUS_PROCESSING;
+            }
+        });
+
+        static::updating(function (Order $order) {
+            if ($order->isDirty('order_status')) {
+                $now = now();
+                $status = (string) $order->order_status;
+
+                if ($status === self::STATUS_CONFIRMED && ! $order->confirmed_at) {
+                    $order->confirmed_at = $now;
+                }
+
+                if (in_array($status, [self::STATUS_DELIVERED, 'complete', 'completed'], true) && ! $order->delivered_at) {
+                    $order->delivered_at = $now;
+                }
+
+                if ($status === self::STATUS_CANCELLED && ! $order->cancelled_at) {
+                    $order->cancelled_at = $now;
+                }
+
+                if ($status === self::STATUS_FAKE && ! $order->marked_fake_at) {
+                    $order->marked_fake_at = $now;
+                    $order->is_fake = true;
+                }
+            }
+        });
+
         static::created(function (Order $order) {
             if (! $order->assigned_employee_id) {
                 app(OrderAssignmentService::class)->assign($order);
             }
+
+            $order->writeStatusLog($order->order_status ?: self::STATUS_PROCESSING, 'Order created.');
         });
+
+        static::updated(function (Order $order) {
+            if ($order->wasChanged('order_status')) {
+                $order->writeStatusLog((string) $order->order_status, 'Order status changed.');
+            }
+
+            if ($order->wasChanged('invoice_printed_at') && $order->invoice_printed_at) {
+                $order->writeStatusLog('invoiced', 'Invoice printed.');
+            }
+        });
+    }
+
+    public function writeStatusLog(?string $status, ?string $note = null): void
+    {
+        if (! $status || ! Schema::hasTable('order_status_logs')) {
+            return;
+        }
+
+        try {
+            OrderStatusLog::create([
+                'order_id' => $this->id,
+                'status' => $status,
+                'note' => $note,
+                'created_by' => auth()->id(),
+            ]);
+        } catch (\Throwable $exception) {
+            // Dashboard report has fallback logic. Status log write should never break order flow.
+        }
     }
 
     public function campaign(): BelongsTo
@@ -170,6 +232,47 @@ class Order extends Model
     public function fakeLogs(): HasMany
     {
         return $this->hasMany(FakeOrderLog::class);
+    }
+
+
+    public static function displayTimezone(): string
+    {
+        return config('app.order_display_timezone', 'Asia/Dhaka');
+    }
+
+    public function localDateTime(?string $column = 'created_at'): ?Carbon
+    {
+        $rawValue = $this->getRawOriginal($column ?? 'created_at');
+
+        if (! $rawValue) {
+            return null;
+        }
+
+        /*
+         * Laravel default timestamp UTC থাকে। Admin panel-e Bangladesh local time
+         * দেখানোর জন্য raw DB timestamp UTC ধরে Asia/Dhaka timezone-e convert করা হলো।
+         */
+        return Carbon::parse($rawValue, 'UTC')->timezone(static::displayTimezone());
+    }
+
+    public function getLocalCreatedAtAttribute(): ?Carbon
+    {
+        return $this->localDateTime('created_at');
+    }
+
+    public function getLocalUpdatedAtAttribute(): ?Carbon
+    {
+        return $this->localDateTime('updated_at');
+    }
+
+    public function getFormattedLocalCreatedDateAttribute(): string
+    {
+        return $this->local_created_at?->format('d M Y') ?: '-';
+    }
+
+    public function getFormattedLocalCreatedTimeAttribute(): string
+    {
+        return $this->local_created_at?->format('h:i A') ?: '';
     }
 
     public function getCourierNameAttribute(): string

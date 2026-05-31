@@ -8,6 +8,7 @@ use App\Models\Faq;
 use App\Models\Review;
 use App\Models\SiteSetting;
 use App\Models\SocialMedia;
+use App\Models\ShippingCharge;
 
 class HomeController extends Controller
 {
@@ -74,6 +75,12 @@ class HomeController extends Controller
             ->latest()
             ->get();
 
+
+        $shippingCharges = ShippingCharge::query()
+            ->active()
+            ->orderBy('id')
+            ->get();
+
         return view('frontend.pages.home', [
             'siteSetting' => $siteSetting,
             'campaign' => $campaign,
@@ -84,6 +91,7 @@ class HomeController extends Controller
             'reviews' => $reviews,
             'faqs' => $faqs,
             'socialMedias' => $socialMedias,
+            'shippingCharges' => $shippingCharges,
             'courierServices' => config('couriers.list', []),
         ]);
     }
@@ -105,3 +113,4 @@ class HomeController extends Controller
             ->values();
     }
 }
+

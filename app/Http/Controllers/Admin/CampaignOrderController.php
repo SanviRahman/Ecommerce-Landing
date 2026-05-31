@@ -7,6 +7,7 @@ use App\Models\Campaign;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
+use App\Models\ShippingCharge;
 use App\Services\OrderAssignmentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -148,7 +149,7 @@ class CampaignOrderController extends Controller
             'customer_name'       => ['required', 'string', 'max:255'],
             'phone'               => ['required', 'string', 'max:20'],
             'address'             => ['required', 'string'],
-            'delivery_area'       => ['required', 'in:inside_dhaka,outside_dhaka'],
+            'delivery_area'       => ['required', 'string', 'max:255'],
             'customer_note'       => ['nullable', 'string', 'max:1000'],
 
             'products'            => ['required', 'array', 'min:1'],
@@ -222,9 +223,32 @@ class CampaignOrderController extends Controller
             $hasAnyFreeDeliveryProduct = collect($orderItems)
                 ->contains(fn ($item) => (bool) $item['is_free_delivery']);
 
-            $shippingCharge = $hasAnyFreeDeliveryProduct
-                ? 0
-                : ($request->delivery_area === 'inside_dhaka' ? 70 : 130);
+            $selectedShippingCharge = null;
+
+            if (! $hasAnyFreeDeliveryProduct) {
+                $selectedShippingCharge = ShippingCharge::query()
+                    ->active()
+                    ->whereKey($request->delivery_area)
+                    ->first();
+
+                // Safe fallback for older frontend values before dynamic shipping charge update.
+                if (! $selectedShippingCharge && in_array($request->delivery_area, ['inside_dhaka', 'outside_dhaka'], true)) {
+                    $shippingCharge = $request->delivery_area === 'inside_dhaka' ? 70 : 130;
+                    $deliveryAreaName = $request->delivery_area;
+                } else {
+                    if (! $selectedShippingCharge) {
+                        return back()
+                            ->withInput()
+                            ->with('error', 'Please select a valid delivery area.');
+                    }
+
+                    $shippingCharge = (int) $selectedShippingCharge->delivery_charge;
+                    $deliveryAreaName = $selectedShippingCharge->area_name;
+                }
+            } else {
+                $shippingCharge = 0;
+                $deliveryAreaName = 'free_delivery';
+            }
 
             $codCharge = 0;
             $totalAmount = $subTotal + $shippingCharge + $codCharge;
@@ -237,7 +261,7 @@ class CampaignOrderController extends Controller
                 'customer_name'     => $request->customer_name,
                 'phone'             => $request->phone,
                 'address'           => $request->address,
-                'delivery_area'     => $hasAnyFreeDeliveryProduct ? 'free_delivery' : $request->delivery_area,
+                'delivery_area'     => $deliveryAreaName,
 
                 'courier_service'    => null,
                 'courier_account_id' => null,
@@ -292,3 +316,4 @@ class CampaignOrderController extends Controller
         return $invoiceId;
     }
 }
+

@@ -25,3 +25,5 @@ class ShippingCharge extends Model
         return $query->where('status', true);
     }
 }
+
+

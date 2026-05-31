@@ -7,6 +7,8 @@ use App\Models\Campaign;
 use App\Models\Category;
 use App\Models\Product;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class CampaignSeeder extends Seeder
 {
@@ -255,6 +257,72 @@ class CampaignSeeder extends Seeder
 
         $campaign->products()->sync($productSyncData);
 
-        $this->command?->info('Campaign seeded successfully with categories, brands, products and hero contact numbers.');
+        $this->seedDefaultShippingCharges();
+
+        $this->command?->info('Campaign seeded successfully with categories, brands, products, hero contact numbers and shipping charges.');
     }
+
+    /**
+     * Seed default shipping charges.
+     *
+     * This method is column-safe:
+     * - New code/model may use: area_name, delivery_charge
+     * - Old/demo code may use: region, charge
+     */
+    private function seedDefaultShippingCharges(): void
+    {
+        if (! Schema::hasTable('shipping_charges')) {
+            $this->command?->warn('shipping_charges table not found. Run migration first.');
+            return;
+        }
+
+        $nameColumn = Schema::hasColumn('shipping_charges', 'area_name')
+            ? 'area_name'
+            : (Schema::hasColumn('shipping_charges', 'region') ? 'region' : null);
+
+        $chargeColumn = Schema::hasColumn('shipping_charges', 'delivery_charge')
+            ? 'delivery_charge'
+            : (Schema::hasColumn('shipping_charges', 'charge') ? 'charge' : null);
+
+        if (! $nameColumn || ! $chargeColumn) {
+            $this->command?->warn('shipping_charges table column mismatch. Expected area_name/delivery_charge or region/charge.');
+            return;
+        }
+
+        $now = now();
+
+        $rows = [
+            [
+                'name' => 'ঢাকার ভিতরে',
+                'charge' => 70,
+                'sort_order' => 1,
+            ],
+            [
+                'name' => 'ঢাকার বাইরে',
+                'charge' => 130,
+                'sort_order' => 2,
+            ],
+        ];
+
+        foreach ($rows as $row) {
+            $values = [
+                $chargeColumn => $row['charge'],
+                'status' => true,
+                'updated_at' => $now,
+            ];
+
+            if (Schema::hasColumn('shipping_charges', 'sort_order')) {
+                $values['sort_order'] = $row['sort_order'];
+            }
+
+            DB::table('shipping_charges')->updateOrInsert(
+                [$nameColumn => $row['name']],
+                array_merge($values, [
+                    $nameColumn => $row['name'],
+                    'created_at' => $now,
+                ])
+            );
+        }
+    }
+
 }

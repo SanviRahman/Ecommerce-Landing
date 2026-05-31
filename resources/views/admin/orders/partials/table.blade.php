@@ -26,6 +26,9 @@
             @forelse($orders as $order)
                 @php
                     $firstProductImage = $order->first_product_image_url ?? null;
+                    $orderCreatedAt = method_exists($order, 'localDateTime')
+                        ? $order->localDateTime('created_at')
+                        : ($order->created_at ? $order->created_at->copy()->timezone('Asia/Dhaka') : null);
                 @endphp
 
                 <tr class="{{ !empty($isTrash) ? 'bg-light-red' : '' }}">
@@ -182,11 +185,11 @@
                     {{-- Date --}}
                     <td>
                         <div class="small">
-                            {{ $order->created_at ? $order->created_at->format('d M Y') : '-' }}
+                            {{ $orderCreatedAt ? $orderCreatedAt->format('d M Y') : '-' }}
                         </div>
 
                         <small class="text-muted">
-                            {{ $order->created_at ? $order->created_at->format('h:i A') : '' }}
+                            {{ $orderCreatedAt ? $orderCreatedAt->format('h:i A') : '' }}
                         </small>
                     </td>
 

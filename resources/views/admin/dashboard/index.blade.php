@@ -229,7 +229,7 @@
         <h3 class="card-title font-weight-bold">
             <i class="fas fa-chart-pie text-info mr-2"></i> Todays Report
         </h3>
-        <small class="d-block text-muted">Daily order, invoice and delivery summary</small>
+        <small class="d-block text-muted">Daily order, invoice and delivery summary — Today/All Time default uses last 24 hours</small>
     </div>
 
     <div class="card-body">
@@ -343,7 +343,7 @@
     <div class="card-header bg-white">
         <h3 class="card-title font-weight-bold">User Order Report</h3>
         <small class="d-block text-muted">
-            Date range will follow the Dashboard Analytics Filters above.
+            Date range will follow the Dashboard Analytics Filters above. Today/All Time default uses last 24 hours.
         </small>
     </div>
 

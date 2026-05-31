@@ -74,6 +74,8 @@
     };
 
     $firstProductImage = $order->first_product_image_url ?? null;
+    $orderCreatedAt = method_exists($order, 'localDateTime') ? $order->localDateTime('created_at') : ($order->created_at ? $order->created_at->copy()->timezone('Asia/Dhaka') : null);
+    $orderUpdatedAt = method_exists($order, 'localDateTime') ? $order->localDateTime('updated_at') : ($order->updated_at ? $order->updated_at->copy()->timezone('Asia/Dhaka') : null);
 @endphp
 
 @if(session('success'))
@@ -163,14 +165,14 @@
                     <div class="col-md-6 mb-3">
                         <div class="info-box-lite">
                             <div class="label">Created At</div>
-                            <div class="value">{{ $order->created_at?->format('d M Y h:i A') ?: '-' }}</div>
+                            <div class="value">{{ $orderCreatedAt ? $orderCreatedAt->format('d M Y h:i A') : '-' }}</div>
                         </div>
                     </div>
 
                     <div class="col-md-6 mb-3">
                         <div class="info-box-lite">
                             <div class="label">Updated At</div>
-                            <div class="value">{{ $order->updated_at?->format('d M Y h:i A') ?: '-' }}</div>
+                            <div class="value">{{ $orderUpdatedAt ? $orderUpdatedAt->format('d M Y h:i A') : '-' }}</div>
                         </div>
                     </div>
                 </div>

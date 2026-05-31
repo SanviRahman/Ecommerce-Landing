@@ -89,6 +89,40 @@
     ]);
 
 
+    $shippingChargeSource = old('shipping_charges');
+
+    if ($shippingChargeSource === null) {
+        $shippingChargeSource = $shippingCharges ?? collect();
+    }
+
+    $shippingChargeRows = collect($shippingChargeSource)->map(function ($charge) {
+        if (is_array($charge)) {
+            return [
+                'id' => $charge['id'] ?? null,
+                'area_name' => $charge['area_name'] ?? '',
+                'delivery_charge' => $charge['delivery_charge'] ?? 0,
+                'status' => array_key_exists('status', $charge) ? (bool) $charge['status'] : true,
+                'delete' => (bool) ($charge['delete'] ?? false),
+            ];
+        }
+
+        return [
+            'id' => $charge->id ?? null,
+            'area_name' => $charge->area_name ?? '',
+            'delivery_charge' => $charge->delivery_charge ?? 0,
+            'status' => (bool) ($charge->status ?? true),
+            'delete' => false,
+        ];
+    })->filter(function ($charge) {
+        return ! ($charge['delete'] ?? false);
+    })->values();
+
+    if ($shippingChargeRows->isEmpty()) {
+        $shippingChargeRows = collect([
+            ['id' => null, 'area_name' => 'ঢাকার ভিতরে', 'delivery_charge' => 70, 'status' => true, 'delete' => false],
+            ['id' => null, 'area_name' => 'ঢাকার বাইরে', 'delivery_charge' => 130, 'status' => true, 'delete' => false],
+        ]);
+    }
 
     $faqSource = old('campaign_faqs');
 
@@ -1277,6 +1311,85 @@
         </div>
     </div>
 
+
+    {{-- Shipping Charge Section --}}
+    <div class="card shadow-sm border-0 mb-3" style="border-radius: 12px;">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap">
+            <div>
+                <h5 class="mb-0 font-weight-bold">
+                    <i class="fas fa-truck text-success mr-1"></i>
+                    Shipping Charges
+                </h5>
+
+                <small class="text-muted">
+                    Campaign form thekei frontend order form-er delivery charge manage/update kora jabe.
+                </small>
+            </div>
+
+            <button type="button" class="btn btn-sm btn-outline-primary" id="btnAddShippingCharge">
+                <i class="fas fa-plus mr-1"></i> Add Shipping Area
+            </button>
+        </div>
+
+        <div class="card-body">
+            <div class="alert alert-info py-2">
+                <i class="fas fa-info-circle mr-1"></i>
+                Active shipping charge gulo frontend home page-er delivery area te show hobe. Customer order korle server side theke ei charge calculate hobe.
+            </div>
+
+            <div id="shippingChargesWrapper">
+                @foreach($shippingChargeRows as $index => $shippingCharge)
+                    <div class="shipping-charge-item border rounded p-3 mb-2 bg-light">
+                        <input type="hidden" name="shipping_charges[{{ $index }}][id]" value="{{ $shippingCharge['id'] ?? '' }}">
+                        <input type="hidden" name="shipping_charges[{{ $index }}][delete]" value="0" class="shipping-charge-delete-input">
+
+                        <div class="row align-items-end">
+                            <div class="col-md-5 mb-2">
+                                <label class="font-weight-bold">Region / Area Name</label>
+                                <input type="text"
+                                       name="shipping_charges[{{ $index }}][area_name]"
+                                       value="{{ $shippingCharge['area_name'] ?? '' }}"
+                                       class="form-control"
+                                       placeholder="Example: ঢাকার বাইরে">
+                            </div>
+
+                            <div class="col-md-3 mb-2">
+                                <label class="font-weight-bold">Delivery Charge</label>
+                                <input type="number"
+                                       name="shipping_charges[{{ $index }}][delivery_charge]"
+                                       value="{{ $shippingCharge['delivery_charge'] ?? 0 }}"
+                                       class="form-control"
+                                       min="0"
+                                       step="1"
+                                       placeholder="130">
+                            </div>
+
+                            <div class="col-md-2 mb-2">
+                                <label class="font-weight-bold d-block">Status</label>
+                                <input type="hidden" name="shipping_charges[{{ $index }}][status]" value="0">
+                                <div class="custom-control custom-switch mt-2">
+                                    <input type="checkbox"
+                                           class="custom-control-input"
+                                           id="shipping_charge_status_{{ $index }}"
+                                           name="shipping_charges[{{ $index }}][status]"
+                                           value="1"
+                                           @checked($shippingCharge['status'] ?? true)>
+                                    <label class="custom-control-label" for="shipping_charge_status_{{ $index }}">Active</label>
+                                </div>
+                            </div>
+
+                            <div class="col-md-2 mb-2">
+                                <button type="button" class="btn btn-danger btn-block btn-remove-shipping-charge">
+                                    <i class="fas fa-trash mr-1"></i> Delete
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+        </div>
+    </div>
+
     {{-- Help Section --}}
     <div class="card shadow-sm border-0 mb-3" style="border-radius: 12px;">
         <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap">
@@ -2138,6 +2251,72 @@ $(document).ready(function() {
 
     $(document).on('click', '.btn-remove-campaign-review', function () {
         $(this).closest('.campaign-review-item').remove();
+    });
+
+
+    let shippingChargeIndex = {{ $shippingChargeRows->count() }};
+
+    $('#btnAddShippingCharge').on('click', function () {
+        const index = shippingChargeIndex++;
+
+        $('#shippingChargesWrapper').append(`
+            <div class="shipping-charge-item border rounded p-3 mb-2 bg-light">
+                <input type="hidden" name="shipping_charges[${index}][id]" value="">
+                <input type="hidden" name="shipping_charges[${index}][delete]" value="0" class="shipping-charge-delete-input">
+
+                <div class="row align-items-end">
+                    <div class="col-md-5 mb-2">
+                        <label class="font-weight-bold">Region / Area Name</label>
+                        <input type="text"
+                               name="shipping_charges[${index}][area_name]"
+                               class="form-control"
+                               placeholder="Example: ঢাকার বাইরে">
+                    </div>
+
+                    <div class="col-md-3 mb-2">
+                        <label class="font-weight-bold">Delivery Charge</label>
+                        <input type="number"
+                               name="shipping_charges[${index}][delivery_charge]"
+                               class="form-control"
+                               min="0"
+                               step="1"
+                               placeholder="130">
+                    </div>
+
+                    <div class="col-md-2 mb-2">
+                        <label class="font-weight-bold d-block">Status</label>
+                        <input type="hidden" name="shipping_charges[${index}][status]" value="0">
+                        <div class="custom-control custom-switch mt-2">
+                            <input type="checkbox"
+                                   class="custom-control-input"
+                                   id="shipping_charge_status_${index}"
+                                   name="shipping_charges[${index}][status]"
+                                   value="1"
+                                   checked>
+                            <label class="custom-control-label" for="shipping_charge_status_${index}">Active</label>
+                        </div>
+                    </div>
+
+                    <div class="col-md-2 mb-2">
+                        <button type="button" class="btn btn-danger btn-block btn-remove-shipping-charge">
+                            <i class="fas fa-trash mr-1"></i> Delete
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `);
+    });
+
+    $(document).on('click', '.btn-remove-shipping-charge', function () {
+        const item = $(this).closest('.shipping-charge-item');
+        const idValue = item.find('input[name$="[id]"]').val();
+
+        if (idValue) {
+            item.find('.shipping-charge-delete-input').val('1');
+            item.slideUp(200);
+        } else {
+            item.remove();
+        }
     });
 
 });

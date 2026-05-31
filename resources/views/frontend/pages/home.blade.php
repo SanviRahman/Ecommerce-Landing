@@ -335,6 +335,28 @@
     $reviews = collect($reviews ?? []);
     $faqs = collect($faqs ?? []);
 
+    $shippingCharges = collect($shippingCharges ?? []);
+
+    if ($shippingCharges->isEmpty() && class_exists(\App\Models\ShippingCharge::class)) {
+        try {
+            $shippingCharges = \App\Models\ShippingCharge::query()
+                ->active()
+                ->orderBy('id')
+                ->get();
+        } catch (\Throwable $e) {
+            $shippingCharges = collect();
+        }
+    }
+
+    if ($shippingCharges->isEmpty()) {
+        $shippingCharges = collect([
+            (object) ['id' => 'inside_dhaka', 'area_name' => 'ঢাকার ভিতরে', 'delivery_charge' => 70, 'status' => true],
+            (object) ['id' => 'outside_dhaka', 'area_name' => 'ঢাকার বাইরে', 'delivery_charge' => 130, 'status' => true],
+        ]);
+    }
+
+    $defaultShippingCharge = (int) ($shippingCharges->first()->delivery_charge ?? 0);
+
     $defaultCategoryId = 'all';
     $defaultBrandId = 'all';
 
@@ -2789,17 +2811,23 @@ body {
                             </div>
 
                             <div class="delivery-area-options" id="deliveryAreaOptions">
-                                <label class="delivery-area-card active">
-                                    <input type="radio" name="delivery_area" value="inside_dhaka" checked>
-                                    <span class="delivery-area-title">ঢাকার ভিতরে</span>
-                                    <span class="delivery-area-charge">৳৭০</span>
-                                </label>
+                                @foreach($shippingCharges as $shippingCharge)
+                                    @php
+                                        $shippingValue = (string) ($shippingCharge->id ?? '');
+                                        $shippingTitle = $shippingCharge->area_name ?? '';
+                                        $shippingAmount = (int) ($shippingCharge->delivery_charge ?? 0);
+                                    @endphp
 
-                                <label class="delivery-area-card">
-                                    <input type="radio" name="delivery_area" value="outside_dhaka">
-                                    <span class="delivery-area-title">ঢাকার বাইরে</span>
-                                    <span class="delivery-area-charge">৳১৩০</span>
-                                </label>
+                                    <label class="delivery-area-card {{ $loop->first ? 'active' : '' }}">
+                                        <input type="radio"
+                                               name="delivery_area"
+                                               value="{{ $shippingValue }}"
+                                               data-charge="{{ $shippingAmount }}"
+                                               @checked($loop->first)>
+                                        <span class="delivery-area-title">{{ $shippingTitle }}</span>
+                                        <span class="delivery-area-charge">৳{{ number_format($shippingAmount) }}</span>
+                                    </label>
+                                @endforeach
                             </div>
                         </div>
 
@@ -2825,7 +2853,7 @@ body {
 
                         <div class="summary-line">
                             <span>ডেলিভারি চার্জ</span>
-                            <strong id="summaryDeliveryCharge">৳70</strong>
+                            <strong id="summaryDeliveryCharge">৳{{ number_format($defaultShippingCharge) }}</strong>
                         </div>
 
                         <div class="summary-line">
@@ -2896,10 +2924,11 @@ body {
 $(document).ready(function() {
     const noImage = @json($noImage);
 
-    const deliveryCharges = {
-    inside_dhaka: 70,
-    outside_dhaka: 130
-};
+    const deliveryCharges = @json($shippingCharges->mapWithKeys(function ($charge) {
+        return [(string) $charge->id => (int) $charge->delivery_charge];
+    }));
+
+    const defaultDeliveryArea = Object.keys(deliveryCharges)[0] || '';
 
     let selectedCategory = 'all';
     let selectedBrand = 'all';
@@ -3045,7 +3074,7 @@ $(document).ready(function() {
 
         const deliveryArea = $('#deliveryAreaSelect').val()
             || $('input[name="delivery_area"]:checked').val()
-            || 'inside_dhaka';
+            || defaultDeliveryArea;
 
         const deliveryCharge = hasAnyFreeDeliveryProduct ? 0 : number(deliveryCharges[deliveryArea] || 0);
         const codCharge = 0;

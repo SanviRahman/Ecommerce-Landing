@@ -8,6 +8,7 @@ use App\Models\Faq;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\Review;
+use App\Models\ShippingCharge;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -53,6 +54,13 @@ class CampaignController extends Controller
             ->where('status', true)
             ->orderBy('name')
             ->get(['id', 'name', 'status']);
+    }
+
+    private function activeShippingCharges()
+    {
+        return ShippingCharge::query()
+            ->orderBy('id')
+            ->get(['id', 'area_name', 'delivery_charge', 'status']);
     }
 
     private function prepareRequest(Request $request): void
@@ -272,6 +280,14 @@ class CampaignController extends Controller
             'hero_slider_images'          => ['nullable', 'array'],
             'hero_slider_images.*'        => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
 
+
+            'shipping_charges'                  => ['nullable', 'array'],
+            'shipping_charges.*.id'             => ['nullable', 'integer', 'exists:shipping_charges,id'],
+            'shipping_charges.*.area_name'      => ['nullable', 'string', 'max:255'],
+            'shipping_charges.*.delivery_charge'=> ['nullable', 'numeric', 'min:0', 'max:999999'],
+            'shipping_charges.*.status'         => ['nullable', 'boolean'],
+            'shipping_charges.*.delete'         => ['nullable', 'boolean'],
+
             'campaign_faqs'                       => ['nullable', 'array'],
             'campaign_faqs.*.id'                  => ['nullable', 'integer', 'exists:faqs,id'],
             'campaign_faqs.*.question'            => ['nullable', 'string', 'max:255'],
@@ -402,6 +418,7 @@ class CampaignController extends Controller
             'selectedProducts'   => [],
             'campaignFaqs'       => collect(),
             'campaignReviews'    => collect(),
+            'shippingCharges'    => $this->activeShippingCharges(),
             'isEdit'             => false,
             'action'             => route('admin.campaigns.store'),
             'title'              => 'Landing Page Create',
@@ -433,6 +450,7 @@ class CampaignController extends Controller
             $this->uploadCampaignMedia($campaign, $request);
             $this->syncCampaignFaqs($campaign, $request);
             $this->syncCampaignReviews($campaign, $request);
+            $this->syncShippingCharges($request);
 
             return redirect()
                 ->route('admin.campaigns.index')
@@ -484,6 +502,7 @@ class CampaignController extends Controller
             'selectedProducts'   => $campaign->products()->pluck('products.id')->toArray(),
             'campaignFaqs'       => $campaign->faqs,
             'campaignReviews'    => $campaign->reviews,
+            'shippingCharges'    => $this->activeShippingCharges(),
             'isEdit'             => true,
             'action'             => route('admin.campaigns.update', $campaign->id),
             'title'              => 'Edit Campaign',
@@ -515,6 +534,7 @@ class CampaignController extends Controller
             $this->uploadCampaignMedia($campaign, $request);
             $this->syncCampaignFaqs($campaign, $request);
             $this->syncCampaignReviews($campaign, $request);
+            $this->syncShippingCharges($request);
 
             return redirect()
                 ->route('admin.campaigns.index')
@@ -910,6 +930,81 @@ class CampaignController extends Controller
             $review->clearMediaCollection('review_customer_image');
             $review->delete();
         });
+    }
+
+
+    private function syncShippingCharges(Request $request): void
+    {
+        /*
+        |--------------------------------------------------------------------------
+        | Campaign Form Shipping Charges Sync
+        |--------------------------------------------------------------------------
+        | এই method না থাকার কারণেই error আসছিল:
+        | Method App\Http\Controllers\Admin\CampaignController::syncShippingCharges does not exist.
+        |
+        | Campaign create/edit form থেকে shipping_charges[] array submit হবে।
+        | - id থাকলে update হবে
+        | - id না থাকলে নতুন row create হবে
+        | - delete = 1 হলে row delete হবে
+        | - status unchecked হলে inactive হবে
+        */
+        if (! $request->has('shipping_charges')) {
+            return;
+        }
+
+        $rows = collect($request->input('shipping_charges', []));
+        $keptIds = [];
+
+        foreach ($rows as $row) {
+            $shippingChargeId = ! empty($row['id']) ? (int) $row['id'] : null;
+            $shouldDelete = filter_var($row['delete'] ?? false, FILTER_VALIDATE_BOOLEAN);
+
+            if ($shouldDelete) {
+                if ($shippingChargeId) {
+                    ShippingCharge::query()->whereKey($shippingChargeId)->delete();
+                }
+
+                continue;
+            }
+
+            $areaName = trim((string) ($row['area_name'] ?? ''));
+            $deliveryCharge = $row['delivery_charge'] ?? null;
+
+            if ($areaName === '' && ($deliveryCharge === null || $deliveryCharge === '')) {
+                continue;
+            }
+
+            if ($areaName === '') {
+                continue;
+            }
+
+            $shippingCharge = $shippingChargeId
+                ? ShippingCharge::query()->whereKey($shippingChargeId)->first()
+                : new ShippingCharge();
+
+            if (! $shippingCharge) {
+                continue;
+            }
+
+            $shippingCharge->area_name = $areaName;
+            $shippingCharge->delivery_charge = max(0, (float) ($deliveryCharge ?? 0));
+            $shippingCharge->status = array_key_exists('status', $row)
+                ? filter_var($row['status'], FILTER_VALIDATE_BOOLEAN)
+                : false;
+
+            $shippingCharge->save();
+
+            $keptIds[] = $shippingCharge->id;
+        }
+
+        /*
+         * Form থেকে কোনো existing shipping charge row remove করলে সেটাও delete হবে।
+         * তবে shipping_charges key না থাকলে উপরে return করা হয়েছে, তাই accidental delete হবে না।
+         */
+        ShippingCharge::query()
+            ->when(count($keptIds), fn ($query) => $query->whereNotIn('id', $keptIds))
+            ->when(! count($keptIds), fn ($query) => $query->whereRaw('1 = 1'))
+            ->delete();
     }
 
 }
