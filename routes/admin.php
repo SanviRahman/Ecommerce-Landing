@@ -42,76 +42,125 @@ Route::middleware(['auth'])->group(function () {
     | Orders: Admin + Employee
     |--------------------------------------------------------------------------
     */
- Route::middleware(['role:admin,employee'])
-    ->prefix('orders')
-    ->as('orders.')
-    ->group(function () {
-        // Default order index now points to New Orders / Processing Orders.
-        Route::get('/', [OrderController::class, 'index'])->name('index');
-        Route::get('/all', [OrderController::class, 'all'])->name('all');
-        Route::get('/new', [OrderController::class, 'new'])->name('new');
+    Route::middleware(['role:admin,employee'])
+        ->prefix('orders')
+        ->as('orders.')
+        ->group(function () {
+            /*
+            |--------------------------------------------------------------------------
+            | Order list pages
+            |--------------------------------------------------------------------------
+            */
+            Route::get('/', [OrderController::class, 'index'])->name('index');
+            Route::get('/all', [OrderController::class, 'all'])->name('all');
+            Route::get('/new', [OrderController::class, 'new'])->name('new');
 
-        Route::get('/pending', [OrderController::class, 'pending'])->name('pending');
-        Route::get('/confirmed', [OrderController::class, 'confirmed'])->name('confirmed');
-        Route::get('/processing', [OrderController::class, 'processing'])->name('processing');
-        Route::get('/shipped', [OrderController::class, 'shipped'])->name('shipped');
-        Route::get('/delivered', [OrderController::class, 'delivered'])->name('delivered');
-        Route::get('/cancelled', [OrderController::class, 'cancelled'])->name('cancelled');
-        Route::get('/fake', [OrderController::class, 'fake'])->name('fake');
+            Route::get('/pending', [OrderController::class, 'pending'])->name('pending');
+            Route::get('/confirmed', [OrderController::class, 'confirmed'])->name('confirmed');
+            Route::get('/processing', [OrderController::class, 'processing'])->name('processing');
+            Route::get('/shipped', [OrderController::class, 'shipped'])->name('shipped');
+            Route::get('/delivered', [OrderController::class, 'delivered'])->name('delivered');
+            Route::get('/cancelled', [OrderController::class, 'cancelled'])->name('cancelled');
+            Route::get('/stock-out', [OrderController::class, 'stockOut'])->name('stock_out');
+            Route::get('/fake', [OrderController::class, 'fake'])->name('fake');
 
-        Route::get('/invoices/pending', [OrderController::class, 'pendingInvoices'])->name('invoices.pending');
-        Route::get('/invoices/complete', [OrderController::class, 'completeInvoices'])->name('invoices.complete');
+            /*
+            |--------------------------------------------------------------------------
+            | Static custom order lists
+            |--------------------------------------------------------------------------
+            */
+            Route::get('/order-list-1', [OrderController::class, 'orderListOne'])->name('order_list_1');
+            Route::get('/order-list-2', [OrderController::class, 'orderListTwo'])->name('order_list_2');
 
-        Route::get('/order-list-1', [OrderController::class, 'orderListOne'])->name('order_list_1');
-        Route::get('/order-list-2', [OrderController::class, 'orderListTwo'])->name('order_list_2');
+            /*
+            |--------------------------------------------------------------------------
+            | Invoice tracking pages
+            |--------------------------------------------------------------------------
+            | Sidebar থেকে Print Invoice remove করা হলেও route রাখা হয়েছে,
+            | কারণ index থেকে invoice print/view feature কাজ করতে পারে।
+            */
+            Route::get('/invoices/pending', [OrderController::class, 'pendingInvoices'])->name('invoices.pending');
+            Route::get('/invoices/complete', [OrderController::class, 'completeInvoices'])->name('invoices.complete');
 
-        // Dynamic order fields.
-        Route::get('/order-fields/options', [OrderController::class, 'orderFields'])->name('order_fields');
-        Route::get('/field/{orderField:slug}', [OrderController::class, 'field'])->name('field');
+            /*
+            |--------------------------------------------------------------------------
+            | Dynamic order fields
+            |--------------------------------------------------------------------------
+            */
+            Route::get('/order-fields/options', [OrderController::class, 'orderFields'])->name('order_fields');
+            Route::get('/field/{orderField:slug}', [OrderController::class, 'field'])->name('field');
 
-        Route::middleware(['role:admin'])->group(function () {
-            Route::get('/trash', [OrderController::class, 'trash'])->name('trashed');
-            Route::post('/restore/{id}', [OrderController::class, 'restore'])->name('restore');
-            Route::delete('/force-delete/{id}', [OrderController::class, 'forceDelete'])->name('force_delete');
-
+            /*
+            |--------------------------------------------------------------------------
+            | Order actions allowed for Admin + Employee
+            |--------------------------------------------------------------------------
+            | Employee can manage assigned orders, but delete/trash stays admin only.
+            */
             Route::post('/multiple-action', [OrderController::class, 'multipleAction'])->name('multiple_action');
-            Route::post('/assign-unassigned', [OrderController::class, 'assignUnassignedOrders'])->name('assign_unassigned');
             Route::post('/selected-invoices', [OrderController::class, 'selectedInvoices'])->name('selected_invoices');
+            Route::post('/invoices/mark-printed', [OrderController::class, 'markSelectedInvoicesPrinted'])->name('invoices.mark_printed');
             Route::post('/export-selected', [OrderController::class, 'exportSelected'])->name('export');
 
             Route::post('/send-steadfast-bulk', [OrderController::class, 'bulkSendToSteadfast'])->name('send_steadfast_bulk');
             Route::post('/send-pathao-bulk', [OrderController::class, 'bulkSendToPathao'])->name('send_pathao_bulk');
             Route::post('/assign-courier-bulk', [OrderController::class, 'bulkAssignCourier'])->name('assign_courier_bulk');
-
-            Route::get('/steadfast/balance', [OrderController::class, 'steadfastBalance'])->name('steadfast.balance');
             Route::post('/order-fields', [OrderController::class, 'storeOrderField'])->name('order_fields.store');
+
+            /*
+            |--------------------------------------------------------------------------
+            | Admin only order actions
+            |--------------------------------------------------------------------------
+            */
+            Route::middleware(['role:admin'])->group(function () {
+                Route::get('/trash', [OrderController::class, 'trash'])->name('trashed');
+                Route::post('/restore/{id}', [OrderController::class, 'restore'])->name('restore');
+                Route::delete('/force-delete/{id}', [OrderController::class, 'forceDelete'])->name('force_delete');
+                Route::delete('/empty-trash', [OrderController::class, 'emptyTrash'])->name('empty_trash');
+
+
+                Route::post('/assign-employee-bulk', [OrderController::class, 'bulkAssignEmployee'])->name('assign_employee_bulk');
+                Route::post('/bulk-delete-limit', [OrderController::class, 'bulkDeleteLimit'])->name('bulk_delete_limit');
+
+
+                /*
+                 * Removed duplicate top buttons:
+                 * - assign-unassigned
+                 * - steadfast balance
+                 *
+                 * Sync Order button এখন employee dropdown হিসেবে কাজ করবে।
+                 */
+            });
+
+            /*
+            |--------------------------------------------------------------------------
+            | Single order actions
+            |--------------------------------------------------------------------------
+            */
+            Route::post('/{order}/fraud-check', [OrderController::class, 'fraudCheck'])->name('fraud_check');
+            Route::get('/{order}/invoice', [OrderController::class, 'invoice'])->name('invoice');
+            Route::get('/{order}/invoice/download', [OrderController::class, 'downloadInvoice'])->name('invoice.download');
+
+            Route::patch('/{order}/status', [OrderController::class, 'updateStatus'])->name('update_status');
+            Route::patch('/{order}/payment-status', [OrderController::class, 'updatePaymentStatus'])->name('update_payment_status');
+            Route::patch('/{order}/admin-note', [OrderController::class, 'updateAdminNote'])->name('update_admin_note');
+            Route::patch('/{order}/order-field', [OrderController::class, 'updateOrderField'])->name('update_order_field');
+
+            Route::patch('/{order}/mark-as-fake', [OrderController::class, 'markAsFake'])->name('mark_as_fake');
+            Route::patch('/{order}/restore-fake', [OrderController::class, 'restoreFake'])->name('restore_fake');
+
+            Route::get('/{order}/edit', [OrderController::class, 'edit'])->name('edit');
+            Route::put('/{order}', [OrderController::class, 'update'])->name('update');
+            Route::patch('/{order}', [OrderController::class, 'update']);
+
+            Route::delete('/{order}', [OrderController::class, 'destroy'])->middleware('role:admin')->name('destroy');
+            Route::post('/{order}/send-steadfast', [OrderController::class, 'sendToSteadfast'])->name('send_steadfast');
+            Route::post('/{order}/send-pathao', [OrderController::class, 'sendToPathao'])->name('send_pathao');
+            Route::post('/{order}/sync-steadfast-status', [OrderController::class, 'syncSteadfastStatus'])->name('sync_steadfast_status');
+            Route::patch('/{order}/courier', [OrderController::class, 'updateCourier'])->name('update_courier');
+
+            // Show route must be last.
+            Route::get('/{order}', [OrderController::class, 'show'])->name('show');
         });
-
-        Route::post('/{order}/fraud-check', [OrderController::class, 'fraudCheck'])->name('fraud_check');
-        Route::get('/{order}/invoice', [OrderController::class, 'invoice'])->name('invoice');
-        Route::get('/{order}/invoice/download', [OrderController::class, 'downloadInvoice'])->name('invoice.download');
-
-        Route::patch('/{order}/status', [OrderController::class, 'updateStatus'])->name('update_status');
-        Route::patch('/{order}/payment-status', [OrderController::class, 'updatePaymentStatus'])->name('update_payment_status');
-        Route::patch('/{order}/admin-note', [OrderController::class, 'updateAdminNote'])->name('update_admin_note');
-        Route::patch('/{order}/order-field', [OrderController::class, 'updateOrderField'])->name('update_order_field');
-
-        Route::patch('/{order}/mark-as-fake', [OrderController::class, 'markAsFake'])->name('mark_as_fake');
-        Route::patch('/{order}/restore-fake', [OrderController::class, 'restoreFake'])->name('restore_fake');
-
-        Route::get('/{order}/edit', [OrderController::class, 'edit'])->middleware('role:admin')->name('edit');
-        Route::put('/{order}', [OrderController::class, 'update'])->middleware('role:admin')->name('update');
-        Route::patch('/{order}', [OrderController::class, 'update'])->middleware('role:admin');
-
-        Route::delete('/{order}', [OrderController::class, 'destroy'])->middleware('role:admin')->name('destroy');
-        Route::post('/{order}/send-steadfast', [OrderController::class, 'sendToSteadfast'])->middleware('role:admin')->name('send_steadfast');
-        Route::post('/{order}/send-pathao', [OrderController::class, 'sendToPathao'])->middleware('role:admin')->name('send_pathao');
-        Route::post('/{order}/sync-steadfast-status', [OrderController::class, 'syncSteadfastStatus'])->middleware('role:admin')->name('sync_steadfast_status');
-        Route::patch('/{order}/courier', [OrderController::class, 'updateCourier'])->middleware('role:admin')->name('update_courier');
-
-        // Show route must be last.
-        Route::get('/{order}', [OrderController::class, 'show'])->name('show');
-    });
 
     
         /*
@@ -133,17 +182,13 @@ Route::middleware(['auth'])->group(function () {
                 Route::delete('/force-delete/{id}', [ProductController::class, 'forceDelete'])->name('force_delete');
                 Route::post('/multiple-action', [ProductController::class, 'multipleAction'])->name('multiple_action');
                 Route::delete('/media/{id}', [ProductController::class, 'deleteMedia'])->name('delete_media');
-            });
-
-            Route::get('/', [ProductController::class, 'index'])->name('index');
-
-            Route::middleware(['role:admin'])->group(function () {
-                Route::get('/{product}/edit', [ProductController::class, 'edit'])->name('edit');
-                Route::put('/{product}', [ProductController::class, 'update'])->name('update');
-                Route::patch('/{product}', [ProductController::class, 'update']);
                 Route::delete('/{product}', [ProductController::class, 'destroy'])->name('destroy');
             });
 
+            Route::get('/', [ProductController::class, 'index'])->name('index');
+            Route::get('/{product}/edit', [ProductController::class, 'edit'])->name('edit');
+            Route::put('/{product}', [ProductController::class, 'update'])->name('update');
+            Route::patch('/{product}', [ProductController::class, 'update']);
             Route::get('/{product}', [ProductController::class, 'show'])->name('show');
         });
 

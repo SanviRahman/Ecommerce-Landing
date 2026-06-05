@@ -339,7 +339,7 @@ class CampaignController extends Controller
 
             ...$this->sectionStatusData($request),
 
-            'status'              => $request->has('status') ? $request->boolean('status') : true,
+            'status'              => $request->boolean('status'),
             'meta_title'          => $request->meta_title,
             'meta_description'    => $request->meta_description,
         ];

@@ -4,25 +4,30 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Storage;
 
 class OrderItem extends Model
 {
+    use SoftDeletes;
+
     protected $fillable = [
         'order_id',
         'product_id',
         'product_name',
         'unit_price',
         'quantity',
+        'discount_amount',
         'total_price',
     ];
 
     protected $casts = [
-        'order_id' => 'integer',
-        'product_id' => 'integer',
-        'unit_price' => 'decimal:2',
-        'quantity' => 'integer',
-        'total_price' => 'decimal:2',
+        'order_id'        => 'integer',
+        'product_id'      => 'integer',
+        'unit_price'      => 'decimal:2',
+        'quantity'        => 'integer',
+        'discount_amount' => 'decimal:2',
+        'total_price'     => 'decimal:2',
     ];
 
     protected $appends = [
@@ -113,8 +118,7 @@ class OrderItem extends Model
             ] as $collection) {
                 try {
                     $url = $product->getFirstMediaUrl($collection);
-
-                    if (! empty($url)) {
+                    if ($url) {
                         return $url;
                     }
                 } catch (\Throwable $e) {
@@ -124,37 +128,11 @@ class OrderItem extends Model
 
             try {
                 $url = $product->getFirstMediaUrl();
-
-                if (! empty($url)) {
+                if ($url) {
                     return $url;
                 }
             } catch (\Throwable $e) {
                 // No default media collection available.
-            }
-        }
-
-        if (method_exists($product, 'getMedia')) {
-            foreach ([
-                'product_images',
-                'product_gallery',
-                'gallery',
-                'images',
-                'image',
-                'product_image',
-                'thumbnail',
-                'main_image',
-                'featured_image',
-                'default',
-            ] as $collection) {
-                try {
-                    $media = $product->getMedia($collection)->first();
-
-                    if ($media) {
-                        return $media->getUrl();
-                    }
-                } catch (\Throwable $e) {
-                    // Continue checking other media collections.
-                }
             }
         }
 

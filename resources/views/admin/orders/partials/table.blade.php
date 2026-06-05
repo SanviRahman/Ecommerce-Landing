@@ -209,6 +209,8 @@
                             <span class="badge badge-danger">Cancelled</span>
                         @elseif($order->order_status === 'fake')
                             <span class="badge badge-dark">Fake</span>
+                        @elseif($order->order_status === 'stock_out')
+                            <span class="badge badge-secondary">Stock Out</span>
                         @else
                             <span class="badge badge-light border">
                                 {{ ucfirst(str_replace('_', ' ', $order->order_status)) }}
@@ -248,11 +250,6 @@
                                     <button type="button" class="btn btn-sm btn-white text-success btnRestore"
                                             data-url="{{ route('admin.orders.restore', $order->id) }}" title="Restore">
                                         <i class="fas fa-trash-restore"></i>
-                                    </button>
-
-                                    <button type="button" class="btn btn-sm btn-white text-danger btnForceDelete"
-                                            data-url="{{ route('admin.orders.force_delete', $order->id) }}" title="Delete Forever">
-                                        <i class="fas fa-skull-crossbones"></i>
                                     </button>
                                 @endif
                             @else

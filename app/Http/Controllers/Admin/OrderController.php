@@ -40,6 +40,25 @@ class OrderController extends Controller
         }
     }
 
+    private function ensureEmployeeOrderAccess(Order $order): void
+    {
+        if (auth()->user()?->isEmployee() && (int) $order->assigned_employee_id !== (int) auth()->id()) {
+            abort(403, 'Unauthorized access.');
+        }
+    }
+
+    private function accessibleOrderIds(array $ids, bool $trash = false): array
+    {
+        $query = $trash ? Order::onlyTrashed() : Order::query();
+
+        return $query
+            ->forLoggedInUser()
+            ->whereIn('id', $ids)
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+    }
+
     private function orderQuery(bool $trash = false): Builder
     {
         $query = $trash ? Order::onlyTrashed() : Order::query();
@@ -67,6 +86,7 @@ class OrderController extends Controller
             Order::STATUS_DELIVERED,
             Order::STATUS_CANCELLED,
             Order::STATUS_FAKE,
+            Order::STATUS_STOCK_OUT,
         ];
     }
 
@@ -262,9 +282,20 @@ class OrderController extends Controller
             'all'       => (clone $baseQuery)->count(),
             'new'       => (clone $baseQuery)->where('order_status', Order::STATUS_PROCESSING)->count(),
             'pending'   => (clone $baseQuery)->where('order_status', Order::STATUS_PENDING)->count(),
-            'completed' => (clone $baseQuery)->where('order_status', Order::STATUS_DELIVERED)->count(),
+            // Complete Orders = confirmed orders. Delivered has separate card/menu.
+            'completed' => (clone $baseQuery)->where('order_status', Order::STATUS_CONFIRMED)->count(),
             'delivered' => (clone $baseQuery)->where('order_status', Order::STATUS_DELIVERED)->count(),
             'cancelled' => (clone $baseQuery)->where('order_status', Order::STATUS_CANCELLED)->count(),
+            'stock_out' => (clone $baseQuery)->where('order_status', Order::STATUS_STOCK_OUT)->count(),
+
+            // Invoice Management stats.
+            'invoice_pending'  => (clone $baseQuery)
+                ->where('order_status', Order::STATUS_CONFIRMED)
+                ->whereNull('invoice_printed_at')
+                ->count(),
+            'invoice_complete' => (clone $baseQuery)
+                ->whereNotNull('invoice_printed_at')
+                ->count(),
             'fake'      => (clone $baseQuery)->where(function ($query) {
                 $query->where('is_fake', true)
                     ->orWhere('order_status', Order::STATUS_FAKE);
@@ -396,7 +427,14 @@ class OrderController extends Controller
         ?OrderField $currentOrderField = null
     ) {
         $query = $this->applyFilters($query, $request);
-        $orders = $query->paginate(20)->withQueryString();
+        $perPageOptions = [20, 50, 100, 150, 200, 250, 300, 350, 400, 450, 500];
+        $perPage = (int) $request->input('per_page', 20);
+
+        if (! in_array($perPage, $perPageOptions, true)) {
+            $perPage = 20;
+        }
+
+        $orders = $query->paginate($perPage)->withQueryString();
 
         $employees = User::query()
             ->where('role', 'employee')
@@ -837,7 +875,7 @@ class OrderController extends Controller
     {
         $this->adminOrEmployeeOnly();
 
-        return $this->listResponse($request, $this->orderQuery()->confirmed(), 'Confirmed Orders', false, 'confirmed');
+        return $this->listResponse($request, $this->orderQuery()->confirmed(), 'Complete Orders', false, 'completed');
     }
 
     public function processing(Request $request)
@@ -856,7 +894,7 @@ class OrderController extends Controller
     {
         $this->adminOrEmployeeOnly();
 
-        return $this->listResponse($request, $this->orderQuery()->delivered(), 'Complete Orders', false, 'completed');
+        return $this->listResponse($request, $this->orderQuery()->delivered(), 'Delivered Orders', false, 'delivered');
     }
 
     public function cancelled(Request $request)
@@ -873,13 +911,22 @@ class OrderController extends Controller
         return $this->listResponse($request, $this->orderQuery()->fake(), 'Fake Orders', false, 'fake');
     }
 
+    public function stockOut(Request $request)
+    {
+        $this->adminOrEmployeeOnly();
+
+        return $this->listResponse($request, $this->orderQuery()->stockOut(), 'Stock Out Orders', false, 'stock-out');
+    }
+
     public function pendingInvoices(Request $request)
     {
         $this->adminOrEmployeeOnly();
 
         return $this->listResponse(
             $request,
-            $this->orderQuery()->whereNull('invoice_printed_at'),
+            $this->orderQuery()
+                ->where('order_status', Order::STATUS_CONFIRMED)
+                ->whereNull('invoice_printed_at'),
             'Pending Invoice',
             false,
             'pending-invoice'
@@ -951,9 +998,7 @@ class OrderController extends Controller
     {
         $this->adminOrEmployeeOnly();
 
-        if (auth()->user()->isEmployee() && $order->assigned_employee_id !== auth()->id()) {
-            abort(403, 'Unauthorized access.');
-        }
+        $this->ensureEmployeeOrderAccess($order);
 
         $order->load([
             'campaign',
@@ -981,7 +1026,8 @@ class OrderController extends Controller
 
     public function edit(Order $order)
     {
-        $this->adminOnly();
+        $this->adminOrEmployeeOnly();
+        $this->ensureEmployeeOrderAccess($order);
 
         $order->load(['items.product', 'assignedEmployee', 'courier', 'orderField']);
 
@@ -1015,7 +1061,14 @@ class OrderController extends Controller
 
     public function update(Request $request, Order $order)
     {
-        $this->adminOnly();
+        $this->adminOrEmployeeOnly();
+        $this->ensureEmployeeOrderAccess($order);
+
+        if (auth()->user()?->isEmployee()) {
+            $request->merge([
+                'assigned_employee_id' => $order->assigned_employee_id,
+            ]);
+        }
 
         $request->validate([
             'invoice_id'           => ['required', 'string', 'max:255', Rule::unique('orders', 'invoice_id')->ignore($order->id)],
@@ -1037,6 +1090,7 @@ class OrderController extends Controller
             'items.*.product_id'   => ['required', 'integer', 'exists:products,id'],
             'items.*.quantity'     => ['required', 'integer', 'min:1'],
             'items.*.unit_price'   => ['required', 'numeric', 'min:0'],
+            'items.*.discount_amount' => ['nullable', 'numeric', 'min:0'],
         ]);
 
         return DB::transaction(function () use ($request, $order) {
@@ -1057,7 +1111,9 @@ class OrderController extends Controller
 
                 $quantity = max(1, (int) $row['quantity']);
                 $unitPrice = max(0, (float) $row['unit_price']);
-                $lineTotal = $quantity * $unitPrice;
+                $discountAmount = max(0, (float) ($row['discount_amount'] ?? 0));
+                $grossLineTotal = $quantity * $unitPrice;
+                $lineTotal = max(0, $grossLineTotal - $discountAmount);
                 $subTotal += $lineTotal;
 
                 $item = null;
@@ -1074,9 +1130,10 @@ class OrderController extends Controller
                     'order_id'     => $order->id,
                     'product_id'   => $product->id,
                     'product_name' => $product->name,
-                    'unit_price'   => $unitPrice,
-                    'quantity'     => $quantity,
-                    'total_price'  => $lineTotal,
+                    'unit_price'       => $unitPrice,
+                    'quantity'         => $quantity,
+                    'discount_amount'  => $discountAmount,
+                    'total_price'      => $lineTotal,
                 ])->save();
 
                 $keepItemIds[] = $item->id;
@@ -1153,7 +1210,8 @@ class OrderController extends Controller
 
     public function updateCourier(Request $request, Order $order)
     {
-        $this->adminOnly();
+        $this->adminOrEmployeeOnly();
+        $this->ensureEmployeeOrderAccess($order);
 
         $request->validate([
             'courier_id' => ['nullable', 'exists:couriers,id'],
@@ -1184,6 +1242,7 @@ class OrderController extends Controller
     public function updateStatus(Request $request, Order $order)
     {
         $this->adminOrEmployeeOnly();
+        $this->ensureEmployeeOrderAccess($order);
 
         $request->validate([
             'order_status' => ['required', 'string'],
@@ -1225,6 +1284,7 @@ class OrderController extends Controller
     public function updatePaymentStatus(Request $request, Order $order)
     {
         $this->adminOrEmployeeOnly();
+        $this->ensureEmployeeOrderAccess($order);
 
         $request->validate([
             'payment_status' => ['required', 'string'],
@@ -1243,6 +1303,7 @@ class OrderController extends Controller
     public function updateAdminNote(Request $request, Order $order)
     {
         $this->adminOrEmployeeOnly();
+        $this->ensureEmployeeOrderAccess($order);
 
         $request->validate([
             'admin_note' => ['nullable', 'string'],
@@ -1260,7 +1321,8 @@ class OrderController extends Controller
 
     public function updateOrderField(Request $request, Order $order)
     {
-        $this->adminOnly();
+        $this->adminOrEmployeeOnly();
+        $this->ensureEmployeeOrderAccess($order);
 
         $request->validate([
             'order_field_id' => ['nullable', 'integer', 'exists:order_fields,id'],
@@ -1279,6 +1341,7 @@ class OrderController extends Controller
     public function markAsFake(Request $request, Order $order)
     {
         $this->adminOrEmployeeOnly();
+        $this->ensureEmployeeOrderAccess($order);
 
         $request->validate([
             'fake_reason' => ['nullable', 'string', 'max:1000'],
@@ -1304,6 +1367,7 @@ class OrderController extends Controller
     public function restoreFake(Order $order)
     {
         $this->adminOrEmployeeOnly();
+        $this->ensureEmployeeOrderAccess($order);
 
         $order->update([
             'is_fake'        => false,
@@ -1331,7 +1395,7 @@ class OrderController extends Controller
 
     public function selectedInvoices(Request $request)
     {
-        $this->adminOnly();
+        $this->adminOrEmployeeOnly();
 
         $request->validate([
             'ids'   => ['required', 'array'],
@@ -1339,12 +1403,13 @@ class OrderController extends Controller
         ]);
 
         $orders = Order::query()
+            ->forLoggedInUser()
             ->whereIn('id', $request->ids)
             ->with(['items.product', 'campaign', 'courier', 'courierAccount', 'assignedEmployee'])
             ->get();
 
-        $this->markOrdersAsInvoicePrinted($orders);
-
+        // Important: selected invoices are NOT marked as printed here.
+        // They will stay in Pending Invoice until admin confirms from the print preview page.
         $siteSetting = SiteSetting::query()->where('status', true)->latest()->first();
         $courierServices = $this->getCourierServices();
 
@@ -1353,12 +1418,38 @@ class OrderController extends Controller
             'orders'          => $orders,
             'siteSetting'     => $siteSetting,
             'courierServices' => $courierServices,
+            'selectedOrderIds' => $orders->pluck('id')->values(),
+        ]);
+    }
+
+    public function markSelectedInvoicesPrinted(Request $request)
+    {
+        $this->adminOrEmployeeOnly();
+
+        $request->validate([
+            'ids'   => ['required', 'array', 'min:1'],
+            'ids.*' => ['integer', 'exists:orders,id'],
+        ]);
+
+        $orders = Order::query()
+            ->forLoggedInUser()
+            ->whereIn('id', $request->ids)
+            ->where('order_status', Order::STATUS_CONFIRMED)
+            ->whereNull('invoice_printed_at')
+            ->get();
+
+        $this->markOrdersAsInvoicePrinted($orders);
+
+        return response()->json([
+            'status'  => true,
+            'message' => $orders->count() . ' invoices marked as printed successfully.',
+            'printed' => $orders->count(),
         ]);
     }
 
     public function exportSelected(Request $request)
     {
-        $this->adminOnly();
+        $this->adminOrEmployeeOnly();
 
         $ids = $request->input('ids', $request->query('ids', []));
 
@@ -1375,6 +1466,7 @@ class OrderController extends Controller
         ]);
 
         $orders = Order::query()
+            ->forLoggedInUser()
             ->whereIn('id', $request->ids)
             ->with(['items.product', 'campaign', 'courier', 'courierAccount', 'assignedEmployee'])
             ->orderBy('id')
@@ -1393,19 +1485,32 @@ class OrderController extends Controller
     {
         $this->adminOrEmployeeOnly();
 
-        $order->load(['items.product', 'campaign', 'courier', 'courierAccount', 'assignedEmployee']);
-        $this->markOrdersAsInvoicePrinted(collect([$order]));
+        $this->ensureEmployeeOrderAccess($order);
 
-        return view('admin.orders.invoice', [
-            'order'           => $order,
-            'title'           => 'Invoice - ' . $order->invoice_id,
-            'courierServices' => $this->getCourierServices(),
+        $order->load(['items.product', 'campaign', 'courier', 'courierAccount', 'assignedEmployee']);
+
+        /*
+         * Important:
+         * Single invoice preview/open korlei invoice complete hobe na.
+         * Print dialog close howar pore admin popup-e Yes dile only then
+         * invoice_printed_at update hobe and Pending Invoice theke Complete Invoice-e jabe.
+         */
+        $siteSetting = SiteSetting::query()->where('status', true)->latest()->first();
+        $courierServices = $this->getCourierServices();
+
+        return view('admin.orders.multiple-invoices', [
+            'title'            => 'Invoice - ' . $order->invoice_id,
+            'orders'           => collect([$order]),
+            'siteSetting'      => $siteSetting,
+            'courierServices'  => $courierServices,
+            'selectedOrderIds' => collect([$order->id])->values(),
         ]);
     }
 
     public function downloadInvoice(Order $order)
     {
         $this->adminOrEmployeeOnly();
+        $this->ensureEmployeeOrderAccess($order);
 
         $order->load(['items.product', 'campaign', 'courier', 'courierAccount', 'assignedEmployee']);
 
@@ -1420,7 +1525,8 @@ class OrderController extends Controller
 
     public function sendToSteadfast(Order $order, SteadfastCourierService $steadfastCourierService)
     {
-        $this->adminOnly();
+        $this->adminOrEmployeeOnly();
+        $this->ensureEmployeeOrderAccess($order);
         $courierAccount = $this->activeCourierByCode('steadfast');
 
         if (! $courierAccount) {
@@ -1444,7 +1550,7 @@ class OrderController extends Controller
 
     public function bulkAssignCourier(Request $request)
     {
-        $this->adminOnly();
+        $this->adminOrEmployeeOnly();
 
         $request->validate([
             'ids'        => ['required', 'array', 'min:1'],
@@ -1452,11 +1558,20 @@ class OrderController extends Controller
             'courier_id' => ['required'],
         ]);
 
+        $accessibleIds = $this->accessibleOrderIds($request->ids);
+
+        if (empty($accessibleIds)) {
+            return response()->json([
+                'status'  => false,
+                'message' => 'No accessible selected orders found.',
+            ], 403);
+        }
+
         $courierId = $request->input('courier_id');
 
         if ($courierId === 'none') {
             $updated = Order::query()
-                ->whereIn('id', $request->ids)
+                ->whereIn('id', $accessibleIds)
                 ->update([
                     'courier_id'         => null,
                     'courier_account_id' => null,
@@ -1483,7 +1598,7 @@ class OrderController extends Controller
         }
 
         $updated = Order::query()
-            ->whereIn('id', $request->ids)
+            ->whereIn('id', $accessibleIds)
             ->update([
                 'courier_id'         => $courier->id,
                 'courier_account_id' => $courierAccount?->id,
@@ -1500,7 +1615,7 @@ class OrderController extends Controller
 
     public function bulkSendToSteadfast(Request $request, SteadfastCourierService $steadfastCourierService)
     {
-        $this->adminOnly();
+        $this->adminOrEmployeeOnly();
         $request->validate(['ids' => ['required', 'array'], 'ids.*' => ['integer', 'exists:orders,id']]);
 
         $courierAccount = $this->activeCourierByCode('steadfast');
@@ -1508,7 +1623,13 @@ class OrderController extends Controller
             return response()->json(['status' => false, 'message' => 'Active SteadFast courier API account not found.'], 422);
         }
 
-        $orders = Order::query()->with(['courier', 'courierAccount', 'items.product'])->whereIn('id', $request->ids)->get();
+        $accessibleIds = $this->accessibleOrderIds($request->ids);
+
+        if (empty($accessibleIds)) {
+            return response()->json(['status' => false, 'message' => 'No accessible selected orders found.'], 403);
+        }
+
+        $orders = Order::query()->with(['courier', 'courierAccount', 'items.product'])->whereIn('id', $accessibleIds)->get();
 
         if ($orders->isEmpty()) {
             return response()->json(['status' => false, 'message' => 'No selected orders found.'], 422);
@@ -1540,7 +1661,8 @@ class OrderController extends Controller
 
     public function sendToPathao(Order $order, PathaoCourierService $pathaoCourierService)
     {
-        $this->adminOnly();
+        $this->adminOrEmployeeOnly();
+        $this->ensureEmployeeOrderAccess($order);
         $courierAccount = $this->activeCourierByCode('pathao');
 
         if (! $courierAccount) {
@@ -1563,7 +1685,7 @@ class OrderController extends Controller
 
     public function bulkSendToPathao(Request $request, PathaoCourierService $pathaoCourierService)
     {
-        $this->adminOnly();
+        $this->adminOrEmployeeOnly();
         $request->validate(['ids' => ['required', 'array'], 'ids.*' => ['integer', 'exists:orders,id']]);
 
         $courierAccount = $this->activeCourierByCode('pathao');
@@ -1571,7 +1693,13 @@ class OrderController extends Controller
             return response()->json(['status' => false, 'message' => 'Active Pathao courier API account not found.'], 422);
         }
 
-        $orders = Order::query()->with(['courier', 'courierAccount', 'items.product'])->whereIn('id', $request->ids)->get();
+        $accessibleIds = $this->accessibleOrderIds($request->ids);
+
+        if (empty($accessibleIds)) {
+            return response()->json(['status' => false, 'message' => 'No accessible selected orders found.'], 403);
+        }
+
+        $orders = Order::query()->with(['courier', 'courierAccount', 'items.product'])->whereIn('id', $accessibleIds)->get();
 
         if ($orders->isEmpty()) {
             return response()->json(['status' => false, 'message' => 'No selected orders found.'], 422);
@@ -1603,7 +1731,8 @@ class OrderController extends Controller
 
     public function syncSteadfastStatus(Order $order, SteadfastCourierService $steadfastCourierService)
     {
-        $this->adminOnly();
+        $this->adminOrEmployeeOnly();
+        $this->ensureEmployeeOrderAccess($order);
         $order->loadMissing('courierAccount');
         $courierAccount = $this->activeCourierByCode('steadfast');
 
@@ -1630,7 +1759,7 @@ class OrderController extends Controller
 
     public function steadfastBalance(SteadfastCourierService $steadfastCourierService)
     {
-        $this->adminOnly();
+        $this->adminOrEmployeeOnly();
 
         $courierAccount = CourierAccount::query()->active()->where('code', 'steadfast')->default()->latest()->first();
 
@@ -1673,7 +1802,7 @@ class OrderController extends Controller
 
     public function multipleAction(Request $request)
     {
-        $this->adminOnly();
+        $this->adminOrEmployeeOnly();
 
         $request->validate([
             'action' => ['required', 'string'],
@@ -1683,6 +1812,10 @@ class OrderController extends Controller
 
         $action = $request->action;
         $ids = $request->ids;
+
+        if (in_array($action, ['delete', 'restore', 'force_delete'], true)) {
+            $this->adminOnly();
+        }
 
         if ($action === 'delete') {
             Order::whereIn('id', $ids)->delete();
@@ -1699,11 +1832,24 @@ class OrderController extends Controller
             return response()->json(['status' => true, 'message' => 'Selected orders permanently deleted.']);
         }
 
+        $accessibleIds = $this->accessibleOrderIds($ids);
+
+        if (empty($accessibleIds)) {
+            return response()->json([
+                'status' => false,
+                'message' => 'No accessible selected orders found.',
+            ], 403);
+        }
+
         if (str_starts_with($action, 'status_')) {
             $status = str_replace('status_', '', $action);
 
             if (in_array($status, $this->getOrderStatuses(), true)) {
-                Order::whereIn('id', $ids)->update(['order_status' => $status]);
+                Order::whereIn('id', $accessibleIds)->update([
+                    'order_status' => $status,
+                    'updated_at'   => now(),
+                ]);
+
                 return response()->json(['status' => true, 'message' => 'Selected orders status updated.']);
             }
         }
@@ -1713,41 +1859,146 @@ class OrderController extends Controller
             $field = OrderField::query()->active()->find($fieldId);
 
             if ($field) {
-                Order::whereIn('id', $ids)->update(['order_field_id' => $field->id]);
+                Order::whereIn('id', $accessibleIds)->update([
+                    'order_field_id' => $field->id,
+                    'updated_at'     => now(),
+                ]);
+
                 return response()->json(['status' => true, 'message' => 'Selected orders moved to ' . $field->name . '.']);
             }
         }
 
         if ($action === 'field_none') {
-            Order::whereIn('id', $ids)->update(['order_field_id' => null]);
+            Order::whereIn('id', $accessibleIds)->update([
+                'order_field_id' => null,
+                'updated_at'     => now(),
+            ]);
+
             return response()->json(['status' => true, 'message' => 'Selected orders removed from custom order field.']);
         }
 
         if ($action === 'order_list_1') {
-            Order::whereIn('id', $ids)->update(['custom_order_list' => 'order_list_1']);
+            Order::whereIn('id', $accessibleIds)->update([
+                'custom_order_list' => 'order_list_1',
+                'order_status'      => Order::STATUS_CONFIRMED,
+                'updated_at'        => now(),
+            ]);
+
             return response()->json(['status' => true, 'message' => 'Selected orders moved to Order List 1.']);
         }
 
         if ($action === 'order_list_2') {
-            Order::whereIn('id', $ids)->update(['custom_order_list' => 'order_list_2']);
+            Order::whereIn('id', $accessibleIds)->update([
+                'custom_order_list' => 'order_list_2',
+                'order_status'      => Order::STATUS_CONFIRMED,
+                'updated_at'        => now(),
+            ]);
+
             return response()->json(['status' => true, 'message' => 'Selected orders moved to Order List 2.']);
         }
 
         if ($action === 'order_list_none') {
-            Order::whereIn('id', $ids)->update(['custom_order_list' => null]);
+            Order::whereIn('id', $accessibleIds)->update([
+                'custom_order_list' => null,
+                'updated_at'        => now(),
+            ]);
+
             return response()->json(['status' => true, 'message' => 'Selected orders removed from static order list.']);
         }
 
         return response()->json(['status' => false, 'message' => 'Invalid action selected.'], 422);
     }
 
+    public function bulkAssignEmployee(Request $request)
+    {
+        $this->adminOnly();
+
+        $request->validate([
+            'ids'                  => ['required', 'array', 'min:1'],
+            'ids.*'                => ['integer', 'exists:orders,id'],
+            'assigned_employee_id' => ['nullable', 'integer', 'exists:users,id'],
+        ]);
+
+        $employeeId = $request->assigned_employee_id ?: null;
+
+        if ($employeeId) {
+            User::query()
+                ->where('role', 'employee')
+                ->where('is_active', true)
+                ->findOrFail($employeeId);
+        }
+
+        $updated = Order::query()
+            ->whereIn('id', $request->ids)
+            ->update([
+                'assigned_employee_id' => $employeeId,
+                'updated_at'           => now(),
+            ]);
+
+        return response()->json([
+            'status'  => true,
+            'message' => $employeeId
+                ? "{$updated} selected orders assigned to employee successfully."
+                : "{$updated} selected orders unassigned successfully.",
+            'updated' => $updated,
+        ]);
+    }
+
+    public function bulkDeleteLimit(Request $request)
+    {
+        $this->adminOnly();
+
+        $request->validate([
+            'limit' => ['required', 'integer', Rule::in([50,100,150,200,250,300,350,400,450,500])],
+        ]);
+
+        $ids = $this->orderQuery()
+            ->when($request->filled('current_status_view'), function ($query) use ($request) {
+                match ($request->current_status_view) {
+                    'new' => $query->newOrders(),
+                    'pending' => $query->pending(),
+                    'shipped' => $query->shipped(),
+                    'completed' => $query->confirmed(),
+                    'delivered' => $query->delivered(),
+                    'cancelled' => $query->cancelled(),
+                    'pending-invoice' => $query->confirmed()->whereNull('invoice_printed_at'),
+                    'complete-invoice' => $query->whereNotNull('invoice_printed_at'),
+                    'stock-out' => $query->stockOut(),
+                    'order-list-1' => $query->orderListOne(),
+                    'order-list-2' => $query->orderListTwo(),
+                    default => $query,
+                };
+            })
+            ->limit((int) $request->limit)
+            ->pluck('id');
+
+        $deleted = Order::query()->whereIn('id', $ids)->delete();
+
+        return response()->json([
+            'status' => true,
+            'message' => "{$deleted} orders moved to trash successfully.",
+            'deleted' => $deleted,
+        ]);
+    }
+
+    public function emptyTrash()
+    {
+        $this->adminOnly();
+
+        $deleted = Order::onlyTrashed()->forceDelete();
+
+        return response()->json([
+            'status' => true,
+            'message' => "Trash bin emptied successfully. {$deleted} orders permanently deleted.",
+            'deleted' => $deleted,
+        ]);
+    }
+
     public function fraudCheck(Order $order, BdCourierFraudCheckerService $bdCourierFraudCheckerService)
     {
         $this->adminOrEmployeeOnly();
 
-        if (auth()->user()->isEmployee() && $order->assigned_employee_id !== auth()->id()) {
-            abort(403, 'Unauthorized access.');
-        }
+        $this->ensureEmployeeOrderAccess($order);
 
         try {
             $data = $bdCourierFraudCheckerService->check($order->phone);
@@ -1770,7 +2021,7 @@ class OrderController extends Controller
 
     public function storeOrderField(Request $request)
     {
-        $this->adminOnly();
+        $this->adminOrEmployeeOnly();
 
         $request->validate([
             'name' => ['required', 'string', 'max:80', 'unique:order_fields,name'],

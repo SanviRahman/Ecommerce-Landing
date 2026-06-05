@@ -124,6 +124,23 @@
         ?? ($shippingCharge <= 0)
     );
 
+    $rawDeliveryArea = trim((string) ($order->delivery_area ?? ''));
+
+    $deliveryAreaLabel = match ($rawDeliveryArea) {
+        'inside_dhaka'  => 'ঢাকার ভিতরে',
+        'outside_dhaka' => 'ঢাকার বাইরে',
+        'free_delivery' => 'ফ্রি ডেলিভারি',
+        default         => $rawDeliveryArea,
+    };
+
+    if ($isFreeDelivery) {
+        $deliveryAreaLabel = 'ফ্রি ডেলিভারি';
+    }
+
+    if ($deliveryAreaLabel === '') {
+        $deliveryAreaLabel = '-';
+    }
+
     $purchaseItems = $items->map(function ($item) {
         $product = $item->product ?? null;
 
@@ -399,13 +416,7 @@
                         <h5>Delivery</h5>
                         <div>ক্যাশ অন ডেলিভারি</div>
 
-                        @if($isFreeDelivery)
-                            <div>ফ্রি ডেলিভারি</div>
-                        @else
-                            <div>
-                                {{ $order->delivery_area === 'inside_dhaka' ? 'ঢাকার ভিতরে' : 'ঢাকার বাইরে' }}
-                            </div>
-                        @endif
+                        <div>{{ $deliveryAreaLabel }}</div>
                     </div>
                 </div>
             </div>

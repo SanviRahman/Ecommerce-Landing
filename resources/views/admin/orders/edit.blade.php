@@ -121,6 +121,7 @@
                                 $productId = $isArray ? ($item['product_id'] ?? null) : $item->product_id;
                                 $quantity = $isArray ? ($item['quantity'] ?? 1) : $item->quantity;
                                 $unitPrice = $isArray ? ($item['unit_price'] ?? 0) : $item->unit_price;
+                                $discountAmount = $isArray ? ($item['discount_amount'] ?? 0) : ($item->discount_amount ?? 0);
                                 $imageUrl = $isArray
                                     ? ($productImageMap[$productId] ?? null)
                                     : ($item->product_image_url ?? ($productImageMap[$productId] ?? null));
@@ -130,7 +131,7 @@
                                 <input type="hidden" name="items[{{ $index }}][id]" value="{{ $itemId }}">
 
                                 <div class="row align-items-end">
-                                    <div class="col-md-6 mb-2">
+                                    <div class="col-md-5 mb-2">
                                         <label class="font-weight-bold">Product</label>
                                         <div class="d-flex align-items-center">
                                             <div class="order-edit-product-image-box mr-2">
@@ -171,6 +172,11 @@
                                     <div class="col-md-2 mb-2">
                                         <label class="font-weight-bold">Unit Price</label>
                                         <input type="number" name="items[{{ $index }}][unit_price]" value="{{ $unitPrice }}" min="0" step="0.01" class="form-control item-price" required>
+                                    </div>
+
+                                    <div class="col-md-1 mb-2">
+                                        <label class="font-weight-bold">Discount</label>
+                                        <input type="number" name="items[{{ $index }}][discount_amount]" value="{{ $discountAmount }}" min="0" step="0.01" class="form-control item-discount">
                                     </div>
 
                                     <div class="col-md-1 mb-2">
@@ -367,7 +373,8 @@ $(document).ready(function () {
             const row = $(this);
             const qty = Number(row.find('.item-qty').val() || 0);
             const price = Number(row.find('.item-price').val() || 0);
-            const lineTotal = qty * price;
+            const discount = Number(row.find('.item-discount').val() || 0);
+            const lineTotal = Math.max(0, (qty * price) - discount);
 
             subTotal += lineTotal;
             row.find('.item-line-total').val(money(lineTotal));
@@ -401,7 +408,7 @@ $(document).ready(function () {
                 <input type="hidden" name="items[${index}][id]" value="">
 
                 <div class="row align-items-end">
-                    <div class="col-md-6 mb-2">
+                    <div class="col-md-5 mb-2">
                         <label class="font-weight-bold">Product</label>
                         <div class="d-flex align-items-center">
                             <div class="order-edit-product-image-box mr-2">
@@ -425,6 +432,11 @@ $(document).ready(function () {
                     <div class="col-md-2 mb-2">
                         <label class="font-weight-bold">Unit Price</label>
                         <input type="number" name="items[${index}][unit_price]" value="0" min="0" step="0.01" class="form-control item-price" required>
+                    </div>
+
+                    <div class="col-md-1 mb-2">
+                        <label class="font-weight-bold">Discount</label>
+                        <input type="number" name="items[${index}][discount_amount]" value="0" min="0" step="0.01" class="form-control item-discount">
                     </div>
 
                     <div class="col-md-1 mb-2">

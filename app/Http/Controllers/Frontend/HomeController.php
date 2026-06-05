@@ -9,6 +9,7 @@ use App\Models\Review;
 use App\Models\SiteSetting;
 use App\Models\SocialMedia;
 use App\Models\ShippingCharge;
+use Illuminate\Support\Str;
 
 class HomeController extends Controller
 {
@@ -39,10 +40,36 @@ class HomeController extends Controller
             ->latest()
             ->first();
 
-        $categories = $campaign ? $campaign->categories->values() : collect();
-        $brands = $campaign ? $campaign->brands->values() : collect();
-        $products = $campaign ? $this->sortProductsBySelectedCategory($campaign) : collect();
+        /*
+        |--------------------------------------------------------------------------
+        | No Active Campaign = Blank Home Page
+        |--------------------------------------------------------------------------
+        | Client requirement: admin যদি সব campaign inactive করে রাখে,
+        | তাহলে frontend home page-এ কোনো landing page/order content দেখাবে না।
+        */
+        if (! $campaign) {
+            return view('frontend.pages.home', [
+                'siteSetting' => $siteSetting,
+                'campaign' => null,
+                'categories' => collect(),
+                'brands' => collect(),
+                'products' => collect(),
+                'orderProducts' => collect(),
+                'reviews' => collect(),
+                'faqs' => collect(),
+                'socialMedias' => collect(),
+                'shippingCharges' => collect(),
+                'courierServices' => config('couriers.list', []),
+                'orderFormToken' => null,
+            ]);
+        }
+
+        $categories = $campaign->categories->values();
+        $brands = $campaign->brands->values();
+        $products = $this->sortProductsBySelectedCategory($campaign);
         $orderProducts = $products;
+
+        $orderFormToken = $this->makeOrderFormToken();
 
         $reviews = Review::query()
             ->with('media')
@@ -93,7 +120,27 @@ class HomeController extends Controller
             'socialMedias' => $socialMedias,
             'shippingCharges' => $shippingCharges,
             'courierServices' => config('couriers.list', []),
+            'orderFormToken' => $orderFormToken,
         ]);
+    }
+
+    private function makeOrderFormToken(): string
+    {
+        $tokens = session()->get('campaign_order_form_tokens', []);
+
+        if (! is_array($tokens)) {
+            $tokens = [];
+        }
+
+        $token = Str::random(40);
+
+        $tokens[] = $token;
+        $tokens = array_values(array_unique(array_filter($tokens)));
+
+        // বেশি পুরোনো token রেখে session বড় করা হবে না।
+        session()->put('campaign_order_form_tokens', array_slice($tokens, -10));
+
+        return $token;
     }
 
     private function sortProductsBySelectedCategory(Campaign $campaign)
@@ -113,4 +160,3 @@ class HomeController extends Controller
             ->values();
     }
 }
-

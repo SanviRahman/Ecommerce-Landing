@@ -221,15 +221,14 @@ class DashboardController extends Controller
             $query->where($column, '<=', $end);
         }
     }
-
-    private function dashboardStats(Builder $orderQuery, array $filters, array $dateRange): array
+private function dashboardStats(Builder $orderQuery, array $filters, array $dateRange): array
     {
         $totalOrders = (clone $orderQuery)->count();
         $pendingOrders = (clone $orderQuery)->where('order_status', 'pending')->count();
-        $confirmedOrders = (clone $orderQuery)->where('order_status', 'confirmed')->count();
+        $confirmedOrders = (clone $orderQuery)->whereIn('order_status', ['confirmed', 'complete', 'completed'])->count();
         $processingOrders = (clone $orderQuery)->where('order_status', 'processing')->count();
-        $deliveredOrders = (clone $orderQuery)->whereIn('order_status', ['delivered', 'complete', 'completed'])->count();
-        $cancelledOrders = (clone $orderQuery)->where('order_status', 'cancelled')->count();
+        $deliveredOrders = (clone $orderQuery)->where('order_status', 'delivered')->count();
+        $cancelledOrders = (clone $orderQuery)->whereIn('order_status', ['cancelled', 'canceled'])->count();
         $grossSales = (clone $orderQuery)->sum('total_amount');
 
         $productQuery = Product::query();
@@ -246,16 +245,17 @@ class DashboardController extends Controller
             'totalProducts' => number_format($totalProducts),
         ];
     }
-
-    private function dailyReportStats(array $filters, array $dateRange): array
+private function dailyReportStats(array $filters, array $dateRange): array
     {
         $reportRange = $this->reportActivityRange($filters, $dateRange);
 
-        // Orders created inside the report period. This is the real daily order count.
+        /*
+         * Daily / Today Report rule:
+         * - Today's Order / Total Checkout = orders created inside report range.
+         * - Complete, Pending Invoice, Complete Invoice = action based count.
+         *   So previous day's order will count today if it is completed / invoiced today.
+         */
         $createdOrderQuery = $this->filteredOrderQuery($filters, $reportRange, true);
-
-        // Action query does not use created_at. It counts status/invoice actions inside the period,
-        // so yesterday's order will count today if it is completed/invoiced today.
         $actionOrderQuery = $this->filteredOrderQuery($filters, [null, null], false);
 
         $pendingOrderQuery = $this->statusActionQuery(
@@ -267,9 +267,9 @@ class DashboardController extends Controller
 
         $completedQuery = $this->statusActionQuery(
             clone $actionOrderQuery,
-            ['delivered', 'complete', 'completed'],
+            ['confirmed', 'complete', 'completed'],
             $reportRange,
-            ['delivered_at', 'updated_at']
+            ['confirmed_at', 'updated_at']
         );
 
         $invoiceCompletedQuery = $this->invoicedActionQuery(clone $actionOrderQuery, $reportRange);
@@ -277,14 +277,14 @@ class DashboardController extends Controller
 
         $deliveryQuery = $this->statusActionQuery(
             clone $actionOrderQuery,
-            ['shipped', 'delivered', 'complete', 'completed'],
+            ['delivered'],
             $reportRange,
             ['delivered_at', 'updated_at']
         );
 
         $cancelledQuery = $this->statusActionQuery(
             clone $actionOrderQuery,
-            ['cancelled'],
+            ['cancelled', 'canceled'],
             $reportRange,
             ['cancelled_at', 'updated_at']
         );
@@ -292,7 +292,21 @@ class DashboardController extends Controller
         return [
             'todaysOrder' => number_format((clone $createdOrderQuery)->count()),
             'pendingOrder' => number_format($pendingOrderQuery->count()),
-            'incompletedOrder' => number_format((clone $createdOrderQuery)->whereNotIn('order_status', ['delivered', 'complete', 'completed', 'cancelled', 'fake'])->count()),
+            'incompletedOrder' => number_format(
+                (clone $createdOrderQuery)
+                    ->whereNotIn('order_status', [
+                        'confirmed',
+                        'complete',
+                        'completed',
+                        'shipped',
+                        'delivered',
+                        'cancelled',
+                        'canceled',
+                        'fake',
+                        'stock_out',
+                    ])
+                    ->count()
+            ),
             'completedOrder' => number_format($completedQuery->count()),
             'incompletedInvoice' => number_format($pendingInvoiceQuery->count()),
             'completedInvoice' => number_format($invoiceCompletedQuery->count()),
@@ -301,6 +315,7 @@ class DashboardController extends Controller
             'cancelled' => number_format($cancelledQuery->count()),
         ];
     }
+
 
     private function pendingInvoiceCount(Builder $query): int
     {
@@ -408,17 +423,21 @@ class DashboardController extends Controller
             $query->whereRaw('1 = 0');
         }
     }
-
-    private function productSaleRows(array $filters, array $dateRange): array
+private function productSaleRows(array $filters, array $dateRange): array
     {
         if (! Schema::hasTable('order_items')) {
             return [];
         }
 
         $user = auth()->user();
+
         $query = DB::table('order_items')
             ->join('orders', 'order_items.order_id', '=', 'orders.id')
             ->leftJoin('products', 'order_items.product_id', '=', 'products.id');
+
+        if (Schema::hasColumn('orders', 'deleted_at')) {
+            $query->whereNull('orders.deleted_at');
+        }
 
         if ($this->isEmployee($user) && Schema::hasColumn('orders', 'assigned_employee_id')) {
             $query->where('orders.assigned_employee_id', $user->id);
@@ -442,12 +461,49 @@ class DashboardController extends Controller
 
         $this->applyDateRangeToQuery($query, $dateRange, 'orders.created_at');
 
-        $invoiceSql = Schema::hasColumn('orders', 'invoice_printed_at')
+        $customListOneSql = Schema::hasColumn('orders', 'custom_order_list')
+            ? "COUNT(DISTINCT CASE WHEN orders.custom_order_list = 'order_list_1' THEN orders.id END)"
+            : "0";
+
+        $customListTwoSql = Schema::hasColumn('orders', 'custom_order_list')
+            ? "COUNT(DISTINCT CASE WHEN orders.custom_order_list = 'order_list_2' THEN orders.id END)"
+            : "0";
+
+        $fakeSql = Schema::hasColumn('orders', 'is_fake')
+            ? "COUNT(DISTINCT CASE WHEN orders.is_fake = 1 OR orders.order_status = 'fake' THEN orders.id END)"
+            : "COUNT(DISTINCT CASE WHEN orders.order_status = 'fake' THEN orders.id END)";
+
+        $pendingInvoiceSql = Schema::hasColumn('orders', 'invoice_printed_at')
+            ? "COUNT(DISTINCT CASE WHEN orders.order_status = 'confirmed' AND orders.invoice_printed_at IS NULL THEN orders.id END)"
+            : "0";
+
+        $completeInvoiceSql = Schema::hasColumn('orders', 'invoice_printed_at')
             ? "COUNT(DISTINCT CASE WHEN orders.invoice_printed_at IS NOT NULL THEN orders.id END)"
-            : "COUNT(DISTINCT CASE WHEN orders.payment_status IN ('paid', 'collected') THEN orders.id END)";
+            : "0";
 
         return $query
-            ->selectRaw("\n                COALESCE(order_items.product_id, products.id, 0) as product_id,\n                COALESCE(order_items.product_name, products.name, 'Unknown Product') as product_name,\n                COUNT(DISTINCT orders.id) as total_orders,\n                {$invoiceSql} as invoiced,\n                COUNT(DISTINCT CASE WHEN orders.order_status IN ('delivered', 'complete', 'completed') THEN orders.id END) as delivered,\n                COUNT(DISTINCT CASE WHEN orders.order_status = 'cancelled' THEN orders.id END) as cancelled,\n                COUNT(DISTINCT CASE WHEN orders.order_status IN ('on_hold', 'hold', 'customer_on_hold') THEN orders.id END) as customer_on_hold,\n                COUNT(DISTINCT CASE WHEN orders.payment_status IN ('cod_pending', 'pending', 'unpaid') OR orders.payment_status IS NULL THEN orders.id END) as payment_pending,\n                COUNT(DISTINCT CASE WHEN orders.order_status = 'processing' THEN orders.id END) as processing\n            ")
+            ->selectRaw("
+                COALESCE(order_items.product_id, products.id, 0) as product_id,
+                COALESCE(order_items.product_name, products.name, 'Unknown Product') as product_name,
+
+                COUNT(DISTINCT orders.id) as total_orders,
+
+                COUNT(DISTINCT CASE WHEN orders.order_status = 'processing' THEN orders.id END) as new_orders,
+                COUNT(DISTINCT CASE WHEN orders.order_status = 'pending' THEN orders.id END) as pending_orders,
+                COUNT(DISTINCT CASE WHEN orders.order_status IN ('confirmed', 'complete', 'completed') THEN orders.id END) as complete_orders,
+                COUNT(DISTINCT CASE WHEN orders.order_status IN ('cancelled', 'canceled') THEN orders.id END) as cancelled_orders,
+
+                {$customListOneSql} as order_list_1,
+                {$customListTwoSql} as order_list_2,
+
+                COUNT(DISTINCT CASE WHEN orders.order_status = 'shipped' THEN orders.id END) as shipped_orders,
+                COUNT(DISTINCT CASE WHEN orders.order_status = 'delivered' THEN orders.id END) as delivered_orders,
+                COUNT(DISTINCT CASE WHEN orders.order_status = 'stock_out' THEN orders.id END) as stock_out_orders,
+                {$fakeSql} as fake_orders,
+
+                {$pendingInvoiceSql} as pending_invoice,
+                {$completeInvoiceSql} as complete_invoice
+            ")
             ->groupBy('order_items.product_id', 'order_items.product_name', 'products.id', 'products.name')
             ->orderByDesc('total_orders')
             ->limit(100)
@@ -455,6 +511,7 @@ class DashboardController extends Controller
             ->map(fn ($row) => (array) $row)
             ->toArray();
     }
+
 
     private function userOrderReportRows(Request $request, array $dateRange, array $filters = []): array
     {

@@ -337,6 +337,26 @@
 
     $shippingCharges = collect($shippingCharges ?? []);
 
+    /*
+     |--------------------------------------------------------------------------
+     | Safe Order Form Token Fallback
+     |--------------------------------------------------------------------------
+     | /campaign/{slug} page CampaignPageController দিয়ে load হয়। কোনো old cache
+     | বা missing controller variable থাকলেও token blank থাকবে না।
+     */
+    if ($campaign && empty($orderFormToken)) {
+        $tokens = session()->get('campaign_order_form_tokens', []);
+
+        if (! is_array($tokens)) {
+            $tokens = [];
+        }
+
+        $orderFormToken = \Illuminate\Support\Str::random(40);
+        $tokens[] = $orderFormToken;
+
+        session()->put('campaign_order_form_tokens', array_slice(array_values(array_unique(array_filter($tokens))), -10));
+    }
+
     if ($shippingCharges->isEmpty() && class_exists(\App\Models\ShippingCharge::class)) {
         try {
             $shippingCharges = \App\Models\ShippingCharge::query()
@@ -764,6 +784,15 @@
     $isOrderSectionActive = (bool) ($campaign?->order_section_status ?? true) && (bool) $campaign;
 
 @endphp
+
+@if(! $campaign)
+    @section('title', $pageTitle)
+    @section('meta_description', $pageDescription)
+
+    @section('content')
+        {{-- No active campaign available. Client requirement অনুযায়ী home content blank রাখা হয়েছে। --}}
+    @endsection
+@else
 
 @section('title', $pageTitle)
 @section('meta_description', $pageDescription)
@@ -2183,6 +2212,98 @@ body {
     }
 }
 
+/* Order form beautiful popup */
+.order-popup-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 18px;
+    background: rgba(15, 23, 42, 0.56);
+    backdrop-filter: blur(4px);
+}
+
+.order-popup-overlay.show {
+    display: flex;
+}
+
+.order-popup-box {
+    width: min(420px, 100%);
+    border-radius: 22px;
+    background: #ffffff;
+    box-shadow: 0 28px 80px rgba(15, 23, 42, 0.24);
+    overflow: hidden;
+    transform: translateY(14px) scale(0.96);
+    opacity: 0;
+    transition: 0.22s ease;
+}
+
+.order-popup-overlay.show .order-popup-box {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+}
+
+.order-popup-top {
+    padding: 30px 24px 18px;
+    text-align: center;
+}
+
+.order-popup-icon {
+    width: 74px;
+    height: 74px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: #fff7ed;
+    color: #f97316;
+    font-size: 34px;
+    margin-bottom: 16px;
+    box-shadow: 0 12px 32px rgba(249, 115, 22, 0.16);
+}
+
+.order-popup-title {
+    color: #1e293b;
+    font-size: 24px;
+    font-weight: 900;
+    margin-bottom: 8px;
+}
+
+.order-popup-message {
+    color: #64748b;
+    font-size: 16px;
+    line-height: 1.75;
+    margin: 0;
+}
+
+.order-popup-actions {
+    display: flex;
+    gap: 10px;
+    padding: 18px 24px 24px;
+}
+
+.order-popup-btn {
+    width: 100%;
+    min-height: 48px;
+    border: 0;
+    border-radius: 12px;
+    background: var(--front-green);
+    color: #ffffff;
+    font-size: 16px;
+    font-weight: 900;
+    cursor: pointer;
+    transition: 0.2s ease;
+}
+
+.order-popup-btn:hover,
+.order-popup-btn:focus {
+    background: var(--front-green-dark);
+    outline: none;
+    transform: translateY(-1px);
+}
+
 </style>
 @endpush
 
@@ -2218,6 +2339,24 @@ body {
     </div>
 </div>
 @endif
+
+{{-- Order Warning Popup --}}
+<div class="order-popup-overlay" id="orderWarningPopup" aria-hidden="true">
+    <div class="order-popup-box" role="dialog" aria-modal="true" aria-labelledby="orderWarningPopupTitle">
+        <div class="order-popup-top">
+            <div class="order-popup-icon">
+                <i class="fas fa-exclamation-triangle"></i>
+            </div>
+            <h3 class="order-popup-title" id="orderWarningPopupTitle">প্রোডাক্ট সিলেক্ট করুন</h3>
+            <p class="order-popup-message" id="orderWarningPopupMessage">
+                দয়া করে কমপক্ষে একটি product select করুন।
+            </p>
+        </div>
+        <div class="order-popup-actions">
+            <button type="button" class="order-popup-btn" id="orderWarningPopupClose">ঠিক আছে</button>
+        </div>
+    </div>
+</div>
 
 {{-- Hero --}}
 @if($isHeroSectionActive)
@@ -2730,6 +2869,7 @@ body {
         <form action="{{ route('campaign.order.store', $campaign->slug) }}" method="POST"
             class="checkout-form order-panel" id="campaignOrderForm">
             @csrf
+            <input type="hidden" name="order_form_token" value="{{ $orderFormToken ?? '' }}">
 
             <div class="row">
                 <div class="col-lg-6 mb-5 mb-lg-0">
@@ -3282,24 +3422,110 @@ $(document).ready(function() {
         renderSummary();
     });
 
+    const orderResetStorageKey = 'campaign_order_reset_{{ $campaign?->id ?? 'home' }}';
+    const shouldResetFromPreviousOrder = sessionStorage.getItem(orderResetStorageKey) === '1';
+
+    function resetOrderFormAfterSuccess() {
+        selectedProducts = {};
+
+        const form = $('#campaignOrderForm');
+
+        if (form.length && form[0]) {
+            form[0].reset();
+        }
+
+        $('.order-product-card').removeClass('active');
+        $('#hiddenProductInputs').empty();
+
+        const firstDeliveryInput = $('input[name="delivery_area"]').first();
+
+        if (firstDeliveryInput.length) {
+            $('input[name="delivery_area"]').prop('checked', false);
+            $('.delivery-area-card').removeClass('active');
+
+            firstDeliveryInput.prop('checked', true);
+            firstDeliveryInput.closest('.delivery-area-card').addClass('active');
+        }
+
+        $('#campaignOrderForm').find('[type="submit"]')
+            .prop('disabled', false)
+            .removeClass('disabled');
+
+        renderSummary();
+    }
+
+    window.addEventListener('pageshow', function(event) {
+        if (event.persisted || sessionStorage.getItem(orderResetStorageKey) === '1') {
+            resetOrderFormAfterSuccess();
+            sessionStorage.removeItem(orderResetStorageKey);
+        }
+    });
+
+    function showOrderWarningPopup(message) {
+        const popup = $('#orderWarningPopup');
+
+        if (!popup.length) {
+            return;
+        }
+
+        $('#orderWarningPopupMessage').text(message || 'দয়া করে কমপক্ষে একটি product select করুন।');
+        popup.addClass('show').attr('aria-hidden', 'false');
+
+        setTimeout(function () {
+            $('#orderWarningPopupClose').trigger('focus');
+        }, 80);
+    }
+
+    function hideOrderWarningPopup() {
+        $('#orderWarningPopup').removeClass('show').attr('aria-hidden', 'true');
+    }
+
+    $(document).on('click', '#orderWarningPopupClose', function() {
+        hideOrderWarningPopup();
+    });
+
+    $(document).on('click', '#orderWarningPopup', function(e) {
+        if (e.target === this) {
+            hideOrderWarningPopup();
+        }
+    });
+
+    $(document).on('keyup', function(e) {
+        if (e.key === 'Escape') {
+            hideOrderWarningPopup();
+        }
+    });
+
     $('#campaignOrderForm').on('submit', function(e) {
         if (!Object.keys(selectedProducts).length) {
             e.preventDefault();
-            alert('দয়া করে কমপক্ষে একটি product select করুন।');
+            showOrderWarningPopup('দয়া করে কমপক্ষে একটি product select করুন।');
             return false;
         }
+
+        sessionStorage.setItem(orderResetStorageKey, '1');
+
+        $(this).find('[type="submit"]')
+            .prop('disabled', true)
+            .addClass('disabled');
 
         trackBeginCheckout();
 
         return true;
     });
 
-    suppressTracking = true;
-    $('.order-product-card').first().trigger('click');
-    suppressTracking = false;
+    if (shouldResetFromPreviousOrder) {
+        resetOrderFormAfterSuccess();
+        sessionStorage.removeItem(orderResetStorageKey);
+    } else {
+        suppressTracking = true;
+        $('.order-product-card').first().trigger('click');
+        suppressTracking = false;
+    }
 
     filterProducts();
     trackViewContentOnce();
 });
 </script>
 @endpush
+@endif

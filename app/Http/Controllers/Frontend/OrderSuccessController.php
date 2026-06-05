@@ -18,9 +18,13 @@ class OrderSuccessController extends Controller
             ->where('success_token', $token)
             ->firstOrFail();
 
-        return view('frontend.pages.success', [
-            'order' => $order,
-            'title' => 'Order Successful',
-        ]);
+        return response()
+            ->view('frontend.pages.success', [
+                'order' => $order,
+                'title' => 'Order Successful',
+            ])
+            ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+            ->header('Pragma', 'no-cache')
+            ->header('Expires', 'Sat, 01 Jan 2000 00:00:00 GMT');
     }
 }

@@ -32,79 +32,128 @@
 @php
     $currentStatusView = $currentStatusView ?? 'new';
     $currentFieldId = $currentOrderField->id ?? null;
+    $isInvoiceView = in_array($currentStatusView, ['pending-invoice', 'complete-invoice'], true);
 @endphp
 
 {{-- Top Small Stats --}}
-<div class="row mb-3" id="orderStatsCards">
-    <div class="col-lg col-md-4 col-sm-6 mb-2">
-        <a href="{{ route('admin.orders.all') }}"
-           class="order-stat-card text-decoration-none {{ $currentStatusView === 'all' ? 'active' : '' }}">
-            <div>
-                <h4 id="stat_all">{{ $stats['all'] ?? 0 }}</h4>
-                <p>All Orders</p>
-            </div>
-            <i class="fas fa-shopping-cart"></i>
-        </a>
-    </div>
-
-    <div class="col-lg col-md-4 col-sm-6 mb-2">
-        <a href="{{ route('admin.orders.index') }}"
-           class="order-stat-card text-decoration-none {{ $currentStatusView === 'new' ? 'active' : '' }}">
-            <div>
-                <h4 id="stat_new">{{ $stats['new'] ?? 0 }}</h4>
-                <p>New Orders</p>
-            </div>
-            <i class="fas fa-shopping-cart"></i>
-        </a>
-    </div>
-
-    <div class="col-lg col-md-4 col-sm-6 mb-2">
-        <a href="{{ route('admin.orders.pending') }}"
-           class="order-stat-card text-decoration-none {{ $currentStatusView === 'pending' ? 'active' : '' }}">
-            <div>
-                <h4 id="stat_pending">{{ $stats['pending'] ?? 0 }}</h4>
-                <p>Pending Orders</p>
-            </div>
-            <i class="fas fa-shopping-cart"></i>
-        </a>
-    </div>
-
-    <div class="col-lg col-md-4 col-sm-6 mb-2">
-        <a href="{{ route('admin.orders.delivered') }}"
-           class="order-stat-card text-decoration-none {{ $currentStatusView === 'completed' ? 'active' : '' }}">
-            <div>
-                <h4 id="stat_completed">{{ $stats['completed'] ?? 0 }}</h4>
-                <p>Complete Orders</p>
-            </div>
-            <i class="fas fa-shopping-cart"></i>
-        </a>
-    </div>
-
-    <div class="col-lg col-md-4 col-sm-6 mb-2">
-        <a href="{{ route('admin.orders.cancelled') }}"
-           class="order-stat-card text-decoration-none {{ $currentStatusView === 'cancelled' ? 'active' : '' }}">
-            <div>
-                <h4 id="stat_cancelled">{{ $stats['cancelled'] ?? 0 }}</h4>
-                <p>Cancelled Orders</p>
-            </div>
-            <i class="fas fa-shopping-cart"></i>
-        </a>
-    </div>
-
-    @foreach($orderFields ?? [] as $field)
-        <div class="col-lg col-md-4 col-sm-6 mb-2 order-dynamic-field-card" data-field-id="{{ $field->id }}">
-            <a href="{{ route('admin.orders.field', $field->slug) }}"
-               class="order-stat-card dynamic-field-card text-decoration-none {{ $currentFieldId === $field->id ? 'active' : '' }}"
-               style="--field-color: {{ $field->color ?: '#2563eb' }};">
+@if($isInvoiceView)
+    <div class="row mb-3" id="orderStatsCards">
+        <div class="col-lg-3 col-md-4 col-sm-6 mb-2">
+            <a href="{{ route('admin.orders.invoices.pending') }}"
+               class="order-stat-card text-decoration-none {{ $currentStatusView === 'pending-invoice' ? 'active' : '' }}">
                 <div>
-                    <h4 class="stat_field_{{ $field->id }}">{{ $field->orders_count ?? 0 }}</h4>
-                    <p>{{ $field->name }}</p>
+                    <h4 id="stat_invoice_pending">{{ $stats['invoice_pending'] ?? 0 }}</h4>
+                    <p>Pending Invoice</p>
+                </div>
+                <i class="fas fa-file-invoice"></i>
+            </a>
+        </div>
+
+        <div class="col-lg-3 col-md-4 col-sm-6 mb-2">
+            <a href="{{ route('admin.orders.invoices.complete') }}"
+               class="order-stat-card text-decoration-none {{ $currentStatusView === 'complete-invoice' ? 'active' : '' }}">
+                <div>
+                    <h4 id="stat_invoice_complete">{{ $stats['invoice_complete'] ?? 0 }}</h4>
+                    <p>Complete Invoice</p>
+                </div>
+                <i class="fas fa-print"></i>
+            </a>
+        </div>
+    </div>
+@else
+    <div class="row mb-3" id="orderStatsCards">
+        <div class="col-xl col-lg-3 col-md-4 col-sm-6 mb-2">
+            <a href="{{ route('admin.orders.all') }}"
+               class="order-stat-card text-decoration-none {{ $currentStatusView === 'all' ? 'active' : '' }}">
+                <div>
+                    <h4 id="stat_all">{{ $stats['all'] ?? 0 }}</h4>
+                    <p>All Orders</p>
                 </div>
                 <i class="fas fa-shopping-cart"></i>
             </a>
         </div>
-    @endforeach
-</div>
+
+        <div class="col-xl col-lg-3 col-md-4 col-sm-6 mb-2">
+            <a href="{{ route('admin.orders.index') }}"
+               class="order-stat-card text-decoration-none {{ $currentStatusView === 'new' ? 'active' : '' }}">
+                <div>
+                    <h4 id="stat_new">{{ $stats['new'] ?? 0 }}</h4>
+                    <p>New Orders</p>
+                </div>
+                <i class="fas fa-shopping-cart"></i>
+            </a>
+        </div>
+
+        <div class="col-xl col-lg-3 col-md-4 col-sm-6 mb-2">
+            <a href="{{ route('admin.orders.pending') }}"
+               class="order-stat-card text-decoration-none {{ $currentStatusView === 'pending' ? 'active' : '' }}">
+                <div>
+                    <h4 id="stat_pending">{{ $stats['pending'] ?? 0 }}</h4>
+                    <p>Pending Orders</p>
+                </div>
+                <i class="fas fa-shopping-cart"></i>
+            </a>
+        </div>
+
+        <div class="col-xl col-lg-3 col-md-4 col-sm-6 mb-2">
+            <a href="{{ route('admin.orders.confirmed') }}"
+               class="order-stat-card text-decoration-none {{ $currentStatusView === 'completed' ? 'active' : '' }}">
+                <div>
+                    <h4 id="stat_completed">{{ $stats['completed'] ?? 0 }}</h4>
+                    <p>Complete Orders</p>
+                </div>
+                <i class="fas fa-shopping-cart"></i>
+            </a>
+        </div>
+
+        <div class="col-xl col-lg-3 col-md-4 col-sm-6 mb-2">
+            <a href="{{ route('admin.orders.cancelled') }}"
+               class="order-stat-card text-decoration-none {{ $currentStatusView === 'cancelled' ? 'active' : '' }}">
+                <div>
+                    <h4 id="stat_cancelled">{{ $stats['cancelled'] ?? 0 }}</h4>
+                    <p>Cancelled Orders</p>
+                </div>
+                <i class="fas fa-shopping-cart"></i>
+            </a>
+        </div>
+
+        <div class="col-xl col-lg-3 col-md-4 col-sm-6 mb-2">
+            <a href="{{ route('admin.orders.delivered') }}"
+               class="order-stat-card text-decoration-none {{ $currentStatusView === 'delivered' ? 'active' : '' }}">
+                <div>
+                    <h4 id="stat_delivered">{{ $stats['delivered'] ?? 0 }}</h4>
+                    <p>Delivered</p>
+                </div>
+                <i class="fas fa-truck"></i>
+            </a>
+        </div>
+
+        <div class="col-xl col-lg-3 col-md-4 col-sm-6 mb-2">
+            <a href="{{ route('admin.orders.stock_out') }}"
+               class="order-stat-card text-decoration-none {{ $currentStatusView === 'stock-out' ? 'active' : '' }}">
+                <div>
+                    <h4 id="stat_stock_out">{{ $stats['stock_out'] ?? 0 }}</h4>
+                    <p>Stock Out</p>
+                </div>
+                <i class="fas fa-shopping-cart"></i>
+            </a>
+        </div>
+
+        @foreach($orderFields ?? [] as $field)
+            <div class="col-xl col-lg-3 col-md-4 col-sm-6 mb-2 order-dynamic-field-card" data-field-id="{{ $field->id }}">
+                <a href="{{ route('admin.orders.field', $field->slug) }}"
+                   class="order-stat-card dynamic-field-card text-decoration-none {{ $currentFieldId === $field->id ? 'active' : '' }}"
+                   style="--field-color: {{ $field->color ?: '#2563eb' }};">
+                    <div>
+                        <h4 class="stat_field_{{ $field->id }}">{{ $field->orders_count ?? 0 }}</h4>
+                        <p>{{ $field->name }}</p>
+                    </div>
+                    <i class="fas fa-shopping-cart"></i>
+                </a>
+            </div>
+        @endforeach
+    </div>
+@endif
 
 <div class="card shadow-sm border-0" style="border-radius: 12px;">
     <div class="card-header bg-white py-3 border-0">
@@ -121,19 +170,15 @@
             </div>
 
             <div class="col-md-6 mt-2 mt-md-0 text-md-right">
-                @if(auth()->user()->isAdmin())
-                    <button class="btn btn-outline-info btn-sm px-3 shadow-none mr-1" id="btnSteadfastBalance">
-                        <i class="fas fa-wallet mr-1"></i> SteadFast Balance
-                    </button>
-
-                    <button class="btn btn-outline-success btn-sm px-3 shadow-none mr-1" id="btnAssignUnassigned">
-                        <i class="fas fa-random mr-1"></i> Assign Unassigned
-                    </button>
-
-                    <button class="btn btn-outline-danger btn-sm px-3 shadow-none" id="btnToggleTrash">
-                        <i class="fas fa-trash-alt mr-1"></i> Trash Bin
-                    </button>
-                @endif
+                <button class="btn btn-outline-primary btn-sm px-3 shadow-none"
+                        type="button"
+                        id="btnToggleOrderFilter"
+                        data-toggle="collapse"
+                        data-target="#orderFilterForm"
+                        aria-expanded="false"
+                        aria-controls="orderFilterForm">
+                    <i class="fas fa-filter mr-1"></i> Filter / Search
+                </button>
             </div>
         </div>
     </div>
@@ -141,9 +186,10 @@
     <div class="card-body p-0">
         {{-- Filter Section --}}
         <form id="orderFilterForm"
-              class="px-4 py-3 border-top bg-white"
+              class="collapse px-4 py-3 border-top bg-white"
               method="GET"
               action="{{ url()->current() }}">
+            <input type="hidden" id="filter_per_page" name="per_page" value="{{ request('per_page', 20) }}">
             <div class="row">
                 <div class="col-md-2 col-sm-6 mb-2">
                     <label class="small font-weight-bold text-muted text-uppercase">Order Status</label>
@@ -279,9 +325,19 @@
             <div class="px-4 py-2 bg-light border-top border-bottom">
                 <div class="d-flex align-items-center justify-content-between flex-wrap">
                     <div class="d-flex align-items-center flex-wrap">
-                        <span class="badge badge-dark px-3 py-2 mr-2 mb-1">
-                            Total <span id="selectedCount">0</span> Orders
-                        </span>
+                        <div class="dropdown d-inline-block mr-2 mb-1">
+                            <button class="btn btn-dark btn-sm dropdown-toggle" type="button" id="bulkSelectLimitDropdown" data-toggle="dropdown">
+                                Total <span id="selectedCount">0</span> Orders
+                            </button>
+                            <div class="dropdown-menu" aria-labelledby="bulkSelectLimitDropdown">
+                                <h6 class="dropdown-header">Select Orders</h6>
+                                @foreach([50,100,150,200,250,300,350,400,450,500] as $selectLimit)
+                                    <a href="#" class="dropdown-item bulk-select-limit-action" data-limit="{{ $selectLimit }}">
+                                        <i class="fas fa-check-square text-primary mr-1"></i> Select {{ $selectLimit }} Orders
+                                    </a>
+                                @endforeach
+                            </div>
+                        </div>
 
                         <button type="button" class="btn btn-secondary btn-sm mr-2 mb-1" id="btnPrintSelectedInvoice">
                             <i class="fas fa-print mr-1"></i> Print Selected Invoice
@@ -349,7 +405,12 @@
                             </div>
                         </div>
 
-                        <button type="button" class="btn btn-danger btn-sm mr-2 mb-1" id="btnDeleteSelected">
+                        {{-- Trash page-e selected permanent delete button show hobe na.
+                             Trash permanently clear korar jonno only Empty Trash button thakbe. --}}
+                        <button type="button"
+                                class="btn btn-danger btn-sm mr-2 mb-1"
+                                id="btnDeleteSelected"
+                                style="{{ !empty($isTrash) ? 'display:none;' : '' }}">
                             <i class="fas fa-trash mr-1"></i> Delete Selected
                         </button>
 
@@ -374,6 +435,9 @@
                                 </a>
                                 <a class="dropdown-item bulk-status-action" href="#" data-action="status_delivered">
                                     <i class="fas fa-check-double mr-1"></i> Delivered
+                                </a>
+                                <a class="dropdown-item bulk-status-action" href="#" data-action="status_stock_out">
+                                    <i class="fas fa-box-open mr-1 text-warning"></i> Stock Out
                                 </a>
                                 <a class="dropdown-item bulk-status-action text-danger" href="#" data-action="status_cancelled">
                                     <i class="fas fa-times-circle mr-1"></i> Cancelled
@@ -410,9 +474,25 @@
                             </div>
                         </div>
 
-                        <button type="button" class="btn btn-warning btn-sm mr-2 mb-1" id="btnAssignUnassignedTwo">
-                            <i class="fas fa-sync-alt mr-1"></i> Sync Order
-                        </button>
+                        <div class="dropdown d-inline-block mr-2 mb-1">
+                            <button class="btn btn-warning btn-sm dropdown-toggle" type="button" id="syncOrderDropdown" data-toggle="dropdown">
+                                <i class="fas fa-sync-alt mr-1"></i> Sync Order
+                            </button>
+                            <div class="dropdown-menu" aria-labelledby="syncOrderDropdown">
+                                <h6 class="dropdown-header">Assign Employee</h6>
+                                @forelse($employees ?? collect() as $employee)
+                                    <a class="dropdown-item bulk-assign-employee-action" href="#" data-employee-id="{{ $employee->id }}" data-name="{{ $employee->name }}">
+                                        <i class="fas fa-user-check mr-1 text-primary"></i> {{ $employee->name }}
+                                    </a>
+                                @empty
+                                    <span class="dropdown-item text-muted">No employee found</span>
+                                @endforelse
+                                <div class="dropdown-divider"></div>
+                                <a class="dropdown-item bulk-assign-employee-action text-danger" href="#" data-employee-id="" data-name="Unassigned">
+                                    <i class="fas fa-user-times mr-1"></i> Remove Employee
+                                </a>
+                            </div>
+                        </div>
 
                         <div class="dropdown d-inline-block mr-2 mb-1">
                             <button class="btn btn-outline-dark btn-sm dropdown-toggle" type="button" id="selectCourierDropdown"
@@ -439,6 +519,21 @@
                                 </a>
                             </div>
                         </div>
+
+                        <button class="btn btn-outline-danger btn-sm mr-2 mb-1 shadow-none" id="btnToggleTrash" type="button">
+                            @if(!empty($isTrash))
+                                <i class="fas fa-list mr-1"></i> Active List
+                            @else
+                                <i class="fas fa-trash-alt mr-1"></i> Trash Bin
+                            @endif
+                        </button>
+
+                        <button class="btn btn-danger btn-sm mr-2 mb-1 shadow-none"
+                                id="btnEmptyTrash"
+                                type="button"
+                                style="{{ !empty($isTrash) ? '' : 'display:none;' }}">
+                            <i class="fas fa-broom mr-1"></i> Empty Trash
+                        </button>
                     </div>
                 </div>
             </div>
@@ -563,15 +658,21 @@
     box-shadow: 0 10px 30px rgba(15, 23, 42, .15);
     border-radius: 8px;
 }
+#orderFilterForm {
+    transition: .2s ease;
+}
 </style>
 @endsection
 
 @section('js')
 <script>
 $(document).ready(function() {
+    const csrfToken = '{{ csrf_token() }}';
+    let currentStatusView = '{{ $currentStatusView ?? 'new' }}';
     let currentView = "{{ isset($isTrash) && $isTrash ? 'trash' : 'active' }}";
-    let currentBaseUrl = "{{ url()->current() }}";
+    let currentBaseUrl = "{{ isset($isTrash) && $isTrash ? route('admin.orders.index') : url()->current() }}";
     let adminNoteTimers = {};
+    let pendingSelectLimit = null;
 
     $.ajaxSetup({
         headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}' }
@@ -663,6 +764,10 @@ $(document).ready(function() {
         $('#stat_pending').text(stats.pending ?? 0);
         $('#stat_completed').text(stats.completed ?? 0);
         $('#stat_cancelled').text(stats.cancelled ?? 0);
+        $('#stat_delivered').text(stats.delivered ?? 0);
+        $('#stat_stock_out').text(stats.stock_out ?? 0);
+        $('#stat_invoice_pending').text(stats.invoice_pending ?? 0);
+        $('#stat_invoice_complete').text(stats.invoice_complete ?? 0);
 
         if (stats.fields) {
             stats.fields.forEach(function(field) {
@@ -679,6 +784,32 @@ $(document).ready(function() {
         $('#selectedCount').text(selectedIds().length);
     }
 
+    function selectFirstVisibleOrders(limit) {
+        const checkboxes = $('.row-checkbox');
+        const totalVisible = checkboxes.length;
+        const maxSelect = Math.min(limit, totalVisible);
+
+        $('#check_all').prop('checked', false);
+        checkboxes.prop('checked', false);
+        checkboxes.slice(0, maxSelect).prop('checked', true);
+        updateSelectedCount();
+
+        if (! maxSelect) {
+            Swal.fire('Notice', 'No orders found for selection.', 'info');
+            return;
+        }
+
+        if (totalVisible < limit) {
+            showToast('info', 'Only ' + totalVisible + ' orders are available in this view, so ' + totalVisible + ' orders selected.');
+        } else {
+            if (currentView === 'trash') {
+                showToast('info', maxSelect + ' trash orders selected. Permanent delete selected button removed; use Empty Trash if needed.');
+            } else {
+                showToast('success', maxSelect + ' orders selected. Now click Delete Selected if you want to delete them.');
+            }
+        }
+    }
+
     function updateUIState() {
         if (currentView === 'trash') {
             $('#view-label').text('Trash Bin').attr('class', 'badge badge-danger ml-2 border');
@@ -686,16 +817,24 @@ $(document).ready(function() {
                 .html('<i class="fas fa-list mr-1"></i> Active List')
                 .removeClass('btn-outline-danger')
                 .addClass('btn-outline-primary');
+            $('#btnEmptyTrash').show();
+            $('#btnDeleteSelected').hide();
             $('#sendCourierDropdown, #selectCourierDropdown').prop('disabled', true).addClass('disabled');
-            $('.bulk-courier-action, .bulk-assign-courier-action').addClass('disabled');
+            $('.bulk-courier-action, .bulk-assign-courier-action, .bulk-assign-employee-action').addClass('disabled');
         } else {
             $('#view-label').text('Active List').attr('class', 'badge badge-primary-soft ml-2 border');
             $('#btnToggleTrash')
                 .html('<i class="fas fa-trash-alt mr-1"></i> Trash Bin')
                 .removeClass('btn-outline-primary')
                 .addClass('btn-outline-danger');
+            $('#btnEmptyTrash').hide();
+            $('#btnDeleteSelected')
+                .show()
+                .html('<i class="fas fa-trash mr-1"></i> Delete Selected')
+                .removeClass('btn-outline-danger')
+                .addClass('btn-danger');
             $('#sendCourierDropdown, #selectCourierDropdown').prop('disabled', false).removeClass('disabled');
-            $('.bulk-courier-action, .bulk-assign-courier-action').removeClass('disabled');
+            $('.bulk-courier-action, .bulk-assign-courier-action, .bulk-assign-employee-action').removeClass('disabled');
         }
     }
 
@@ -712,6 +851,12 @@ $(document).ready(function() {
                     if (res.stats) updateStats(res.stats);
                     updateUIState();
                     updateSelectedCount();
+
+                    if (pendingSelectLimit) {
+                        selectFirstVisibleOrders(pendingSelectLimit);
+                        pendingSelectLimit = null;
+                    }
+
                     syncBrowserUrl(page);
                 } else {
                     $('#content-wrapper').css('opacity', '1');
@@ -1025,7 +1170,7 @@ $(document).ready(function() {
 
     $(document).on(
         'change',
-        '#filter_order_status, #filter_payment_status, #filter_courier_service, #filter_fake_status, #filter_employee, #filter_order_field, #filter_date_from, #filter_date_to',
+        '#filter_order_status, #filter_payment_status, #filter_courier_id, #filter_fake_status, #filter_employee, #filter_order_field, #filter_date_from, #filter_date_to',
         function() {
             reloadTable(1);
         }
@@ -1066,7 +1211,14 @@ $(document).ready(function() {
         runBulkAction($(this).data('action'));
     });
 
-    $('#btnDeleteSelected').on('click', function() { runBulkAction('delete'); });
+    $('#btnDeleteSelected').on('click', function() {
+        if (currentView === 'trash') {
+            Swal.fire('Notice', 'Trash page থেকে bulk permanent delete বন্ধ করা হয়েছে। Empty Trash button ব্যবহার করুন।', 'info');
+            return;
+        }
+
+        runBulkAction('delete');
+    });
 
     $('#btnPrintSelectedInvoice').on('click', function() {
         let ids = selectedIds();
@@ -1111,26 +1263,92 @@ $(document).ready(function() {
         assignCourierToSelected($(this).data('courier-id'), $(this).data('name') || 'Courier');
     });
 
-    $('#btnAssignUnassigned, #btnAssignUnassignedTwo').on('click', function() {
-        singleAjaxAction($(this).attr('id') === 'btnAssignUnassigned' ? $('#btnAssignUnassigned') : $('#btnAssignUnassignedTwo'), function() {
-            reloadTable();
+
+    $(document).on('click', '.bulk-assign-employee-action', function(e) {
+        e.preventDefault();
+
+        let ids = selectedIds();
+        if (!ids.length) {
+            Swal.fire('Notice', 'Please select at least one order.', 'info');
+            return;
+        }
+
+        let employeeId = $(this).data('employee-id') || '';
+        let name = $(this).data('name') || 'Employee';
+
+        Swal.fire({
+            title: 'Assign selected orders?',
+            text: 'Selected orders will be assigned to ' + name + '.',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, assign'
+        }).then((result) => {
+            if (!result.isConfirmed) return;
+
+            $.ajax({
+                url: "{{ route('admin.orders.assign_employee_bulk') }}",
+                type: 'POST',
+                data: {
+                    _token: csrfToken,
+                    ids: ids,
+                    assigned_employee_id: employeeId
+                },
+                success: function(res) {
+                    showToast(res.status ? 'success' : 'error', res.message || 'Employee assign updated.');
+                    reloadTable();
+                },
+                error: function(xhr) {
+                    showToast('error', xhr.responseJSON?.message || 'Employee assign failed.');
+                }
+            });
         });
     });
 
-    $('#btnAssignUnassigned, #btnAssignUnassignedTwo').data('url', "{{ route('admin.orders.assign_unassigned') }}");
+    $(document).on('click', '.bulk-select-limit-action', function(e) {
+        e.preventDefault();
 
-    $('#btnSteadfastBalance').on('click', function() {
-        $.ajax({
-            url: "{{ route('admin.orders.steadfast.balance') }}",
-            type: 'GET',
-            success: function(res) {
-                if (res.status) {
-                    Swal.fire('SteadFast Balance', '<pre class="text-left mb-0">' + htmlEscape(JSON.stringify(res.data, null, 2)) + '</pre>', 'info');
-                } else {
-                    showToast('error', res.message || 'Balance fetch failed.');
+        const limit = Number($(this).data('limit') || 0);
+
+        if (!limit) {
+            return;
+        }
+
+        const visibleRows = $('.row-checkbox').length;
+        const currentPerPage = Number($('#filter_per_page').val() || 20);
+
+        if (visibleRows < limit && currentPerPage < limit) {
+            pendingSelectLimit = limit;
+            $('#filter_per_page').val(limit);
+            reloadTable(1);
+            return;
+        }
+
+        selectFirstVisibleOrders(limit);
+    });
+
+    $('#btnEmptyTrash').on('click', function() {
+        Swal.fire({
+            title: 'Empty trash permanently?',
+            text: 'All trash orders will be permanently deleted. This action cannot be undone.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dc3545',
+            confirmButtonText: 'Yes, empty trash'
+        }).then((result) => {
+            if (!result.isConfirmed) return;
+
+            $.ajax({
+                url: "{{ route('admin.orders.empty_trash') }}",
+                type: 'DELETE',
+                data: {_token: csrfToken},
+                success: function(res) {
+                    showToast(res.status ? 'success' : 'error', res.message || 'Trash emptied.');
+                    reloadTable();
+                },
+                error: function(xhr) {
+                    showToast('error', xhr.responseJSON?.message || 'Empty trash failed.');
                 }
-            },
-            error: function(xhr) { showToast('error', xhr.responseJSON?.message || 'Balance fetch failed.'); }
+            });
         });
     });
 
@@ -1144,9 +1362,9 @@ $(document).ready(function() {
 
     $(document).on('blur', '.admin-note-input', function() { saveAdminNote($(this)); });
 
-    $(document).on('click', '.btnDelete, .btnRestore, .btnForceDelete', function() {
+    $(document).on('click', '.btnDelete, .btnRestore', function() {
         let button = $(this);
-        let isDelete = button.hasClass('btnDelete') || button.hasClass('btnForceDelete');
+        let isDelete = button.hasClass('btnDelete');
 
         Swal.fire({
             title: isDelete ? 'Are you sure?' : 'Restore order?',
@@ -1156,7 +1374,7 @@ $(document).ready(function() {
             confirmButtonText: 'Yes, Proceed'
         }).then(function(result) {
             if (!swalConfirmed(result)) return;
-            button.data('method', button.hasClass('btnDelete') || button.hasClass('btnForceDelete') ? 'DELETE' : 'POST');
+            button.data('method', button.hasClass('btnDelete') ? 'DELETE' : 'POST');
             singleAjaxAction(button);
         });
     });

@@ -144,7 +144,8 @@ class User extends Authenticatable implements HasMedia
     public function scopeActiveEmployees(Builder $query): Builder
     {
         return $query->where('role', self::ROLE_EMPLOYEE)
-            ->where('is_active', true);
+            ->where('is_active', true)
+            ->orderBy('id');
     }
 
     /*
@@ -182,3 +183,4 @@ class User extends Authenticatable implements HasMedia
         return $this->hasMany(OrderStatusLog::class, 'created_by');
     }
 }
+

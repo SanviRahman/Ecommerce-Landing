@@ -281,20 +281,6 @@ $steadfastConsignmentId = $order->steadfast_consignment_id ?: '-';
         </table>
         @endif
 
-        <table class="invoice-table table table-striped">
-            <tr>
-                <td style="width: 50%;">
-                    <strong>Customer Note:</strong><br>
-                    {{ $order->customer_note ?? '-' }}
-                </td>
-
-                <td style="width: 50%;">
-                    <strong>Admin Note:</strong><br>
-                    {{ $order->admin_note ?? '-' }}
-                </td>
-            </tr>
-        </table>
-
         <hr>
 
     </div>

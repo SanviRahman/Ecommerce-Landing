@@ -14,7 +14,8 @@ class OrderManagementService
 {
     public function __construct(
         protected DynamicPricingService $pricingService,
-        protected FakeOrderDetectionService $fakeOrderDetectionService
+        protected FakeOrderDetectionService $fakeOrderDetectionService,
+        protected OrderAssignmentService $orderAssignmentService
     ) {}
 
     public function createOrder(array $data, Request $request): Order
@@ -107,9 +108,11 @@ class OrderManagementService
             } else {
                 $product->decrement('stock', $pricing['quantity']);
                 $product->increment('sold_quantity', $pricing['quantity']);
+
+                $this->orderAssignmentService->assign($order);
             }
 
-            return $order->load('items', 'campaign');
+            return $order->load('items', 'campaign', 'assignedEmployee');
         });
     }
 

@@ -217,6 +217,17 @@ Route::prefix('command')
             return $redirectWithToast('success', 'View cache cleared successfully.');
         })->name('clear-view');
 
+
+        Route::get('/clear-events', function () use ($redirectWithToast) {
+            try {
+                Artisan::call('event:clear');
+
+                return $redirectWithToast('success', 'Events cache cleared successfully.');
+            } catch (Throwable $exception) {
+                return $redirectWithToast('error', 'Events cache clear failed: ' . $exception->getMessage());
+            }
+        })->name('clear-events');
+
         Route::get('/optimize', function () use ($redirectWithToast) {
             Artisan::call('optimize');
 

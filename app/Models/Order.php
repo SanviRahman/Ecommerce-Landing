@@ -22,6 +22,7 @@ class Order extends Model
     public const STATUS_DELIVERED  = 'delivered';
     public const STATUS_CANCELLED  = 'cancelled';
     public const STATUS_FAKE       = 'fake';
+    public const STATUS_STOCK_OUT  = 'stock_out';
 
     public const PAYMENT_COD                = 'cash_on_delivery';
     public const PAYMENT_STATUS_UNPAID      = 'unpaid';
@@ -98,7 +99,7 @@ class Order extends Model
         'order_field_id'       => 'integer',
         'invoice_printed_at'   => 'datetime',
         'invoice_print_count'  => 'integer',
-        'custom_order_list'     => 'string',
+        'custom_order_list'    => 'string',
         'courier_account_id'   => 'integer',
         'courier_id'           => 'integer',
 
@@ -134,26 +135,28 @@ class Order extends Model
         });
 
         static::updating(function (Order $order) {
-            if ($order->isDirty('order_status')) {
-                $now = now();
-                $status = (string) $order->order_status;
+            if (! $order->isDirty('order_status')) {
+                return;
+            }
 
-                if ($status === self::STATUS_CONFIRMED && ! $order->confirmed_at) {
-                    $order->confirmed_at = $now;
-                }
+            $now = now();
+            $status = (string) $order->order_status;
 
-                if (in_array($status, [self::STATUS_DELIVERED, 'complete', 'completed'], true) && ! $order->delivered_at) {
-                    $order->delivered_at = $now;
-                }
+            if ($status === self::STATUS_CONFIRMED && ! $order->confirmed_at) {
+                $order->confirmed_at = $now;
+            }
 
-                if ($status === self::STATUS_CANCELLED && ! $order->cancelled_at) {
-                    $order->cancelled_at = $now;
-                }
+            if (in_array($status, [self::STATUS_DELIVERED, 'complete', 'completed'], true) && ! $order->delivered_at) {
+                $order->delivered_at = $now;
+            }
 
-                if ($status === self::STATUS_FAKE && ! $order->marked_fake_at) {
-                    $order->marked_fake_at = $now;
-                    $order->is_fake = true;
-                }
+            if ($status === self::STATUS_CANCELLED && ! $order->cancelled_at) {
+                $order->cancelled_at = $now;
+            }
+
+            if ($status === self::STATUS_FAKE && ! $order->marked_fake_at) {
+                $order->marked_fake_at = $now;
+                $order->is_fake = true;
             }
         });
 
@@ -184,13 +187,13 @@ class Order extends Model
 
         try {
             OrderStatusLog::create([
-                'order_id' => $this->id,
-                'status' => $status,
-                'note' => $note,
+                'order_id'   => $this->id,
+                'status'     => $status,
+                'note'       => $note,
                 'created_by' => auth()->id(),
             ]);
         } catch (\Throwable $exception) {
-            // Dashboard report has fallback logic. Status log write should never break order flow.
+            // Status log write should never break order flow.
         }
     }
 
@@ -221,7 +224,7 @@ class Order extends Model
 
     public function items(): HasMany
     {
-        return $this->hasMany(OrderItem::class);
+        return $this->hasMany(OrderItem::class, 'order_id');
     }
 
     public function statusLogs(): HasMany
@@ -233,7 +236,6 @@ class Order extends Model
     {
         return $this->hasMany(FakeOrderLog::class);
     }
-
 
     public static function displayTimezone(): string
     {
@@ -248,10 +250,6 @@ class Order extends Model
             return null;
         }
 
-        /*
-         * Laravel default timestamp UTC থাকে। Admin panel-e Bangladesh local time
-         * দেখানোর জন্য raw DB timestamp UTC ধরে Asia/Dhaka timezone-e convert করা হলো।
-         */
         return Carbon::parse($rawValue, 'UTC')->timezone(static::displayTimezone());
     }
 
@@ -349,9 +347,15 @@ class Order extends Model
         return $query->where('order_status', self::STATUS_PROCESSING);
     }
 
+    public function scopeStockOut(Builder $query): Builder
+    {
+        return $query->where('order_status', self::STATUS_STOCK_OUT);
+    }
+
     public function scopeNewOrders(Builder $query): Builder
     {
-        return $query->where('order_status', self::STATUS_PROCESSING);
+        return $query->where('order_status', self::STATUS_PROCESSING)
+            ->whereNull('custom_order_list');
     }
 
     public function scopeShipped(Builder $query): Builder

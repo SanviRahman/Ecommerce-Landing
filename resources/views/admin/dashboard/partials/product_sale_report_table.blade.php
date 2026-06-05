@@ -19,13 +19,23 @@
             <tr>
                 <th>Product ID</th>
                 <th>Product Name</th>
+
+                {{-- Orders Management sidebar অনুযায়ী --}}
                 <th class="text-center">Total Orders</th>
-                <th class="text-center">Invoiced</th>
+                <th class="text-center">New Orders</th>
+                <th class="text-center">Pending Orders</th>
+                <th class="text-center">Complete Orders</th>
+                <th class="text-center">Cancelled Orders</th>
+                <th class="text-center">Order List 1</th>
+                <th class="text-center">Order List 2</th>
+                <th class="text-center">Shipped</th>
                 <th class="text-center">Delivered</th>
-                <th class="text-center">Canceled</th>
-                <th class="text-center">Customer On Hold</th>
-                <th class="text-center">Payment Pending</th>
-                <th class="text-center">Processing</th>
+                <th class="text-center">Stock Out</th>
+                <th class="text-center">Fake Orders</th>
+
+                {{-- Invoice Management sidebar অনুযায়ী --}}
+                <th class="text-center">Pending Invoice</th>
+                <th class="text-center">Complete Invoice</th>
             </tr>
         </thead>
 
@@ -34,17 +44,24 @@
                 <tr class="product-sale-row">
                     <td>{{ $row['product_id'] ?: 'N/A' }}</td>
                     <td>{{ $row['product_name'] ?? 'Unknown Product' }}</td>
+
                     <td class="text-center">{{ number_format((int) ($row['total_orders'] ?? 0)) }}</td>
-                    <td class="text-center">{{ number_format((int) ($row['invoiced'] ?? 0)) }}</td>
-                    <td class="text-center">{{ number_format((int) ($row['delivered'] ?? 0)) }}</td>
-                    <td class="text-center">{{ number_format((int) ($row['cancelled'] ?? 0)) }}</td>
-                    <td class="text-center">{{ number_format((int) ($row['customer_on_hold'] ?? 0)) }}</td>
-                    <td class="text-center">{{ number_format((int) ($row['payment_pending'] ?? 0)) }}</td>
-                    <td class="text-center">{{ number_format((int) ($row['processing'] ?? 0)) }}</td>
+                    <td class="text-center">{{ number_format((int) ($row['new_orders'] ?? 0)) }}</td>
+                    <td class="text-center">{{ number_format((int) ($row['pending_orders'] ?? 0)) }}</td>
+                    <td class="text-center">{{ number_format((int) ($row['complete_orders'] ?? 0)) }}</td>
+                    <td class="text-center">{{ number_format((int) ($row['cancelled_orders'] ?? 0)) }}</td>
+                    <td class="text-center">{{ number_format((int) ($row['order_list_1'] ?? 0)) }}</td>
+                    <td class="text-center">{{ number_format((int) ($row['order_list_2'] ?? 0)) }}</td>
+                    <td class="text-center">{{ number_format((int) ($row['shipped_orders'] ?? 0)) }}</td>
+                    <td class="text-center">{{ number_format((int) ($row['delivered_orders'] ?? 0)) }}</td>
+                    <td class="text-center">{{ number_format((int) ($row['stock_out_orders'] ?? 0)) }}</td>
+                    <td class="text-center">{{ number_format((int) ($row['fake_orders'] ?? 0)) }}</td>
+                    <td class="text-center">{{ number_format((int) ($row['pending_invoice'] ?? 0)) }}</td>
+                    <td class="text-center">{{ number_format((int) ($row['complete_invoice'] ?? 0)) }}</td>
                 </tr>
             @empty
                 <tr>
-                    <td colspan="9" class="text-center text-muted py-4">
+                    <td colspan="15" class="text-center text-muted py-4">
                         No product sale report found.
                     </td>
                 </tr>

@@ -1485,12 +1485,13 @@
                 </div>
 
                 <div class="custom-control custom-switch mr-4 mb-2 mb-md-0">
+                    <input type="hidden" name="status" value="0">
                     <input type="checkbox"
                            name="status"
                            value="1"
                            class="custom-control-input"
                            id="campaign_status"
-                           @checked(old('status', $campaign->status ?? true))>
+                           @checked((bool) old('status', $campaign->status ?? true))>
 
                     <label class="custom-control-label font-weight-bold" for="campaign_status">
                         Active Campaign

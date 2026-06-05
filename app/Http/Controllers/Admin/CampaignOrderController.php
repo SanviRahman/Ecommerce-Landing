@@ -151,11 +151,18 @@ class CampaignOrderController extends Controller
             'address'             => ['required', 'string'],
             'delivery_area'       => ['required', 'string', 'max:255'],
             'customer_note'       => ['nullable', 'string', 'max:1000'],
+            'order_form_token'    => ['required', 'string', 'max:100'],
 
             'products'            => ['required', 'array', 'min:1'],
             'products.*.id'       => ['required', 'integer', 'exists:products,id'],
             'products.*.quantity' => ['required', 'integer', 'min:1'],
         ]);
+
+        if (! $this->consumeOrderFormToken($request->input('order_form_token'))) {
+            return back()
+                ->withInput($request->except(['products']))
+                ->with('error', 'এই পুরোনো ফর্ম দিয়ে আবার অর্ডার করা যাবে না। অনুগ্রহ করে পেজ refresh করে নতুন করে অর্ডার করুন।');
+        }
 
         return DB::transaction(function () use ($request, $campaign) {
             $campaign->load([
@@ -305,6 +312,25 @@ class CampaignOrderController extends Controller
                 ->route('order.success', $order->success_token)
                 ->with('success', 'আপনার অর্ডারটি সফলভাবে গ্রহণ করা হয়েছে। খুব শীঘ্রই আমাদের প্রতিনিধি যোগাযোগ করবে।');
         });
+    }
+
+    private function consumeOrderFormToken(?string $token): bool
+    {
+        if (! $token) {
+            return false;
+        }
+
+        $tokens = session()->get('campaign_order_form_tokens', []);
+
+        if (! is_array($tokens) || ! in_array($token, $tokens, true)) {
+            return false;
+        }
+
+        $tokens = array_values(array_filter($tokens, fn ($storedToken) => $storedToken !== $token));
+
+        session()->put('campaign_order_form_tokens', $tokens);
+
+        return true;
     }
 
     private function generateInvoiceId(): string

@@ -6,8 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\Campaign;
 use App\Models\Faq;
 use App\Models\Review;
+use App\Models\ShippingCharge;
 use App\Models\SiteSetting;
 use App\Models\SocialMedia;
+use Illuminate\Support\Str;
 
 class CampaignPageController extends Controller
 {
@@ -40,6 +42,7 @@ class CampaignPageController extends Controller
         $brands = $campaign->brands->values();
         $products = $this->sortProductsBySelectedCategory($campaign);
         $orderProducts = $products;
+        $orderFormToken = $this->makeOrderFormToken();
 
         $reviews = Review::query()
             ->with('media')
@@ -68,18 +71,47 @@ class CampaignPageController extends Controller
             ->latest()
             ->get();
 
-        return view('frontend.pages.home', [
-            'siteSetting' => $siteSetting,
-            'campaign' => $campaign,
-            'categories' => $categories,
-            'brands' => $brands,
-            'products' => $products,
-            'orderProducts' => $orderProducts,
-            'reviews' => $reviews,
-            'faqs' => $faqs,
-            'socialMedias' => $socialMedias,
-            'courierServices' => config('couriers.list', []),
-        ]);
+        $shippingCharges = ShippingCharge::query()
+            ->active()
+            ->orderBy('id')
+            ->get();
+
+        return response()
+            ->view('frontend.pages.home', [
+                'siteSetting' => $siteSetting,
+                'campaign' => $campaign,
+                'categories' => $categories,
+                'brands' => $brands,
+                'products' => $products,
+                'orderProducts' => $orderProducts,
+                'reviews' => $reviews,
+                'faqs' => $faqs,
+                'socialMedias' => $socialMedias,
+                'shippingCharges' => $shippingCharges,
+                'courierServices' => config('couriers.list', []),
+                'orderFormToken' => $orderFormToken,
+            ])
+            ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+            ->header('Pragma', 'no-cache')
+            ->header('Expires', 'Sat, 01 Jan 2000 00:00:00 GMT');
+    }
+
+    private function makeOrderFormToken(): string
+    {
+        $tokens = session()->get('campaign_order_form_tokens', []);
+
+        if (! is_array($tokens)) {
+            $tokens = [];
+        }
+
+        $token = Str::random(40);
+
+        $tokens[] = $token;
+        $tokens = array_values(array_unique(array_filter($tokens)));
+
+        session()->put('campaign_order_form_tokens', array_slice($tokens, -10));
+
+        return $token;
     }
 
     private function sortProductsBySelectedCategory(Campaign $campaign)
