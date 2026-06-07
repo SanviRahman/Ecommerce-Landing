@@ -25,7 +25,7 @@
 @if(auth()->user()->isEmployee())
     <div class="alert alert-info">
         <i class="fas fa-info-circle mr-1"></i>
-        Employee has view-only product access.
+        Employee can view and edit products. Product add/delete/trash/bulk delete access is disabled.
     </div>
 @endif
 
@@ -127,7 +127,7 @@
             </div>
         </div>
 
-        {{-- Bulk Action --}}
+        {{-- Bulk Action: Admin only --}}
         @if(auth()->user()->isAdmin())
             <div class="px-4 py-2 bg-light d-flex align-items-center border-top border-bottom flex-wrap">
                 <div class="custom-control custom-checkbox mr-3">
@@ -197,7 +197,6 @@
 
 @section('plugins.Sweetalert2', true)
 
-
 @section('js')
 <script>
 $(document).ready(function () {
@@ -226,7 +225,8 @@ $(document).ready(function () {
 
     $.ajaxSetup({
         headers: {
-            'X-CSRF-TOKEN': '{{ csrf_token() }}'
+            'X-CSRF-TOKEN': '{{ csrf_token() }}',
+            'Accept': 'application/json'
         }
     });
 
@@ -318,7 +318,10 @@ $(document).ready(function () {
             '</div>'
         );
 
-        $('#ajaxModal').modal('show');
+        $('#ajaxModal').modal({
+            backdrop: 'static',
+            keyboard: false
+        });
 
         $.ajax({
             url: url,
@@ -367,7 +370,13 @@ $(document).ready(function () {
     $(document).on('click', '.pagination a', function (e) {
         e.preventDefault();
 
-        let page = $(this).attr('href').split('page=')[1];
+        let href = $(this).attr('href');
+        let page = 1;
+
+        if (href && href.indexOf('page=') !== -1) {
+            page = href.split('page=')[1];
+        }
+
         reloadTable(page);
     });
 

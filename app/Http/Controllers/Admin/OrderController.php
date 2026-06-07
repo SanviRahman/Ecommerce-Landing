@@ -1431,19 +1431,48 @@ class OrderController extends Controller
             'ids.*' => ['integer', 'exists:orders,id'],
         ]);
 
+        $selectedIds = collect($request->ids)
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->values();
+
         $orders = Order::query()
             ->forLoggedInUser()
-            ->whereIn('id', $request->ids)
-            ->where('order_status', Order::STATUS_CONFIRMED)
-            ->whereNull('invoice_printed_at')
+            ->whereIn('id', $selectedIds)
             ->get();
 
-        $this->markOrdersAsInvoicePrinted($orders);
+        if ($orders->isEmpty()) {
+            return response()->json([
+                'status'  => false,
+                'message' => 'No accessible selected invoices found.',
+                'printed' => 0,
+            ], 404);
+        }
+
+        /*
+         * Invoice print confirmation should not depend on order_status.
+         * Otherwise invoice can show "0 invoices printed successfully" when
+         * selected orders are Delivered/Shipped/Processing/Stock Out etc.
+         * After confirmation, every selected accessible order is marked with
+         * invoice_printed_at and will appear in Complete Invoice list.
+         */
+        $notPrintedOrders = $orders->filter(fn (Order $order) => empty($order->invoice_printed_at));
+        $printedCount = $notPrintedOrders->count();
+
+        if ($printedCount > 0) {
+            $this->markOrdersAsInvoicePrinted($notPrintedOrders);
+        }
+
+        $message = $printedCount > 0
+            ? $printedCount . ' invoices marked as printed successfully.'
+            : $orders->count() . ' selected invoices are already marked as printed.';
 
         return response()->json([
-            'status'  => true,
-            'message' => $orders->count() . ' invoices marked as printed successfully.',
-            'printed' => $orders->count(),
+            'status'         => true,
+            'message'        => $message,
+            'printed'        => $printedCount,
+            'selected_count' => $orders->count(),
         ]);
     }
 

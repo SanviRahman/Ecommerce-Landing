@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
@@ -23,7 +24,10 @@ class ProductController extends Controller
 
     private function adminOrEmployeeOnly(): void
     {
-        if (! auth()->check() || (! auth()->user()->isAdmin() && ! auth()->user()->isEmployee())) {
+        if (
+            ! auth()->check()
+            || (! auth()->user()->isAdmin() && ! auth()->user()->isEmployee())
+        ) {
             abort(403, 'Unauthorized access.');
         }
     }
@@ -52,9 +56,9 @@ class ProductController extends Controller
 
         while (
             Product::withTrashed()
-            ->where('slug', $slug)
-            ->when($ignoreId, fn($query) => $query->where('id', '!=', $ignoreId))
-            ->exists()
+                ->where('slug', $slug)
+                ->when($ignoreId, fn ($query) => $query->where('id', '!=', $ignoreId))
+                ->exists()
         ) {
             $slug = $baseSlug . '-' . $count;
             $count++;
@@ -185,7 +189,7 @@ class ProductController extends Controller
 
     /*
     |--------------------------------------------------------------------------
-    | Admin + Employee: View Only
+    | Admin + Employee: View Product List / Details
     |--------------------------------------------------------------------------
     */
     public function index(Request $request)
@@ -218,7 +222,7 @@ class ProductController extends Controller
 
     /*
     |--------------------------------------------------------------------------
-    | Admin Only: Create / Store / Edit / Update / Delete
+    | Admin Only: Create / Store / Delete / Trash / Restore / Force Delete / Bulk
     |--------------------------------------------------------------------------
     */
     public function create(Request $request)
@@ -334,9 +338,17 @@ class ProductController extends Controller
         });
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | Admin + Employee: Edit / Update Product
+    |--------------------------------------------------------------------------
+    | Employee can edit product information and media.
+    | Employee cannot create, delete, trash, restore, force delete, or bulk delete.
+    |--------------------------------------------------------------------------
+    */
     public function edit(Request $request, Product $product)
     {
-        $this->adminOnly();
+        $this->adminOrEmployeeOnly();
 
         $product->load(['category', 'brand']);
 
@@ -366,7 +378,7 @@ class ProductController extends Controller
 
     public function update(Request $request, Product $product)
     {
-        $this->adminOnly();
+        $this->adminOrEmployeeOnly();
 
         $request->validate([
             'category_id'       => ['required', 'integer', 'exists:categories,id'],
@@ -592,7 +604,7 @@ class ProductController extends Controller
 
     public function deleteMedia($id)
     {
-        $this->adminOnly();
+        $this->adminOrEmployeeOnly();
 
         $media = Media::findOrFail($id);
 

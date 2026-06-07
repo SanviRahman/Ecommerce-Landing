@@ -146,7 +146,7 @@
                                         <i class="fas fa-skull-crossbones"></i>
                                     </button>
                                 @else
-                                    <span class="btn btn-sm btn-white text-muted disabled" title="View Only">
+                                    <span class="btn btn-sm btn-white text-muted disabled" title="No trash permission">
                                         <i class="fas fa-lock"></i>
                                     </span>
                                 @endif
@@ -158,15 +158,18 @@
                                     <i class="fas fa-eye"></i>
                                 </a>
 
-                                {{-- Only Admin can edit/delete --}}
-                                @if(auth()->user()->isAdmin())
+                                {{-- Admin + Employee both can edit product --}}
+                                @if(auth()->user()->isAdmin() || auth()->user()->isEmployee())
                                     <button type="button"
                                             class="btn btn-sm btn-white text-primary btnEdit"
                                             data-url="{{ route('admin.products.edit', $product->id) }}"
                                             title="Edit">
                                         <i class="fas fa-edit"></i>
                                     </button>
+                                @endif
 
+                                {{-- Only Admin can delete product --}}
+                                @if(auth()->user()->isAdmin())
                                     <button type="button"
                                             class="btn btn-sm btn-white text-danger btnDelete"
                                             data-url="{{ route('admin.products.destroy', $product->id) }}"

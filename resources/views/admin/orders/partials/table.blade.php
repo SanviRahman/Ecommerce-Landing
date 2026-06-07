@@ -1,8 +1,12 @@
+@php
+    $canBulkManageOrders = auth()->check() && (auth()->user()->isAdmin() || auth()->user()->isEmployee());
+    $canDeleteOrders = auth()->check() && auth()->user()->isAdmin();
+@endphp
 <div class="table-responsive">
     <table class="table table-hover align-middle mb-0 order-index-table">
         <thead class="bg-light small text-uppercase font-weight-bold text-muted">
             <tr>
-                @if(auth()->user()->isAdmin())
+                @if($canBulkManageOrders)
                     <th width="40" class="text-center px-4">
                         <input type="checkbox" id="check_all" class="shadow-none cursor-pointer">
                     </th>
@@ -32,7 +36,7 @@
                 @endphp
 
                 <tr class="{{ !empty($isTrash) ? 'bg-light-red' : '' }}">
-                    @if(auth()->user()->isAdmin())
+                    @if($canBulkManageOrders)
                         <td class="text-center px-4">
                             <input type="checkbox" class="row-checkbox shadow-none cursor-pointer" value="{{ $order->id }}">
                         </td>
@@ -226,7 +230,7 @@
 
                     {{-- Admin Note --}}
                     <td style="min-width: 240px;">
-                        @if(auth()->user()->isAdmin() && empty($isTrash))
+                        @if($canBulkManageOrders && empty($isTrash))
                             <textarea class="form-control form-control-sm admin-note-input"
                                       rows="2"
                                       data-url="{{ route('admin.orders.update_admin_note', $order->id) }}"
@@ -246,7 +250,7 @@
                     <td class="text-center">
                         <div class="btn-group shadow-sm rounded border bg-white overflow-hidden">
                             @if(!empty($isTrash))
-                                @if(auth()->user()->isAdmin())
+                                @if($canDeleteOrders)
                                     <button type="button" class="btn btn-sm btn-white text-success btnRestore"
                                             data-url="{{ route('admin.orders.restore', $order->id) }}" title="Restore">
                                         <i class="fas fa-trash-restore"></i>
@@ -257,7 +261,7 @@
                                     <i class="fas fa-eye"></i>
                                 </a>
 
-                                @if(auth()->user()->isAdmin())
+                                @if($canBulkManageOrders)
                                     <a href="{{ route('admin.orders.edit', $order->id) }}" class="btn btn-sm btn-white text-primary" title="Edit Order">
                                         <i class="fas fa-edit"></i>
                                     </a>
@@ -269,7 +273,7 @@
 
                                 {{-- PDF download option removed from index action column as requested --}}
 
-                                @if(auth()->user()->isAdmin() && $order->courier_service === 'steadfast')
+                                @if($canBulkManageOrders && $order->courier_service === 'steadfast')
                                     @if(empty($order->steadfast_consignment_id))
                                         <button type="button" class="btn btn-sm btn-white text-primary btnSendSteadfast"
                                                 data-url="{{ route('admin.orders.send_steadfast', $order->id) }}" title="Send to SteadFast">
@@ -283,14 +287,14 @@
                                     @endif
                                 @endif
 
-                                @if(auth()->user()->isAdmin() && $order->courier_service === 'pathao')
+                                @if($canBulkManageOrders && $order->courier_service === 'pathao')
                                     <button type="button" class="btn btn-sm btn-white text-success btnSendPathao"
                                             data-url="{{ route('admin.orders.send_pathao', $order->id) }}" title="Send to Pathao">
                                         <i class="fas fa-shipping-fast"></i>
                                     </button>
                                 @endif
 
-                                @if(auth()->user()->isAdmin())
+                                @if($canDeleteOrders)
                                     <button type="button" class="btn btn-sm btn-white text-danger btnDelete"
                                             data-url="{{ route('admin.orders.destroy', $order->id) }}" title="Move to Trash">
                                         <i class="fas fa-trash-alt"></i>
@@ -329,7 +333,7 @@
                 </tr>
             @empty
                 <tr>
-                    <td colspan="{{ auth()->user()->isAdmin() ? 12 : 11 }}" class="text-center text-muted py-5">
+                    <td colspan="{{ $canBulkManageOrders ? 12 : 11 }}" class="text-center text-muted py-5">
                         <i class="fas fa-inbox fa-2x mb-2"></i>
                         <div>No orders found.</div>
                     </td>

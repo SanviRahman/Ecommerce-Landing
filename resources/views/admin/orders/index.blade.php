@@ -33,6 +33,8 @@
     $currentStatusView = $currentStatusView ?? 'new';
     $currentFieldId = $currentOrderField->id ?? null;
     $isInvoiceView = in_array($currentStatusView, ['pending-invoice', 'complete-invoice'], true);
+    $canBulkManageOrders = auth()->check() && (auth()->user()->isAdmin() || auth()->user()->isEmployee());
+    $canDeleteOrders = auth()->check() && auth()->user()->isAdmin();
 @endphp
 
 {{-- Top Small Stats --}}
@@ -321,7 +323,7 @@
         </form>
 
         {{-- Bulk Action Bar --}}
-        @if(auth()->user()->isAdmin())
+        @if($canBulkManageOrders)
             <div class="px-4 py-2 bg-light border-top border-bottom">
                 <div class="d-flex align-items-center justify-content-between flex-wrap">
                     <div class="d-flex align-items-center flex-wrap">
@@ -405,14 +407,16 @@
                             </div>
                         </div>
 
-                        {{-- Trash page-e selected permanent delete button show hobe na.
-                             Trash permanently clear korar jonno only Empty Trash button thakbe. --}}
-                        <button type="button"
-                                class="btn btn-danger btn-sm mr-2 mb-1"
-                                id="btnDeleteSelected"
-                                style="{{ !empty($isTrash) ? 'display:none;' : '' }}">
-                            <i class="fas fa-trash mr-1"></i> Delete Selected
-                        </button>
+                        @if($canDeleteOrders)
+                            {{-- Trash page-e Permanent Delete Selected button show hobe na.
+                                 Trash permanently clear korar jonno only Empty Trash button thakbe. --}}
+                            <button type="button"
+                                    class="btn btn-danger btn-sm mr-2 mb-1"
+                                    id="btnDeleteSelected"
+                                    style="{{ !empty($isTrash) ? 'display:none;' : '' }}">
+                                <i class="fas fa-trash mr-1"></i> Delete Selected
+                            </button>
+                        @endif
 
                         <div class="dropdown d-inline-block mr-2 mb-1">
                             <button class="btn btn-info btn-sm dropdown-toggle" type="button" id="changeStatusDropdown"
@@ -474,8 +478,9 @@
                             </div>
                         </div>
 
-                        <div class="dropdown d-inline-block mr-2 mb-1">
-                            <button class="btn btn-warning btn-sm dropdown-toggle" type="button" id="syncOrderDropdown" data-toggle="dropdown">
+                        @if($canDeleteOrders)
+                            <div class="dropdown d-inline-block mr-2 mb-1">
+                                <button class="btn btn-warning btn-sm dropdown-toggle" type="button" id="syncOrderDropdown" data-toggle="dropdown">
                                 <i class="fas fa-sync-alt mr-1"></i> Sync Order
                             </button>
                             <div class="dropdown-menu" aria-labelledby="syncOrderDropdown">
@@ -491,8 +496,9 @@
                                 <a class="dropdown-item bulk-assign-employee-action text-danger" href="#" data-employee-id="" data-name="Unassigned">
                                     <i class="fas fa-user-times mr-1"></i> Remove Employee
                                 </a>
+                                </div>
                             </div>
-                        </div>
+                        @endif
 
                         <div class="dropdown d-inline-block mr-2 mb-1">
                             <button class="btn btn-outline-dark btn-sm dropdown-toggle" type="button" id="selectCourierDropdown"
@@ -520,20 +526,22 @@
                             </div>
                         </div>
 
-                        <button class="btn btn-outline-danger btn-sm mr-2 mb-1 shadow-none" id="btnToggleTrash" type="button">
-                            @if(!empty($isTrash))
-                                <i class="fas fa-list mr-1"></i> Active List
-                            @else
-                                <i class="fas fa-trash-alt mr-1"></i> Trash Bin
-                            @endif
-                        </button>
+                        @if($canDeleteOrders)
+                            <button class="btn btn-outline-danger btn-sm mr-2 mb-1 shadow-none" id="btnToggleTrash" type="button">
+                                @if(!empty($isTrash))
+                                    <i class="fas fa-list mr-1"></i> Active List
+                                @else
+                                    <i class="fas fa-trash-alt mr-1"></i> Trash Bin
+                                @endif
+                            </button>
 
-                        <button class="btn btn-danger btn-sm mr-2 mb-1 shadow-none"
-                                id="btnEmptyTrash"
-                                type="button"
-                                style="{{ !empty($isTrash) ? '' : 'display:none;' }}">
-                            <i class="fas fa-broom mr-1"></i> Empty Trash
-                        </button>
+                            <button class="btn btn-danger btn-sm mr-2 mb-1 shadow-none"
+                                    id="btnEmptyTrash"
+                                    type="button"
+                                    style="{{ !empty($isTrash) ? '' : 'display:none;' }}">
+                                <i class="fas fa-broom mr-1"></i> Empty Trash
+                            </button>
+                        @endif
                     </div>
                 </div>
             </div>
@@ -668,6 +676,8 @@
 <script>
 $(document).ready(function() {
     const csrfToken = '{{ csrf_token() }}';
+    const isAdminUser = @json(auth()->user()->isAdmin());
+    const canDeleteOrders = @json($canDeleteOrders);
     let currentStatusView = '{{ $currentStatusView ?? 'new' }}';
     let currentView = "{{ isset($isTrash) && $isTrash ? 'trash' : 'active' }}";
     let currentBaseUrl = "{{ isset($isTrash) && $isTrash ? route('admin.orders.index') : url()->current() }}";
@@ -805,7 +815,7 @@ $(document).ready(function() {
             if (currentView === 'trash') {
                 showToast('info', maxSelect + ' trash orders selected. Permanent delete selected button removed; use Empty Trash if needed.');
             } else {
-                showToast('success', maxSelect + ' orders selected. Now click Delete Selected if you want to delete them.');
+                showToast('success', maxSelect + ' orders selected. Now choose Print / Export / Send Courier / Change Status / Select Courier.');
             }
         }
     }
@@ -817,7 +827,9 @@ $(document).ready(function() {
                 .html('<i class="fas fa-list mr-1"></i> Active List')
                 .removeClass('btn-outline-danger')
                 .addClass('btn-outline-primary');
-            $('#btnEmptyTrash').show();
+            if (canDeleteOrders) {
+                $('#btnEmptyTrash').show();
+            }
             $('#btnDeleteSelected').hide();
             $('#sendCourierDropdown, #selectCourierDropdown').prop('disabled', true).addClass('disabled');
             $('.bulk-courier-action, .bulk-assign-courier-action, .bulk-assign-employee-action').addClass('disabled');
@@ -827,12 +839,16 @@ $(document).ready(function() {
                 .html('<i class="fas fa-trash-alt mr-1"></i> Trash Bin')
                 .removeClass('btn-outline-primary')
                 .addClass('btn-outline-danger');
-            $('#btnEmptyTrash').hide();
-            $('#btnDeleteSelected')
-                .show()
-                .html('<i class="fas fa-trash mr-1"></i> Delete Selected')
-                .removeClass('btn-outline-danger')
-                .addClass('btn-danger');
+            if (canDeleteOrders) {
+                $('#btnEmptyTrash').hide();
+                $('#btnDeleteSelected')
+                    .show()
+                    .html('<i class="fas fa-trash mr-1"></i> Delete Selected')
+                    .removeClass('btn-outline-danger')
+                    .addClass('btn-danger');
+            } else {
+                $('#btnDeleteSelected, #btnEmptyTrash').hide();
+            }
             $('#sendCourierDropdown, #selectCourierDropdown').prop('disabled', false).removeClass('disabled');
             $('.bulk-courier-action, .bulk-assign-courier-action, .bulk-assign-employee-action').removeClass('disabled');
         }
@@ -1212,6 +1228,11 @@ $(document).ready(function() {
     });
 
     $('#btnDeleteSelected').on('click', function() {
+        if (!canDeleteOrders) {
+            Swal.fire('Permission denied', 'Employee cannot delete orders.', 'warning');
+            return;
+        }
+
         if (currentView === 'trash') {
             Swal.fire('Notice', 'Trash page থেকে bulk permanent delete বন্ধ করা হয়েছে। Empty Trash button ব্যবহার করুন।', 'info');
             return;
@@ -1266,6 +1287,11 @@ $(document).ready(function() {
 
     $(document).on('click', '.bulk-assign-employee-action', function(e) {
         e.preventDefault();
+
+        if (!isAdminUser) {
+            Swal.fire('Permission denied', 'Only admin can assign employees.', 'warning');
+            return;
+        }
 
         let ids = selectedIds();
         if (!ids.length) {
@@ -1327,6 +1353,11 @@ $(document).ready(function() {
     });
 
     $('#btnEmptyTrash').on('click', function() {
+        if (!canDeleteOrders) {
+            Swal.fire('Permission denied', 'Employee cannot empty trash.', 'warning');
+            return;
+        }
+
         Swal.fire({
             title: 'Empty trash permanently?',
             text: 'All trash orders will be permanently deleted. This action cannot be undone.',
@@ -1362,9 +1393,9 @@ $(document).ready(function() {
 
     $(document).on('blur', '.admin-note-input', function() { saveAdminNote($(this)); });
 
-    $(document).on('click', '.btnDelete, .btnRestore', function() {
+    $(document).on('click', '.btnDelete, .btnRestore, .btnForceDelete', function() {
         let button = $(this);
-        let isDelete = button.hasClass('btnDelete');
+        let isDelete = button.hasClass('btnDelete') || button.hasClass('btnForceDelete');
 
         Swal.fire({
             title: isDelete ? 'Are you sure?' : 'Restore order?',
@@ -1374,7 +1405,7 @@ $(document).ready(function() {
             confirmButtonText: 'Yes, Proceed'
         }).then(function(result) {
             if (!swalConfirmed(result)) return;
-            button.data('method', button.hasClass('btnDelete') ? 'DELETE' : 'POST');
+            button.data('method', button.hasClass('btnDelete') || button.hasClass('btnForceDelete') ? 'DELETE' : 'POST');
             singleAjaxAction(button);
         });
     });

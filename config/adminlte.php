@@ -432,7 +432,7 @@ return [
         ],
 
         [
-            'text'    => 'Invoice',
+            'text'    => 'Invoice Management',
             'url'     => '#',
             'icon'    => 'fas fa-file-invoice',
             'can'     => 'admin-or-employee',

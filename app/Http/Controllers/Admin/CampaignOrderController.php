@@ -342,4 +342,3 @@ class CampaignOrderController extends Controller
         return $invoiceId;
     }
 }
-
