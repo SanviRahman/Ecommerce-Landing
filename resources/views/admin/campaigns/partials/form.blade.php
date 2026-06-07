@@ -6,9 +6,39 @@
     $brands = $brands ?? collect();
     $products = $products ?? collect();
 
-    $selectedCategories = old('categories', $selectedCategories ?? []);
-    $selectedBrands = old('brands', $selectedBrands ?? []);
-    $selectedProducts = old('products', $selectedProducts ?? []);
+    $normalizeSelectedIds = function ($items) {
+        return collect(is_array($items) ? $items : [$items])
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn ($id) => $id > 0)
+            ->unique()
+            ->values()
+            ->toArray();
+    };
+
+    $selectedCategories = $normalizeSelectedIds(old('categories', $selectedCategories ?? []));
+    $selectedBrands = $normalizeSelectedIds(old('brands', $selectedBrands ?? []));
+    $selectedProducts = $normalizeSelectedIds(old('products', $selectedProducts ?? []));
+
+    $orderItemsBySelectedIds = function ($items, array $selectedIds) {
+        $items = collect($items);
+        $selectedIdMap = collect($selectedIds)->flip();
+
+        $selectedItems = collect($selectedIds)
+            ->map(fn ($id) => $items->firstWhere('id', $id))
+            ->filter();
+
+        $remainingItems = $items
+            ->reject(fn ($item) => $selectedIdMap->has((int) $item->id));
+
+        return $selectedItems
+            ->merge($remainingItems)
+            ->unique('id')
+            ->values();
+    };
+
+    $orderedCategories = $orderItemsBySelectedIds($categories, $selectedCategories);
+    $orderedBrands = $orderItemsBySelectedIds($brands, $selectedBrands);
+    $orderedProducts = $orderItemsBySelectedIds($products, $selectedProducts);
 
     $defaultBenefits = [
         'গাছের মাছ',
@@ -659,7 +689,7 @@
                     <select name="categories[]"
                             class="form-control select2-categories @error('categories') is-invalid @enderror"
                             multiple>
-                        @foreach($categories as $category)
+                        @foreach($orderedCategories as $category)
                             <option value="{{ $category->id }}" @selected(in_array($category->id, $selectedCategories))>
                                 {{ $category->name }}
                             </option>
@@ -681,7 +711,7 @@
                     <select name="brands[]"
                             class="form-control select2-brands @error('brands') is-invalid @enderror"
                             multiple>
-                        @foreach($brands as $brand)
+                        @foreach($orderedBrands as $brand)
                             <option value="{{ $brand->id }}" @selected(in_array($brand->id, $selectedBrands))>
                                 {{ $brand->name }}
                             </option>
@@ -757,7 +787,7 @@
                         class="form-control select2-products @error('products') is-invalid @enderror"
                         multiple
                         required>
-                    @foreach($products as $product)
+                    @foreach($orderedProducts as $product)
                         <option value="{{ $product->id }}" @selected(in_array($product->id, $selectedProducts))>
                             {{ $product->name }} — ৳{{ number_format($product->new_price ?? 0) }}
                         </option>

@@ -112,13 +112,20 @@
         </div>
 
         <div class="card-body">
-            @include('admin.campaigns.partials.form', [
-                'campaign' => $campaign,
-                'products' => $products,
-                'selectedProducts' => $selectedProducts,
-                'isEdit' => true,
-                'action' => $action,
-            ])
+                     @include('admin.campaigns.partials.form', [
+                    'campaign' => $campaign,
+                    'categories' => $categories,
+                    'brands' => $brands,
+                    'products' => $products,
+                    'selectedCategories' => $selectedCategories,
+                    'selectedBrands' => $selectedBrands,
+                    'selectedProducts' => $selectedProducts,
+                    'campaignFaqs' => $campaignFaqs,
+                    'campaignReviews' => $campaignReviews,
+                    'shippingCharges' => $shippingCharges,
+                    'isEdit' => true,
+                    'action' => $action,
+                ])
         </div>
     </div>
 @stop
@@ -126,41 +133,50 @@
 @section('js')
 <script>
 $(document).ready(function () {
-    $('.select2-categories').select2({
-        placeholder: 'Click here and select categories',
-        allowClear: true,
-        width: '100%',
-        closeOnSelect: false
-    });
+    function initOrderedSelect2(selector, placeholder) {
+        const $select = $(selector);
 
-    $('.select2-brands').select2({
-        placeholder: 'Click here and select brands',
-        allowClear: true,
-        width: '100%',
-        closeOnSelect: false
-    });
+        if (!$select.length) {
+            return;
+        }
 
-    $('.select2-products').select2({
-        placeholder: 'Click here and select products',
-        allowClear: true,
-        width: '100%',
-        closeOnSelect: false
-    });
+        $select.select2({
+            placeholder: placeholder,
+            allowClear: true,
+            width: '100%',
+            closeOnSelect: false
+        });
 
-    function preserveSelect2SelectionOrder(selector) {
-        $(selector).on('select2:select', function (event) {
+        $select.on('select2:select', function (event) {
             const element = event.params.data.element;
-            const $element = $(element);
 
-            $element.detach();
-            $(this).append($element);
-            $(this).trigger('change');
+            if (!element) {
+                return;
+            }
+
+            element.remove();
+            this.appendChild(element);
+
+            $(this).trigger('change.select2');
+        });
+
+        $select.on('select2:unselect', function (event) {
+            const element = event.params.data.element;
+
+            if (!element) {
+                return;
+            }
+
+            element.remove();
+            this.appendChild(element);
+
+            $(this).trigger('change.select2');
         });
     }
 
-    preserveSelect2SelectionOrder('.select2-categories');
-    preserveSelect2SelectionOrder('.select2-brands');
-    preserveSelect2SelectionOrder('.select2-products');
+    initOrderedSelect2('.select2-categories', 'Click here and select categories');
+    initOrderedSelect2('.select2-brands', 'Click here and select brands');
+    initOrderedSelect2('.select2-products', 'Click here and select products');
 });
 </script>
 @stop

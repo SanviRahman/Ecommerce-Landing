@@ -1,3 +1,7 @@
+@php
+    $isTrash = $isTrash ?? false;
+@endphp
+
 <div class="table-responsive">
     <table class="table table-hover mb-0">
         <thead class="thead-light">
