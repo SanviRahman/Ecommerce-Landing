@@ -16,6 +16,16 @@ use Illuminate\Support\Str;
 
 class CampaignOrderController extends Controller
 {
+    /**
+     * Keep customer phone as exactly 11 local digits.
+     * Example accepted format: 01XXXXXXXXX.
+     * Country prefix like +88/88 is intentionally rejected by local BD phone validation.
+     */
+    private function normalizeCustomerPhone(?string $phone): string
+    {
+        return preg_replace('/\D+/', '', (string) $phone) ?: '';
+    }
+
     private function normalizeProductImagePath(?string $value): ?string
     {
         if (! $value) {
@@ -145,9 +155,13 @@ class CampaignOrderController extends Controller
     {
         abort_if(! $campaign->status, 404);
 
+        $request->merge([
+            'phone' => $this->normalizeCustomerPhone($request->input('phone')),
+        ]);
+
         $request->validate([
             'customer_name'       => ['required', 'string', 'max:255'],
-            'phone'               => ['required', 'string', 'max:20'],
+            'phone'               => ['required', 'string', 'regex:/^01[0-9]{9}$/'],
             'address'             => ['required', 'string'],
             'delivery_area'       => ['required', 'string', 'max:255'],
             'customer_note'       => ['nullable', 'string', 'max:1000'],
@@ -342,3 +356,4 @@ class CampaignOrderController extends Controller
         return $invoiceId;
     }
 }
+

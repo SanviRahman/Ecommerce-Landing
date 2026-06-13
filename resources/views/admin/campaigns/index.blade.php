@@ -304,6 +304,60 @@ $(document).ready(function() {
         });
     });
 
+
+    $(document).on('change', '.btnSetDefaultCampaign', function() {
+        let $toggle = $(this);
+        let url = $toggle.data('url');
+        let wasDefault = parseInt($toggle.data('default'), 10) === 1;
+        let makeDefault = $toggle.prop('checked');
+
+        Swal.fire({
+            title: makeDefault ? 'Set as default campaign?' : 'Turn off default campaign?',
+            text: makeDefault
+                ? 'Only one campaign can be default at a time. Previous default will be removed.'
+                : 'This campaign will no longer be default. No campaign may remain default until you select another one.',
+            icon: makeDefault ? 'question' : 'warning',
+            type: makeDefault ? 'question' : 'warning',
+            showCancelButton: true,
+            confirmButtonText: makeDefault ? 'Yes, Set Default' : 'Yes, Turn Off',
+            confirmButtonColor: makeDefault ? '#007bff' : '#dc3545'
+        }).then((result) => {
+            if (result.isConfirmed || result.value) {
+                $toggle.prop('disabled', true);
+
+                $.ajax({
+                    url: url,
+                    type: 'PATCH',
+                    data: {
+                        _token: '{{ csrf_token() }}',
+                        is_default: makeDefault ? 1 : 0
+                    },
+                    success: function(res) {
+                        if (res.status) {
+                            reloadTable();
+                            showToast('success', res.message);
+                        } else {
+                            $toggle.prop('checked', wasDefault).prop('disabled', false);
+                            showToast('error', res.message || 'Default campaign update failed.');
+                        }
+                    },
+                    error: function(xhr) {
+                        let message = 'Default campaign update failed.';
+
+                        if (xhr.responseJSON && xhr.responseJSON.message) {
+                            message = xhr.responseJSON.message;
+                        }
+
+                        $toggle.prop('checked', wasDefault).prop('disabled', false);
+                        Swal.fire('Error', message, 'error');
+                    }
+                });
+            } else {
+                $toggle.prop('checked', wasDefault);
+            }
+        });
+    });
+
     $('#btnApplyBulk').on('click', function() {
         let action = $('#bulk_action').val();
         let ids = $('.row-checkbox:checked').map(function() {
@@ -380,6 +434,23 @@ $(document).ready(function() {
 
 .swal2-container {
     z-index: 999999 !important;
+}
+
+.campaign-default-switch .custom-control-label {
+    cursor: pointer;
+    color: #6b7280;
+    font-size: 12px;
+    line-height: 1.7;
+}
+
+.campaign-default-switch .custom-control-input:checked~.custom-control-label {
+    color: #28a745;
+    font-weight: 700;
+}
+
+.campaign-default-switch .custom-control-input:disabled~.custom-control-label {
+    cursor: not-allowed;
+    opacity: 0.7;
 }
 </style>
 @endsection

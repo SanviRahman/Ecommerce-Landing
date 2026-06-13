@@ -1,6 +1,8 @@
 @php
     $canBulkManageOrders = auth()->check() && (auth()->user()->isAdmin() || auth()->user()->isEmployee());
     $canDeleteOrders = auth()->check() && auth()->user()->isAdmin();
+    $orderStatuses = $orderStatuses ?? [];
+    $duplicatePhoneCounts = $duplicatePhoneCounts ?? [];
 @endphp
 <div class="table-responsive">
     <table class="table table-hover align-middle mb-0 order-index-table">
@@ -33,9 +35,11 @@
                     $orderCreatedAt = method_exists($order, 'localDateTime')
                         ? $order->localDateTime('created_at')
                         : ($order->created_at ? $order->created_at->copy()->timezone('Asia/Dhaka') : null);
+                    $duplicatePhoneTotal = (int) ($duplicatePhoneCounts[$order->phone] ?? 0);
+                    $rowClasses = trim((!empty($isTrash) ? 'bg-light-red ' : '') . ($duplicatePhoneTotal > 1 ? 'order-duplicate-phone-row' : ''));
                 @endphp
 
-                <tr class="{{ !empty($isTrash) ? 'bg-light-red' : '' }}">
+                <tr class="{{ $rowClasses }}" @if($duplicatePhoneTotal > 1) title="Same phone number has {{ $duplicatePhoneTotal }} orders" @endif>
                     @if($canBulkManageOrders)
                         <td class="text-center px-4">
                             <input type="checkbox" class="row-checkbox shadow-none cursor-pointer" value="{{ $order->id }}">
@@ -62,7 +66,7 @@
                         @endif
 
                         <div class="small text-muted mt-1">
-                            Source:
+Source:
                             <span title="{{ $order->source_url }}">
                                 {{ $order->source_url ? \Illuminate\Support\Str::limit($order->source_url, 28) : '-' }}
                             </span>
@@ -84,7 +88,9 @@
                     {{-- Customer --}}
                     <td>
                         <div class="font-weight-bold">{{ $order->customer_name }}</div>
-                        <div class="small">{{ $order->phone }}</div>
+                        <div class="small">
+                            {{ $order->phone }}
+                        </div>
 
                         <div class="small text-muted" title="{{ $order->address }}">
                             {{ \Illuminate\Support\Str::limit($order->address, 35) }}
@@ -198,27 +204,39 @@
                     </td>
 
                     {{-- Status --}}
-                    <td>
-                        @if($order->order_status === 'pending')
-                            <span class="badge badge-warning">Pending</span>
-                        @elseif($order->order_status === 'confirmed')
-                            <span class="badge badge-primary">Confirmed</span>
-                        @elseif($order->order_status === 'processing')
-                            <span class="badge badge-primary order-processing-badge">Processing</span>
-                        @elseif($order->order_status === 'shipped')
-                            <span class="badge badge-info">Shipped</span>
-                        @elseif($order->order_status === 'delivered')
-                            <span class="badge badge-success">Delivered</span>
-                        @elseif($order->order_status === 'cancelled')
-                            <span class="badge badge-danger">Cancelled</span>
-                        @elseif($order->order_status === 'fake')
-                            <span class="badge badge-dark">Fake</span>
-                        @elseif($order->order_status === 'stock_out')
-                            <span class="badge badge-secondary">Stock Out</span>
+                    <td style="min-width: 145px;">
+                        @if($canBulkManageOrders && empty($isTrash))
+                            <select class="form-control form-control-sm order-status-inline-select order-status-select-{{ $order->order_status }}"
+                                    data-url="{{ route('admin.orders.update_status', $order->id) }}"
+                                    data-original="{{ $order->order_status }}">
+                                @foreach($orderStatuses as $status)
+                                    <option value="{{ $status }}" @selected($order->order_status === $status)>
+                                        {{ ucwords(str_replace('_', ' ', $status)) }}
+                                    </option>
+                                @endforeach
+                            </select>
                         @else
-                            <span class="badge badge-light border">
-                                {{ ucfirst(str_replace('_', ' ', $order->order_status)) }}
-                            </span>
+                            @if($order->order_status === 'pending')
+                                <span class="badge badge-warning">Pending</span>
+                            @elseif($order->order_status === 'confirmed')
+                                <span class="badge badge-primary">Confirmed</span>
+                            @elseif($order->order_status === 'processing')
+                                <span class="badge badge-primary order-processing-badge">Processing</span>
+                            @elseif($order->order_status === 'shipped')
+                                <span class="badge badge-info">Shipped</span>
+                            @elseif($order->order_status === 'delivered')
+                                <span class="badge badge-success">Delivered</span>
+                            @elseif($order->order_status === 'cancelled')
+                                <span class="badge badge-danger">Cancelled</span>
+                            @elseif($order->order_status === 'fake')
+                                <span class="badge badge-dark">Fake</span>
+                            @elseif($order->order_status === 'stock_out')
+                                <span class="badge badge-secondary">Stock Out</span>
+                            @else
+                                <span class="badge badge-light border">
+                                    {{ ucfirst(str_replace('_', ' ', $order->order_status)) }}
+                                </span>
+                            @endif
                         @endif
 
                         @if($order->is_fake)
@@ -229,14 +247,14 @@
                     </td>
 
                     {{-- Admin Note --}}
-                    <td style="min-width: 240px;">
+                    <td style="width: 130px; min-width: 130px; max-width: 130px;">
                         @if($canBulkManageOrders && empty($isTrash))
-                            <textarea class="form-control form-control-sm admin-note-input"
-                                      rows="2"
+                            <textarea class="form-control form-control-sm admin-note-input admin-note-input-compact"
+                                      rows="1"
                                       data-url="{{ route('admin.orders.update_admin_note', $order->id) }}"
                                       data-order-id="{{ $order->id }}"
                                       data-original="{{ e($order->admin_note ?? '') }}"
-                                      placeholder="Write admin note...">{{ $order->admin_note }}</textarea>
+                                      placeholder="Note...">{{ $order->admin_note }}</textarea>
 
                             <div class="admin-note-status small text-muted mt-1" data-order-id="{{ $order->id }}">
                                 Auto save enabled
@@ -262,7 +280,7 @@
                                 </a>
 
                                 @if($canBulkManageOrders)
-                                    <a href="{{ route('admin.orders.edit', $order->id) }}" class="btn btn-sm btn-white text-primary" title="Edit Order">
+                                    <a href="{{ route('admin.orders.edit', $order->id) }}?return_url={{ urlencode(request()->fullUrl()) }}" class="btn btn-sm btn-white text-primary" title="Edit Order">
                                         <i class="fas fa-edit"></i>
                                     </a>
                                 @endif
@@ -359,7 +377,7 @@
 .pagination { margin-bottom: 0; }
 .page-item.active .page-link { background-color: #007bff; border-color: #007bff; }
 .page-link { color: #6c757d; border-radius: 5px !important; margin: 0 2px; }
-.admin-note-input { min-width: 210px; font-size: 12px; resize: vertical; }
+.admin-note-input { width: 120px !important; min-width: 120px !important; max-width: 120px !important; font-size: 12px; resize: vertical; }
 .admin-note-status { font-size: 11px; min-height: 15px; }
 .admin-note-status.saving { color: #2563eb !important; }
 .admin-note-status.saved { color: #16a34a !important; }
@@ -392,4 +410,60 @@
     background: #ec00ff !important;
     color: #ffffff;
 }
+
+.order-duplicate-phone-row > td {
+    background: #fff7ed !important;
+}
+.order-duplicate-phone-row:hover > td {
+    background: #ffedd5 !important;
+}
+.admin-note-input-compact {
+    min-height: 32px !important;
+    height: 32px !important;
+    padding-top: 5px;
+    padding-bottom: 5px;
+    resize: none;
+    overflow: hidden;
+}
+.admin-note-status {
+    min-height: 12px;
+    font-size: 10px;
+    line-height: 1.1;
+    margin-top: 2px !important;
+}
+.order-status-inline-select {
+    min-width: 125px;
+    font-size: 12px;
+    font-weight: 700;
+}
+.order-status-select-processing {
+    color: #ffffff;
+    background-color: #ec00ff;
+}
+.order-status-select-pending {
+    color: #111827;
+    background-color: #fef3c7;
+}
+.order-status-select-confirmed {
+    color: #ffffff;
+    background-color: #2563eb;
+}
+.order-status-select-shipped {
+    color: #ffffff;
+    background-color: #17a2b8;
+}
+.order-status-select-delivered {
+    color: #ffffff;
+    background-color: #28a745;
+}
+.order-status-select-cancelled,
+.order-status-select-fake {
+    color: #ffffff;
+    background-color: #dc3545;
+}
+.order-status-select-stock_out {
+    color: #ffffff;
+    background-color: #6c757d;
+}
+
 </style>

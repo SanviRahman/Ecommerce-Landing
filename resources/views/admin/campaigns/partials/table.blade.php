@@ -19,6 +19,7 @@
                 <th>Landing Page Title</th>
                 <th>Slug</th>
                 <th>Products</th>
+                <th style="width: 120px;">Default</th>
                 <th style="width: 110px;">Status</th>
                 <th style="width: 230px;">Action</th>
             </tr>
@@ -65,6 +66,21 @@
                         @else
                             <span class="text-muted">No product</span>
                         @endif
+                    </td>
+
+                    <td class="text-center">
+                        <div class="custom-control custom-switch campaign-default-switch d-inline-block">
+                            <input type="checkbox"
+                                   class="custom-control-input btnSetDefaultCampaign"
+                                   id="campaign_default_{{ $campaign->id }}"
+                                   data-url="{{ route('admin.campaigns.set_default', $campaign->id) }}"
+                                   data-default="{{ $campaign->is_default ? 1 : 0 }}"
+                                   @checked($campaign->is_default)
+                                   @disabled($isTrash)>
+                            <label class="custom-control-label" for="campaign_default_{{ $campaign->id }}">
+                                {{ $campaign->is_default ? 'Default' : 'Set' }}
+                            </label>
+                        </div>
                     </td>
 
                     <td>
@@ -121,7 +137,7 @@
                 </tr>
             @empty
                 <tr>
-                    <td colspan="7" class="text-center text-muted py-4">
+                    <td colspan="8" class="text-center text-muted py-4">
                         No campaigns found.
                     </td>
                 </tr>

@@ -284,9 +284,12 @@ class OrderController extends Controller
             'pending'   => (clone $baseQuery)->where('order_status', Order::STATUS_PENDING)->count(),
             // Complete Orders = confirmed orders. Delivered has separate card/menu.
             'completed' => (clone $baseQuery)->where('order_status', Order::STATUS_CONFIRMED)->count(),
+            'shipped'   => (clone $baseQuery)->where('order_status', Order::STATUS_SHIPPED)->count(),
             'delivered' => (clone $baseQuery)->where('order_status', Order::STATUS_DELIVERED)->count(),
             'cancelled' => (clone $baseQuery)->where('order_status', Order::STATUS_CANCELLED)->count(),
             'stock_out' => (clone $baseQuery)->where('order_status', Order::STATUS_STOCK_OUT)->count(),
+            'order_list_1' => (clone $baseQuery)->where('custom_order_list', Order::CUSTOM_LIST_ONE)->count(),
+            'order_list_2' => (clone $baseQuery)->where('custom_order_list', Order::CUSTOM_LIST_TWO)->count(),
 
             // Invoice Management stats.
             'invoice_pending'  => (clone $baseQuery)
@@ -418,6 +421,68 @@ class OrderController extends Controller
         return $query;
     }
 
+
+    /**
+     * Keep admin/editor inside the application when redirecting back from edit.
+     * This prevents open redirect bugs while preserving sidebar/list context.
+     */
+    private function safeOrderReturnUrl(?string $url = null): string
+    {
+        $fallback = route('admin.orders.index');
+
+        if (! $url) {
+            return $fallback;
+        }
+
+        $url = trim($url);
+
+        if ($url === '') {
+            return $fallback;
+        }
+
+        $baseUrl = request()->getSchemeAndHttpHost();
+
+        if (str_starts_with($url, $baseUrl)) {
+            return $url;
+        }
+
+        if (str_starts_with($url, '/')) {
+            return $baseUrl . $url;
+        }
+
+        return $fallback;
+    }
+
+    /**
+     * Find duplicate phone numbers for the currently visible page only,
+     * but count them against the full accessible order list.
+     */
+    private function duplicatePhoneCountsForOrders($orders, bool $trash = false): array
+    {
+        $phones = $orders->getCollection()
+            ->pluck('phone')
+            ->map(fn ($phone) => trim((string) $phone))
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($phones->isEmpty()) {
+            return [];
+        }
+
+        $query = $trash ? Order::onlyTrashed() : Order::query();
+
+        return $query
+            ->forLoggedInUser()
+            ->whereIn('phone', $phones)
+            ->select('phone', DB::raw('COUNT(*) as total'))
+            ->groupBy('phone')
+            ->havingRaw('COUNT(*) > 1')
+            ->pluck('total', 'phone')
+            ->map(fn ($count) => (int) $count)
+            ->toArray();
+    }
+
     private function listResponse(
         Request $request,
         Builder $query,
@@ -435,6 +500,7 @@ class OrderController extends Controller
         }
 
         $orders = $query->paginate($perPage)->withQueryString();
+        $duplicatePhoneCounts = $this->duplicatePhoneCountsForOrders($orders, $isTrash);
 
         $employees = User::query()
             ->where('role', 'employee')
@@ -461,6 +527,8 @@ class OrderController extends Controller
                     'couriers'         => $couriers,
                     'courierServices' => $courierServices,
                     'orderFields'     => $orderFields,
+                    'orderStatuses'   => $orderStatuses,
+                    'duplicatePhoneCounts' => $duplicatePhoneCounts,
                 ])->render(),
             ]);
         }
@@ -477,6 +545,7 @@ class OrderController extends Controller
             'orderStatuses'      => $orderStatuses,
             'paymentStatuses'    => $paymentStatuses,
             'orderFields'        => $orderFields,
+            'duplicatePhoneCounts' => $duplicatePhoneCounts,
             'currentStatusView'  => $currentStatusView,
             'currentOrderField'  => $currentOrderField,
             'isTrash'            => $isTrash,
@@ -1024,7 +1093,7 @@ class OrderController extends Controller
         ]);
     }
 
-    public function edit(Order $order)
+    public function edit(Request $request, Order $order)
     {
         $this->adminOrEmployeeOnly();
         $this->ensureEmployeeOrderAccess($order);
@@ -1041,9 +1110,12 @@ class OrderController extends Controller
                 $product->id => $this->resolveProductImageUrl($product),
             ]);
 
+        $returnUrl = $this->safeOrderReturnUrl($request->query('return_url', url()->previous()));
+
         return view('admin.orders.edit', [
             'title'           => 'Edit Order - ' . $order->invoice_id,
             'order'           => $order,
+            'returnUrl'       => $returnUrl,
             'products'        => $products,
             'productImageMap' => $productImageMap,
             'employees'       => User::query()->where('role', 'employee')->where('is_active', true)->orderBy('name')->get(),
@@ -1053,7 +1125,7 @@ class OrderController extends Controller
             'paymentStatuses' => $this->getPaymentStatuses(),
             'breadcrumb'      => [
                 ['text' => 'Dashboard', 'url' => route('admin.dashboard')],
-                ['text' => 'Orders', 'url' => route('admin.orders.index')],
+                ['text' => 'Orders', 'url' => $returnUrl],
                 ['text' => 'Edit Order', 'url' => route('admin.orders.edit', $order->id)],
             ],
         ]);
@@ -1203,7 +1275,7 @@ class OrderController extends Controller
             $order->update($updateData);
 
             return redirect()
-                ->route('admin.orders.edit', $order->id)
+                ->to($this->safeOrderReturnUrl($request->input('return_url')))
                 ->with('success', 'Order updated successfully.');
         });
     }
@@ -1245,7 +1317,7 @@ class OrderController extends Controller
         $this->ensureEmployeeOrderAccess($order);
 
         $request->validate([
-            'order_status' => ['required', 'string'],
+            'order_status' => ['required', 'string', Rule::in($this->getOrderStatuses())],
             'note'         => ['nullable', 'string', 'max:1000'],
         ]);
 
@@ -2044,7 +2116,10 @@ class OrderController extends Controller
                 'data'    => $data,
             ]);
         } catch (Throwable $e) {
-            return response()->json(['status' => false, 'message' => $e->getMessage()], 422);
+            return response()->json([
+                'status'  => false,
+                'message' => 'Fraud Check Failed. Please try again later.',
+            ], 422);
         }
     }
 

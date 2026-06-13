@@ -15,7 +15,7 @@
         </ol>
     </div>
 
-    <a href="{{ route('admin.orders.index') }}" class="btn btn-secondary">
+    <a href="{{ $returnUrl ?? route('admin.orders.index') }}" class="btn btn-secondary">
         <i class="fas fa-arrow-left mr-1"></i> Back to Orders
     </a>
 </div>
@@ -37,6 +37,7 @@
 <form action="{{ route('admin.orders.update', $order->id) }}" method="POST" id="orderEditForm" enctype="multipart/form-data">
     @csrf
     @method('PUT')
+    <input type="hidden" name="return_url" value="{{ $returnUrl ?? request('return_url') }}">
 
     <div class="row">
         <div class="col-lg-8">

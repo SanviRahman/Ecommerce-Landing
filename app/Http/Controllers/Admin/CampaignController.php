@@ -28,7 +28,9 @@ class CampaignController extends Controller
     {
         $query = $trash ? Campaign::onlyTrashed() : Campaign::query();
 
-        return $query->with(['products', 'categories', 'brands', 'faqs', 'reviews'])->latest();
+        return $query
+            ->with(['products', 'categories', 'brands', 'faqs', 'reviews'])
+            ->orderBy('id', 'asc');
     }
 
     private function activeProducts()
@@ -542,11 +544,40 @@ class CampaignController extends Controller
         });
     }
 
+
+    public function setDefault(Request $request, Campaign $campaign)
+    {
+        $this->adminOnly();
+
+        $validated = $request->validate([
+            'is_default' => ['required', 'boolean'],
+        ]);
+
+        $campaign = Campaign::toggleDefaultCampaign(
+            $campaign->id,
+            (bool) $validated['is_default']
+        );
+
+        return response()->json([
+            'status'     => true,
+            'is_default' => $campaign->is_default,
+            'message'    => $campaign->is_default
+                ? 'Default campaign updated successfully.'
+                : 'Default campaign removed successfully.',
+        ]);
+    }
+
     public function destroy(Campaign $campaign)
     {
         $this->adminOnly();
 
-        $campaign->delete();
+        DB::transaction(function () use ($campaign) {
+            if ($campaign->is_default) {
+                $campaign->forceFill(['is_default' => false])->save();
+            }
+
+            $campaign->delete();
+        });
 
         return response()->json([
             'status'  => true,
@@ -616,7 +647,10 @@ class CampaignController extends Controller
         ]);
 
         if ($request->action === 'delete') {
-            Campaign::whereIn('id', $request->ids)->delete();
+            DB::transaction(function () use ($request) {
+                Campaign::whereIn('id', $request->ids)->update(['is_default' => false]);
+                Campaign::whereIn('id', $request->ids)->delete();
+            });
 
             return response()->json(['status' => true, 'message' => 'Selected campaigns moved to trash.']);
         }

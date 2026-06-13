@@ -332,6 +332,7 @@ Route::middleware(['auth'])->group(function () {
                 Route::post('/restore/{id}', [CampaignController::class, 'restore'])->name('restore');
                 Route::delete('/force-delete/{id}', [CampaignController::class, 'forceDelete'])->name('force_delete');
                 Route::post('/multiple-action', [CampaignController::class, 'multipleAction'])->name('multiple_action');
+                Route::patch('/{campaign}/set-default', [CampaignController::class, 'setDefault'])->name('set_default');
 
                 Route::delete('/media/{id}', [CampaignController::class, 'deleteMedia'])->name('delete_media');
 

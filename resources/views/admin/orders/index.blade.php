@@ -109,6 +109,39 @@
         </div>
 
         <div class="col-xl col-lg-3 col-md-4 col-sm-6 mb-2">
+            <a href="{{ route('admin.orders.shipped') }}"
+               class="order-stat-card text-decoration-none {{ $currentStatusView === 'shipped' ? 'active' : '' }}">
+                <div>
+                    <h4 id="stat_shipped">{{ $stats['shipped'] ?? 0 }}</h4>
+                    <p>Shipped</p>
+                </div>
+                <i class="fas fa-truck-loading"></i>
+            </a>
+        </div>
+
+        <div class="col-xl col-lg-3 col-md-4 col-sm-6 mb-2">
+            <a href="{{ route('admin.orders.order_list_1') }}"
+               class="order-stat-card text-decoration-none {{ $currentStatusView === 'order-list-1' ? 'active' : '' }}">
+                <div>
+                    <h4 id="stat_order_list_1">{{ $stats['order_list_1'] ?? 0 }}</h4>
+                    <p>Order List 1</p>
+                </div>
+                <i class="fas fa-list-ol"></i>
+            </a>
+        </div>
+
+        <div class="col-xl col-lg-3 col-md-4 col-sm-6 mb-2">
+            <a href="{{ route('admin.orders.order_list_2') }}"
+               class="order-stat-card text-decoration-none {{ $currentStatusView === 'order-list-2' ? 'active' : '' }}">
+                <div>
+                    <h4 id="stat_order_list_2">{{ $stats['order_list_2'] ?? 0 }}</h4>
+                    <p>Order List 2</p>
+                </div>
+                <i class="fas fa-list-ol"></i>
+            </a>
+        </div>
+
+        <div class="col-xl col-lg-3 col-md-4 col-sm-6 mb-2">
             <a href="{{ route('admin.orders.cancelled') }}"
                class="order-stat-card text-decoration-none {{ $currentStatusView === 'cancelled' ? 'active' : '' }}">
                 <div>
@@ -554,6 +587,8 @@
                 'couriers' => $couriers ?? collect(),
                 'courierServices' => $courierServices ?? [],
                 'orderFields' => $orderFields ?? collect(),
+                'orderStatuses' => $orderStatuses ?? [],
+                'duplicatePhoneCounts' => $duplicatePhoneCounts ?? [],
             ])
         </div>
     </div>
@@ -607,37 +642,86 @@
 
 @section('css')
 <style>
+/*
+|--------------------------------------------------------------------------
+| Equal Size Order Stats Cards
+|--------------------------------------------------------------------------
+| Bootstrap auto columns can look uneven when label text wraps differently.
+| This grid keeps every card same width + same height without changing the UI.
+*/
+#orderStatsCards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 12px;
+    margin-left: 0;
+    margin-right: 0;
+}
+
+#orderStatsCards > [class*="col-"] {
+    width: auto;
+    max-width: none;
+    flex: none;
+    padding-left: 0;
+    padding-right: 0;
+    margin-bottom: 0 !important;
+    display: flex;
+}
+
 .order-stat-card {
+    width: 100%;
+    height: 82px;
     min-height: 82px;
+    max-height: 82px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     background: #ffffff;
     border: 1px solid #e9eef5;
     border-radius: 12px;
-    padding: 15px 20px;
+    padding: 12px 14px;
     box-shadow: 0 2px 10px rgba(15, 23, 42, .05);
     color: #111827;
     transition: .2s ease;
+    overflow: hidden;
+    box-sizing: border-box;
+}
+
+.order-stat-card > div {
+    min-width: 0;
+    flex: 1 1 auto;
 }
 
 .order-stat-card h4 {
-    font-size: 24px;
+    font-size: 22px;
     font-weight: 800;
     margin: 0;
     line-height: 1;
 }
 
 .order-stat-card p {
-    margin: 6px 0 0;
+    min-height: 30px;
+    margin: 5px 0 0;
+    font-size: 13px;
+    line-height: 1.15;
     font-weight: 700;
     color: #111827;
+    display: flex;
+    align-items: center;
 }
 
 .order-stat-card i {
+    flex: 0 0 30px;
+    width: 30px;
+    text-align: right;
     color: #3b82f6;
-    font-size: 30px;
+    font-size: 28px;
     opacity: .85;
+}
+
+@media (max-width: 575.98px) {
+    #orderStatsCards {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
 }
 
 .order-stat-card:hover,
@@ -773,9 +857,12 @@ $(document).ready(function() {
         $('#stat_new').text(stats.new ?? 0);
         $('#stat_pending').text(stats.pending ?? 0);
         $('#stat_completed').text(stats.completed ?? 0);
+        $('#stat_shipped').text(stats.shipped ?? 0);
         $('#stat_cancelled').text(stats.cancelled ?? 0);
         $('#stat_delivered').text(stats.delivered ?? 0);
         $('#stat_stock_out').text(stats.stock_out ?? 0);
+        $('#stat_order_list_1').text(stats.order_list_1 ?? 0);
+        $('#stat_order_list_2').text(stats.order_list_2 ?? 0);
         $('#stat_invoice_pending').text(stats.invoice_pending ?? 0);
         $('#stat_invoice_complete').text(stats.invoice_complete ?? 0);
 
@@ -974,14 +1061,37 @@ $(document).ready(function() {
         let couriers = data.couriers || [];
         let rows = '';
 
+        function resolveCancelCount(item) {
+            let total = Number(item.total || 0);
+            let success = Number(item.success || 0);
+            let explicitCancel = item.cancel ?? item.cancelled ?? item.canceled ?? item.return ?? item.returned ?? item.failed;
+            let cancel = Number(explicitCancel || 0);
+
+            if (total > 0 && success >= 0 && success < total && (!explicitCancel || cancel === 0)) {
+                cancel = Math.max(cancel, total - success);
+            }
+
+            return cancel;
+        }
+
+        let topTotal = Number(data.total || 0);
+        let topSuccess = Number(data.success || 0);
+        let topCancel = Number(data.cancel || data.cancelled || data.canceled || data.return || data.returned || data.failed || 0);
+
+        if (topTotal > 0 && topSuccess >= 0 && topSuccess < topTotal && topCancel === 0) {
+            topCancel = Math.max(topCancel, topTotal - topSuccess);
+        }
+
         if (couriers.length) {
             couriers.forEach(function(item) {
+                const cancelCount = resolveCancelCount(item);
+
                 rows += `
                     <tr>
                         <td class="text-left font-weight-bold">${htmlEscape(item.courier || '-')}</td>
                         <td>${numberText(item.total)}</td>
                         <td class="text-success font-weight-bold">${numberText(item.success)}</td>
-                        <td class="text-danger font-weight-bold">${numberText(item.cancel)}</td>
+                        <td class="text-danger font-weight-bold">${numberText(cancelCount)}</td>
                         <td>${htmlEscape(item.success_ratio || 0)}%</td>
                     </tr>`;
             });
@@ -997,9 +1107,9 @@ $(document).ready(function() {
                     <strong>Phone:</strong> ${htmlEscape(data.phone || order.phone || '-')}
                 </div>
                 <div class="row text-center mb-3">
-                    <div class="col-3"><div class="border rounded p-2"><small>Total</small><div class="h5 mb-0">${numberText(data.total)}</div></div></div>
-                    <div class="col-3"><div class="border rounded p-2"><small>Success</small><div class="h5 mb-0 text-success">${numberText(data.success)}</div></div></div>
-                    <div class="col-3"><div class="border rounded p-2"><small>Cancel</small><div class="h5 mb-0 text-danger">${numberText(data.cancel)}</div></div></div>
+                    <div class="col-3"><div class="border rounded p-2"><small>Total</small><div class="h5 mb-0">${numberText(topTotal)}</div></div></div>
+                    <div class="col-3"><div class="border rounded p-2"><small>Success</small><div class="h5 mb-0 text-success">${numberText(topSuccess)}</div></div></div>
+                    <div class="col-3"><div class="border rounded p-2"><small>Cancel</small><div class="h5 mb-0 text-danger">${numberText(topCancel)}</div></div></div>
                     <div class="col-3"><div class="border rounded p-2"><small>Success</small><div class="h5 mb-0">${htmlEscape(data.success_ratio || 0)}%</div></div></div>
                 </div>
                 <table class="table table-sm table-bordered mb-0 text-center">
@@ -1383,6 +1493,46 @@ $(document).ready(function() {
         });
     });
 
+
+    $(document).on('change', '.order-status-inline-select', function() {
+        let select = $(this);
+        let url = select.data('url');
+        let oldStatus = select.attr('data-original') || 'processing';
+        let newStatus = select.val();
+
+        if (!url || newStatus === oldStatus) {
+            return;
+        }
+
+        select.prop('disabled', true);
+
+        $.ajax({
+            url: url,
+            type: 'PATCH',
+            data: {
+                _token: csrfToken,
+                order_status: newStatus
+            },
+            success: function(res) {
+                if (res.status) {
+                    select.attr('data-original', newStatus);
+                    showToast('success', res.message || 'Order status updated successfully.');
+                    reloadTable();
+                } else {
+                    select.val(oldStatus);
+                    showToast('error', res.message || 'Status update failed.');
+                }
+            },
+            error: function(xhr) {
+                select.val(oldStatus);
+                showToast('error', xhr.responseJSON?.message || 'Status update failed.');
+            },
+            complete: function() {
+                select.prop('disabled', false);
+            }
+        });
+    });
+
     $(document).on('input', '.admin-note-input', function() {
         let textarea = $(this);
         let orderId = textarea.data('order-id');
@@ -1416,21 +1566,40 @@ $(document).ready(function() {
 
     $(document).on('click', '.btnFraudCheck', function() {
         let button = $(this);
+        let oldHtml = button.html();
+
         $.ajax({
             url: button.data('url'),
             type: 'POST',
-            beforeSend: function() { button.prop('disabled', true); },
+            beforeSend: function() {
+                button.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i>');
+            },
             success: function(res) {
-                button.prop('disabled', false);
+                button.prop('disabled', false).html(oldHtml);
+
                 if (res.status) {
-                    Swal.fire({ title: 'Fraud Check Result', html: renderFraudCheckerHtml(res), width: 850 });
-                } else {
-                    showToast('error', res.message || 'Fraud check failed.');
+                    Swal.fire({
+                        title: 'Fraud Check Result',
+                        html: renderFraudCheckerHtml(res),
+                        width: 850
+                    });
+                    return;
                 }
+
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Fraud Check Failed',
+                    text: res.message || 'Unable to fetch courier fraud data right now. Please try again later.'
+                });
             },
             error: function(xhr) {
-                button.prop('disabled', false);
-                showToast('error', xhr.responseJSON?.message || 'Fraud check failed.');
+                button.prop('disabled', false).html(oldHtml);
+
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Fraud Check Failed',
+                    text: xhr.responseJSON?.message || 'Unable to fetch courier fraud data right now. Please try again later.'
+                });
             }
         });
     });

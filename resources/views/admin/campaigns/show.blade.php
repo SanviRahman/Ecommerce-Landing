@@ -121,6 +121,17 @@
                     </tr>
 
                     <tr>
+                        <th>Default Landing Page</th>
+                        <td>
+                            @if ($campaign->is_default)
+                            <span class="badge badge-success">Yes</span>
+                            @else
+                            <span class="badge badge-secondary">No</span>
+                            @endif
+                        </td>
+                    </tr>
+
+                    <tr>
                         <th>Created At</th>
                         <td>{{ optional($campaign->created_at)->format('d M Y, h:i A') }}</td>
                     </tr>

@@ -96,14 +96,46 @@ class BdCourierFraudCheckerService
     private function formatResponse(string $phone, array $raw): array
     {
         $totalSummary = data_get($raw, 'data.totalSummary')
+            ?? data_get($raw, 'data.total_summary')
             ?? data_get($raw, 'totalSummary')
+            ?? data_get($raw, 'total_summary')
+            ?? data_get($raw, 'summary')
             ?? [];
 
         $couriers = $this->extractCourierRows($raw);
+        $courierCollection = collect($couriers);
 
-        $total = (int) ($totalSummary['total'] ?? collect($couriers)->sum('total'));
-        $success = (int) ($totalSummary['success'] ?? collect($couriers)->sum('success'));
-        $cancel = (int) ($totalSummary['cancel'] ?? collect($couriers)->sum('cancel'));
+        $total = $this->numberFromNullable($totalSummary, [
+            'total',
+            'total_order',
+            'total_orders',
+            'total_parcel',
+            'total_delivery',
+            'total_deliveries',
+        ]) ?? (int) $courierCollection->sum('total');
+
+        $success = $this->numberFromNullable($totalSummary, [
+            'success',
+            'successful',
+            'delivered',
+            'delivery_success',
+            'success_parcel',
+            'success_count',
+            'success_delivery',
+            'delivered_count',
+        ]) ?? (int) $courierCollection->sum('success');
+
+        $explicitCancel = $this->numberFromNullable($totalSummary, $this->cancelKeys());
+        $cancel = $explicitCancel ?? (int) $courierCollection->sum('cancel');
+
+        /*
+         * Some courier APIs return only total + success per courier.
+         * In that case cancel/return count must be calculated as total - success.
+         * Example: Redx total 8, success 7, cancel missing/0 => cancel should be 1.
+         */
+        if ($total > 0 && $success >= 0 && $success < $total && ($explicitCancel === null || $cancel === 0)) {
+            $cancel = max($cancel, $total - $success);
+        }
 
         $successRatio = isset($totalSummary['successRate'])
             ? round((float) $totalSummary['successRate'], 2)
@@ -148,7 +180,7 @@ class BdCourierFraudCheckerService
                 continue;
             }
 
-            if (in_array($key, ['totalSummary', 'summary'], true)) {
+            if (in_array($key, ['totalSummary', 'total_summary', 'summary'], true)) {
                 continue;
             }
 
@@ -172,20 +204,23 @@ class BdCourierFraudCheckerService
                 'delivery_success',
                 'success_parcel',
                 'success_count',
+                'success_delivery',
+                'delivered_count',
             ]);
 
-            $cancel = $this->numberFrom($value, [
-                'cancel',
-                'cancelled',
-                'canceled',
-                'return',
-                'returned',
-                'cancel_count',
-                'return_count',
-            ]);
+            $explicitCancel = $this->numberFromNullable($value, $this->cancelKeys());
+            $cancel = $explicitCancel ?? 0;
 
             if ($total === 0 && ($success > 0 || $cancel > 0)) {
                 $total = $success + $cancel;
+            }
+
+            /*
+             * Some APIs do not send cancel/return count separately.
+             * If total is greater than success, treat the difference as cancel/return.
+             */
+            if ($total > 0 && $success >= 0 && $success < $total && ($explicitCancel === null || $cancel === 0)) {
+                $cancel = max($cancel, $total - $success);
             }
 
             $rows[] = [
@@ -204,15 +239,59 @@ class BdCourierFraudCheckerService
         return $rows;
     }
 
+    private function cancelKeys(): array
+    {
+        return [
+            'cancel',
+            'cancelled',
+            'canceled',
+            'cancelled_count',
+            'canceled_count',
+            'cancel_count',
+            'return',
+            'returned',
+            'return_count',
+            'returned_count',
+            'return_parcel',
+            'returned_parcel',
+            'return_delivery',
+            'returned_delivery',
+            'failed',
+            'failure',
+            'failed_count',
+            'delivery_failed',
+            'delivery_fail',
+        ];
+    }
+
     private function numberFrom(array $data, array $keys): int
     {
+        return $this->numberFromNullable($data, $keys) ?? 0;
+    }
+
+    private function numberFromNullable(array $data, array $keys): ?int
+    {
         foreach ($keys as $key) {
-            if (isset($data[$key]) && is_numeric($data[$key])) {
-                return (int) $data[$key];
+            if (! array_key_exists($key, $data)) {
+                continue;
+            }
+
+            $value = $data[$key];
+
+            if (is_numeric($value)) {
+                return (int) $value;
+            }
+
+            if (is_string($value)) {
+                $normalized = preg_replace('/[^0-9.-]/', '', $value);
+
+                if ($normalized !== '' && is_numeric($normalized)) {
+                    return (int) $normalized;
+                }
             }
         }
 
-        return 0;
+        return null;
     }
 
     private function riskLevel(int $total, float $successRatio, float $cancelRatio): string

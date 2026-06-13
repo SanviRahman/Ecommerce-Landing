@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\DB;
 use Spatie\MediaLibrary\HasMedia;
 use Spatie\MediaLibrary\InteractsWithMedia;
 
@@ -45,6 +46,7 @@ class Campaign extends Model implements HasMedia
         'order_section_status',
 
         'status',
+        'is_default',
         'meta_title',
         'meta_description',
         'hero_whatsapp',
@@ -73,6 +75,7 @@ class Campaign extends Model implements HasMedia
         'order_section_status'      => 'boolean',
 
         'status'                    => 'boolean',
+        'is_default'                => 'boolean',
     ];
 
     public function registerMediaCollections(): void
@@ -175,8 +178,108 @@ class Campaign extends Model implements HasMedia
             ->latest();
     }
 
+
+    /**
+     * Toggle campaign-level default status.
+     *
+     * Business rule:
+     * - When turning ON, this campaign becomes default and all other campaigns
+     *   including soft-deleted ones are cleared.
+     * - When turning OFF, this campaign loses default status and the system may
+     *   temporarily have no default campaign until an admin selects another one.
+     *
+     * The transaction + row lock protects the singleton default rule when two
+     * admins click almost at the same time.
+     */
+    public static function toggleDefaultCampaign(int $campaignId, bool $makeDefault): self
+    {
+        return DB::transaction(function () use ($campaignId, $makeDefault) {
+            $campaign = self::query()
+                ->whereKey($campaignId)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if (! $makeDefault) {
+                if ($campaign->is_default) {
+                    $campaign->forceFill(['is_default' => false])->save();
+                }
+
+                return $campaign->refresh();
+            }
+
+            self::withTrashed()
+                ->where('is_default', true)
+                ->whereKeyNot($campaign->id)
+                ->update(['is_default' => false]);
+
+            if (! $campaign->is_default) {
+                $campaign->forceFill(['is_default' => true])->save();
+            }
+
+            return $campaign->refresh();
+        });
+    }
+
+    /**
+     * Backward-compatible helper for older code that only sets default ON.
+     */
+    public static function setDefaultCampaign(int $campaignId): self
+    {
+        return self::toggleDefaultCampaign($campaignId, true);
+    }
+
     public function scopeActive($query)
     {
         return $query->where('status', true);
+    }
+
+    /**
+     * Scope only campaign-level default landing pages.
+     */
+    public function scopeDefault($query)
+    {
+        return $query->where('is_default', true);
+    }
+
+    /**
+     * Resolve the campaign that should be displayed on the root homepage (/).
+     *
+     * Priority:
+     * 1. Active + campaign-level default campaign
+     * 2. Latest active campaign fallback, so the homepage never breaks if no default is selected
+     *
+     * Usage in public/root controller:
+     * $campaign = Campaign::resolveHomepageCampaign(['products', 'categories', 'brands', 'faqs', 'reviews']);
+     */
+    public static function resolveHomepageCampaign(array $with = []): ?self
+    {
+        $defaultCampaign = self::query()
+            ->active()
+            ->default()
+            ->with($with)
+            ->latest('id')
+            ->first();
+
+        if ($defaultCampaign) {
+            return $defaultCampaign;
+        }
+
+        return self::query()
+            ->active()
+            ->with($with)
+            ->latest('id')
+            ->first();
+    }
+
+    /**
+     * Same as resolveHomepageCampaign(), but aborts when no active campaign exists.
+     */
+    public static function resolveHomepageCampaignOrFail(array $with = []): self
+    {
+        $campaign = self::resolveHomepageCampaign($with);
+
+        abort_if(! $campaign, 404, 'No active default campaign found.');
+
+        return $campaign;
     }
 }

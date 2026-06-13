@@ -2868,13 +2868,13 @@ body {
             @endphp
 
             <div class="faq-item">
-                <button class="faq-button" type="button" data-toggle="collapse" data-target="#faq_{{ $faqId }}"
-                    aria-expanded="{{ $loop->first ? 'true' : 'false' }}">
+                <button class="faq-button collapsed" type="button" data-toggle="collapse" data-target="#faq_{{ $faqId }}"
+                    aria-expanded="false">
                     <span>{{ $question }}</span>
                     <i class="fas fa-chevron-down"></i>
                 </button>
 
-                <div id="faq_{{ $faqId }}" class="collapse {{ $loop->first ? 'show' : '' }}"
+                <div id="faq_{{ $faqId }}" class="collapse"
                     data-parent="#faqAccordion">
                     <div class="faq-body">
                         {!! $answer !!}
@@ -2960,7 +2960,19 @@ body {
 
                         <div class="form-group">
                             <label>মোবাইল নাম্বার</label>
-                            <input type="text" name="phone" value="{{ old('phone') }}" class="form-control" required>
+                            <input type="text"
+                                   name="phone"
+                                   id="customerPhone"
+                                   value="{{ old('phone') }}"
+                                   class="form-control"
+                                   inputmode="numeric"
+                                   autocomplete="tel"
+                                   minlength="11"
+                                   maxlength="11"
+                                   pattern="01[0-9]{9}"
+                                   title="মোবাইল নাম্বার অবশ্যই ১১ ডিজিট হতে হবে এবং 01 দিয়ে শুরু হতে হবে (+88 ছাড়া)"
+                                   placeholder="01XXXXXXXXX"
+                                   required>
                         </div>
 
                         <div class="form-group">
@@ -3523,7 +3535,30 @@ $(document).ready(function() {
         }
     });
 
+    function normalizeCustomerPhone(value) {
+        return String(value || '').replace(/\D/g, '').slice(0, 11);
+    }
+
+    function isValidCustomerPhone(value) {
+        return /^01[0-9]{9}$/.test(String(value || ''));
+    }
+
+    $(document).on('input', '#customerPhone', function() {
+        $(this).val(normalizeCustomerPhone($(this).val()));
+    });
+
     $('#campaignOrderForm').on('submit', function(e) {
+        const customerPhone = normalizeCustomerPhone($('#customerPhone').val());
+
+        $('#customerPhone').val(customerPhone);
+
+        if (!isValidCustomerPhone(customerPhone)) {
+            e.preventDefault();
+            showOrderWarningPopup('মোবাইল নাম্বার অবশ্যই ১১ ডিজিট হতে হবে এবং 01 দিয়ে শুরু হতে হবে (+88 ছাড়া)।');
+            $('#customerPhone').trigger('focus');
+            return false;
+        }
+
         if (!Object.keys(selectedProducts).length) {
             e.preventDefault();
             showOrderWarningPopup('দয়া করে কমপক্ষে একটি product select করুন।');
@@ -3556,3 +3591,4 @@ $(document).ready(function() {
 </script>
 @endpush
 @endif
+

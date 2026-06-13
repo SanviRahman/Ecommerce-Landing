@@ -20,25 +20,29 @@ class HomeController extends Controller
             ->latest()
             ->first();
 
-        $campaign = Campaign::query()
-            ->where('status', true)
-            ->with([
-                'categories' => function ($query) {
-                    $query->where('categories.status', true)
-                        ->orderByPivot('sort_order');
-                },
-                'brands' => function ($query) {
-                    $query->where('brands.status', true)
-                        ->orderByPivot('sort_order');
-                },
-                'products' => function ($query) {
-                    $query->with(['category', 'brand'])
-                        ->where('products.status', true)
-                        ->orderByPivot('sort_order');
-                },
-            ])
-            ->latest()
-            ->first();
+        /**
+         * Homepage campaign resolving rule:
+         * 1. Show the active campaign that is marked as campaign-level default.
+         * 2. If no default campaign is selected, fallback to latest active campaign.
+         *
+         * This fixes the issue where / was showing the first/latest active campaign
+         * instead of the admin-selected default campaign.
+         */
+        $campaign = Campaign::resolveHomepageCampaign([
+            'categories' => function ($query) {
+                $query->where('categories.status', true)
+                    ->orderByPivot('sort_order');
+            },
+            'brands' => function ($query) {
+                $query->where('brands.status', true)
+                    ->orderByPivot('sort_order');
+            },
+            'products' => function ($query) {
+                $query->with(['category', 'brand'])
+                    ->where('products.status', true)
+                    ->orderByPivot('sort_order');
+            },
+        ]);
 
         /*
         |--------------------------------------------------------------------------
@@ -49,24 +53,24 @@ class HomeController extends Controller
         */
         if (! $campaign) {
             return view('frontend.pages.home', [
-                'siteSetting' => $siteSetting,
-                'campaign' => null,
-                'categories' => collect(),
-                'brands' => collect(),
-                'products' => collect(),
-                'orderProducts' => collect(),
-                'reviews' => collect(),
-                'faqs' => collect(),
-                'socialMedias' => collect(),
+                'siteSetting'     => $siteSetting,
+                'campaign'        => null,
+                'categories'      => collect(),
+                'brands'          => collect(),
+                'products'        => collect(),
+                'orderProducts'   => collect(),
+                'reviews'         => collect(),
+                'faqs'            => collect(),
+                'socialMedias'    => collect(),
                 'shippingCharges' => collect(),
                 'courierServices' => config('couriers.list', []),
-                'orderFormToken' => null,
+                'orderFormToken'  => null,
             ]);
         }
 
-        $categories = $campaign->categories->values();
-        $brands = $campaign->brands->values();
-        $products = $this->sortProductsBySelectedCategory($campaign);
+        $categories    = $campaign->categories->values();
+        $brands        = $campaign->brands->values();
+        $products      = $this->sortProductsBySelectedCategory($campaign);
         $orderProducts = $products;
 
         $orderFormToken = $this->makeOrderFormToken();
@@ -74,11 +78,9 @@ class HomeController extends Controller
         $reviews = Review::query()
             ->with('media')
             ->where('status', true)
-            ->when($campaign, function ($query) use ($campaign) {
-                $query->where(function ($q) use ($campaign) {
-                    $q->whereNull('campaign_id')
-                        ->orWhere('campaign_id', $campaign->id);
-                });
+            ->where(function ($query) use ($campaign) {
+                $query->whereNull('campaign_id')
+                    ->orWhere('campaign_id', $campaign->id);
             })
             ->latest()
             ->take(12)
@@ -86,11 +88,9 @@ class HomeController extends Controller
 
         $faqs = Faq::query()
             ->where('status', true)
-            ->when($campaign, function ($query) use ($campaign) {
-                $query->where(function ($q) use ($campaign) {
-                    $q->whereNull('campaign_id')
-                        ->orWhere('campaign_id', $campaign->id);
-                });
+            ->where(function ($query) use ($campaign) {
+                $query->whereNull('campaign_id')
+                    ->orWhere('campaign_id', $campaign->id);
             })
             ->orderBy('sort_order')
             ->latest()
@@ -102,25 +102,24 @@ class HomeController extends Controller
             ->latest()
             ->get();
 
-
         $shippingCharges = ShippingCharge::query()
             ->active()
             ->orderBy('id')
             ->get();
 
         return view('frontend.pages.home', [
-            'siteSetting' => $siteSetting,
-            'campaign' => $campaign,
-            'categories' => $categories,
-            'brands' => $brands,
-            'products' => $products,
-            'orderProducts' => $orderProducts,
-            'reviews' => $reviews,
-            'faqs' => $faqs,
-            'socialMedias' => $socialMedias,
+            'siteSetting'     => $siteSetting,
+            'campaign'        => $campaign,
+            'categories'      => $categories,
+            'brands'          => $brands,
+            'products'        => $products,
+            'orderProducts'   => $orderProducts,
+            'reviews'         => $reviews,
+            'faqs'            => $faqs,
+            'socialMedias'    => $socialMedias,
             'shippingCharges' => $shippingCharges,
             'courierServices' => config('couriers.list', []),
-            'orderFormToken' => $orderFormToken,
+            'orderFormToken'  => $orderFormToken,
         ]);
     }
 
