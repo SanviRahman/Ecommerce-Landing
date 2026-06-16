@@ -229,7 +229,7 @@
         <h3 class="card-title font-weight-bold">
             <i class="fas fa-chart-pie text-info mr-2"></i> Todays Report
         </h3>
-        <small class="d-block text-muted">Daily order, invoice and delivery summary — Today/All Time default uses last 24 hours</small>
+        <small class="d-block text-muted">Daily order, invoice and delivery summary (12:00 AM - 11:59 PM)</small>
     </div>
 
     <div class="card-body">
@@ -270,6 +270,36 @@
                     <div>
                         <strong>Completed Order</strong>
                         <h5 id="today_completedOrder">0</h5>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-3 col-md-6">
+                <div class="today-report-item">
+                    <span class="today-icon bg-info"><i class="fas fa-truck-loading"></i></span>
+                    <div>
+                        <strong>Shipped Orders</strong>
+                        <h5 id="today_shippedOrders">0</h5>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-3 col-md-6">
+                <div class="today-report-item">
+                    <span class="today-icon bg-primary"><i class="fas fa-list-ol"></i></span>
+                    <div>
+                        <strong>Order List 1</strong>
+                        <h5 id="today_orderList1">0</h5>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-3 col-md-6">
+                <div class="today-report-item">
+                    <span class="today-icon bg-success"><i class="fas fa-list-ol"></i></span>
+                    <div>
+                        <strong>Order List 2</strong>
+                        <h5 id="today_orderList2">0</h5>
                     </div>
                 </div>
             </div>
@@ -343,7 +373,7 @@
     <div class="card-header bg-white">
         <h3 class="card-title font-weight-bold">User Order Report</h3>
         <small class="d-block text-muted">
-            Date range will follow the Dashboard Analytics Filters above. Today/All Time default uses last 24 hours.
+            Date range will follow the Dashboard Analytics Filters above. Today/All Time default uses 12:00 AM - 11:59 PM.
         </small>
     </div>
 
@@ -393,7 +423,7 @@ $(function() {
 
         $('#stat_totalOrders, #stat_pendingOrders, #stat_confirmedOrders, #stat_processingOrders, #stat_deliveredOrders, #stat_cancelledOrders, #stat_grossSales, #stat_totalProducts').html(loader);
 
-        $('#today_todaysOrder, #today_pendingOrder, #today_incompletedOrder, #today_completedOrder, #today_incompletedInvoice, #today_completedInvoice, #today_totalCheckout, #today_delivery, #today_cancelled').html(loader);
+        $('#today_todaysOrder, #today_pendingOrder, #today_incompletedOrder, #today_completedOrder, #today_shippedOrders, #today_orderList1, #today_orderList2, #today_incompletedInvoice, #today_completedInvoice, #today_totalCheckout, #today_delivery, #today_cancelled').html(loader);
 
         $('#productSaleReportContainer, #userOrderReportContainer')
             .html('<div class="text-center p-4"><i class="fas fa-spinner fa-spin fa-2x text-primary"></i></div>');
@@ -419,6 +449,9 @@ $(function() {
         $('#today_pendingOrder').text(todayReport.pendingOrder || '0');
         $('#today_incompletedOrder').text(todayReport.incompletedOrder || '0');
         $('#today_completedOrder').text(todayReport.completedOrder || '0');
+        $('#today_shippedOrders').text(todayReport.shippedOrders || '0');
+        $('#today_orderList1').text(todayReport.orderList1 || '0');
+        $('#today_orderList2').text(todayReport.orderList2 || '0');
         $('#today_incompletedInvoice').text(todayReport.incompletedInvoice || '0');
         $('#today_completedInvoice').text(todayReport.completedInvoice || '0');
         $('#today_totalCheckout').text(todayReport.totalCheckout || '0');

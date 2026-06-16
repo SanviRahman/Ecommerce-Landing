@@ -121,9 +121,9 @@ class DashboardController extends Controller
 
     /**
      * Dashboard Report/Todays Report rule:
-     * - All Time/Today view will use rolling last 24 hours for daily report.
-     * - Other date filters will use their selected calendar range.
-     * This makes previous day orders count when their status/invoice action happens today.
+     * - All Time/Today view uses the current calendar day.
+     * - Range is exactly 12:00 AM to 11:59:59 PM in app timezone.
+     * - Other date filters keep their selected calendar range.
      */
     private function reportActivityRange(array $filters, array $dateRange): array
     {
@@ -132,7 +132,7 @@ class DashboardController extends Controller
         if (in_array($dateFilter, ['all', 'today'], true)) {
             $now = now();
 
-            return [$now->copy()->subHours(24), $now];
+            return [$now->copy()->startOfDay(), $now->copy()->endOfDay()];
         }
 
         return $dateRange;
@@ -251,12 +251,18 @@ private function dailyReportStats(array $filters, array $dateRange): array
 
         /*
          * Daily / Today Report rule:
+         * - Today window is 12:00 AM to 11:59:59 PM.
          * - Today's Order / Total Checkout = orders created inside report range.
-         * - Complete, Pending Invoice, Complete Invoice = action based count.
-         *   So previous day's order will count today if it is completed / invoiced today.
+         * - Order List 1/2 = orders moved into custom list inside report range.
+         * - Complete, Shipped, Delivered, Cancelled, Invoice = action based count.
          */
         $createdOrderQuery = $this->filteredOrderQuery($filters, $reportRange, true);
         $actionOrderQuery = $this->filteredOrderQuery($filters, [null, null], false);
+
+        $createdOrMovedOrderQuery = $this->createdOrMovedOrderQuery(
+            clone $actionOrderQuery,
+            $reportRange
+        );
 
         $pendingOrderQuery = $this->statusActionQuery(
             clone $actionOrderQuery,
@@ -270,6 +276,25 @@ private function dailyReportStats(array $filters, array $dateRange): array
             ['confirmed', 'complete', 'completed'],
             $reportRange,
             ['confirmed_at', 'updated_at']
+        );
+
+        $shippedQuery = $this->statusActionQuery(
+            clone $actionOrderQuery,
+            ['shipped'],
+            $reportRange,
+            ['updated_at']
+        );
+
+        $orderListOneQuery = $this->orderListActivityQuery(
+            clone $actionOrderQuery,
+            'order_list_1',
+            $reportRange
+        );
+
+        $orderListTwoQuery = $this->orderListActivityQuery(
+            clone $actionOrderQuery,
+            'order_list_2',
+            $reportRange
         );
 
         $invoiceCompletedQuery = $this->invoicedActionQuery(clone $actionOrderQuery, $reportRange);
@@ -290,7 +315,12 @@ private function dailyReportStats(array $filters, array $dateRange): array
         );
 
         return [
-            'todaysOrder' => number_format((clone $createdOrderQuery)->count()),
+            'todaysOrder' => number_format(
+                (clone $createdOrMovedOrderQuery)
+                    ->select('orders.id')
+                    ->distinct()
+                    ->count('orders.id')
+            ),
             'pendingOrder' => number_format($pendingOrderQuery->count()),
             'incompletedOrder' => number_format(
                 (clone $createdOrderQuery)
@@ -308,12 +338,84 @@ private function dailyReportStats(array $filters, array $dateRange): array
                     ->count()
             ),
             'completedOrder' => number_format($completedQuery->count()),
+            'shippedOrders' => number_format($shippedQuery->count()),
+            'orderList1' => number_format($orderListOneQuery->count()),
+            'orderList2' => number_format($orderListTwoQuery->count()),
             'incompletedInvoice' => number_format($pendingInvoiceQuery->count()),
             'completedInvoice' => number_format($invoiceCompletedQuery->count()),
             'totalCheckout' => number_format((clone $createdOrderQuery)->count()),
             'delivery' => number_format($deliveryQuery->count()),
             'cancelled' => number_format($cancelledQuery->count()),
         ];
+    }
+
+    /**
+     * Today's Order should match Report Management behavior:
+     * created today OR moved into Order List 1/2 today.
+     */
+    private function createdOrMovedOrderQuery(Builder $query, array $dateRange): Builder
+    {
+        $query->where(function (Builder $activityQuery) use ($dateRange) {
+            $activityQuery->where(function (Builder $createdQuery) use ($dateRange) {
+                $this->applyDateRange($createdQuery, $dateRange, 'created_at');
+            });
+
+            if (Schema::hasColumn('orders', 'custom_order_list')) {
+                $activityQuery->orWhere(function (Builder $listQuery) use ($dateRange) {
+                    $listQuery->whereIn('custom_order_list', ['order_list_1', 'order_list_2'])
+                        ->where(function (Builder $movementQuery) use ($dateRange) {
+                            $this->applyOrderListMovementWindow($movementQuery, $dateRange);
+                        });
+                });
+            }
+        });
+
+        return $query;
+    }
+
+    /**
+     * Count Order List 1/2 movement inside current report range.
+     *
+     * custom_order_list_moved_at is the source of truth.
+     * updated_at fallback keeps already moved rows visible if timestamp column
+     * was added after the move happened.
+     */
+    private function orderListActivityQuery(Builder $query, string $listName, array $dateRange): Builder
+    {
+        if (! Schema::hasColumn('orders', 'custom_order_list')) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        $query->where('custom_order_list', $listName)
+            ->where(function (Builder $movementQuery) use ($dateRange) {
+                $this->applyOrderListMovementWindow($movementQuery, $dateRange);
+            });
+
+        return $query;
+    }
+
+    private function applyOrderListMovementWindow(Builder $query, array $dateRange): void
+    {
+        if (Schema::hasColumn('orders', 'custom_order_list_moved_at')) {
+            $query->where(function (Builder $movementQuery) use ($dateRange) {
+                $movementQuery->where(function (Builder $movedAtQuery) use ($dateRange) {
+                    $this->applyDateRange($movedAtQuery, $dateRange, 'custom_order_list_moved_at');
+                });
+
+                if (Schema::hasColumn('orders', 'updated_at')) {
+                    $movementQuery->orWhere(function (Builder $fallbackQuery) use ($dateRange) {
+                        $fallbackQuery->whereNull('custom_order_list_moved_at')
+                            ->where(function (Builder $updatedAtQuery) use ($dateRange) {
+                                $this->applyDateRange($updatedAtQuery, $dateRange, 'updated_at');
+                            });
+                    });
+                }
+            });
+
+            return;
+        }
+
+        $this->applyDateRange($query, $dateRange, 'updated_at');
     }
 
 
@@ -620,6 +722,9 @@ private function productSaleRows(array $filters, array $dateRange): array
             'pendingOrder' => '0',
             'incompletedOrder' => '0',
             'completedOrder' => '0',
+            'shippedOrders' => '0',
+            'orderList1' => '0',
+            'orderList2' => '0',
             'incompletedInvoice' => '0',
             'completedInvoice' => '0',
             'totalCheckout' => '0',

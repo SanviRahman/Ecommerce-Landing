@@ -7,6 +7,32 @@
 @endsection
 
 @section('content')
+@php
+    /*
+     * Courier Type dropdown source:
+     * - Comes from Courier Manage active couriers.
+     * - SteadFast/Pathao are fallback options for backward compatibility.
+     */
+    $courierTypeOptions = collect($courierTypes ?? [])
+        ->mapWithKeys(function ($courier) {
+            $code = strtolower((string) data_get($courier, 'code'));
+            $name = data_get($courier, 'name') ?: ucwords(str_replace('_', ' ', $code));
+
+            return $code ? [$code => $name] : [];
+        })
+        ->toArray();
+
+    $courierTypeOptions = array_merge([
+        'steadfast' => 'SteadFast',
+        'pathao' => 'Pathao',
+    ], $courierTypeOptions);
+
+    $courierDefaultBaseUrls = $courierDefaultBaseUrls ?? [
+        'steadfast' => 'https://portal.packzy.com/api/v1',
+        'pathao' => 'https://api-hermes.pathao.com',
+    ];
+@endphp
+
 @if(session('success'))
     <div class="alert alert-success">{{ session('success') }}</div>
 @endif
@@ -36,7 +62,8 @@
                 SteadFast এর জন্য Base URL:
                 <code>https://portal.packzy.com/api/v1</code>
                 এবং Pathao এর জন্য Base URL:
-                <code>https://api-hermes.pathao.com</code>
+                <code>https://api-hermes.pathao.com</code>.
+                Other courier type হলে manual Base URL/API credential দিন।
             </div>
 
             <div class="row">
@@ -56,8 +83,11 @@
                     <div class="form-group">
                         <label>Courier Type <span class="text-danger">*</span></label>
                         <select name="code" class="form-control courier-code-select" data-base-url-target="#base_url_new" required>
-                            <option value="steadfast" @selected(old('code') === 'steadfast')>SteadFast</option>
-                            <option value="pathao" @selected(old('code') === 'pathao')>Pathao</option>
+                            @foreach($courierTypeOptions as $code => $name)
+                                <option value="{{ $code }}" @selected(old('code', 'steadfast') === $code)>
+                                    {{ $name }}
+                                </option>
+                            @endforeach
                         </select>
                     </div>
                 </div>
@@ -100,23 +130,23 @@
 
                 <div class="col-md-12">
                     <div class="form-group">
-                        <label>Token / Pathao Access Token</label>
+                        <label>Courier Access Token</label>
                         <textarea name="token"
                                   class="form-control"
                                   rows="2"
-                                  placeholder="Pathao access token">{{ old('token') }}</textarea>
+                                  placeholder="Courier access token">{{ old('token') }}</textarea>
                     </div>
                 </div>
 
                 <div class="col-md-12">
                     <h6 class="font-weight-bold text-muted border-bottom pb-2 mt-2">
-                        Pathao Settings
+                        Courier Settings
                     </h6>
                 </div>
 
                 <div class="col-md-3">
                     <div class="form-group">
-                        <label>Pathao Store ID</label>
+                        <label>Courier Store ID</label>
                         <input type="text"
                                name="store_id"
                                class="form-control"
@@ -225,7 +255,7 @@
                     <td>{{ $courier->name }}</td>
                     <td>
                         <span class="badge badge-info">
-                            {{ ucfirst($courier->code) }}
+                            {{ $courierTypeOptions[$courier->code] ?? ucfirst($courier->code) }}
                         </span>
                     </td>
                     <td class="small">{{ $courier->base_url ?: '-' }}</td>
@@ -269,6 +299,14 @@
                             @csrf
                             @method('PUT')
 
+                            @php
+                                $editCourierTypeOptions = $courierTypeOptions;
+
+                                if (! isset($editCourierTypeOptions[$courier->code])) {
+                                    $editCourierTypeOptions[$courier->code] = ucwords(str_replace('_', ' ', $courier->code));
+                                }
+                            @endphp
+
                             <div class="row p-3 bg-light">
                                 <div class="col-md-3">
                                     <div class="form-group">
@@ -288,8 +326,11 @@
                                                 class="form-control courier-code-select"
                                                 data-base-url-target="#base_url_{{ $courier->id }}"
                                                 required>
-                                            <option value="steadfast" @selected(old('code', $courier->code) === 'steadfast')>SteadFast</option>
-                                            <option value="pathao" @selected(old('code', $courier->code) === 'pathao')>Pathao</option>
+                                            @foreach($editCourierTypeOptions as $code => $name)
+                                                <option value="{{ $code }}" @selected(old('code', $courier->code) === $code)>
+                                                    {{ $name }}
+                                                </option>
+                                            @endforeach
                                         </select>
                                     </div>
                                 </div>
@@ -327,20 +368,20 @@
 
                                 <div class="col-md-12">
                                     <div class="form-group">
-                                        <label>Token / Pathao Access Token</label>
+                                        <label>Token / Courier Access Token</label>
                                         <textarea name="token" class="form-control" rows="2">{{ old('token', $courier->token) }}</textarea>
                                     </div>
                                 </div>
 
                                 <div class="col-md-12">
                                     <h6 class="font-weight-bold text-muted border-bottom pb-2 mt-2">
-                                        Pathao Settings
+                                        Courier Settings
                                     </h6>
                                 </div>
 
                                 <div class="col-md-3">
                                     <div class="form-group">
-                                        <label>Pathao Store ID</label>
+                                        <label>Courier Store ID</label>
                                         <input type="text"
                                                name="store_id"
                                                class="form-control"
@@ -444,34 +485,37 @@
 @section('js')
 <script>
 $(document).ready(function () {
+    const courierDefaultBaseUrls = @json($courierDefaultBaseUrls);
+
     function defaultBaseUrl(code) {
-        if (code === 'pathao') {
-            return 'https://api-hermes.pathao.com';
-        }
+        return courierDefaultBaseUrls[code] || '';
+    }
 
-        if (code === 'steadfast') {
-            return 'https://portal.packzy.com/api/v1';
-        }
-
-        return '';
+    function knownDefaultBaseUrls() {
+        return Object.values(courierDefaultBaseUrls).filter(Boolean);
     }
 
     $(document).on('change', '.courier-code-select', function () {
         const code = $(this).val();
         const target = $($(this).data('base-url-target'));
+        const newDefaultUrl = defaultBaseUrl(code);
+        const currentUrl = target.val() || '';
 
-        if (!target.val()) {
-            target.val(defaultBaseUrl(code));
+        if (!target.length) {
             return;
         }
 
-        if (target.val().includes('portal.steadfast.com.bd')) {
-            target.val(defaultBaseUrl(code));
+        if (!currentUrl) {
+            target.val(newDefaultUrl);
             return;
         }
 
-        if (target.val().includes('portal.packzy.com') || target.val().includes('api-hermes.pathao.com')) {
-            target.val(defaultBaseUrl(code));
+        const isKnownDefaultUrl = knownDefaultBaseUrls().some(function (url) {
+            return currentUrl.includes(url);
+        });
+
+        if (isKnownDefaultUrl && newDefaultUrl) {
+            target.val(newDefaultUrl);
         }
     });
 });

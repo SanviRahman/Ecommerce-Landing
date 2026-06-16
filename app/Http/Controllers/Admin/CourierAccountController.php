@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Courier;
 use App\Models\CourierAccount;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
@@ -21,9 +23,13 @@ class CourierAccountController extends Controller
     {
         $this->adminOnly();
 
+        $courierTypes = $this->courierTypeOptions();
+
         return view('admin.courier-accounts.index', [
             'title' => 'Courier API Accounts',
             'couriers' => CourierAccount::query()->latest()->paginate(20),
+            'courierTypes' => $courierTypes,
+            'courierDefaultBaseUrls' => $this->courierDefaultBaseUrls($courierTypes),
             'breadcrumb' => [
                 ['text' => 'Dashboard', 'url' => route('admin.dashboard')],
                 ['text' => 'Courier API Accounts', 'url' => route('admin.courier-accounts.index')],
@@ -37,7 +43,12 @@ class CourierAccountController extends Controller
 
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'code' => ['required', 'string', Rule::in(['steadfast', 'pathao'])],
+
+            /*
+             * Courier type now comes from Courier Manage.
+             * Previously it was restricted to only steadfast/pathao.
+             */
+            'code' => ['required', 'string', Rule::in($this->allowedCourierCodes())],
 
             'base_url' => ['nullable', 'url', 'max:255'],
             'api_key' => ['nullable', 'string', 'max:1000'],
@@ -88,7 +99,12 @@ class CourierAccountController extends Controller
 
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'code' => ['required', 'string', Rule::in(['steadfast', 'pathao'])],
+
+            /*
+             * Keep the current account code valid even if that courier type
+             * was later deactivated/removed from Courier Manage.
+             */
+            'code' => ['required', 'string', Rule::in($this->allowedCourierCodes($courierAccount->code))],
 
             'base_url' => ['nullable', 'url', 'max:255'],
             'api_key' => ['nullable', 'string', 'max:1000'],
@@ -143,9 +159,65 @@ class CourierAccountController extends Controller
         return back()->with('success', 'Courier API account deleted successfully.');
     }
 
+    /**
+     * Courier Type dropdown source.
+     *
+     * It loads active couriers from Courier Manage so Courier API Accounts can
+     * create accounts for every courier available in the system.
+     * SteadFast/Pathao are kept as fallback for backward compatibility.
+     */
+    private function courierTypeOptions(): Collection
+    {
+        $fallbackTypes = collect([
+            ['name' => 'SteadFast', 'code' => 'steadfast'],
+            ['name' => 'Pathao', 'code' => 'pathao'],
+        ]);
+
+        $activeCourierTypes = Courier::query()
+            ->active()
+            ->orderBy('name')
+            ->get(['name', 'code'])
+            ->map(fn (Courier $courier) => [
+                'name' => $courier->name,
+                'code' => strtolower((string) $courier->code),
+            ]);
+
+        return $fallbackTypes
+            ->merge($activeCourierTypes)
+            ->filter(fn (array $courier) => ! empty($courier['code']))
+            ->unique('code')
+            ->values();
+    }
+
+    private function allowedCourierCodes(?string $extraCode = null): array
+    {
+        $codes = $this->courierTypeOptions()
+            ->pluck('code')
+            ->map(fn ($code) => strtolower((string) $code))
+            ->filter()
+            ->values();
+
+        if ($extraCode) {
+            $codes->push(strtolower($extraCode));
+        }
+
+        return $codes->unique()->values()->all();
+    }
+
+    private function courierDefaultBaseUrls(Collection $courierTypes): array
+    {
+        return $courierTypes
+            ->pluck('code')
+            ->mapWithKeys(fn ($code) => [
+                $code => $this->defaultBaseUrl((string) $code),
+            ])
+            ->filter()
+            ->toArray();
+    }
+
     private function defaultBaseUrl(string $code): ?string
     {
-        return match ($code) {
+        return match (strtolower($code)) {
             'steadfast' => 'https://portal.packzy.com/api/v1',
             'pathao' => 'https://api-hermes.pathao.com',
             default => null,

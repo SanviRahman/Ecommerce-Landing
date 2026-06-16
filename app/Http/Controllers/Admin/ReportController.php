@@ -120,52 +120,150 @@ class ReportController extends Controller
     */
     private function getReportSummaryStats(): array
     {
-        $todayOrdersQuery = Order::query()
-            ->whereDate('created_at', today());
+        /*
+        |--------------------------------------------------------------------------
+        | 24 Hours Today Range
+        |--------------------------------------------------------------------------
+        | Today's report will count from 12:00 AM to 11:59:59 PM.
+        |
+        | Important business rule:
+        | Order List 1 and Order List 2 are custom working lists. An old order can be
+        | moved into those lists today. Therefore today's report must count those
+        | moved orders as today's activity, even when the original order created_at
+        | date is old.
+        */
+        $timezone = config('app.timezone', 'Asia/Dhaka');
+        $todayStart = now($timezone)->startOfDay();
+        $todayEnd = now($timezone)->endOfDay();
+
+        $todayCreatedOrdersQuery = Order::query()
+            ->whereBetween('created_at', [$todayStart, $todayEnd]);
 
         return [
-            'todays_order' => (clone $todayOrdersQuery)->count(),
+            'todays_order' => $this->todayCreatedOrMovedOrderCount($todayStart, $todayEnd),
 
-            'pending_order' => (clone $todayOrdersQuery)
+            'pending_order' => (clone $todayCreatedOrdersQuery)
                 ->where('order_status', Order::STATUS_PENDING)
                 ->count(),
 
-            'incompleted_order' => (clone $todayOrdersQuery)
+            'incompleted_order' => (clone $todayCreatedOrdersQuery)
                 ->whereNotIn('order_status', [
                     Order::STATUS_DELIVERED,
                     Order::STATUS_CANCELLED,
                     Order::STATUS_FAKE,
+                    'stock_out',
                 ])
                 ->count(),
 
-            'completed_order' => (clone $todayOrdersQuery)
+            'completed_order' => (clone $todayCreatedOrdersQuery)
                 ->where('order_status', Order::STATUS_DELIVERED)
                 ->count(),
 
-            'incompleted_invoice' => (clone $todayOrdersQuery)
+            'shipped_orders' => (clone $todayCreatedOrdersQuery)
+                ->where('order_status', Order::STATUS_SHIPPED)
+                ->count(),
+
+            'stock_out_order' => (clone $todayCreatedOrdersQuery)
+                ->where('order_status', 'stock_out')
+                ->count(),
+
+            'order_list_1' => $this->todayOrderListMovedCount('order_list_1', $todayStart, $todayEnd),
+
+            'order_list_2' => $this->todayOrderListMovedCount('order_list_2', $todayStart, $todayEnd),
+
+            'incompleted_invoice' => (clone $todayCreatedOrdersQuery)
                 ->where(function ($query) {
                     $query->where('payment_status', '!=', Order::PAYMENT_STATUS_COLLECTED)
                         ->orWhereNull('payment_status');
                 })
                 ->count(),
 
-            'completed_invoice' => (clone $todayOrdersQuery)
+            'completed_invoice' => (clone $todayCreatedOrdersQuery)
                 ->where('payment_status', Order::PAYMENT_STATUS_COLLECTED)
                 ->count(),
 
-            'checkout' => (clone $todayOrdersQuery)->count(),
+            'checkout' => (clone $todayCreatedOrdersQuery)->count(),
 
-            'delivery' => (clone $todayOrdersQuery)
+            'delivery' => (clone $todayCreatedOrdersQuery)
                 ->whereIn('order_status', [
                     Order::STATUS_SHIPPED,
                     Order::STATUS_DELIVERED,
                 ])
                 ->count(),
 
-            'cancelled' => (clone $todayOrdersQuery)
+            'cancelled' => (clone $todayCreatedOrdersQuery)
                 ->where('order_status', Order::STATUS_CANCELLED)
                 ->count(),
         ];
+    }
+
+    /**
+     * Today's Order card count.
+     *
+     * Counts:
+     * 1. Orders created today.
+     * 2. Old orders moved into Order List 1/2 today.
+     *
+     * This keeps Report Management aligned with the Orders card behavior while
+     * still resetting automatically after today's 11:59:59 PM.
+     */
+    private function todayCreatedOrMovedOrderCount($todayStart, $todayEnd): int
+    {
+        $query = Order::query()
+            ->where(function ($query) use ($todayStart, $todayEnd) {
+                $query->whereBetween('created_at', [$todayStart, $todayEnd]);
+
+                if (Schema::hasColumn('orders', 'custom_order_list')) {
+                    $query->orWhere(function ($listQuery) use ($todayStart, $todayEnd) {
+                        $listQuery->whereIn('custom_order_list', ['order_list_1', 'order_list_2'])
+                            ->where(function ($movementQuery) use ($todayStart, $todayEnd) {
+                                $this->applyTodayOrderListMovementWindow($movementQuery, $todayStart, $todayEnd);
+                            });
+                    });
+                }
+            });
+
+        return (int) $query->select('orders.id')->distinct()->count('orders.id');
+    }
+
+    /**
+     * Count orders moved to Order List 1/2 during today's 24-hour window.
+     *
+     * Why not only created_at? An old order can be moved to Order List 1/2 today.
+     * Why the updated_at fallback? If the movement timestamp column was added after
+     * some orders were already moved today, their custom_order_list_moved_at may be
+     * null, but updated_at still reflects the move time from the existing update flow.
+     */
+    private function todayOrderListMovedCount(string $listName, $todayStart, $todayEnd): int
+    {
+        if (! Schema::hasColumn('orders', 'custom_order_list')) {
+            return 0;
+        }
+
+        return (int) Order::query()
+            ->where('custom_order_list', $listName)
+            ->where(function ($query) use ($todayStart, $todayEnd) {
+                $this->applyTodayOrderListMovementWindow($query, $todayStart, $todayEnd);
+            })
+            ->count();
+    }
+
+    /**
+     * Apply today's movement window safely for both new and already-moved rows.
+     */
+    private function applyTodayOrderListMovementWindow(Builder $query, $todayStart, $todayEnd): void
+    {
+        if (Schema::hasColumn('orders', 'custom_order_list_moved_at')) {
+            $query->whereBetween('custom_order_list_moved_at', [$todayStart, $todayEnd])
+                ->orWhere(function ($fallbackQuery) use ($todayStart, $todayEnd) {
+                    $fallbackQuery->whereNull('custom_order_list_moved_at')
+                        ->whereBetween('updated_at', [$todayStart, $todayEnd]);
+                });
+
+            return;
+        }
+
+        $query->whereBetween('updated_at', [$todayStart, $todayEnd]);
     }
 
     private function listResponse(Request $request, Builder $query, string $title, bool $isTrash = false)

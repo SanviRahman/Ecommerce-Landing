@@ -423,6 +423,41 @@ class OrderController extends Controller
 
 
     /**
+     * Normalize delivery area values coming from old/public checkout labels.
+     * This keeps edit/update stable even when old orders saved Bangla labels.
+     */
+    private function normalizeDeliveryArea(?string $area): ?string
+    {
+        if ($area === null) {
+            return null;
+        }
+
+        $raw = trim($area);
+
+        if ($raw === '') {
+            return null;
+        }
+
+        $key = \Illuminate\Support\Str::lower($raw);
+
+        $aliases = [
+            'inside_dhaka'      => 'inside_dhaka',
+            'inside dhaka'      => 'inside_dhaka',
+            'dhaka'             => 'inside_dhaka',
+            'ঢাকার ভিতরে'       => 'inside_dhaka',
+            'ঢাকা সিটির ভিতরে'  => 'inside_dhaka',
+            'outside_dhaka'     => 'outside_dhaka',
+            'outside dhaka'     => 'outside_dhaka',
+            'ঢাকার বাইরে'       => 'outside_dhaka',
+            'free_delivery'     => 'free_delivery',
+            'free delivery'     => 'free_delivery',
+            'ফ্রি ডেলিভারি'     => 'free_delivery',
+        ];
+
+        return $aliases[$key] ?? $raw;
+    }
+
+    /**
      * Keep admin/editor inside the application when redirecting back from edit.
      * This prevents open redirect bugs while preserving sidebar/list context.
      */
@@ -640,21 +675,166 @@ class OrderController extends Controller
         ])->filter()->implode(' | ');
     }
 
-    private function markOrdersAsInvoicePrinted(Collection $orders): void
-    {
-        $ids = $orders->pluck('id')->filter()->values();
 
-        if ($ids->isEmpty()) {
-            return;
+    private function autoAdminNoteEventForStatus(?string $status): ?string
+    {
+        return match ($status) {
+            Order::STATUS_CONFIRMED => 'order_completed',
+            Order::STATUS_DELIVERED => 'order_delivered',
+            Order::STATUS_CANCELLED => 'order_cancelled',
+            default => null,
+        };
+    }
+
+    private function autoAdminNotePrefix(string $event): ?string
+    {
+        return match ($event) {
+            'order_completed'   => 'Order completed by',
+            'order_delivered'   => 'Order delivered by',
+            'order_cancelled'   => 'Order cancelled by',
+            'invoice_completed' => 'Invoice completed by',
+            default => null,
+        };
+    }
+
+    private function autoAdminNoteEmployeeName(Order $order, ?int $assignedEmployeeId = null): string
+    {
+        if ($assignedEmployeeId) {
+            $employeeName = User::query()
+                ->whereKey($assignedEmployeeId)
+                ->value('name');
+
+            if ($employeeName) {
+                return $employeeName;
+            }
         }
 
-        DB::table('orders')
-            ->whereIn('id', $ids)
-            ->update([
-                'invoice_printed_at' => now(),
-                'invoice_print_count' => DB::raw('COALESCE(invoice_print_count, 0) + 1'),
-                'updated_at' => now(),
-            ]);
+        if ($order->relationLoaded('assignedEmployee') && $order->assignedEmployee?->name) {
+            return $order->assignedEmployee->name;
+        }
+
+        if ($order->assigned_employee_id) {
+            $employeeName = User::query()
+                ->whereKey($order->assigned_employee_id)
+                ->value('name');
+
+            if ($employeeName) {
+                return $employeeName;
+            }
+        }
+
+        return auth()->user()?->name ?: 'System';
+    }
+
+    private function appendAutoAdminNote(
+        Order $order,
+        string $event,
+        ?string $baseNote = null,
+        ?int $assignedEmployeeId = null
+    ): string {
+        $prefix = $this->autoAdminNotePrefix($event);
+
+        $baseNote = trim((string) ($baseNote ?? $order->admin_note ?? ''));
+
+        if (! $prefix) {
+            return $baseNote;
+        }
+
+        /*
+         * Prevent duplicate auto notes for the same completed event.
+         * Example: if "Order delivered by" already exists, do not add another
+         * delivery line when the same status is saved again.
+         */
+        if ($baseNote !== '' && str_contains($baseNote, $prefix)) {
+            return $baseNote;
+        }
+
+        $employeeName = $this->autoAdminNoteEmployeeName($order, $assignedEmployeeId);
+        $date = now()->format('d M Y');
+        $time = now()->format('h:i A');
+
+        $line = "{$prefix} {$employeeName} on {$date} at {$time}.";
+
+        return $baseNote === '' ? $line : $baseNote . PHP_EOL . $line;
+    }
+
+    private function buildOrderStatusUpdateData(Order $order, string $status, array $extra = []): array
+    {
+        $updateData = array_merge($extra, [
+            'order_status' => $status,
+            'updated_at'   => now(),
+        ]);
+
+        if ($status === Order::STATUS_CONFIRMED && ! $order->confirmed_at) {
+            $updateData['confirmed_at'] = now();
+        }
+
+        if ($status === Order::STATUS_DELIVERED && ! $order->delivered_at) {
+            $updateData['delivered_at'] = now();
+        }
+
+        if ($status === Order::STATUS_CANCELLED && ! $order->cancelled_at) {
+            $updateData['cancelled_at'] = now();
+        }
+
+        if ($status === Order::STATUS_FAKE) {
+            $updateData['is_fake'] = true;
+            $updateData['marked_fake_at'] = $order->marked_fake_at ?: now();
+        }
+
+        if ($event = $this->autoAdminNoteEventForStatus($status)) {
+            $assignedEmployeeId = isset($updateData['assigned_employee_id'])
+                ? (int) $updateData['assigned_employee_id']
+                : null;
+
+            $updateData['admin_note'] = $this->appendAutoAdminNote(
+                $order,
+                $event,
+                $order->admin_note,
+                $assignedEmployeeId ?: null
+            );
+        }
+
+        return $updateData;
+    }
+
+    private function updateOrdersStatusWithAutoAdminNotes(array $orderIds, string $status, array $extra = []): int
+    {
+        $orders = Order::query()
+            ->whereIn('id', $orderIds)
+            ->with('assignedEmployee')
+            ->get();
+
+        $updated = 0;
+
+        foreach ($orders as $order) {
+            $order->update($this->buildOrderStatusUpdateData($order, $status, $extra));
+            $updated++;
+        }
+
+        return $updated;
+    }
+
+    private function markOrdersAsInvoicePrinted(Collection $orders): void
+    {
+        foreach ($orders as $order) {
+            if (! $order instanceof Order || ! $order->id) {
+                continue;
+            }
+
+            DB::table('orders')
+                ->where('id', $order->id)
+                ->update([
+                    'invoice_printed_at'  => now(),
+                    'invoice_print_count' => DB::raw('COALESCE(invoice_print_count, 0) + 1'),
+                    'admin_note'          => $this->appendAutoAdminNote(
+                        $order,
+                        'invoice_completed',
+                        $order->admin_note
+                    ),
+                    'updated_at'          => now(),
+                ]);
+        }
     }
 
     private function buildExportSheetData(Collection $orders, string $type): array
@@ -1142,6 +1322,10 @@ class OrderController extends Controller
             ]);
         }
 
+        $request->merge([
+            'delivery_area' => $this->normalizeDeliveryArea($request->input('delivery_area')),
+        ]);
+
         $request->validate([
             'invoice_id'           => ['required', 'string', 'max:255', Rule::unique('orders', 'invoice_id')->ignore($order->id)],
             'customer_name'        => ['required', 'string', 'max:255'],
@@ -1232,6 +1416,16 @@ class OrderController extends Controller
             $codCharge = (float) ($request->cod_charge ?? 0);
             $totalAmount = $subTotal + $shippingCharge + $codCharge;
             $status = $request->order_status;
+            $adminNote = $request->admin_note;
+
+            if ($event = $this->autoAdminNoteEventForStatus($status)) {
+                $adminNote = $this->appendAutoAdminNote(
+                    $order,
+                    $event,
+                    $adminNote,
+                    $request->assigned_employee_id ? (int) $request->assigned_employee_id : null
+                );
+            }
 
             $updateData = [
                 'invoice_id'           => $request->invoice_id,
@@ -1240,7 +1434,7 @@ class OrderController extends Controller
                 'address'              => $request->address,
                 'delivery_area'        => $request->delivery_area,
                 'customer_note'        => $request->customer_note,
-                'admin_note'           => $request->admin_note,
+                'admin_note'           => $adminNote,
                 'order_status'         => $status,
                 'payment_status'       => $request->payment_status,
                 'assigned_employee_id' => $request->assigned_employee_id ?: null,
@@ -1322,21 +1516,7 @@ class OrderController extends Controller
         ]);
 
         $status = $request->order_status;
-        $updateData = ['order_status' => $status];
-
-        if ($status === Order::STATUS_CONFIRMED) {
-            $updateData['confirmed_at'] = now();
-        }
-        if ($status === Order::STATUS_DELIVERED) {
-            $updateData['delivered_at'] = now();
-        }
-        if ($status === Order::STATUS_CANCELLED) {
-            $updateData['cancelled_at'] = now();
-        }
-        if ($status === Order::STATUS_FAKE) {
-            $updateData['is_fake'] = true;
-            $updateData['marked_fake_at'] = now();
-        }
+        $updateData = $this->buildOrderStatusUpdateData($order, $status);
 
         $order->update($updateData);
 
@@ -1946,12 +2126,12 @@ class OrderController extends Controller
             $status = str_replace('status_', '', $action);
 
             if (in_array($status, $this->getOrderStatuses(), true)) {
-                Order::whereIn('id', $accessibleIds)->update([
-                    'order_status' => $status,
-                    'updated_at'   => now(),
-                ]);
+                $updated = $this->updateOrdersStatusWithAutoAdminNotes($accessibleIds, $status);
 
-                return response()->json(['status' => true, 'message' => 'Selected orders status updated.']);
+                return response()->json([
+                    'status'  => true,
+                    'message' => "{$updated} selected orders status updated.",
+                ]);
             }
         }
 
@@ -1979,30 +2159,58 @@ class OrderController extends Controller
         }
 
         if ($action === 'order_list_1') {
-            Order::whereIn('id', $accessibleIds)->update([
-                'custom_order_list' => 'order_list_1',
-                'order_status'      => Order::STATUS_CONFIRMED,
-                'updated_at'        => now(),
-            ]);
+            $extraData = [
+                'custom_order_list' => Order::CUSTOM_LIST_ONE,
+            ];
 
-            return response()->json(['status' => true, 'message' => 'Selected orders moved to Order List 1.']);
+            if (\Illuminate\Support\Facades\Schema::hasColumn('orders', 'custom_order_list_moved_at')) {
+                $extraData['custom_order_list_moved_at'] = now();
+            }
+
+            $updated = $this->updateOrdersStatusWithAutoAdminNotes(
+                $accessibleIds,
+                Order::STATUS_CONFIRMED,
+                $extraData
+            );
+
+            return response()->json([
+                'status'  => true,
+                'message' => "{$updated} selected orders moved to Order List 1.",
+            ]);
         }
 
         if ($action === 'order_list_2') {
-            Order::whereIn('id', $accessibleIds)->update([
-                'custom_order_list' => 'order_list_2',
-                'order_status'      => Order::STATUS_CONFIRMED,
-                'updated_at'        => now(),
-            ]);
+            $extraData = [
+                'custom_order_list' => Order::CUSTOM_LIST_TWO,
+            ];
 
-            return response()->json(['status' => true, 'message' => 'Selected orders moved to Order List 2.']);
+            if (\Illuminate\Support\Facades\Schema::hasColumn('orders', 'custom_order_list_moved_at')) {
+                $extraData['custom_order_list_moved_at'] = now();
+            }
+
+            $updated = $this->updateOrdersStatusWithAutoAdminNotes(
+                $accessibleIds,
+                Order::STATUS_CONFIRMED,
+                $extraData
+            );
+
+            return response()->json([
+                'status'  => true,
+                'message' => "{$updated} selected orders moved to Order List 2.",
+            ]);
         }
 
         if ($action === 'order_list_none') {
-            Order::whereIn('id', $accessibleIds)->update([
+            $removeData = [
                 'custom_order_list' => null,
                 'updated_at'        => now(),
-            ]);
+            ];
+
+            if (\Illuminate\Support\Facades\Schema::hasColumn('orders', 'custom_order_list_moved_at')) {
+                $removeData['custom_order_list_moved_at'] = null;
+            }
+
+            Order::whereIn('id', $accessibleIds)->update($removeData);
 
             return response()->json(['status' => true, 'message' => 'Selected orders removed from static order list.']);
         }
