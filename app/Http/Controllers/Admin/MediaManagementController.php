@@ -22,7 +22,7 @@ use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
 class MediaManagementController extends Controller
 {
-    private const DEFAULT_PER_PAGE = 24;
+    private const DEFAULT_PER_PAGE = 15;
 
     private function adminOnly(): void
     {
