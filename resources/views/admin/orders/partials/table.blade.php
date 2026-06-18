@@ -166,12 +166,25 @@ $duplicatePhoneCounts = $duplicatePhoneCounts ?? [];
                     @endif
 
                     @if($order->courier_service === 'steadfast')
+                    @php
+                        // SteadFast API may return both consignment_id and tracking_code.
+                        // For UI consistency with Pathao, show the consignment id as CID.
+                        // If old rows only have tracking_code, use tracking_code as fallback so existing data still shows.
+                        $steadfastCid = $order->steadfast_consignment_id ?: $order->steadfast_tracking_code;
+                    @endphp
                     <div class="mt-1 sf-courier-box">
-                        @if($order->steadfast_tracking_code)
+                        @if($steadfastCid)
                         <small class="d-block text-success font-weight-bold">
                             <i class="fas fa-barcode mr-1"></i>
+                            CID: {{ $steadfastCid }}
+                        </small>
+
+                        @if($order->steadfast_tracking_code && $order->steadfast_tracking_code !== $steadfastCid)
+                        <small class="d-block text-success font-weight-bold">
+                            <i class="fas fa-route mr-1"></i>
                             Tracking: {{ $order->steadfast_tracking_code }}
                         </small>
+                        @endif
                         @else
                         <small class="d-block text-warning font-weight-bold">
                             <i class="fas fa-exclamation-circle mr-1"></i>
@@ -327,7 +340,17 @@ $duplicatePhoneCounts = $duplicatePhoneCounts ?? [];
                         @endif
                         @endif
 
-                        @if($canBulkManageOrders && $order->courier_service === 'pathao')
+                        @php
+                            /*
+                             * Pathao action button should be visible only before courier send.
+                             * After successful send, PathaoCourierService saves pathao_consignment_id/pathao_sent_at.
+                             * If we keep checking only courier_service === 'pathao', the send icon appears again
+                             * even when the order already has CID/status in the Courier column.
+                             */
+                            $pathaoAlreadySent = ! empty($order->pathao_consignment_id) || ! empty($order->pathao_sent_at);
+                        @endphp
+
+                        @if($canBulkManageOrders && $order->courier_service === 'pathao' && ! $pathaoAlreadySent)
                         <button type="button" class="btn btn-sm btn-white text-success btnSendPathao"
                             data-url="{{ route('admin.orders.send_pathao', $order->id) }}" title="Send to Pathao">
                             <i class="fas fa-shipping-fast"></i>
@@ -594,3 +617,5 @@ $duplicatePhoneCounts = $duplicatePhoneCounts ?? [];
     background-color: #6c757d;
 }
 </style>
+
+

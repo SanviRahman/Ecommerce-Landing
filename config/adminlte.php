@@ -705,6 +705,104 @@ return [
         ],
 
         /*
+    |--------------------------------------------------------------------------
+    | Media Management
+    |--------------------------------------------------------------------------
+    */
+        [
+            'header' => 'MEDIA MANAGEMENT',
+            'can'    => 'admin-only',
+        ],
+        [
+            'text'    => 'Media Management',
+            'url'     => '#',
+            'icon'    => 'fas fa-fw fa-photo-video',
+            'can'     => 'admin-only',
+            'active'  => ['admin/media-management*'],
+            'submenu' => [
+                [
+                    'text'   => 'All Media',
+                    'url'    => 'admin/media-management',
+                    'icon'   => 'far fa-fw fa-circle',
+                    'can'    => 'admin-only',
+                    'active' => ['admin/media-management'],
+                ],
+                [
+                    'text'   => 'Category Media',
+                    'url'    => 'admin/media-management/category',
+                    'icon'   => 'far fa-fw fa-circle',
+                    'can'    => 'admin-only',
+                    'active' => ['admin/media-management/category*'],
+                ],
+                [
+                    'text'   => 'Products Media',
+                    'url'    => 'admin/media-management/products',
+                    'icon'   => 'far fa-fw fa-circle',
+                    'can'    => 'admin-only',
+                    'active' => ['admin/media-management/products*'],
+                ],
+                [
+                    'text'    => 'Campaign Media',
+                    'url'     => 'admin/media-management/campaign',
+                    'icon'    => 'far fa-fw fa-circle',
+                    'can'     => 'admin-only',
+                    'active'  => ['admin/media-management/campaign*'],
+                    'submenu' => [
+                        [
+                            'text'   => 'All Campaign Media',
+                            'url'    => 'admin/media-management/campaign',
+                            'icon'   => 'far fa-dot-circle',
+                            'can'    => 'admin-only',
+                            'active' => ['admin/media-management/campaign'],
+                        ],
+                        [
+                            'text'   => 'Hero Section Media',
+                            'url'    => 'admin/media-management/campaign/hero',
+                            'icon'   => 'far fa-dot-circle',
+                            'can'    => 'admin-only',
+                            'active' => ['admin/media-management/campaign/hero*'],
+                        ],
+                        [
+                            'text'   => 'Section Images',
+                            'url'    => 'admin/media-management/campaign/section',
+                            'icon'   => 'far fa-dot-circle',
+                            'can'    => 'admin-only',
+                            'active' => ['admin/media-management/campaign/section*'],
+                        ],
+                        [
+                            'text'   => 'Product Gallery',
+                            'url'    => 'admin/media-management/campaign/product',
+                            'icon'   => 'far fa-dot-circle',
+                            'can'    => 'admin-only',
+                            'active' => ['admin/media-management/campaign/product*'],
+                        ],
+                        [
+                            'text'   => 'Review Media',
+                            'url'    => 'admin/media-management/campaign/review',
+                            'icon'   => 'far fa-dot-circle',
+                            'can'    => 'admin-only',
+                            'active' => ['admin/media-management/campaign/review*'],
+                        ],
+                        [
+                            'text'   => 'Gallery Media',
+                            'url'    => 'admin/media-management/campaign/gallery',
+                            'icon'   => 'far fa-dot-circle',
+                            'can'    => 'admin-only',
+                            'active' => ['admin/media-management/campaign/gallery*'],
+                        ],
+                    ],
+                ],
+                [
+                    'text'   => 'Other Media',
+                    'url'    => 'admin/media-management/other',
+                    'icon'   => 'far fa-fw fa-circle',
+                    'can'    => 'admin-only',
+                    'active' => ['admin/media-management/other*'],
+                ],
+            ],
+        ],
+
+        /*
 |--------------------------------------------------------------------------
 | Commands
 |--------------------------------------------------------------------------

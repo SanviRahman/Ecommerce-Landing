@@ -33,13 +33,45 @@ class CampaignController extends Controller
             ->orderBy('id', 'asc');
     }
 
-    private function activeProducts()
+    /**
+     * Return active products for the campaign form.
+     *
+     * Important: Select2 submits selected options according to the DOM option order.
+     * So on edit, selected products must be rendered first using the campaign_product.sort_order
+     * value; otherwise products can be saved/displayed alphabetically instead of the admin-selected order.
+     */
+    private function activeProducts(array $selectedProductIds = [])
     {
-        return Product::query()
+        $selectedProductIds = collect($selectedProductIds)
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->values();
+
+        $products = Product::query()
             ->active()
             ->with(['category', 'brand'])
-            ->orderBy('name')
             ->get(['id', 'name', 'category_id', 'brand_id', 'new_price', 'old_price', 'status']);
+
+        if ($selectedProductIds->isEmpty()) {
+            return $products
+                ->sortBy(fn (Product $product) => mb_strtolower((string) $product->name))
+                ->values();
+        }
+
+        $selectedPosition = array_flip($selectedProductIds->all());
+
+        return $products
+            ->sortBy(function (Product $product) use ($selectedPosition) {
+                $productId = (int) $product->id;
+
+                if (array_key_exists($productId, $selectedPosition)) {
+                    return sprintf('0-%06d-%06d', (int) $selectedPosition[$productId], $productId);
+                }
+
+                return sprintf('1-%s-%06d', mb_strtolower((string) $product->name), $productId);
+            })
+            ->values();
     }
 
     private function activeCategories()
@@ -442,7 +474,12 @@ class CampaignController extends Controller
         return DB::transaction(function () use ($request) {
             $categoryIds = collect($request->categories)->filter()->unique()->values()->toArray();
             $brandIds    = collect($request->brands)->filter()->unique()->values()->toArray();
-            $productIds  = collect($request->products)->filter()->unique()->values()->toArray();
+            $productIds  = collect($request->products)
+                ->map(fn ($id) => (int) $id)
+                ->filter()
+                ->unique()
+                ->values()
+                ->toArray();
 
             $campaign = Campaign::create($this->campaignData($request, $productIds));
 
@@ -494,14 +531,21 @@ class CampaignController extends Controller
             'reviews.media',
         ]);
 
+        $selectedProducts = $campaign->products
+            ->sortBy(fn (Product $product) => (int) ($product->pivot->sort_order ?? 999999))
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->toArray();
+
         return view('admin.campaigns.edit', [
             'campaign'           => $campaign,
             'categories'         => $this->activeCategories(),
             'brands'             => $this->activeBrands(),
-            'products'           => $this->activeProducts(),
+            'products'           => $this->activeProducts($selectedProducts),
             'selectedCategories' => $campaign->categories->pluck('id')->map(fn ($id) => (int) $id)->values()->toArray(),
             'selectedBrands'     => $campaign->brands->pluck('id')->map(fn ($id) => (int) $id)->values()->toArray(),
-            'selectedProducts'   => $campaign->products->pluck('id')->map(fn ($id) => (int) $id)->values()->toArray(),
+            'selectedProducts'   => $selectedProducts,
             'campaignFaqs'       => $campaign->faqs,
             'campaignReviews'    => $campaign->reviews,
             'shippingCharges'    => $this->activeShippingCharges(),
@@ -526,7 +570,12 @@ class CampaignController extends Controller
         return DB::transaction(function () use ($request, $campaign) {
             $categoryIds = collect($request->categories)->filter()->unique()->values()->toArray();
             $brandIds    = collect($request->brands)->filter()->unique()->values()->toArray();
-            $productIds  = collect($request->products)->filter()->unique()->values()->toArray();
+            $productIds  = collect($request->products)
+                ->map(fn ($id) => (int) $id)
+                ->filter()
+                ->unique()
+                ->values()
+                ->toArray();
 
             $campaign->update($this->campaignData($request, $productIds, $campaign));
 
@@ -792,6 +841,13 @@ class CampaignController extends Controller
 
     private function syncProducts(Campaign $campaign, array $productIds): void
     {
+        $productIds = collect($productIds)
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->values()
+            ->toArray();
+
         $products = Product::query()
             ->whereIn('id', $productIds)
             ->get()

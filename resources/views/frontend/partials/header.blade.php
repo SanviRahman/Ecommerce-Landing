@@ -112,8 +112,6 @@
             <a class="navbar-brand d-flex align-items-center" href="{{ $logoUrl }}">
                 @if($logo)
                     <img src="{{ $logo }}" alt="{{ $websiteName }}" class="site-logo-img">
-                @else
-                    <span class="font-weight-bold text-success">{{ $websiteName }}</span>
                 @endif
             </a>
 

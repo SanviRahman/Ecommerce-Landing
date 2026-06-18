@@ -72,12 +72,26 @@ class SteadfastCourierService
             throw new RuntimeException($message);
         }
 
-        $consignment = data_get($data, 'consignment', []);
+        $consignmentId = data_get($data, 'consignment.consignment_id')
+            ?: data_get($data, 'consignment.id')
+            ?: data_get($data, 'data.consignment_id')
+            ?: data_get($data, 'data.id')
+            ?: data_get($data, 'consignment_id')
+            ?: data_get($data, 'id');
+
+        $trackingCode = data_get($data, 'consignment.tracking_code')
+            ?: data_get($data, 'data.tracking_code')
+            ?: data_get($data, 'tracking_code')
+            ?: $consignmentId;
+
+        $deliveryStatus = data_get($data, 'consignment.status')
+            ?: data_get($data, 'data.status')
+            ?: data_get($data, 'delivery_status');
 
         $order->update([
-            'steadfast_consignment_id' => data_get($consignment, 'consignment_id'),
-            'steadfast_tracking_code' => data_get($consignment, 'tracking_code'),
-            'steadfast_status' => data_get($consignment, 'status'),
+            'steadfast_consignment_id' => $consignmentId,
+            'steadfast_tracking_code' => $trackingCode,
+            'steadfast_status' => $deliveryStatus,
             'steadfast_note' => data_get($data, 'message'),
             'steadfast_response' => $data,
             'steadfast_sent_at' => now(),
@@ -304,3 +318,4 @@ class SteadfastCourierService
         return $items ? Str::limit($items, 250, '') : null;
     }
 }
+

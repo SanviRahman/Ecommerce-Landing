@@ -527,11 +527,11 @@ class OrderController extends Controller
         ?OrderField $currentOrderField = null
     ) {
         $query = $this->applyFilters($query, $request);
-        $perPageOptions = [20, 50, 100, 150, 200, 250, 300, 350, 400, 450, 500];
-        $perPage = (int) $request->input('per_page', 20);
+        $perPageOptions = [15, 20, 50, 100, 150, 200, 250, 300, 350, 400, 450, 500];
+        $perPage = (int) $request->input('per_page', 15);
 
         if (! in_array($perPage, $perPageOptions, true)) {
-            $perPage = 20;
+            $perPage = 15;
         }
 
         $orders = $query->paginate($perPage)->withQueryString();

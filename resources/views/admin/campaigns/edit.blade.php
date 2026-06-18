@@ -172,6 +172,24 @@ $(document).ready(function () {
 
             $(this).trigger('change.select2');
         });
+
+        /*
+         * On edit pages, selected <option> elements must stay in the same order
+         * as the saved pivot sort_order. Without this, browser/Select2 can submit
+         * products by option list order instead of selected campaign order.
+         */
+        const selectedValues = $select.val() || [];
+
+        selectedValues.forEach(function (value) {
+            const option = $select.find('option[value="' + value + '"]')[0];
+
+            if (option) {
+                option.remove();
+                $select[0].appendChild(option);
+            }
+        });
+
+        $select.trigger('change.select2');
     }
 
     initOrderedSelect2('.select2-categories', 'Click here and select categories');

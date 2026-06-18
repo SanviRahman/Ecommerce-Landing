@@ -10,6 +10,7 @@ use App\Http\Controllers\Admin\CourierController;
 use App\Http\Controllers\Admin\CreatePageController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\FaqController;
+use App\Http\Controllers\Admin\MediaManagementController;
 use App\Http\Controllers\Admin\OrderController;
 use App\Http\Controllers\Admin\ProductController;
 use App\Http\Controllers\Admin\ProfileController;
@@ -117,10 +118,8 @@ Route::middleware(['auth'])->group(function () {
                 Route::delete('/force-delete/{id}', [OrderController::class, 'forceDelete'])->name('force_delete');
                 Route::delete('/empty-trash', [OrderController::class, 'emptyTrash'])->name('empty_trash');
 
-
                 Route::post('/assign-employee-bulk', [OrderController::class, 'bulkAssignEmployee'])->name('assign_employee_bulk');
                 Route::post('/bulk-delete-limit', [OrderController::class, 'bulkDeleteLimit'])->name('bulk_delete_limit');
-
 
                 /*
                  * Removed duplicate top buttons:
@@ -162,8 +161,7 @@ Route::middleware(['auth'])->group(function () {
             Route::get('/{order}', [OrderController::class, 'show'])->name('show');
         });
 
-    
-        /*
+    /*
     |--------------------------------------------------------------------------
     | Products: Admin full access, Employee view only
     |--------------------------------------------------------------------------
@@ -560,5 +558,35 @@ Route::middleware(['auth'])->group(function () {
                 Route::delete('/{report}', [ReportController::class, 'destroy'])->name('destroy');
                 Route::get('/{report}', [ReportController::class, 'show'])->name('show');
             });
+
+        // Media Management
+        Route::prefix('media-management')
+            ->name('media-management.')
+            ->controller(MediaManagementController::class)
+            ->group(function () {
+                Route::get('/', 'index')->name('index');
+                Route::get('/category', 'category')->name('category');
+                Route::get('/products', 'products')->name('products');
+
+                Route::get('/campaign', 'campaign')->name('campaign');
+                Route::get('/campaign/{section}', 'campaignSection')
+                    ->whereIn('section', ['hero', 'section', 'product', 'review', 'gallery'])
+                    ->name('campaign.section');
+
+                Route::get('/other', 'other')->name('other');
+
+                Route::get('/media/trash', 'trash')->name('trash');
+                Route::post('/media/multiple-action', 'multipleAction')->name('multiple-action');
+
+                Route::post('/media/{media}/restore', 'restore')->name('restore');
+                Route::delete('/media/{media}/force-delete', 'forceDelete')->name('force-delete');
+
+                Route::get('/media/{media}/edit', 'edit')->name('edit');
+                Route::patch('/media/{media}', 'update')->name('update');
+                Route::post('/media/{media}/replace', 'replace')->name('replace');
+                Route::delete('/media/{media}', 'destroy')->name('destroy');
+                Route::get('/media/{media}/download', 'download')->name('download');
+            });
+
     });
 });

@@ -114,19 +114,18 @@ class CampaignPageController extends Controller
         return $token;
     }
 
+    /**
+     * Product order must follow the admin-selected campaign_product.sort_order.
+     * Do not group by category here, because that changes the selected product sequence
+     * even when category and brand sections are already sorted correctly by their pivots.
+     */
     private function sortProductsBySelectedCategory(Campaign $campaign)
     {
-        $categoryOrder = $campaign->categories->pluck('id')->flip();
-
         return $campaign->products
-            ->sortBy(function ($product) use ($categoryOrder) {
-                $categoryIndex = $categoryOrder->has($product->category_id)
-                    ? (int) $categoryOrder[$product->category_id]
-                    : 999999;
-
+            ->sortBy(function ($product) {
                 $productOrder = (int) ($product->pivot->sort_order ?? 999999);
 
-                return sprintf('%06d-%06d-%06d', $categoryIndex, $productOrder, $product->id);
+                return sprintf('%06d-%06d', $productOrder, (int) $product->id);
             })
             ->values();
     }
