@@ -10,6 +10,7 @@ use App\Models\ReportExport;
 use App\Models\TrackingPixel;
 use App\Models\User;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -111,128 +112,305 @@ class ReportController extends Controller
         return $query;
     }
 
+
     /*
     |--------------------------------------------------------------------------
     | Today's Report Summary
     |--------------------------------------------------------------------------
-    | Report index top cards-এর জন্য শুধু today's data calculate করবে।
-    | View file-এ $summary অথবা $summaryStats দুইভাবেই data পাওয়া যাবে।
+    | All card counts use the Bangladesh calendar day (12:00 AM - 11:59:59 PM)
+    | while database timestamps are compared in UTC.
     */
     private function getReportSummaryStats(): array
     {
-        /*
-        |--------------------------------------------------------------------------
-        | 24 Hours Today Range
-        |--------------------------------------------------------------------------
-        | Today's report will count from 12:00 AM to 11:59:59 PM.
-        |
-        | Important business rule:
-        | Order List 1 and Order List 2 are custom working lists. An old order can be
-        | moved into those lists today. Therefore today's report must count those
-        | moved orders as today's activity, even when the original order created_at
-        | date is old.
-        */
-        $timezone = config('app.timezone', 'Asia/Dhaka');
-        $todayStart = now($timezone)->startOfDay();
-        $todayEnd = now($timezone)->endOfDay();
+        [$todayStart, $todayEnd] = $this->todayDatabaseWindow();
 
-        $todayCreatedOrdersQuery = Order::query()
+        $todayCreatedOrders = Order::query()
             ->whereBetween('created_at', [$todayStart, $todayEnd]);
 
+        $todayActivityOrders = $this->todayBusinessActivityQuery($todayStart, $todayEnd);
+
+        $pendingOrders = Order::query()
+            ->where('order_status', Order::STATUS_PENDING)
+            ->where(function (Builder $query) use ($todayStart, $todayEnd) {
+                $this->applyStatusEventWindow(
+                    $query,
+                    Order::STATUS_PENDING,
+                    $todayStart,
+                    $todayEnd,
+                    null,
+                    true
+                );
+            });
+
+        $newOrders = Order::query()
+            ->where('order_status', Order::STATUS_PROCESSING)
+            ->whereBetween('created_at', [$todayStart, $todayEnd]);
+
+        $shippedOrders = Order::query()
+            ->where(function (Builder $query) use ($todayStart, $todayEnd) {
+                $this->applyStatusEventWindow(
+                    $query,
+                    Order::STATUS_SHIPPED,
+                    $todayStart,
+                    $todayEnd,
+                    'shipped_at'
+                );
+            });
+
+        $deliveredOrders = Order::query()
+            ->where(function (Builder $query) use ($todayStart, $todayEnd) {
+                $this->applyStatusEventWindow(
+                    $query,
+                    Order::STATUS_DELIVERED,
+                    $todayStart,
+                    $todayEnd,
+                    'delivered_at'
+                );
+            });
+
+        $stockOutOrders = Order::query()
+            ->where('order_status', Order::STATUS_STOCK_OUT)
+            ->where(function (Builder $query) use ($todayStart, $todayEnd) {
+                $this->applyStatusEventWindow(
+                    $query,
+                    Order::STATUS_STOCK_OUT,
+                    $todayStart,
+                    $todayEnd,
+                    null,
+                    true
+                );
+            });
+
+        $cancelledOrders = Order::query()
+            ->where(function (Builder $query) use ($todayStart, $todayEnd) {
+                $this->applyStatusEventWindow(
+                    $query,
+                    Order::STATUS_CANCELLED,
+                    $todayStart,
+                    $todayEnd,
+                    'cancelled_at'
+                );
+            });
+
+        $completedInvoices = Order::query()
+            ->whereBetween('invoice_printed_at', [$todayStart, $todayEnd]);
+
+        $deliveryActivity = Order::query()
+            ->where(function (Builder $query) use ($todayStart, $todayEnd) {
+                $this->applyStatusEventWindow(
+                    $query,
+                    Order::STATUS_SHIPPED,
+                    $todayStart,
+                    $todayEnd,
+                    'shipped_at'
+                );
+            })
+            ->orWhere(function (Builder $query) use ($todayStart, $todayEnd) {
+                $this->applyStatusEventWindow(
+                    $query,
+                    Order::STATUS_DELIVERED,
+                    $todayStart,
+                    $todayEnd,
+                    'delivered_at'
+                );
+            });
+
         return [
-            'todays_order' => $this->todayCreatedOrMovedOrderCount($todayStart, $todayEnd),
+            /*
+             * Today's Order:
+             * - counts only orders created during today's Bangladesh calendar day;
+             * - cancelled/fake orders are excluded;
+             * - old orders shipped, delivered, or invoice-completed today are NOT
+             *   added here; those events remain counted only in their own cards.
+             */
+            'todays_order' => $this->countDistinctOrders(
+                (clone $todayCreatedOrders)->whereNotIn('order_status', [
+                    Order::STATUS_CANCELLED,
+                    Order::STATUS_FAKE,
+                ])
+            ),
 
-            'pending_order' => (clone $todayCreatedOrdersQuery)
-                ->where('order_status', Order::STATUS_PENDING)
-                ->count(),
+            // New Order means current Processing status created today.
+            'new_order' => $this->countDistinctOrders($newOrders),
 
-            'incompleted_order' => (clone $todayCreatedOrdersQuery)
-                ->whereNotIn('order_status', [
+            // Pending can be created today or moved to Pending today.
+            'pending_order' => $this->countDistinctOrders($pendingOrders),
+
+            'incompleted_order' => $this->countDistinctOrders(
+                (clone $todayActivityOrders)->whereNotIn('order_status', [
                     Order::STATUS_DELIVERED,
                     Order::STATUS_CANCELLED,
                     Order::STATUS_FAKE,
-                    'stock_out',
+                    Order::STATUS_STOCK_OUT,
                 ])
-                ->count(),
+            ),
 
-            'completed_order' => (clone $todayCreatedOrdersQuery)
-                ->where('order_status', Order::STATUS_DELIVERED)
-                ->count(),
+            'completed_order' => $this->countDistinctOrders($deliveredOrders),
 
-            'shipped_orders' => (clone $todayCreatedOrdersQuery)
-                ->where('order_status', Order::STATUS_SHIPPED)
-                ->count(),
+            'shipped_orders' => $this->countDistinctOrders($shippedOrders),
 
-            'stock_out_order' => (clone $todayCreatedOrdersQuery)
-                ->where('order_status', 'stock_out')
-                ->count(),
+            'stock_out_order' => $this->countDistinctOrders($stockOutOrders),
 
-            'order_list_1' => $this->todayOrderListMovedCount('order_list_1', $todayStart, $todayEnd),
+            // Custom list movements are reported only in their own cards.
+            'order_list_1' => $this->todayOrderListMovedCount(
+                Order::CUSTOM_LIST_ONE,
+                $todayStart,
+                $todayEnd
+            ),
 
-            'order_list_2' => $this->todayOrderListMovedCount('order_list_2', $todayStart, $todayEnd),
+            'order_list_2' => $this->todayOrderListMovedCount(
+                Order::CUSTOM_LIST_TWO,
+                $todayStart,
+                $todayEnd
+            ),
 
-            'incompleted_invoice' => (clone $todayCreatedOrdersQuery)
-                ->where(function ($query) {
-                    $query->where('payment_status', '!=', Order::PAYMENT_STATUS_COLLECTED)
-                        ->orWhereNull('payment_status');
-                })
-                ->count(),
+            'incompleted_invoice' => $this->countDistinctOrders(
+                (clone $todayActivityOrders)->whereNull('invoice_printed_at')
+            ),
 
-            'completed_invoice' => (clone $todayCreatedOrdersQuery)
-                ->where('payment_status', Order::PAYMENT_STATUS_COLLECTED)
-                ->count(),
+            // Complete Invoice is based on the actual invoice print confirmation time.
+            'completed_invoice' => $this->countDistinctOrders($completedInvoices),
 
-            'checkout' => (clone $todayCreatedOrdersQuery)->count(),
-
-            'delivery' => (clone $todayCreatedOrdersQuery)
-                ->whereIn('order_status', [
-                    Order::STATUS_SHIPPED,
-                    Order::STATUS_DELIVERED,
+            'checkout' => $this->countDistinctOrders(
+                (clone $todayCreatedOrders)->whereNotIn('order_status', [
+                    Order::STATUS_CANCELLED,
+                    Order::STATUS_FAKE,
                 ])
-                ->count(),
+            ),
 
-            'cancelled' => (clone $todayCreatedOrdersQuery)
-                ->where('order_status', Order::STATUS_CANCELLED)
-                ->count(),
+            'delivery' => $this->countDistinctOrders($deliveryActivity),
+
+            'cancelled' => $this->countDistinctOrders($cancelledOrders),
         ];
     }
 
     /**
-     * Today's Order card count.
-     *
-     * Counts:
-     * 1. Orders created today.
-     * 2. Old orders moved into Order List 1/2 today.
-     *
-     * This keeps Report Management aligned with the Orders card behavior while
-     * still resetting automatically after today's 11:59:59 PM.
+     * Convert the local Bangladesh report day into the UTC range stored in DB.
      */
-    private function todayCreatedOrMovedOrderCount($todayStart, $todayEnd): int
+    private function todayDatabaseWindow(): array
+    {
+        $timezone = method_exists(Order::class, 'displayTimezone')
+            ? Order::displayTimezone()
+            : config('app.order_display_timezone', 'Asia/Dhaka');
+
+        $localStart = CarbonImmutable::now($timezone)->startOfDay();
+        $localEnd = $localStart->endOfDay();
+
+        return [
+            $localStart->utc(),
+            $localEnd->utc(),
+        ];
+    }
+
+    /**
+     * Build today's broader business-activity query for the other summary cards.
+     *
+     * Important: this query is intentionally NOT used by the Today's Order card.
+     * Custom order-list movement timestamps are also not included.
+     */
+    private function todayBusinessActivityQuery($todayStart, $todayEnd): Builder
     {
         $query = Order::query()
-            ->where(function ($query) use ($todayStart, $todayEnd) {
-                $query->whereBetween('created_at', [$todayStart, $todayEnd]);
+            ->whereNotIn('order_status', [
+                Order::STATUS_CANCELLED,
+                Order::STATUS_FAKE,
+            ])
+            ->where(function (Builder $activityQuery) use ($todayStart, $todayEnd) {
+                $activityQuery->whereBetween('created_at', [$todayStart, $todayEnd]);
 
-                if (Schema::hasColumn('orders', 'custom_order_list')) {
-                    $query->orWhere(function ($listQuery) use ($todayStart, $todayEnd) {
-                        $listQuery->whereIn('custom_order_list', ['order_list_1', 'order_list_2'])
-                            ->where(function ($movementQuery) use ($todayStart, $todayEnd) {
-                                $this->applyTodayOrderListMovementWindow($movementQuery, $todayStart, $todayEnd);
-                            });
+                if (Schema::hasColumn('orders', 'shipped_at')) {
+                    $activityQuery->orWhereBetween('shipped_at', [$todayStart, $todayEnd]);
+                }
+
+                if (Schema::hasColumn('orders', 'delivered_at')) {
+                    $activityQuery->orWhereBetween('delivered_at', [$todayStart, $todayEnd]);
+                }
+
+                if (Schema::hasColumn('orders', 'invoice_printed_at')) {
+                    $activityQuery->orWhereBetween('invoice_printed_at', [$todayStart, $todayEnd]);
+                }
+
+                if (Schema::hasTable('order_status_logs')) {
+                    $activityQuery->orWhereHas('statusLogs', function (Builder $statusLogQuery) use ($todayStart, $todayEnd) {
+                        $statusLogQuery
+                            ->whereIn('status', [
+                                Order::STATUS_SHIPPED,
+                                Order::STATUS_DELIVERED,
+                            ])
+                            ->whereBetween('created_at', [$todayStart, $todayEnd]);
                     });
                 }
             });
 
-        return (int) $query->select('orders.id')->distinct()->count('orders.id');
+        /*
+         * Cancellation has priority for activity-based summary cards. If an order
+         * was cancelled today, it is removed from this broader activity query.
+         */
+        if (Schema::hasColumn('orders', 'cancelled_at')) {
+            $query->where(function (Builder $cancelQuery) use ($todayStart, $todayEnd) {
+                $cancelQuery
+                    ->whereNull('cancelled_at')
+                    ->orWhereNotBetween('cancelled_at', [$todayStart, $todayEnd]);
+            });
+        }
+
+        if (Schema::hasTable('order_status_logs')) {
+            $query->whereDoesntHave('statusLogs', function (Builder $statusLogQuery) use ($todayStart, $todayEnd) {
+                $statusLogQuery
+                    ->where('status', Order::STATUS_CANCELLED)
+                    ->whereBetween('created_at', [$todayStart, $todayEnd]);
+            });
+        }
+
+        return $query;
     }
 
     /**
-     * Count orders moved to Order List 1/2 during today's 24-hour window.
+     * Apply a status event's daily window.
      *
-     * Why not only created_at? An old order can be moved to Order List 1/2 today.
-     * Why the updated_at fallback? If the movement timestamp column was added after
-     * some orders were already moved today, their custom_order_list_moved_at may be
-     * null, but updated_at still reflects the move time from the existing update flow.
+     * Dedicated timestamp column is preferred. Status logs keep the feature
+     * backward-compatible for existing rows and legacy update flows.
+     */
+    private function applyStatusEventWindow(
+        Builder $query,
+        string $status,
+        $todayStart,
+        $todayEnd,
+        ?string $timestampColumn = null,
+        bool $includeCreatedToday = false
+    ): void {
+        $hasCondition = false;
+
+        if ($timestampColumn && Schema::hasColumn('orders', $timestampColumn)) {
+            $query->whereBetween($timestampColumn, [$todayStart, $todayEnd]);
+            $hasCondition = true;
+        }
+
+        if (Schema::hasTable('order_status_logs')) {
+            $method = $hasCondition ? 'orWhereHas' : 'whereHas';
+
+            $query->{$method}('statusLogs', function (Builder $statusLogQuery) use ($status, $todayStart, $todayEnd) {
+                $statusLogQuery
+                    ->where('status', $status)
+                    ->whereBetween('created_at', [$todayStart, $todayEnd]);
+            });
+
+            $hasCondition = true;
+        }
+
+        if ($includeCreatedToday) {
+            $method = $hasCondition ? 'orWhereBetween' : 'whereBetween';
+            $query->{$method}('created_at', [$todayStart, $todayEnd]);
+            $hasCondition = true;
+        }
+
+        if (! $hasCondition) {
+            $query->whereRaw('1 = 0');
+        }
+    }
+
+    /**
+     * Count orders moved to Order List 1/2 during today's local calendar day.
      */
     private function todayOrderListMovedCount(string $listName, $todayStart, $todayEnd): int
     {
@@ -240,30 +418,33 @@ class ReportController extends Controller
             return 0;
         }
 
-        return (int) Order::query()
+        $query = Order::query()
             ->where('custom_order_list', $listName)
-            ->where(function ($query) use ($todayStart, $todayEnd) {
-                $this->applyTodayOrderListMovementWindow($query, $todayStart, $todayEnd);
-            })
-            ->count();
+            ->where(function (Builder $movementQuery) use ($todayStart, $todayEnd) {
+                if (Schema::hasColumn('orders', 'custom_order_list_moved_at')) {
+                    $movementQuery
+                        ->whereBetween('custom_order_list_moved_at', [$todayStart, $todayEnd])
+                        ->orWhere(function (Builder $fallbackQuery) use ($todayStart, $todayEnd) {
+                            $fallbackQuery
+                                ->whereNull('custom_order_list_moved_at')
+                                ->whereBetween('updated_at', [$todayStart, $todayEnd]);
+                        });
+
+                    return;
+                }
+
+                $movementQuery->whereBetween('updated_at', [$todayStart, $todayEnd]);
+            });
+
+        return $this->countDistinctOrders($query);
     }
 
-    /**
-     * Apply today's movement window safely for both new and already-moved rows.
-     */
-    private function applyTodayOrderListMovementWindow(Builder $query, $todayStart, $todayEnd): void
+    private function countDistinctOrders(Builder $query): int
     {
-        if (Schema::hasColumn('orders', 'custom_order_list_moved_at')) {
-            $query->whereBetween('custom_order_list_moved_at', [$todayStart, $todayEnd])
-                ->orWhere(function ($fallbackQuery) use ($todayStart, $todayEnd) {
-                    $fallbackQuery->whereNull('custom_order_list_moved_at')
-                        ->whereBetween('updated_at', [$todayStart, $todayEnd]);
-                });
-
-            return;
-        }
-
-        $query->whereBetween('updated_at', [$todayStart, $todayEnd]);
+        return (int) $query
+            ->select('orders.id')
+            ->distinct()
+            ->count('orders.id');
     }
 
     private function listResponse(Request $request, Builder $query, string $title, bool $isTrash = false)

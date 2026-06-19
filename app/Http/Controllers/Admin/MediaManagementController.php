@@ -7,6 +7,7 @@ use App\Models\Banner;
 use App\Models\Campaign;
 use App\Models\Category;
 use App\Models\CreatePage;
+use App\Models\MediaLibraryAsset;
 use App\Models\Product;
 use App\Models\Review;
 use App\Models\SiteSetting;
@@ -113,7 +114,7 @@ class MediaManagementController extends Controller
             'other' => [
                 'title' => 'Other Media',
                 'description' => 'Banner, page, site setting and user profile media files.',
-                'model_types' => [Banner::class, CreatePage::class, SiteSetting::class, User::class],
+                'model_types' => [Banner::class, CreatePage::class, MediaLibraryAsset::class, SiteSetting::class, User::class],
                 'collections' => [
                     'banner_image',
                     'page_banner',
@@ -121,6 +122,7 @@ class MediaManagementController extends Controller
                     'site_white_logo',
                     'site_favicon',
                     'avatars',
+                    'library',
                 ],
             ],
         ];
@@ -149,6 +151,7 @@ class MediaManagementController extends Controller
             CreatePage::class => 'Create Page',
             SiteSetting::class => 'Site Setting',
             User::class => 'User',
+            MediaLibraryAsset::class => 'Shared Media Library',
         ];
     }
 
@@ -172,6 +175,7 @@ class MediaManagementController extends Controller
             'site_white_logo' => 'Site White Logo',
             'site_favicon' => 'Site Favicon',
             'avatars' => 'User Avatar',
+            'library' => 'Shared Media Library',
         ];
     }
 
@@ -406,6 +410,187 @@ class MediaManagementController extends Controller
         ];
     }
 
+
+    /**
+     * Reusable media-browser endpoint used by all admin create/edit forms.
+     * Only active media with an existing physical file is returned.
+     */
+    public function browser(Request $request): JsonResponse
+    {
+        $this->adminOnly();
+
+        abort_if(! Schema::hasTable('media'), 500, 'Media table not found.');
+
+        $perPage = min(max((int) $request->input('per_page', 20), 8), 48);
+        $query = $this->baseMediaQuery(false);
+
+        $search = trim((string) $request->input('search', ''));
+        if ($search !== '') {
+            $query->where(function (Builder $searchQuery) use ($search) {
+                $searchQuery->where('name', 'like', "%{$search}%")
+                    ->orWhere('file_name', 'like', "%{$search}%")
+                    ->orWhere('collection_name', 'like', "%{$search}%")
+                    ->orWhere('mime_type', 'like', "%{$search}%")
+                    ->orWhere('model_type', 'like', "%{$search}%");
+
+                $this->applyOwnerSearch($searchQuery, $search);
+            });
+        }
+
+        $type = $this->normalizedFilterValue($request->input('type', 'all'));
+        $type = match ($type) {
+            'images' => 'image',
+            'videos' => 'video',
+            'documents', 'document_file', 'files' => 'document',
+            default => $type,
+        };
+
+        if (! in_array($type, ['all', 'image', 'video', 'document'], true)) {
+            $type = 'all';
+        }
+
+        if ($type === 'image') {
+            $query->where('mime_type', 'like', 'image/%');
+        } elseif ($type === 'video') {
+            $query->where('mime_type', 'like', 'video/%');
+        } elseif ($type === 'document') {
+            $query->where(function (Builder $documentQuery) {
+                $documentQuery->where('mime_type', 'like', 'application/%')
+                    ->orWhere('mime_type', 'like', 'text/%');
+            });
+        }
+
+        $collection = trim((string) $request->input('collection', 'all'));
+        if ($collection !== '' && $collection !== 'all') {
+            $query->where('collection_name', $collection);
+        }
+
+        $mediaItems = $query->paginate($perPage)->withQueryString();
+
+        $items = $mediaItems->getCollection()
+            ->map(function (Media $media) {
+                $path = null;
+                $exists = false;
+
+                try {
+                    $path = $media->getPath();
+                    $exists = $path && File::exists($path);
+                } catch (\Throwable $exception) {
+                    $exists = false;
+                }
+
+                return [
+                    'id' => (int) $media->id,
+                    'name' => (string) $media->name,
+                    'file_name' => (string) $media->file_name,
+                    'mime_type' => (string) $media->mime_type,
+                    'collection' => (string) $media->collection_name,
+                    'collection_label' => $this->collectionLabels()[$media->collection_name]
+                        ?? ucwords(str_replace('_', ' ', $media->collection_name)),
+                    'owner' => $this->ownerLabel($media),
+                    'owner_type' => $this->modelLabels()[$media->model_type]
+                        ?? class_basename($media->model_type),
+                    'size' => $this->humanFileSize((int) $media->size),
+                    'size_bytes' => (int) $media->size,
+                    'url' => $this->mediaUrl($media),
+                    'download_url' => route('admin.media-management.download', $media->id),
+                    'delete_url' => route('admin.media-management.destroy', $media->id),
+                    'exists' => $exists,
+                    'created_at' => optional($media->created_at)->format('d M Y, h:i A'),
+                ];
+            })
+            ->values();
+
+        $collectionQuery = $this->baseMediaQuery(false);
+        if ($type === 'image') {
+            $collectionQuery->where('mime_type', 'like', 'image/%');
+        } elseif ($type === 'video') {
+            $collectionQuery->where('mime_type', 'like', 'video/%');
+        } elseif ($type === 'document') {
+            $collectionQuery->where(function (Builder $documentQuery) {
+                $documentQuery->where('mime_type', 'like', 'application/%')
+                    ->orWhere('mime_type', 'like', 'text/%');
+            });
+        }
+
+        $collections = $collectionQuery
+            ->select('collection_name')
+            ->distinct()
+            ->orderBy('collection_name')
+            ->pluck('collection_name')
+            ->filter()
+            ->map(fn (string $name) => [
+                'value' => $name,
+                'label' => $this->collectionLabels()[$name] ?? ucwords(str_replace('_', ' ', $name)),
+            ])
+            ->values();
+
+        return response()->json([
+            'status' => true,
+            'items' => $items,
+            'collections' => $collections,
+            'pagination' => [
+                'current_page' => $mediaItems->currentPage(),
+                'last_page' => $mediaItems->lastPage(),
+                'per_page' => $mediaItems->perPage(),
+                'total' => $mediaItems->total(),
+                'from' => $mediaItems->firstItem(),
+                'to' => $mediaItems->lastItem(),
+            ],
+        ]);
+    }
+
+    /**
+     * Upload new reusable files into a dedicated shared-media owner model.
+     */
+    public function browserUpload(Request $request): JsonResponse
+    {
+        $this->adminOnly();
+
+        $validated = $request->validate([
+            'files' => ['required', 'array', 'min:1', 'max:10'],
+            'files.*' => [
+                'required',
+                'file',
+                'max:10240',
+                'mimes:jpg,jpeg,png,webp,gif,svg,mp4,webm,pdf,doc,docx,xls,xlsx,csv,txt',
+            ],
+        ]);
+
+        $library = MediaLibraryAsset::query()->firstOrCreate(
+            ['name' => 'Shared Media Library'],
+            ['status' => true]
+        );
+
+        $uploaded = 0;
+
+        foreach ($validated['files'] as $file) {
+            $library
+                ->addMedia($file)
+                ->usingName(pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME))
+                ->usingFileName($this->safeUniqueFileName($file->getClientOriginalName()))
+                ->toMediaCollection('library', 'public');
+
+            $uploaded++;
+        }
+
+        return response()->json([
+            'status' => true,
+            'message' => $uploaded . ' media file(s) uploaded successfully.',
+            'uploaded' => $uploaded,
+        ]);
+    }
+
+    private function safeUniqueFileName(string $originalName): string
+    {
+        $extension = strtolower((string) pathinfo($originalName, PATHINFO_EXTENSION));
+        $baseName = Str::slug((string) pathinfo($originalName, PATHINFO_FILENAME));
+        $baseName = $baseName !== '' ? $baseName : 'media';
+
+        return $baseName . '-' . now()->format('YmdHis') . '-' . Str::lower(Str::random(6))
+            . ($extension !== '' ? '.' . $extension : '');
+    }
+
     public function index(Request $request)
     {
         return $this->listResponse($request, 'all');
@@ -504,6 +689,24 @@ class MediaManagementController extends Controller
             return response()->json([
                 'status' => false,
                 'message' => 'Restore this media before replacing the file.',
+            ], 422);
+        }
+
+        $uploadedFile = $request->file('file');
+        $uploadedMimeType = strtolower((string) $uploadedFile?->getMimeType());
+        $currentMimeType = strtolower((string) $media->mime_type);
+
+        $currentIsImage = str_starts_with($currentMimeType, 'image/');
+        $currentIsVideo = str_starts_with($currentMimeType, 'video/');
+        $uploadedIsImage = str_starts_with($uploadedMimeType, 'image/');
+        $uploadedIsVideo = str_starts_with($uploadedMimeType, 'video/');
+
+        if (($currentIsImage && ! $uploadedIsImage) || ($currentIsVideo && ! $uploadedIsVideo)) {
+            return response()->json([
+                'status' => false,
+                'message' => $currentIsImage
+                    ? 'Please select an image file for this media item.'
+                    : 'Please select a video file for this media item.',
             ], 422);
         }
 

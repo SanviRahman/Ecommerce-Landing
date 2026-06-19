@@ -1002,6 +1002,22 @@ return [
             ],
         ],
 
+        'MediaPicker' => [
+            'active' => true,
+            'files'  => [
+                [
+                    'type'     => 'css',
+                    'asset'    => true,
+                    'location' => 'assets/admin/media-picker/media-picker.css',
+                ],
+                [
+                    'type'     => 'js',
+                    'asset'    => true,
+                    'location' => 'assets/admin/media-picker/media-picker.js',
+                ],
+            ],
+        ],
+
         'AdminToast'  => [
             'active' => true,
             'files'  => [

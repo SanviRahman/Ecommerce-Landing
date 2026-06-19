@@ -42,6 +42,7 @@ class Order extends Model
         'invoice_printed_at',
         'invoice_print_count',
         'custom_order_list',
+        'custom_order_list_moved_at',
 
         'customer_name',
         'phone',
@@ -71,6 +72,7 @@ class Order extends Model
         'source_url',
 
         'confirmed_at',
+        'shipped_at',
         'delivered_at',
         'cancelled_at',
         'marked_fake_at',
@@ -100,6 +102,7 @@ class Order extends Model
         'invoice_printed_at'   => 'datetime',
         'invoice_print_count'  => 'integer',
         'custom_order_list'    => 'string',
+        'custom_order_list_moved_at' => 'datetime',
         'courier_account_id'   => 'integer',
         'courier_id'           => 'integer',
 
@@ -112,6 +115,7 @@ class Order extends Model
         'is_fake'              => 'boolean',
 
         'confirmed_at'         => 'datetime',
+        'shipped_at'           => 'datetime',
         'delivered_at'         => 'datetime',
         'cancelled_at'         => 'datetime',
         'marked_fake_at'       => 'datetime',
@@ -144,6 +148,14 @@ class Order extends Model
 
             if ($status === self::STATUS_CONFIRMED && ! $order->confirmed_at) {
                 $order->confirmed_at = $now;
+            }
+
+            if (
+                $status === self::STATUS_SHIPPED
+                && Schema::hasColumn('orders', 'shipped_at')
+                && ! $order->shipped_at
+            ) {
+                $order->shipped_at = $now;
             }
 
             if (in_array($status, [self::STATUS_DELIVERED, 'complete', 'completed'], true) && ! $order->delivered_at) {
@@ -378,8 +390,10 @@ class Order extends Model
         return $query->where('custom_order_list', self::CUSTOM_LIST_TWO);
     }
 
+
     public function scopeCancelled(Builder $query): Builder
     {
         return $query->where('order_status', self::STATUS_CANCELLED);
     }
 }
+

@@ -77,3 +77,4 @@
 
     <div class="btn-group" id="productSalePagination" role="group" aria-label="Product sale pagination"></div>
 </div>
+

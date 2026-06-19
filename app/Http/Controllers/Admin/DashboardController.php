@@ -252,17 +252,34 @@ private function dailyReportStats(array $filters, array $dateRange): array
         /*
          * Daily / Today Report rule:
          * - Today window is 12:00 AM to 11:59:59 PM.
-         * - Today's Order / Total Checkout = orders created inside report range.
+         * - Today's Order = valid orders created inside report range only.
+         * - Older orders acted on today never increase Today's Order.
          * - Order List 1/2 = orders moved into custom list inside report range.
          * - Complete, Shipped, Delivered, Cancelled, Invoice = action based count.
          */
         $createdOrderQuery = $this->filteredOrderQuery($filters, $reportRange, true);
         $actionOrderQuery = $this->filteredOrderQuery($filters, [null, null], false);
 
-        $createdOrMovedOrderQuery = $this->createdOrMovedOrderQuery(
-            clone $actionOrderQuery,
-            $reportRange
-        );
+        /*
+         * Today's Order must follow the same rule as Report Management:
+         * only orders created inside the selected report range are counted.
+         * Older orders acted on today remain visible only in their own
+         * Shipped, Delivery and Completed Invoice cards.
+         */
+        $todaysOrderQuery = (clone $createdOrderQuery)
+            ->whereNotIn('order_status', [
+                'cancelled',
+                'canceled',
+                'fake',
+            ]);
+
+        /*
+         * New Order follows Orders Management semantics:
+         * a new order is an order created inside the selected daily range
+         * whose current status is processing.
+         */
+        $newOrderQuery = (clone $createdOrderQuery)
+            ->where('order_status', 'processing');
 
         $pendingOrderQuery = $this->statusActionQuery(
             clone $actionOrderQuery,
@@ -316,11 +333,12 @@ private function dailyReportStats(array $filters, array $dateRange): array
 
         return [
             'todaysOrder' => number_format(
-                (clone $createdOrMovedOrderQuery)
+                (clone $todaysOrderQuery)
                     ->select('orders.id')
                     ->distinct()
                     ->count('orders.id')
             ),
+            'newOrder' => number_format($newOrderQuery->count()),
             'pendingOrder' => number_format($pendingOrderQuery->count()),
             'incompletedOrder' => number_format(
                 (clone $createdOrderQuery)
@@ -347,30 +365,6 @@ private function dailyReportStats(array $filters, array $dateRange): array
             'delivery' => number_format($deliveryQuery->count()),
             'cancelled' => number_format($cancelledQuery->count()),
         ];
-    }
-
-    /**
-     * Today's Order should match Report Management behavior:
-     * created today OR moved into Order List 1/2 today.
-     */
-    private function createdOrMovedOrderQuery(Builder $query, array $dateRange): Builder
-    {
-        $query->where(function (Builder $activityQuery) use ($dateRange) {
-            $activityQuery->where(function (Builder $createdQuery) use ($dateRange) {
-                $this->applyDateRange($createdQuery, $dateRange, 'created_at');
-            });
-
-            if (Schema::hasColumn('orders', 'custom_order_list')) {
-                $activityQuery->orWhere(function (Builder $listQuery) use ($dateRange) {
-                    $listQuery->whereIn('custom_order_list', ['order_list_1', 'order_list_2'])
-                        ->where(function (Builder $movementQuery) use ($dateRange) {
-                            $this->applyOrderListMovementWindow($movementQuery, $dateRange);
-                        });
-                });
-            }
-        });
-
-        return $query;
     }
 
     /**
@@ -719,6 +713,7 @@ private function productSaleRows(array $filters, array $dateRange): array
     {
         return [
             'todaysOrder' => '0',
+            'newOrder' => '0',
             'pendingOrder' => '0',
             'incompletedOrder' => '0',
             'completedOrder' => '0',
@@ -743,3 +738,5 @@ private function productSaleRows(array $filters, array $dateRange): array
         return $user && method_exists($user, 'isEmployee') && $user->isEmployee();
     }
 }
+
+

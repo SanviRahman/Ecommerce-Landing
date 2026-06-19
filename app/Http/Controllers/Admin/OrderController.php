@@ -20,6 +20,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Throwable;
@@ -769,6 +770,14 @@ class OrderController extends Controller
             $updateData['confirmed_at'] = now();
         }
 
+        if (
+            $status === Order::STATUS_SHIPPED
+            && Schema::hasColumn('orders', 'shipped_at')
+            && ! $order->shipped_at
+        ) {
+            $updateData['shipped_at'] = now();
+        }
+
         if ($status === Order::STATUS_DELIVERED && ! $order->delivered_at) {
             $updateData['delivered_at'] = now();
         }
@@ -1451,6 +1460,14 @@ class OrderController extends Controller
 
             if ($status === Order::STATUS_CONFIRMED && ! $order->confirmed_at) {
                 $updateData['confirmed_at'] = now();
+            }
+
+            if (
+                $status === Order::STATUS_SHIPPED
+                && Schema::hasColumn('orders', 'shipped_at')
+                && ! $order->shipped_at
+            ) {
+                $updateData['shipped_at'] = now();
             }
 
             if ($status === Order::STATUS_DELIVERED && ! $order->delivered_at) {
@@ -2384,3 +2401,5 @@ class OrderController extends Controller
         ]);
     }
 }
+
+

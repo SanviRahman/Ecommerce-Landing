@@ -1,0 +1,233 @@
+.media-picker-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.media-picker-selected-label {
+    max-width: 100%;
+    font-size: 12px;
+    color: #6c757d;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#globalMediaPickerModal .modal-dialog {
+    max-width: 1060px;
+}
+
+.media-picker-upload-zone {
+    border: 2px dashed #9fb3ff;
+    border-radius: 10px;
+    background: #f5f7ff;
+    padding: 18px;
+    text-align: center;
+    transition: .2s ease;
+    cursor: pointer;
+}
+
+.media-picker-upload-zone.is-dragging {
+    border-color: #007bff;
+    background: #eaf3ff;
+}
+
+.media-picker-upload-zone input[type="file"] {
+    display: none;
+}
+
+.media-picker-toolbar {
+    display: grid;
+    grid-template-columns: minmax(220px, 1fr) 210px auto;
+    gap: 10px;
+    align-items: end;
+}
+
+.media-picker-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+    max-height: 430px;
+    overflow-y: auto;
+    padding: 2px;
+}
+
+.media-picker-card {
+    position: relative;
+    min-width: 0;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    background: #fff;
+    overflow: hidden;
+    cursor: pointer;
+    transition: .18s ease;
+}
+
+.media-picker-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 18px rgba(15, 23, 42, .1);
+}
+
+.media-picker-card.is-selected {
+    border-color: #007bff;
+    box-shadow: 0 0 0 2px rgba(0, 123, 255, .18);
+}
+
+.media-picker-card.is-missing {
+    opacity: .6;
+}
+
+.media-picker-preview {
+    height: 126px;
+    background: #f8fafc;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.media-picker-preview img,
+.media-picker-preview video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.media-picker-file-icon {
+    font-size: 38px;
+    color: #64748b;
+}
+
+.media-picker-card-body {
+    padding: 10px;
+}
+
+.media-picker-name {
+    display: block;
+    font-size: 13px;
+    font-weight: 700;
+    color: #1f2937;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.media-picker-meta {
+    margin-top: 4px;
+    font-size: 11px;
+    color: #64748b;
+    line-height: 1.4;
+}
+
+.media-picker-card-actions {
+    position: absolute;
+    top: 7px;
+    right: 7px;
+    display: flex;
+    gap: 5px;
+}
+
+.media-picker-select-mark {
+    position: absolute;
+    top: 7px;
+    left: 7px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: #007bff;
+    color: #fff;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, .2);
+}
+
+.media-picker-card.is-selected .media-picker-select-mark {
+    display: inline-flex;
+}
+
+.media-picker-loading,
+.media-picker-empty {
+    grid-column: 1 / -1;
+    min-height: 230px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: #6c757d;
+}
+
+.media-picker-pagination .btn {
+    min-width: 34px;
+}
+
+@media (max-width: 991.98px) {
+    .media-picker-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 767.98px) {
+    #globalMediaPickerModal .modal-dialog {
+        margin: .5rem;
+    }
+
+    .media-picker-toolbar {
+        grid-template-columns: 1fr;
+    }
+
+    .media-picker-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        max-height: 390px;
+    }
+}
+
+@media (max-width: 420px) {
+    .media-picker-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Keep the global picker above AJAX edit/create modals. */
+#globalMediaPickerModal {
+    z-index: 1080;
+}
+
+body.media-picker-modal-open .modal-backdrop:last-of-type {
+    z-index: 1070;
+}
+
+/* Auto-apply fields show only the Media Library button. */
+input[data-media-picker-auto-apply="1"] + .media-picker-actions {
+    margin-top: 0;
+}
+
+input[data-media-picker-auto-apply="1"] + .media-picker-actions .media-picker-selected-label {
+    display: none;
+}
+
+input[data-media-picker-auto-apply="1"] + .media-picker-actions .js-open-media-picker {
+    min-width: 132px;
+}
+
+/*
+ * Safety guard: SweetAlert2 and toast libraries keep internal file inputs in
+ * their reusable DOM templates. Media Picker controls must never be rendered
+ * inside notification/confirmation UI.
+ */
+.swal2-container .media-picker-actions,
+.swal2-popup .media-picker-actions,
+.swal2-toast .media-picker-actions,
+.toast-container .media-picker-actions,
+.toasts-top-right .media-picker-actions,
+.toasts-top-left .media-picker-actions,
+.toasts-bottom-right .media-picker-actions,
+.toasts-bottom-left .media-picker-actions,
+.iziToast-wrapper .media-picker-actions,
+.noty_layout .media-picker-actions,
+.alertify-notifier .media-picker-actions {
+    display: none !important;
+}
+

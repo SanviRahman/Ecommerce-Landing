@@ -528,40 +528,66 @@
         });
     });
 
+    function replaceMediaImmediately(input) {
+        const form = $(input).closest('#media-replace-form');
+
+        if (!form.length || !input.files || !input.files.length || form.data('replacing')) {
+            return;
+        }
+
+        const formData = new FormData(form[0]);
+        const browseButton = form.find('.js-open-media-picker');
+        const oldButtonHtml = browseButton.html();
+
+        form.data('replacing', true);
+
+        $.ajax({
+            url: form.attr('action'),
+            method: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            beforeSend: function() {
+                browseButton
+                    .prop('disabled', true)
+                    .html('<i class="fas fa-spinner fa-spin mr-1"></i> Applying...');
+            },
+            success: function(res) {
+                if (!res.status) {
+                    notify('error', res.message || 'Media change failed.');
+                    return;
+                }
+
+                $('#mediaEditModal').modal('hide');
+                notify('success', res.message || 'Media changed successfully.');
+                reloadMediaTable();
+            },
+            error: function(xhr) {
+                notify('error', xhr.responseJSON?.message || 'Media change failed.');
+            },
+            complete: function() {
+                form.data('replacing', false);
+                browseButton.prop('disabled', false).html(oldButtonHtml);
+
+                // Allow the same media file to be selected again after an error.
+                input.value = '';
+            }
+        });
+    }
+
+    $(document).on(
+        'change',
+        '#media-replace-form input[name="file"][data-media-picker-auto-apply="1"]',
+        function() {
+            replaceMediaImmediately(this);
+        }
+    );
+
+    // Defensive fallback: no visible submit button exists, but prevent accidental normal submission.
     $(document).on('submit', '#media-replace-form', function(e) {
         e.preventDefault();
-
-        const form = $(this);
-        const button = form.find('button[type="submit"]');
-        const oldHtml = button.html();
-        const formData = new FormData(this);
-
-        confirmAction('Replace media file?', 'Old file will be removed from storage. This cannot be undone.', function() {
-            $.ajax({
-                url: form.attr('action'),
-                method: 'POST',
-                data: formData,
-                processData: false,
-                contentType: false,
-                beforeSend: function() {
-                    button.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Replacing...');
-                },
-                success: function(res) {
-                    button.prop('disabled', false).html(oldHtml);
-                    if (res.status) {
-                        $('#mediaEditModal').modal('hide');
-                        notify('success', res.message || 'Media replaced.');
-                        reloadMediaTable();
-                    } else {
-                        notify('error', res.message || 'Media replace failed.');
-                    }
-                },
-                error: function(xhr) {
-                    button.prop('disabled', false).html(oldHtml);
-                    notify('error', xhr.responseJSON?.message || 'Media replace failed.');
-                }
-            });
-        });
+        const input = this.querySelector('input[name="file"]');
+        replaceMediaImmediately(input);
     });
 
     $(document).on('click', '.btn-media-delete', function() {
@@ -676,3 +702,4 @@
 })(jQuery);
 </script>
 @endsection
+

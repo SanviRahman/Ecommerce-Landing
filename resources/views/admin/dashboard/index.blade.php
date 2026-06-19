@@ -134,6 +134,13 @@
     </div>
 </div>
 
+<div class="dashboard-section-heading mb-2" aria-label="Total count summary">
+    <h5 class="mb-0 font-weight-bold">
+        <i class="fas fa-calculator text-primary mr-2"></i>Total Count
+    </h5>
+    <small class="text-muted">Overall dashboard totals based on the selected analytics filters.</small>
+</div>
+
 <div class="row" id="statsContainer">
     <div class="col-lg-3 col-md-6">
         <div class="small-box bg-info shadow-sm dashboard-stat-box">
@@ -240,6 +247,16 @@
                     <div>
                         <strong>Today's Order</strong>
                         <h5 id="today_todaysOrder">0</h5>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-3 col-md-6">
+                <div class="today-report-item">
+                    <span class="today-icon bg-secondary"><i class="fas fa-cart-plus"></i></span>
+                    <div>
+                        <strong>New Order</strong>
+                        <h5 id="today_newOrder">0</h5>
                     </div>
                 </div>
             </div>
@@ -423,7 +440,7 @@ $(function() {
 
         $('#stat_totalOrders, #stat_pendingOrders, #stat_confirmedOrders, #stat_processingOrders, #stat_deliveredOrders, #stat_cancelledOrders, #stat_grossSales, #stat_totalProducts').html(loader);
 
-        $('#today_todaysOrder, #today_pendingOrder, #today_incompletedOrder, #today_completedOrder, #today_shippedOrders, #today_orderList1, #today_orderList2, #today_incompletedInvoice, #today_completedInvoice, #today_totalCheckout, #today_delivery, #today_cancelled').html(loader);
+        $('#today_todaysOrder, #today_newOrder, #today_pendingOrder, #today_incompletedOrder, #today_completedOrder, #today_shippedOrders, #today_orderList1, #today_orderList2, #today_incompletedInvoice, #today_completedInvoice, #today_totalCheckout, #today_delivery, #today_cancelled').html(loader);
 
         $('#productSaleReportContainer, #userOrderReportContainer')
             .html('<div class="text-center p-4"><i class="fas fa-spinner fa-spin fa-2x text-primary"></i></div>');
@@ -446,6 +463,7 @@ $(function() {
         todayReport = todayReport || {};
 
         $('#today_todaysOrder').text(todayReport.todaysOrder || '0');
+        $('#today_newOrder').text(todayReport.newOrder || '0');
         $('#today_pendingOrder').text(todayReport.pendingOrder || '0');
         $('#today_incompletedOrder').text(todayReport.incompletedOrder || '0');
         $('#today_completedOrder').text(todayReport.completedOrder || '0');
@@ -611,6 +629,20 @@ $(function() {
     margin-bottom: .75rem;
 }
 
+.dashboard-section-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 4px 16px;
+    padding: 2px 2px 4px;
+}
+
+.dashboard-section-heading h5 {
+    color: #343a40;
+    font-size: 17px;
+}
+
 .dashboard-stat-box h3 {
     font-size: 1.85rem;
     font-weight: 700;
@@ -674,3 +706,5 @@ $(function() {
 }
 </style>
 @endsection
+
+

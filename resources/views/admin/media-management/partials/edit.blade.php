@@ -73,26 +73,44 @@
 
             <hr>
 
-            <form id="media-replace-form" action="{{ route('admin.media-management.replace', $media->id) }}" method="POST" enctype="multipart/form-data">
+            @php
+                $pickerType = $isImage ? 'image' : ($isVideo ? 'video' : 'all');
+                $pickerAccept = $isImage
+                    ? 'image/*'
+                    : ($isVideo
+                        ? 'video/*'
+                        : '.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt');
+            @endphp
+
+            <div class="mb-2 font-weight-bold">
+                <i class="fas fa-images text-primary mr-1"></i> Change Media
+            </div>
+
+            <form id="media-replace-form"
+                  action="{{ route('admin.media-management.replace', $media->id) }}"
+                  method="POST"
+                  enctype="multipart/form-data">
                 @csrf
 
-                <div class="alert alert-warning py-2">
-                    <i class="fas fa-exclamation-triangle mr-1"></i>
-                    Replace করলে old file storage থেকে remove হবে। Single-file collection হলে related image automatically নতুন file হবে।
-                </div>
-
-                <div class="form-group">
-                    <label>Replace File</label>
-                    <input type="file" name="file" class="form-control-file" required>
-                    <small class="text-muted">Allowed: jpg, jpeg, png, webp, gif, svg, mp4, webm, pdf, doc, docx, xls, xlsx, csv. Max 10MB.</small>
-                </div>
+                {{--
+                    The native file control and extra Replace button are intentionally hidden.
+                    MediaPicker injects the single visible “Browse Media” button.
+                    Selecting a media item triggers immediate replacement through AJAX.
+                --}}
+                <input type="file"
+                       name="file"
+                       class="d-none"
+                       accept="{{ $pickerAccept }}"
+                       data-media-picker-type="{{ $pickerType }}"
+                       data-media-picker-auto-apply="1"
+                       required>
 
                 <input type="hidden" name="name" value="{{ $media->name }}">
-
-                <button type="submit" class="btn btn-danger">
-                    <i class="fas fa-sync-alt mr-1"></i> Replace File
-                </button>
             </form>
+
+            <div class="small text-muted mt-2 media-auto-apply-help">
+                Media Library থেকে একটি file select করলে change সঙ্গে সঙ্গে apply হবে।
+            </div>
         </div>
     </div>
 </div>
@@ -103,3 +121,4 @@
     </a>
     <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
 </div>
+

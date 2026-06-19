@@ -560,10 +560,11 @@ Route::middleware(['auth'])->group(function () {
             });
 
         // Media Management
+
         Route::prefix('media-management')
             ->name('media-management.')
             ->controller(MediaManagementController::class)
-            ->group(function () {
+            ->group(function (): void {
                 Route::get('/', 'index')->name('index');
                 Route::get('/category', 'category')->name('category');
                 Route::get('/products', 'products')->name('products');
@@ -574,6 +575,10 @@ Route::middleware(['auth'])->group(function () {
                     ->name('campaign.section');
 
                 Route::get('/other', 'other')->name('other');
+
+                /* Required by the reusable Media Library modal. */
+                Route::get('/browser', 'browser')->name('browser');
+                Route::post('/browser/upload', 'browserUpload')->name('browser.upload');
 
                 Route::get('/media/trash', 'trash')->name('trash');
                 Route::post('/media/multiple-action', 'multipleAction')->name('multiple-action');
