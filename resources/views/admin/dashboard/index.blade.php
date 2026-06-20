@@ -303,6 +303,16 @@
 
             <div class="col-lg-3 col-md-6">
                 <div class="today-report-item">
+                    <span class="today-icon bg-dark"><i class="fas fa-box-open"></i></span>
+                    <div>
+                        <strong>Stock Out</strong>
+                        <h5 id="today_stockOutOrder">0</h5>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-3 col-md-6">
+                <div class="today-report-item">
                     <span class="today-icon bg-primary"><i class="fas fa-list-ol"></i></span>
                     <div>
                         <strong>Order List 1</strong>
@@ -377,6 +387,9 @@
 <div class="card card-outline card-primary shadow-sm mb-3">
     <div class="card-header bg-white">
         <h3 class="card-title font-weight-bold">Product Sale Report</h3>
+        <small class="d-block text-muted">
+            Daily product order summary (12:00 AM - 11:59 PM). Use Show 10 or All to control visible rows.
+        </small>
     </div>
 
     <div class="card-body" id="productSaleReportContainer">
@@ -440,7 +453,7 @@ $(function() {
 
         $('#stat_totalOrders, #stat_pendingOrders, #stat_confirmedOrders, #stat_processingOrders, #stat_deliveredOrders, #stat_cancelledOrders, #stat_grossSales, #stat_totalProducts').html(loader);
 
-        $('#today_todaysOrder, #today_newOrder, #today_pendingOrder, #today_incompletedOrder, #today_completedOrder, #today_shippedOrders, #today_orderList1, #today_orderList2, #today_incompletedInvoice, #today_completedInvoice, #today_totalCheckout, #today_delivery, #today_cancelled').html(loader);
+        $('#today_todaysOrder, #today_newOrder, #today_pendingOrder, #today_incompletedOrder, #today_completedOrder, #today_shippedOrders, #today_stockOutOrder, #today_orderList1, #today_orderList2, #today_incompletedInvoice, #today_completedInvoice, #today_totalCheckout, #today_delivery, #today_cancelled').html(loader);
 
         $('#productSaleReportContainer, #userOrderReportContainer')
             .html('<div class="text-center p-4"><i class="fas fa-spinner fa-spin fa-2x text-primary"></i></div>');
@@ -468,6 +481,7 @@ $(function() {
         $('#today_incompletedOrder').text(todayReport.incompletedOrder || '0');
         $('#today_completedOrder').text(todayReport.completedOrder || '0');
         $('#today_shippedOrders').text(todayReport.shippedOrders || '0');
+        $('#today_stockOutOrder').text(todayReport.stockOutOrder || '0');
         $('#today_orderList1').text(todayReport.orderList1 || '0');
         $('#today_orderList2').text(todayReport.orderList2 || '0');
         $('#today_incompletedInvoice').text(todayReport.incompletedInvoice || '0');
@@ -561,8 +575,19 @@ $(function() {
         });
     }
 
+    function productSalePerPageValue() {
+        const selectedValue = String($('#productSalePerPage').val() || '10').toLowerCase();
+
+        if (selectedValue === 'all') {
+            return 'all';
+        }
+
+        const parsedValue = parseInt(selectedValue, 10);
+
+        return Number.isFinite(parsedValue) && parsedValue > 0 ? parsedValue : 10;
+    }
+
     function initProductSalePagination(page) {
-        const perPage = 5;
         const allRows = $('#productSaleTable tbody tr.product-sale-row');
 
         if (! allRows.length) {
@@ -573,10 +598,16 @@ $(function() {
 
         const filteredRows = productSaleFilteredRows();
         const total = filteredRows.length;
-        const totalPages = Math.max(1, Math.ceil(total / perPage));
-        const currentPage = Math.min(Math.max(parseInt(page || 1, 10), 1), totalPages);
-        const startIndex = (currentPage - 1) * perPage;
-        const endIndex = Math.min(startIndex + perPage, total);
+        const selectedPerPage = productSalePerPageValue();
+        const showAll = selectedPerPage === 'all';
+        const perPage = showAll ? Math.max(total, 1) : selectedPerPage;
+        const totalPages = showAll ? 1 : Math.max(1, Math.ceil(total / perPage));
+        const currentPage = showAll
+            ? 1
+            : Math.min(Math.max(parseInt(page || 1, 10), 1), totalPages);
+
+        const startIndex = showAll ? 0 : (currentPage - 1) * perPage;
+        const endIndex = showAll ? total : Math.min(startIndex + perPage, total);
 
         allRows.hide();
         filteredRows.slice(startIndex, endIndex).show();
@@ -585,6 +616,11 @@ $(function() {
             ? `Showing ${startIndex + 1} to ${endIndex} of ${total} entries`
             : 'Showing 0 to 0 of 0 entries'
         );
+
+        if (showAll || totalPages <= 1) {
+            $('#productSalePagination').empty();
+            return;
+        }
 
         let paginationHtml = '';
         paginationHtml += `<button type="button" class="btn btn-sm btn-light border js-product-page" data-page="${currentPage - 1}" ${currentPage <= 1 ? 'disabled' : ''}>Previous</button>`;
@@ -597,6 +633,10 @@ $(function() {
 
         $('#productSalePagination').html(paginationHtml);
     }
+
+    $(document).on('change', '#productSalePerPage', function() {
+        initProductSalePagination(1);
+    });
 
     $(document).on('keyup', '#productSaleSearch', function() {
         initProductSalePagination(1);
@@ -706,5 +746,3 @@ $(function() {
 }
 </style>
 @endsection
-
-

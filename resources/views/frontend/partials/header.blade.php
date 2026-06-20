@@ -3,14 +3,28 @@
     |--------------------------------------------------------------------------
     | Safe Default Variables
     |--------------------------------------------------------------------------
-    | Success page বা অন্য কোনো frontend page থেকে campaign না পাঠালেও
-    | header যেন error না দেয়।
     */
     $campaign = $campaign ?? null;
     $categories = $categories ?? null;
     $brands = $brands ?? null;
     $reviews = $reviews ?? null;
     $campaignGalleryImages = $campaignGalleryImages ?? null;
+
+    /*
+    |--------------------------------------------------------------------------
+    | Header Shell and Content Visibility
+    |--------------------------------------------------------------------------
+    | The header shell remains visible on the homepage even when every campaign
+    | is inactive. Only the logo, menu links, mobile toggler and order buttons
+    | are hidden, leaving a clean blank header area with the same layout height.
+    */
+    $showFrontendHeader = isset($showFrontendHeader)
+        ? (bool) $showFrontendHeader
+        : true;
+
+    $showFrontendHeaderContent = isset($showFrontendHeaderContent)
+        ? (bool) $showFrontendHeaderContent
+        : ! (request()->routeIs('home') && ! $campaign);
 
     $siteSetting = $siteSetting ?? \App\Models\SiteSetting::query()
         ->where('status', true)
@@ -26,26 +40,12 @@
     $logo = $logo ?: ($siteSetting->logo ?? null);
     $websiteName = $siteSetting->website_name ?? config('app.name', 'Laravel');
 
-    /*
-    |--------------------------------------------------------------------------
-    | Dynamic Logo URL
-    |--------------------------------------------------------------------------
-    | Campaign page-e thakle logo click korle same campaign page-e thakbe.
-    | Normal home/success page-e thakle home page-e jabe.
-    */
     $logoUrl = route('home');
 
     if ($campaign && ! empty($campaign->slug)) {
         $logoUrl = route('campaign.show', $campaign->slug);
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Dynamic Front Header / Menu Visibility
-    |--------------------------------------------------------------------------
-    | Campaign form-er section active/inactive switch onujayi frontend navbar-er
-    | related menu/header links show/hide hobe.
-    */
     $sectionStatus = function (string $field, bool $default = true) use ($campaign): bool {
         if (! $campaign) {
             return $default;
@@ -106,114 +106,125 @@
         ?? $sectionStatus('order_section_status');
 @endphp
 
+@if($showFrontendHeader)
 <header class="front-header">
     <div class="container">
-        <nav class="navbar navbar-expand-lg front-navbar px-0">
-            <a class="navbar-brand d-flex align-items-center" href="{{ $logoUrl }}">
-                @if($logo)
-                    <img src="{{ $logo }}" alt="{{ $websiteName }}" class="site-logo-img">
+        @if($showFrontendHeaderContent)
+            <nav class="navbar navbar-expand-lg front-navbar px-0">
+                <a class="navbar-brand d-flex align-items-center" href="{{ $logoUrl }}">
+                    @if($logo)
+                        <img src="{{ $logo }}" alt="{{ $websiteName }}" class="site-logo-img">
+                    @endif
+                </a>
+
+                @if($headerOrderActive)
+                    <div class="mobile-action d-lg-none ml-auto mr-2">
+                        <a href="{{ request()->routeIs('order.success') ? route('home') . '#order-section' : '#order-section' }}"
+                           class="btn btn-success btn-sm order-nav-btn">
+                            <i class="fas fa-shopping-bag mr-1"></i>
+                            অর্ডার করুন
+                        </a>
+                    </div>
                 @endif
-            </a>
 
-            @if($headerOrderActive)
-                <div class="mobile-action d-lg-none ml-auto mr-2">
-                    <a href="{{ request()->routeIs('order.success') ? route('home') . '#order-section' : '#order-section' }}"
-                       class="btn btn-success btn-sm order-nav-btn">
-                        <i class="fas fa-shopping-bag mr-1"></i>
-                        অর্ডার করুন
-                    </a>
+                <button class="navbar-toggler front-toggler"
+                        type="button"
+                        data-toggle="collapse"
+                        data-target="#frontMenu"
+                        aria-controls="frontMenu"
+                        aria-expanded="false"
+                        aria-label="Toggle navigation">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+
+                <div class="collapse navbar-collapse" id="frontMenu">
+                    <ul class="navbar-nav ml-auto align-items-lg-center">
+                        @if($headerCategoryActive)
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ request()->routeIs('order.success') ? route('home') . '#category-section' : '#category-section' }}">
+                                    ক্যাটাগরি
+                                </a>
+                            </li>
+                        @endif
+
+                        @if($headerBrandActive)
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ request()->routeIs('order.success') ? route('home') . '#brand-section' : '#brand-section' }}">
+                                    ব্র্যান্ড
+                                </a>
+                            </li>
+                        @endif
+
+                        @if($headerProductActive)
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ request()->routeIs('order.success') ? route('home') . '#products-section' : '#products-section' }}">
+                                    প্রোডাক্ট
+                                </a>
+                            </li>
+                        @endif
+
+                        @if($headerDifferenceActive)
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ request()->routeIs('order.success') ? route('home') . '#difference-section' : '#difference-section' }}">
+                                    পার্থক্য
+                                </a>
+                            </li>
+                        @endif
+
+                        @if($headerServiceActive)
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ request()->routeIs('order.success') ? route('home') . '#services-section' : '#services-section' }}">
+                                    ফিচারস
+                                </a>
+                            </li>
+                        @endif
+
+                        @if($headerReviewActive)
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ request()->routeIs('order.success') ? route('home') . '#reviews-section' : '#reviews-section' }}">
+                                    রিভিউ
+                                </a>
+                            </li>
+                        @endif
+
+                        @if($headerGalleryActive)
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ request()->routeIs('order.success') ? route('home') . '#gallery-section' : '#gallery-section' }}">
+                                    গ্যালারি
+                                </a>
+                            </li>
+                        @endif
+
+                        @if($headerHelpActive)
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ request()->routeIs('order.success') ? route('home') . '#contact-section' : '#contact-section' }}">
+                                    যোগাযোগ
+                                </a>
+                            </li>
+                        @endif
+
+                        @if($headerOrderActive)
+                            <li class="nav-item ml-lg-3 d-none d-lg-block">
+                                <a href="{{ request()->routeIs('order.success') ? route('home') . '#order-section' : '#order-section' }}"
+                                   class="btn btn-success order-nav-btn">
+                                    <i class="fas fa-shopping-bag mr-1"></i>
+                                    অর্ডার করুন
+                                </a>
+                            </li>
+                        @endif
+                    </ul>
                 </div>
-            @endif
-
-            <button class="navbar-toggler front-toggler"
-                    type="button"
-                    data-toggle="collapse"
-                    data-target="#frontMenu"
-                    aria-controls="frontMenu"
-                    aria-expanded="false"
-                    aria-label="Toggle navigation">
-                <span></span>
-                <span></span>
-                <span></span>
-            </button>
-
-            <div class="collapse navbar-collapse" id="frontMenu">
-                <ul class="navbar-nav ml-auto align-items-lg-center">
-                    @if($headerCategoryActive)
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ request()->routeIs('order.success') ? route('home') . '#category-section' : '#category-section' }}">
-                                ক্যাটাগরি
-                            </a>
-                        </li>
-                    @endif
-
-                    @if($headerBrandActive)
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ request()->routeIs('order.success') ? route('home') . '#brand-section' : '#brand-section' }}">
-                                ব্র্যান্ড
-                            </a>
-                        </li>
-                    @endif
-
-                    @if($headerProductActive)
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ request()->routeIs('order.success') ? route('home') . '#products-section' : '#products-section' }}">
-                                প্রোডাক্ট
-                            </a>
-                        </li>
-                    @endif
-
-                    @if($headerDifferenceActive)
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ request()->routeIs('order.success') ? route('home') . '#difference-section' : '#difference-section' }}">
-                                পার্থক্য
-                            </a>
-                        </li>
-                    @endif
-
-                    @if($headerServiceActive)
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ request()->routeIs('order.success') ? route('home') . '#services-section' : '#services-section' }}">
-                                ফিচারস
-                            </a>
-                        </li>
-                    @endif
-
-                    @if($headerReviewActive)
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ request()->routeIs('order.success') ? route('home') . '#reviews-section' : '#reviews-section' }}">
-                                রিভিউ
-                            </a>
-                        </li>
-                    @endif
-
-                    @if($headerGalleryActive)
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ request()->routeIs('order.success') ? route('home') . '#gallery-section' : '#gallery-section' }}">
-                                গ্যালারি
-                            </a>
-                        </li>
-                    @endif
-
-                    @if($headerHelpActive)
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ request()->routeIs('order.success') ? route('home') . '#contact-section' : '#contact-section' }}">
-                                যোগাযোগ
-                            </a>
-                        </li>
-                    @endif
-
-                    @if($headerOrderActive)
-                        <li class="nav-item ml-lg-3 d-none d-lg-block">
-                            <a href="{{ request()->routeIs('order.success') ? route('home') . '#order-section' : '#order-section' }}"
-                               class="btn btn-success order-nav-btn">
-                                <i class="fas fa-shopping-bag mr-1"></i>
-                                অর্ডার করুন
-                            </a>
-                        </li>
-                    @endif
-                </ul>
-            </div>
-        </nav>
+            </nav>
+        @else
+            {{-- Keep the original header shell/spacing, but render no visible data. --}}
+            <nav class="navbar navbar-expand-lg front-navbar px-0"
+                 aria-hidden="true"
+                 style="min-height: 88px;">
+                <div class="w-100"></div>
+            </nav>
+        @endif
     </div>
 </header>
+@endif

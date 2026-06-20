@@ -36,12 +36,40 @@ $duplicatePhoneCounts = $duplicatePhoneCounts ?? [];
             ? $order->localDateTime('created_at')
             : ($order->created_at ? $order->created_at->copy()->timezone('Asia/Dhaka') : null);
             $duplicatePhoneTotal = (int) ($duplicatePhoneCounts[$order->phone] ?? 0);
-            $rowClasses = trim((!empty($isTrash) ? 'bg-light-red ' : '') . ($duplicatePhoneTotal > 1 ?
-            'order-duplicate-phone-row' : ''));
+            $isAdminManualOrder = method_exists($order, 'isAdminManualOrder')
+                ? $order->isAdminManualOrder()
+                : (($order->created_via ?? null) === 'admin_manual');
+
+            $rowClassParts = [];
+
+            if (!empty($isTrash)) {
+                $rowClassParts[] = 'bg-light-red';
+            }
+
+            if ($isAdminManualOrder) {
+                $rowClassParts[] = 'order-manual-row';
+            }
+
+            if ($duplicatePhoneTotal > 1) {
+                $rowClassParts[] = 'order-duplicate-phone-row';
+            }
+
+            $rowClasses = implode(' ', $rowClassParts);
+
+            $rowTitleParts = [];
+
+            if ($isAdminManualOrder) {
+                $rowTitleParts[] = 'Created manually by admin';
+            }
+
+            if ($duplicatePhoneTotal > 1) {
+                $rowTitleParts[] = "Same phone number has {$duplicatePhoneTotal} orders";
+            }
+
+            $rowTitle = implode(' | ', $rowTitleParts);
             @endphp
 
-            <tr class="{{ $rowClasses }}" @if($duplicatePhoneTotal> 1) title="Same phone number has
-                {{ $duplicatePhoneTotal }} orders" @endif>
+            <tr class="{{ $rowClasses }}" @if($rowTitle !== '') title="{{ $rowTitle }}" @endif>
                 @if($canBulkManageOrders)
                 <td class="text-center px-4">
                     <input type="checkbox" class="row-checkbox shadow-none cursor-pointer" value="{{ $order->id }}">
@@ -527,11 +555,38 @@ $duplicatePhoneCounts = $duplicatePhoneCounts ?? [];
 }
 
 .order-duplicate-phone-row>td {
-    background: #fff7ed !important;
+    background: #fee2e2 !important;
 }
 
 .order-duplicate-phone-row:hover>td {
-    background: #ffedd5 !important;
+    background: #fecaca !important;
+}
+
+.order-manual-row>td {
+    background: #e8f5e9 !important;
+}
+
+.order-manual-row:hover>td {
+    background: #d1fae5 !important;
+}
+
+/*
+ * A manual order can also share a duplicate phone number.
+ * Keep the requested green manual background and add a clear red warning edge
+ * so both states remain visible without changing the table structure.
+ */
+.order-manual-row.order-duplicate-phone-row>td {
+    background: #e8f5e9 !important;
+    border-top-color: #fca5a5 !important;
+    border-bottom-color: #fca5a5 !important;
+}
+
+.order-manual-row.order-duplicate-phone-row:hover>td {
+    background: #d1fae5 !important;
+}
+
+.order-manual-row.order-duplicate-phone-row>td:first-child {
+    box-shadow: inset 5px 0 0 #dc2626;
 }
 
 .admin-note-input-compact {
@@ -617,5 +672,3 @@ $duplicatePhoneCounts = $duplicatePhoneCounts ?? [];
     background-color: #6c757d;
 }
 </style>
-
-

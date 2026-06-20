@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
@@ -7,6 +6,7 @@ use App\Models\Campaign;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\User;
+use App\Services\TodayReportSummaryService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -18,31 +18,31 @@ use Illuminate\Support\Facades\Schema;
 
 class DashboardController extends Controller
 {
-    public function index(Request $request): JsonResponse|View
+    public function index(Request $request): JsonResponse | View
     {
         $user = auth()->user();
 
         if ($request->ajax()) {
             try {
-                $filters = $this->filters($request);
+                $filters   = $this->filters($request);
                 $dateRange = $this->dateRangeFromFilter($filters);
 
                 $orderQuery = $this->filteredOrderQuery($filters, $dateRange, true);
 
-                $stats = $this->dashboardStats(clone $orderQuery, $filters, $dateRange);
-                $todayReport = $this->dailyReportStats($filters, $dateRange);
+                $stats           = $this->dashboardStats(clone $orderQuery, $filters, $dateRange);
+                $todayReport     = $this->dailyReportStats($filters, $dateRange);
                 $productSaleRows = $this->productSaleRows($filters, $dateRange);
-                $userReportRows = $this->userOrderReportRows($request, $dateRange, $filters);
+                $userReportRows  = $this->userOrderReportRows($request, $dateRange, $filters);
 
                 return response()->json([
-                    'status' => true,
-                    'stats' => $stats,
+                    'status'      => true,
+                    'stats'       => $stats,
                     'todayReport' => $todayReport,
-                    'sections' => [
+                    'sections'    => [
                         'productSaleReport' => view('admin.dashboard.partials.product_sale_report_table', [
                             'productSaleRows' => $productSaleRows,
                         ])->render(),
-                        'userOrderReport' => view('admin.dashboard.partials.user_order_report_table', [
+                        'userOrderReport'   => view('admin.dashboard.partials.user_order_report_table', [
                             'userReportRows' => $userReportRows,
                         ])->render(),
                     ],
@@ -50,27 +50,27 @@ class DashboardController extends Controller
             } catch (\Throwable $exception) {
                 Log::error('Dashboard AJAX load failed', [
                     'message' => $exception->getMessage(),
-                    'file' => $exception->getFile(),
-                    'line' => $exception->getLine(),
+                    'file'    => $exception->getFile(),
+                    'line'    => $exception->getLine(),
                 ]);
 
                 return response()->json([
-                    'status' => false,
-                    'message' => app()->environment('local')
+                    'status'      => false,
+                    'message'     => app()->environment('local')
                         ? $exception->getMessage()
                         : 'Dashboard data could not be loaded.',
-                    'stats' => $this->emptyStats(),
+                    'stats'       => $this->emptyStats(),
                     'todayReport' => $this->emptyTodayReport(),
-                    'sections' => [
+                    'sections'    => [
                         'productSaleReport' => '<div class="text-center text-danger p-4"><i class="fas fa-exclamation-triangle"></i> Product sale report could not be loaded.</div>',
-                        'userOrderReport' => '<div class="text-center text-danger p-4"><i class="fas fa-exclamation-triangle"></i> User report could not be loaded.</div>',
+                        'userOrderReport'   => '<div class="text-center text-danger p-4"><i class="fas fa-exclamation-triangle"></i> User report could not be loaded.</div>',
                     ],
                 ], 200);
             }
         }
 
         $campaigns = Campaign::query()
-            ->when(Schema::hasColumn('campaigns', 'status'), fn ($query) => $query->where('status', true))
+            ->when(Schema::hasColumn('campaigns', 'status'), fn($query) => $query->where('status', true))
             ->orderBy('title')
             ->get(['id', 'title']);
 
@@ -79,12 +79,12 @@ class DashboardController extends Controller
             ->get(['id', 'name']);
 
         return view('admin.dashboard.index', [
-            'title' => 'Dashboard',
+            'title'      => 'Dashboard',
             'breadcrumb' => [
                 ['text' => 'Dashboard', 'url' => route('admin.dashboard')],
             ],
-            'campaigns' => $campaigns,
-            'users' => $users,
+            'campaigns'  => $campaigns,
+            'users'      => $users,
             'isEmployee' => $this->isEmployee($user),
         ]);
     }
@@ -92,30 +92,30 @@ class DashboardController extends Controller
     private function filters(Request $request): array
     {
         return [
-            'date_filter' => $request->input('date_filter', 'all'),
-            'start_date' => $request->input('start_date'),
-            'end_date' => $request->input('end_date'),
-            'order_status' => $request->input('order_status'),
+            'date_filter'    => $request->input('date_filter', 'all'),
+            'start_date'     => $request->input('start_date'),
+            'end_date'       => $request->input('end_date'),
+            'order_status'   => $request->input('order_status'),
             'payment_status' => $request->input('payment_status'),
-            'delivery_area' => $request->input('delivery_area'),
-            'campaign_id' => $request->input('campaign_id'),
+            'delivery_area'  => $request->input('delivery_area'),
+            'campaign_id'    => $request->input('campaign_id'),
         ];
     }
 
     private function dateRangeFromFilter(array $filters): array
     {
         $dateFilter = $filters['date_filter'] ?? 'all';
-        $now = now();
+        $now        = now();
 
         return match ($dateFilter) {
-            'today' => [$now->copy()->startOfDay(), $now->copy()->endOfDay()],
-            'yesterday' => [$now->copy()->subDay()->startOfDay(), $now->copy()->subDay()->endOfDay()],
-            'this_week' => [$now->copy()->startOfWeek()->startOfDay(), $now->copy()->endOfWeek()->endOfDay()],
+            'today'      => [$now->copy()->startOfDay(), $now->copy()->endOfDay()],
+            'yesterday'  => [$now->copy()->subDay()->startOfDay(), $now->copy()->subDay()->endOfDay()],
+            'this_week'  => [$now->copy()->startOfWeek()->startOfDay(), $now->copy()->endOfWeek()->endOfDay()],
             'this_month' => [$now->copy()->startOfMonth()->startOfDay(), $now->copy()->endOfMonth()->endOfDay()],
             'last_month' => [$now->copy()->subMonthNoOverflow()->startOfMonth()->startOfDay(), $now->copy()->subMonthNoOverflow()->endOfMonth()->endOfDay()],
-            'this_year' => [$now->copy()->startOfYear()->startOfDay(), $now->copy()->endOfYear()->endOfDay()],
-            'custom' => $this->customDateRange($filters),
-            default => [null, null],
+            'this_year'  => [$now->copy()->startOfYear()->startOfDay(), $now->copy()->endOfYear()->endOfDay()],
+            'custom'     => $this->customDateRange($filters),
+            default      => [null, null],
         };
     }
 
@@ -141,11 +141,11 @@ class DashboardController extends Controller
     private function customDateRange(array $filters): array
     {
         $startDate = $filters['start_date'] ?? null;
-        $endDate = $filters['end_date'] ?? null;
+        $endDate   = $filters['end_date'] ?? null;
 
         try {
             $start = $startDate ? Carbon::parse($startDate)->startOfDay() : null;
-            $end = $endDate ? Carbon::parse($endDate)->endOfDay() : null;
+            $end   = $endDate ? Carbon::parse($endDate)->endOfDay() : null;
         } catch (\Throwable $exception) {
             return [null, null];
         }
@@ -221,149 +221,57 @@ class DashboardController extends Controller
             $query->where($column, '<=', $end);
         }
     }
-private function dashboardStats(Builder $orderQuery, array $filters, array $dateRange): array
+    private function dashboardStats(Builder $orderQuery, array $filters, array $dateRange): array
     {
-        $totalOrders = (clone $orderQuery)->count();
-        $pendingOrders = (clone $orderQuery)->where('order_status', 'pending')->count();
-        $confirmedOrders = (clone $orderQuery)->whereIn('order_status', ['confirmed', 'complete', 'completed'])->count();
+        $totalOrders      = (clone $orderQuery)->count();
+        $pendingOrders    = (clone $orderQuery)->where('order_status', 'pending')->count();
+        $confirmedOrders  = (clone $orderQuery)->whereIn('order_status', ['confirmed', 'complete', 'completed'])->count();
         $processingOrders = (clone $orderQuery)->where('order_status', 'processing')->count();
-        $deliveredOrders = (clone $orderQuery)->where('order_status', 'delivered')->count();
-        $cancelledOrders = (clone $orderQuery)->whereIn('order_status', ['cancelled', 'canceled'])->count();
-        $grossSales = (clone $orderQuery)->sum('total_amount');
+        $deliveredOrders  = (clone $orderQuery)->where('order_status', 'delivered')->count();
+        $cancelledOrders  = (clone $orderQuery)->whereIn('order_status', ['cancelled', 'canceled'])->count();
+        $grossSales       = (clone $orderQuery)->sum('total_amount');
 
-        $productQuery = Product::query();
+        $productQuery  = Product::query();
         $totalProducts = $productQuery->count();
 
         return [
-            'totalOrders' => number_format($totalOrders),
-            'pendingOrders' => number_format($pendingOrders),
-            'confirmedOrders' => number_format($confirmedOrders),
+            'totalOrders'      => number_format($totalOrders),
+            'pendingOrders'    => number_format($pendingOrders),
+            'confirmedOrders'  => number_format($confirmedOrders),
             'processingOrders' => number_format($processingOrders),
-            'deliveredOrders' => number_format($deliveredOrders),
-            'cancelledOrders' => number_format($cancelledOrders),
-            'grossSales' => $this->money($grossSales),
-            'totalProducts' => number_format($totalProducts),
+            'deliveredOrders'  => number_format($deliveredOrders),
+            'cancelledOrders'  => number_format($cancelledOrders),
+            'grossSales'       => $this->money($grossSales),
+            'totalProducts'    => number_format($totalProducts),
         ];
     }
-private function dailyReportStats(array $filters, array $dateRange): array
+    private function dailyReportStats(array $filters, array $dateRange): array
     {
-        $reportRange = $this->reportActivityRange($filters, $dateRange);
-
         /*
-         * Daily / Today Report rule:
-         * - Today window is 12:00 AM to 11:59:59 PM.
-         * - Today's Order = valid orders created inside report range only.
-         * - Older orders acted on today never increase Today's Order.
-         * - Order List 1/2 = orders moved into custom list inside report range.
-         * - Complete, Shipped, Delivered, Cancelled, Invoice = action based count.
-         */
-        $createdOrderQuery = $this->filteredOrderQuery($filters, $reportRange, true);
-        $actionOrderQuery = $this->filteredOrderQuery($filters, [null, null], false);
-
-        /*
-         * Today's Order must follow the same rule as Report Management:
-         * only orders created inside the selected report range are counted.
-         * Older orders acted on today remain visible only in their own
-         * Shipped, Delivery and Completed Invoice cards.
-         */
-        $todaysOrderQuery = (clone $createdOrderQuery)
-            ->whereNotIn('order_status', [
-                'cancelled',
-                'canceled',
-                'fake',
-            ]);
-
-        /*
-         * New Order follows Orders Management semantics:
-         * a new order is an order created inside the selected daily range
-         * whose current status is processing.
-         */
-        $newOrderQuery = (clone $createdOrderQuery)
-            ->where('order_status', 'processing');
-
-        $pendingOrderQuery = $this->statusActionQuery(
-            clone $actionOrderQuery,
-            ['pending'],
-            $reportRange,
-            ['created_at', 'updated_at']
-        );
-
-        $completedQuery = $this->statusActionQuery(
-            clone $actionOrderQuery,
-            ['confirmed', 'complete', 'completed'],
-            $reportRange,
-            ['confirmed_at', 'updated_at']
-        );
-
-        $shippedQuery = $this->statusActionQuery(
-            clone $actionOrderQuery,
-            ['shipped'],
-            $reportRange,
-            ['updated_at']
-        );
-
-        $orderListOneQuery = $this->orderListActivityQuery(
-            clone $actionOrderQuery,
-            'order_list_1',
-            $reportRange
-        );
-
-        $orderListTwoQuery = $this->orderListActivityQuery(
-            clone $actionOrderQuery,
-            'order_list_2',
-            $reportRange
-        );
-
-        $invoiceCompletedQuery = $this->invoicedActionQuery(clone $actionOrderQuery, $reportRange);
-        $pendingInvoiceQuery = $this->pendingInvoiceActionQuery(clone $actionOrderQuery, $reportRange);
-
-        $deliveryQuery = $this->statusActionQuery(
-            clone $actionOrderQuery,
-            ['delivered'],
-            $reportRange,
-            ['delivered_at', 'updated_at']
-        );
-
-        $cancelledQuery = $this->statusActionQuery(
-            clone $actionOrderQuery,
-            ['cancelled', 'canceled'],
-            $reportRange,
-            ['cancelled_at', 'updated_at']
+     * Today's Report is always fixed to the current Bangladesh calendar day.
+     * Dashboard analytics date/campaign/status/payment/area filters do not
+     * change this section.
+     */
+        $summary = app(TodayReportSummaryService::class)->summary(
+            [],
+            auth()->user()
         );
 
         return [
-            'todaysOrder' => number_format(
-                (clone $todaysOrderQuery)
-                    ->select('orders.id')
-                    ->distinct()
-                    ->count('orders.id')
-            ),
-            'newOrder' => number_format($newOrderQuery->count()),
-            'pendingOrder' => number_format($pendingOrderQuery->count()),
-            'incompletedOrder' => number_format(
-                (clone $createdOrderQuery)
-                    ->whereNotIn('order_status', [
-                        'confirmed',
-                        'complete',
-                        'completed',
-                        'shipped',
-                        'delivered',
-                        'cancelled',
-                        'canceled',
-                        'fake',
-                        'stock_out',
-                    ])
-                    ->count()
-            ),
-            'completedOrder' => number_format($completedQuery->count()),
-            'shippedOrders' => number_format($shippedQuery->count()),
-            'orderList1' => number_format($orderListOneQuery->count()),
-            'orderList2' => number_format($orderListTwoQuery->count()),
-            'incompletedInvoice' => number_format($pendingInvoiceQuery->count()),
-            'completedInvoice' => number_format($invoiceCompletedQuery->count()),
-            'totalCheckout' => number_format((clone $createdOrderQuery)->count()),
-            'delivery' => number_format($deliveryQuery->count()),
-            'cancelled' => number_format($cancelledQuery->count()),
+            'todaysOrder'        => number_format($summary['todays_order'] ?? 0),
+            'newOrder'           => number_format($summary['new_order'] ?? 0),
+            'pendingOrder'       => number_format($summary['pending_order'] ?? 0),
+            'incompletedOrder'   => number_format($summary['incompleted_order'] ?? 0),
+            'completedOrder'     => number_format($summary['completed_order'] ?? 0),
+            'shippedOrders'      => number_format($summary['shipped_orders'] ?? 0),
+            'stockOutOrder'      => number_format($summary['stock_out_order'] ?? 0),
+            'orderList1'         => number_format($summary['order_list_1'] ?? 0),
+            'orderList2'         => number_format($summary['order_list_2'] ?? 0),
+            'incompletedInvoice' => number_format($summary['incompleted_invoice'] ?? 0),
+            'completedInvoice'   => number_format($summary['completed_invoice'] ?? 0),
+            'totalCheckout'      => number_format($summary['checkout'] ?? 0),
+            'delivery'           => number_format($summary['delivery'] ?? 0),
+            'cancelled'          => number_format($summary['cancelled'] ?? 0),
         ];
     }
 
@@ -411,7 +319,6 @@ private function dailyReportStats(array $filters, array $dateRange): array
 
         $this->applyDateRange($query, $dateRange, 'updated_at');
     }
-
 
     private function pendingInvoiceCount(Builder $query): int
     {
@@ -519,8 +426,15 @@ private function dailyReportStats(array $filters, array $dateRange): array
             $query->whereRaw('1 = 0');
         }
     }
-private function productSaleRows(array $filters, array $dateRange): array
+    private function productSaleRows(array $filters, array $dateRange): array
     {
+        /*
+         * Product Sale Report follows the Dashboard daily report window.
+         * - All Time / Today: current day, 12:00 AM to 11:59:59 PM.
+         * - Other date filters: selected calendar range.
+         */
+        $reportRange = $this->reportActivityRange($filters, $dateRange);
+
         if (! Schema::hasTable('order_items')) {
             return [];
         }
@@ -555,7 +469,7 @@ private function productSaleRows(array $filters, array $dateRange): array
             $query->where('orders.delivery_area', $filters['delivery_area']);
         }
 
-        $this->applyDateRangeToQuery($query, $dateRange, 'orders.created_at');
+        $this->applyDateRangeToQuery($query, $reportRange, 'orders.created_at');
 
         $customListOneSql = Schema::hasColumn('orders', 'custom_order_list')
             ? "COUNT(DISTINCT CASE WHEN orders.custom_order_list = 'order_list_1' THEN orders.id END)"
@@ -580,6 +494,7 @@ private function productSaleRows(array $filters, array $dateRange): array
         return $query
             ->selectRaw("
                 COALESCE(order_items.product_id, products.id, 0) as product_id,
+                NULLIF(TRIM(products.product_code), '') as product_code,
                 COALESCE(order_items.product_name, products.name, 'Unknown Product') as product_name,
 
                 COUNT(DISTINCT orders.id) as total_orders,
@@ -600,20 +515,24 @@ private function productSaleRows(array $filters, array $dateRange): array
                 {$pendingInvoiceSql} as pending_invoice,
                 {$completeInvoiceSql} as complete_invoice
             ")
-            ->groupBy('order_items.product_id', 'order_items.product_name', 'products.id', 'products.name')
+            ->groupBy(
+                'order_items.product_id',
+                'order_items.product_name',
+                'products.id',
+                'products.product_code',
+                'products.name'
+            )
             ->orderByDesc('total_orders')
-            ->limit(100)
             ->get()
-            ->map(fn ($row) => (array) $row)
+            ->map(fn($row) => (array) $row)
             ->toArray();
     }
 
-
     private function userOrderReportRows(Request $request, array $dateRange, array $filters = []): array
     {
-        $user = auth()->user();
+        $user           = auth()->user();
         $selectedUserId = $request->input('report_user_id');
-        $reportRange = $this->reportActivityRange($filters, $dateRange);
+        $reportRange    = $this->reportActivityRange($filters, $dateRange);
 
         $usersQuery = User::query()->orderBy('name');
 
@@ -640,13 +559,13 @@ private function productSaleRows(array $filters, array $dateRange): array
             $this->applyDateRange($createdQuery, $reportRange, 'created_at');
 
             $processingQuery = $this->statusActionQuery(clone $baseQuery, ['processing'], $reportRange, ['created_at', 'updated_at']);
-            $cancelledQuery = $this->statusActionQuery(clone $baseQuery, ['cancelled'], $reportRange, ['cancelled_at', 'updated_at']);
-            $completedQuery = $this->statusActionQuery(clone $baseQuery, ['delivered', 'complete', 'completed'], $reportRange, ['delivered_at', 'updated_at']);
-            $deliveredQuery = $this->statusActionQuery(clone $baseQuery, ['delivered', 'complete', 'completed'], $reportRange, ['delivered_at', 'updated_at']);
-            $stockOutQuery = $this->statusActionQuery(clone $baseQuery, ['stock_out'], $reportRange, ['updated_at']);
-            $returnQuery = $this->statusActionQuery(clone $baseQuery, ['return', 'returned'], $reportRange, ['updated_at']);
-            $onHoldQuery = $this->statusActionQuery(clone $baseQuery, ['on_hold', 'hold', 'customer_on_hold'], $reportRange, ['updated_at']);
-            $invoicedQuery = $this->invoicedActionQuery(clone $baseQuery, $reportRange);
+            $cancelledQuery  = $this->statusActionQuery(clone $baseQuery, ['cancelled'], $reportRange, ['cancelled_at', 'updated_at']);
+            $completedQuery  = $this->statusActionQuery(clone $baseQuery, ['delivered', 'complete', 'completed'], $reportRange, ['delivered_at', 'updated_at']);
+            $deliveredQuery  = $this->statusActionQuery(clone $baseQuery, ['delivered', 'complete', 'completed'], $reportRange, ['delivered_at', 'updated_at']);
+            $stockOutQuery   = $this->statusActionQuery(clone $baseQuery, ['stock_out'], $reportRange, ['updated_at']);
+            $returnQuery     = $this->statusActionQuery(clone $baseQuery, ['return', 'returned'], $reportRange, ['updated_at']);
+            $onHoldQuery     = $this->statusActionQuery(clone $baseQuery, ['on_hold', 'hold', 'customer_on_hold'], $reportRange, ['updated_at']);
+            $invoicedQuery   = $this->invoicedActionQuery(clone $baseQuery, $reportRange);
 
             $paidQuery = clone $baseQuery;
             $paidQuery->whereIn('payment_status', ['paid', 'collected']);
@@ -657,24 +576,23 @@ private function productSaleRows(array $filters, array $dateRange): array
             $this->applyActionDateCondition($pendingPaymentQuery, $reportRange, ['cod_pending', 'payment_pending', 'pending', 'unpaid'], ['created_at', 'updated_at']);
 
             return [
-                'date' => $this->dateRangeLabel($reportRange),
-                'user_name' => $reportUser->name,
-                'total_order' => (clone $createdQuery)->count(),
-                'processing' => $processingQuery->count(),
+                'date'            => $this->dateRangeLabel($reportRange),
+                'user_name'       => $reportUser->name,
+                'total_order'     => (clone $createdQuery)->count(),
+                'processing'      => $processingQuery->count(),
                 'pending_payment' => $pendingPaymentQuery->count(),
-                'on_hold' => $onHoldQuery->count(),
-                'cancelled' => $cancelledQuery->count(),
-                'completed' => $completedQuery->count(),
-                'invoiced' => $invoicedQuery->count(),
-                'stock_out' => $stockOutQuery->count(),
-                'delivered' => $deliveredQuery->count(),
-                'paid' => $paidQuery->count(),
-                'return' => $returnQuery->count(),
-                'paid_amount' => $paidQuery->sum('total_amount'),
+                'on_hold'         => $onHoldQuery->count(),
+                'cancelled'       => $cancelledQuery->count(),
+                'completed'       => $completedQuery->count(),
+                'invoiced'        => $invoicedQuery->count(),
+                'stock_out'       => $stockOutQuery->count(),
+                'delivered'       => $deliveredQuery->count(),
+                'paid'            => $paidQuery->count(),
+                'return'          => $returnQuery->count(),
+                'paid_amount'     => $paidQuery->sum('total_amount'),
             ];
         })->toArray();
     }
-
 
     private function dateRangeLabel(array $dateRange): string
     {
@@ -698,37 +616,38 @@ private function productSaleRows(array $filters, array $dateRange): array
     private function emptyStats(): array
     {
         return [
-            'totalOrders' => '0',
-            'pendingOrders' => '0',
-            'confirmedOrders' => '0',
+            'totalOrders'      => '0',
+            'pendingOrders'    => '0',
+            'confirmedOrders'  => '0',
             'processingOrders' => '0',
-            'deliveredOrders' => '0',
-            'cancelledOrders' => '0',
-            'grossSales' => '৳0',
-            'totalProducts' => '0',
+            'deliveredOrders'  => '0',
+            'cancelledOrders'  => '0',
+            'grossSales'       => '৳0',
+            'totalProducts'    => '0',
         ];
     }
 
     private function emptyTodayReport(): array
     {
         return [
-            'todaysOrder' => '0',
-            'newOrder' => '0',
-            'pendingOrder' => '0',
-            'incompletedOrder' => '0',
-            'completedOrder' => '0',
-            'shippedOrders' => '0',
-            'orderList1' => '0',
-            'orderList2' => '0',
+            'todaysOrder'        => '0',
+            'newOrder'           => '0',
+            'pendingOrder'       => '0',
+            'incompletedOrder'   => '0',
+            'completedOrder'     => '0',
+            'shippedOrders'      => '0',
+            'stockOutOrder'      => '0',
+            'orderList1'         => '0',
+            'orderList2'         => '0',
             'incompletedInvoice' => '0',
-            'completedInvoice' => '0',
-            'totalCheckout' => '0',
-            'delivery' => '0',
-            'cancelled' => '0',
+            'completedInvoice'   => '0',
+            'totalCheckout'      => '0',
+            'delivery'           => '0',
+            'cancelled'          => '0',
         ];
     }
 
-    private function money(int|float|string|null $amount): string
+    private function money(int | float | string | null $amount): string
     {
         return '৳' . number_format((float) ($amount ?? 0));
     }
@@ -738,5 +657,3 @@ private function productSaleRows(array $filters, array $dateRange): array
         return $user && method_exists($user, 'isEmployee') && $user->isEmployee();
     }
 }
-
-

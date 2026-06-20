@@ -113,6 +113,13 @@ Route::middleware(['auth'])->group(function () {
             |--------------------------------------------------------------------------
             */
             Route::middleware(['role:admin'])->group(function () {
+                /*
+                 * Manual order creation routes must stay before /{order}
+                 * so the word "create" is never treated as an order ID.
+                 */
+                Route::get('/create', [OrderController::class, 'create'])->name('create');
+                Route::post('/', [OrderController::class, 'store'])->name('store');
+
                 Route::get('/trash', [OrderController::class, 'trash'])->name('trashed');
                 Route::post('/restore/{id}', [OrderController::class, 'restore'])->name('restore');
                 Route::delete('/force-delete/{id}', [OrderController::class, 'forceDelete'])->name('force_delete');

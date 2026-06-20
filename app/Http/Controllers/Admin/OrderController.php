@@ -2,6 +2,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Campaign;
 use App\Models\Courier;
 use App\Models\CourierAccount;
 use App\Models\Order;
@@ -22,6 +23,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Throwable;
 
@@ -1095,6 +1097,283 @@ class OrderController extends Controller
             'Cache-Control' => 'max-age=0, no-cache, no-store, must-revalidate',
             'Pragma' => 'no-cache',
         ]);
+    }
+
+    /**
+     * Generate a collision-safe invoice ID for an order created from admin.
+     */
+    private function generateManualInvoiceId(): string
+    {
+        do {
+            $invoiceId = 'INV-' . now()->format('Ymd') . '-' . Str::upper(Str::random(6));
+        } while (Order::query()->where('invoice_id', $invoiceId)->exists());
+
+        return $invoiceId;
+    }
+
+    /**
+     * Show the admin-only manual order creation form.
+     */
+    public function create(Request $request)
+    {
+        $this->adminOnly();
+
+        $products = Product::query()
+            ->where('status', true)
+            ->orderBy('name')
+            ->get();
+
+        $productImageMap = $products
+            ->mapWithKeys(fn (Product $product) => [
+                $product->id => $this->resolveProductImageUrl($product),
+            ]);
+
+        $returnUrl = $this->safeOrderReturnUrl(
+            $request->query('return_url', route('admin.orders.index'))
+        );
+
+        return view('admin.orders.create', [
+            'title'           => 'Create Manual Order',
+            'returnUrl'       => $returnUrl,
+            'products'        => $products,
+            'productImageMap' => $productImageMap,
+            'campaigns'       => Campaign::query()
+                ->where('status', true)
+                ->orderBy('title')
+                ->get(),
+            'employees'       => User::query()
+                ->where('role', 'employee')
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(),
+            'couriers'        => $this->getActiveCouriers(),
+            'orderFields'     => $this->getActiveOrderFields(),
+            'orderStatuses'   => $this->getOrderStatuses(),
+            'paymentStatuses' => $this->getPaymentStatuses(),
+            'breadcrumb'      => [
+                ['text' => 'Dashboard', 'url' => route('admin.dashboard')],
+                ['text' => 'Orders', 'url' => $returnUrl],
+                ['text' => 'Create Manual Order', 'url' => route('admin.orders.create')],
+            ],
+        ]);
+    }
+
+    /**
+     * Persist an order created manually by an authenticated administrator.
+     */
+    public function store(Request $request)
+    {
+        $this->adminOnly();
+
+        $request->merge([
+            'delivery_area' => $this->normalizeDeliveryArea($request->input('delivery_area')),
+        ]);
+
+        $validated = $request->validate([
+            'campaign_id'          => ['nullable', 'integer', 'exists:campaigns,id'],
+            'customer_name'        => ['required', 'string', 'max:255'],
+            'phone'                => ['required', 'string', 'regex:/^01\d{9}$/'],
+            'address'              => ['required', 'string', 'max:2000'],
+            'delivery_area'        => ['nullable', 'string', 'max:255'],
+            'customer_note'        => ['nullable', 'string', 'max:3000'],
+            'admin_note'           => ['nullable', 'string', 'max:5000'],
+            'order_status'         => ['required', 'string', Rule::in($this->getOrderStatuses())],
+            'payment_status'       => ['required', 'string', Rule::in($this->getPaymentStatuses())],
+            'shipping_charge'      => ['nullable', 'numeric', 'min:0'],
+            'cod_charge'           => ['nullable', 'numeric', 'min:0'],
+            'assigned_employee_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('users', 'id')->where(
+                    fn ($query) => $query
+                        ->where('role', 'employee')
+                        ->where('is_active', true)
+                ),
+            ],
+            'courier_id'           => [
+                'nullable',
+                'integer',
+                Rule::exists('couriers', 'id')->where(
+                    fn ($query) => $query->where('status', true)
+                ),
+            ],
+            'order_field_id'       => [
+                'nullable',
+                'integer',
+                Rule::exists('order_fields', 'id')->where(
+                    fn ($query) => $query->where('status', true)
+                ),
+            ],
+            'items'                    => ['required', 'array', 'min:1'],
+            'items.*.product_id'       => [
+                'required',
+                'integer',
+                Rule::exists('products', 'id')->where(
+                    fn ($query) => $query->where('status', true)
+                ),
+            ],
+            'items.*.quantity'         => ['required', 'integer', 'min:1', 'max:100000'],
+            'items.*.unit_price'       => ['required', 'numeric', 'min:0'],
+            'items.*.discount_amount'  => ['nullable', 'numeric', 'min:0'],
+            'return_url'               => ['nullable', 'string', 'max:2048'],
+        ], [
+            'phone.regex' => 'Phone number must contain exactly 11 local digits and start with 01.',
+        ]);
+
+        return DB::transaction(function () use ($request, $validated) {
+            $submittedItems = collect($validated['items']);
+
+            $products = Product::query()
+                ->where('status', true)
+                ->whereIn(
+                    'id',
+                    $submittedItems->pluck('product_id')->map(fn ($id) => (int) $id)->unique()
+                )
+                ->get()
+                ->keyBy('id');
+
+            $orderItems = [];
+            $subTotal = 0.0;
+
+            foreach ($submittedItems as $row) {
+                $product = $products->get((int) $row['product_id']);
+
+                if (! $product) {
+                    continue;
+                }
+
+                $quantity = max(1, (int) $row['quantity']);
+                $unitPrice = max(0, (float) $row['unit_price']);
+                $discountAmount = max(0, (float) ($row['discount_amount'] ?? 0));
+                $grossLineTotal = $quantity * $unitPrice;
+                $lineTotal = max(0, $grossLineTotal - $discountAmount);
+
+                $subTotal += $lineTotal;
+
+                $orderItems[] = [
+                    'product'         => $product,
+                    'quantity'        => $quantity,
+                    'unit_price'      => $unitPrice,
+                    'discount_amount' => $discountAmount,
+                    'total_price'     => $lineTotal,
+                ];
+            }
+
+            if (empty($orderItems)) {
+                return back()
+                    ->withInput()
+                    ->with('error', 'Please add at least one valid active product.');
+            }
+
+            $courier = null;
+            $courierAccount = null;
+
+            if (! empty($validated['courier_id'])) {
+                $courier = Courier::query()
+                    ->active()
+                    ->find((int) $validated['courier_id']);
+
+                if ($courier && in_array(strtolower((string) $courier->code), ['steadfast', 'pathao'], true)) {
+                    $courierAccount = $this->activeCourierByCode(
+                        strtolower((string) $courier->code)
+                    );
+                }
+            }
+
+            $shippingCharge = max(0, (float) ($validated['shipping_charge'] ?? 0));
+            $codCharge = max(0, (float) ($validated['cod_charge'] ?? 0));
+            $totalAmount = $subTotal + $shippingCharge + $codCharge;
+            $status = (string) $validated['order_status'];
+
+            $order = new Order([
+                'invoice_id'           => $this->generateManualInvoiceId(),
+                'success_token'        => Str::random(40),
+                'campaign_id'          => $validated['campaign_id'] ?? null,
+                'assigned_employee_id' => $validated['assigned_employee_id'] ?? null,
+                'order_field_id'       => $validated['order_field_id'] ?? null,
+
+                'customer_name'        => $validated['customer_name'],
+                'phone'                => $validated['phone'],
+                'address'              => $validated['address'],
+                'delivery_area'        => $validated['delivery_area'] ?? null,
+
+                'courier_id'           => $courier?->id,
+                'courier_account_id'   => $courierAccount?->id,
+                'courier_service'      => $courier?->code,
+
+                'sub_total'            => $subTotal,
+                'shipping_charge'      => $shippingCharge,
+                'is_free_delivery'     => $shippingCharge <= 0,
+                'cod_charge'           => $codCharge,
+                'total_amount'         => $totalAmount,
+
+                'payment_method'       => Order::PAYMENT_COD,
+                'payment_status'       => $validated['payment_status'],
+                'order_status'         => $status,
+
+                'is_fake'              => $status === Order::STATUS_FAKE,
+                'customer_note'        => $validated['customer_note'] ?? null,
+                'admin_note'           => $validated['admin_note'] ?? null,
+
+                'created_via'          => Order::CREATED_VIA_ADMIN_MANUAL,
+                'created_by_admin_id'  => auth()->id(),
+                'source_ip'            => $request->ip(),
+                'user_agent'           => $request->userAgent(),
+                'source_url'           => route('admin.orders.create'),
+            ]);
+
+            if ($status === Order::STATUS_CONFIRMED) {
+                $order->confirmed_at = now();
+            }
+
+            if (
+                $status === Order::STATUS_SHIPPED
+                && Schema::hasColumn('orders', 'shipped_at')
+            ) {
+                $order->shipped_at = now();
+            }
+
+            if ($status === Order::STATUS_DELIVERED) {
+                $order->delivered_at = now();
+            }
+
+            if ($status === Order::STATUS_CANCELLED) {
+                $order->cancelled_at = now();
+            }
+
+            if ($status === Order::STATUS_FAKE) {
+                $order->marked_fake_at = now();
+            }
+
+            if ($event = $this->autoAdminNoteEventForStatus($status)) {
+                $order->admin_note = $this->appendAutoAdminNote(
+                    $order,
+                    $event,
+                    $order->admin_note,
+                    ! empty($validated['assigned_employee_id'])
+                        ? (int) $validated['assigned_employee_id']
+                        : null
+                );
+            }
+
+            $order->save();
+
+            foreach ($orderItems as $item) {
+                OrderItem::query()->create([
+                    'order_id'         => $order->id,
+                    'product_id'       => $item['product']->id,
+                    'product_name'     => $item['product']->name,
+                    'unit_price'       => $item['unit_price'],
+                    'quantity'         => $item['quantity'],
+                    'discount_amount'  => $item['discount_amount'],
+                    'total_price'      => $item['total_price'],
+                ]);
+            }
+
+            return redirect()
+                ->to($this->safeOrderReturnUrl($validated['return_url'] ?? null))
+                ->with('success', 'Manual order created successfully.');
+        });
     }
 
     public function index(Request $request)
@@ -2401,5 +2680,3 @@ class OrderController extends Controller
         ]);
     }
 }
-
-

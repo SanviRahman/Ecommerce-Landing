@@ -1,8 +1,12 @@
 <div class="product-sale-toolbar">
     <div>
         <label class="mb-0 mr-1">Show</label>
-        <select class="form-control form-control-sm d-inline-block" style="width: 80px;" disabled>
-            <option selected>5</option>
+        <select id="productSalePerPage"
+                class="form-control form-control-sm d-inline-block"
+                style="width: 80px;"
+                aria-label="Product sale entries per page">
+            <option value="10" selected>10</option>
+            <option value="all">All</option>
         </select>
         <span class="ml-1">entries</span>
     </div>
@@ -17,7 +21,7 @@
     <table class="table table-bordered table-hover table-striped mb-0" id="productSaleTable">
         <thead class="thead-light">
             <tr>
-                <th>Product ID</th>
+                <th>Product Code</th>
                 <th>Product Name</th>
 
                 {{-- Orders Management sidebar অনুযায়ী --}}
@@ -42,7 +46,7 @@
         <tbody>
             @forelse($productSaleRows as $row)
                 <tr class="product-sale-row">
-                    <td>{{ $row['product_id'] ?: 'N/A' }}</td>
+                    <td>{{ filled($row['product_code'] ?? null) ? $row['product_code'] : 'N/A' }}</td>
                     <td>{{ $row['product_name'] ?? 'Unknown Product' }}</td>
 
                     <td class="text-center">{{ number_format((int) ($row['total_orders'] ?? 0)) }}</td>
@@ -77,4 +81,3 @@
 
     <div class="btn-group" id="productSalePagination" role="group" aria-label="Product sale pagination"></div>
 </div>
-

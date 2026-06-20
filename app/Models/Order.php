@@ -33,11 +33,16 @@ class Order extends Model
     public const CUSTOM_LIST_ONE = 'order_list_1';
     public const CUSTOM_LIST_TWO = 'order_list_2';
 
+    public const CREATED_VIA_FRONTEND     = 'frontend';
+    public const CREATED_VIA_ADMIN_MANUAL = 'admin_manual';
+
     protected $fillable = [
         'invoice_id',
         'success_token',
         'campaign_id',
         'assigned_employee_id',
+        'created_via',
+        'created_by_admin_id',
         'order_field_id',
         'invoice_printed_at',
         'invoice_print_count',
@@ -98,6 +103,7 @@ class Order extends Model
     protected $casts = [
         'campaign_id'          => 'integer',
         'assigned_employee_id' => 'integer',
+        'created_by_admin_id'   => 'integer',
         'order_field_id'       => 'integer',
         'invoice_printed_at'   => 'datetime',
         'invoice_print_count'  => 'integer',
@@ -133,6 +139,10 @@ class Order extends Model
     protected static function booted(): void
     {
         static::creating(function (Order $order) {
+            if (! $order->created_via) {
+                $order->created_via = self::CREATED_VIA_FRONTEND;
+            }
+
             if (! $order->order_status) {
                 $order->order_status = self::STATUS_PROCESSING;
             }
@@ -217,6 +227,16 @@ class Order extends Model
     public function assignedEmployee(): BelongsTo
     {
         return $this->belongsTo(User::class, 'assigned_employee_id');
+    }
+
+    public function createdByAdmin(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by_admin_id');
+    }
+
+    public function isAdminManualOrder(): bool
+    {
+        return $this->created_via === self::CREATED_VIA_ADMIN_MANUAL;
     }
 
     public function courierAccount(): BelongsTo

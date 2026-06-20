@@ -6,14 +6,15 @@ use App\Http\Controllers\Controller;
 use App\Models\Campaign;
 use App\Models\Faq;
 use App\Models\Review;
+use App\Models\ShippingCharge;
 use App\Models\SiteSetting;
 use App\Models\SocialMedia;
-use App\Models\ShippingCharge;
+use Illuminate\Http\Response;
 use Illuminate\Support\Str;
 
 class HomeController extends Controller
 {
-    public function index()
+    public function index(): Response
     {
         $siteSetting = SiteSetting::query()
             ->where('status', true)
@@ -22,11 +23,10 @@ class HomeController extends Controller
 
         /**
          * Homepage campaign resolving rule:
-         * 1. Show the active campaign that is marked as campaign-level default.
-         * 2. If no default campaign is selected, fallback to latest active campaign.
-         *
-         * This fixes the issue where / was showing the first/latest active campaign
-         * instead of the admin-selected default campaign.
+         * 1. Show the active campaign marked as default.
+         * 2. If no default campaign is selected, fallback to the latest active campaign.
+         * 3. If every campaign is inactive, render an empty homepage while keeping
+         *    the physical header shell visible and hiding all header content.
          */
         $campaign = Campaign::resolveHomepageCampaign([
             'categories' => function ($query) {
@@ -44,27 +44,22 @@ class HomeController extends Controller
             },
         ]);
 
-        /*
-        |--------------------------------------------------------------------------
-        | No Active Campaign = Blank Home Page
-        |--------------------------------------------------------------------------
-        | Client requirement: admin যদি সব campaign inactive করে রাখে,
-        | তাহলে frontend home page-এ কোনো landing page/order content দেখাবে না।
-        */
         if (! $campaign) {
-            return view('frontend.pages.home', [
-                'siteSetting'     => $siteSetting,
-                'campaign'        => null,
-                'categories'      => collect(),
-                'brands'          => collect(),
-                'products'        => collect(),
-                'orderProducts'   => collect(),
-                'reviews'         => collect(),
-                'faqs'            => collect(),
-                'socialMedias'    => collect(),
-                'shippingCharges' => collect(),
-                'courierServices' => config('couriers.list', []),
-                'orderFormToken'  => null,
+            return $this->homeResponse([
+                'siteSetting'               => $siteSetting,
+                'campaign'                  => null,
+                'categories'                => collect(),
+                'brands'                    => collect(),
+                'products'                  => collect(),
+                'orderProducts'             => collect(),
+                'reviews'                   => collect(),
+                'faqs'                      => collect(),
+                'socialMedias'              => collect(),
+                'shippingCharges'           => collect(),
+                'courierServices'           => config('couriers.list', []),
+                'orderFormToken'            => null,
+                'showFrontendHeader'        => true,
+                'showFrontendHeaderContent' => false,
             ]);
         }
 
@@ -107,20 +102,35 @@ class HomeController extends Controller
             ->orderBy('id')
             ->get();
 
-        return view('frontend.pages.home', [
-            'siteSetting'     => $siteSetting,
-            'campaign'        => $campaign,
-            'categories'      => $categories,
-            'brands'          => $brands,
-            'products'        => $products,
-            'orderProducts'   => $orderProducts,
-            'reviews'         => $reviews,
-            'faqs'            => $faqs,
-            'socialMedias'    => $socialMedias,
-            'shippingCharges' => $shippingCharges,
-            'courierServices' => config('couriers.list', []),
-            'orderFormToken'  => $orderFormToken,
+        return $this->homeResponse([
+            'siteSetting'               => $siteSetting,
+            'campaign'                  => $campaign,
+            'categories'                => $categories,
+            'brands'                    => $brands,
+            'products'                  => $products,
+            'orderProducts'             => $orderProducts,
+            'reviews'                   => $reviews,
+            'faqs'                      => $faqs,
+            'socialMedias'              => $socialMedias,
+            'shippingCharges'           => $shippingCharges,
+            'courierServices'           => config('couriers.list', []),
+            'orderFormToken'            => $orderFormToken,
+            'showFrontendHeader'        => true,
+            'showFrontendHeaderContent' => true,
         ]);
+    }
+
+    /**
+     * Prevent browser/proxy cache from preserving an old campaign state after
+     * an administrator changes campaign status.
+     */
+    private function homeResponse(array $data): Response
+    {
+        return response()
+            ->view('frontend.pages.home', $data)
+            ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+            ->header('Pragma', 'no-cache')
+            ->header('Expires', 'Sat, 01 Jan 2000 00:00:00 GMT');
     }
 
     private function makeOrderFormToken(): string
@@ -136,16 +146,13 @@ class HomeController extends Controller
         $tokens[] = $token;
         $tokens = array_values(array_unique(array_filter($tokens)));
 
-        // বেশি পুরোনো token রেখে session বড় করা হবে না।
         session()->put('campaign_order_form_tokens', array_slice($tokens, -10));
 
         return $token;
     }
 
     /**
-     * Product order must follow the admin-selected campaign_product.sort_order.
-     * Do not group by category here, because that changes the selected product sequence
-     * even when category and brand sections are already sorted correctly by their pivots.
+     * Product order follows campaign_product.sort_order selected in admin.
      */
     private function sortProductsBySelectedCategory(Campaign $campaign)
     {
