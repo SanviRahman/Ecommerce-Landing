@@ -234,7 +234,7 @@
 <div class="card card-outline card-info shadow-sm mb-3">
     <div class="card-header bg-white">
         <h3 class="card-title font-weight-bold">
-            <i class="fas fa-chart-pie text-info mr-2"></i> Todays Report
+            <i class="fas fa-chart-pie text-info mr-2"></i> Today's Report Summary
         </h3>
         <small class="d-block text-muted">Daily order, invoice and delivery summary (12:00 AM - 11:59 PM)</small>
     </div>
@@ -245,7 +245,7 @@
                 <div class="today-report-item">
                     <span class="today-icon bg-primary"><i class="fas fa-shopping-cart"></i></span>
                     <div>
-                        <strong>Today's Order</strong>
+                        <strong>Total Orders</strong>
                         <h5 id="today_todaysOrder">0</h5>
                     </div>
                 </div>
@@ -263,9 +263,59 @@
 
             <div class="col-lg-3 col-md-6">
                 <div class="today-report-item">
+                    <span class="today-icon bg-success"><i class="fas fa-check-circle"></i></span>
+                    <div>
+                        <strong>Complete Order</strong>
+                        <h5 id="today_completedOrder">0</h5>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-3 col-md-6">
+                <div class="today-report-item">
+                    <span class="today-icon bg-success"><i class="fas fa-file-invoice-dollar"></i></span>
+                    <div>
+                        <strong>Complete Invoice</strong>
+                        <h5 id="today_completedInvoice">0</h5>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-3 col-md-6">
+                <div class="today-report-item">
+                    <span class="today-icon bg-info"><i class="fas fa-truck-loading"></i></span>
+                    <div>
+                        <strong>Shipped</strong>
+                        <h5 id="today_shippedOrders">0</h5>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-3 col-md-6">
+                <div class="today-report-item">
+                    <span class="today-icon bg-primary"><i class="fas fa-truck"></i></span>
+                    <div>
+                        <strong>Delivered</strong>
+                        <h5 id="today_deliveredOrder">0</h5>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-3 col-md-6">
+                <div class="today-report-item">
+                    <span class="today-icon bg-danger"><i class="fas fa-times-circle"></i></span>
+                    <div>
+                        <strong>Cancelled</strong>
+                        <h5 id="today_cancelled">0</h5>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-3 col-md-6">
+                <div class="today-report-item">
                     <span class="today-icon bg-warning"><i class="fas fa-clock"></i></span>
                     <div>
-                        <strong>Pending Order</strong>
+                        <strong>Pending</strong>
                         <h5 id="today_pendingOrder">0</h5>
                     </div>
                 </div>
@@ -277,26 +327,6 @@
                     <div>
                         <strong>Incompleted Order</strong>
                         <h5 id="today_incompletedOrder">0</h5>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-lg-3 col-md-6">
-                <div class="today-report-item">
-                    <span class="today-icon bg-success"><i class="fas fa-check-circle"></i></span>
-                    <div>
-                        <strong>Completed Order</strong>
-                        <h5 id="today_completedOrder">0</h5>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-lg-3 col-md-6">
-                <div class="today-report-item">
-                    <span class="today-icon bg-info"><i class="fas fa-truck-loading"></i></span>
-                    <div>
-                        <strong>Shipped Orders</strong>
-                        <h5 id="today_shippedOrders">0</h5>
                     </div>
                 </div>
             </div>
@@ -342,41 +372,11 @@
             </div>
 
             <div class="col-lg-3 col-md-6">
-                <div class="today-report-item">
-                    <span class="today-icon bg-success"><i class="fas fa-file-invoice-dollar"></i></span>
-                    <div>
-                        <strong>Completed Invoice</strong>
-                        <h5 id="today_completedInvoice">0</h5>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-lg-3 col-md-6">
-                <div class="today-report-item">
+                <div class="today-report-item mb-0">
                     <span class="today-icon bg-secondary"><i class="fas fa-cash-register"></i></span>
                     <div>
                         <strong>Total Checkout</strong>
                         <h5 id="today_totalCheckout">0</h5>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-lg-3 col-md-6">
-                <div class="today-report-item">
-                    <span class="today-icon bg-primary"><i class="fas fa-truck"></i></span>
-                    <div>
-                        <strong>Delivery</strong>
-                        <h5 id="today_delivery">0</h5>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-lg-3 col-md-6">
-                <div class="today-report-item mb-0">
-                    <span class="today-icon bg-danger"><i class="fas fa-times-circle"></i></span>
-                    <div>
-                        <strong>Cancelled</strong>
-                        <h5 id="today_cancelled">0</h5>
                     </div>
                 </div>
             </div>
@@ -453,7 +453,7 @@ $(function() {
 
         $('#stat_totalOrders, #stat_pendingOrders, #stat_confirmedOrders, #stat_processingOrders, #stat_deliveredOrders, #stat_cancelledOrders, #stat_grossSales, #stat_totalProducts').html(loader);
 
-        $('#today_todaysOrder, #today_newOrder, #today_pendingOrder, #today_incompletedOrder, #today_completedOrder, #today_shippedOrders, #today_stockOutOrder, #today_orderList1, #today_orderList2, #today_incompletedInvoice, #today_completedInvoice, #today_totalCheckout, #today_delivery, #today_cancelled').html(loader);
+        $('#today_todaysOrder, #today_newOrder, #today_completedOrder, #today_completedInvoice, #today_shippedOrders, #today_deliveredOrder, #today_cancelled, #today_pendingOrder, #today_incompletedOrder, #today_stockOutOrder, #today_orderList1, #today_orderList2, #today_incompletedInvoice, #today_totalCheckout').html(loader);
 
         $('#productSaleReportContainer, #userOrderReportContainer')
             .html('<div class="text-center p-4"><i class="fas fa-spinner fa-spin fa-2x text-primary"></i></div>');
@@ -477,18 +477,18 @@ $(function() {
 
         $('#today_todaysOrder').text(todayReport.todaysOrder || '0');
         $('#today_newOrder').text(todayReport.newOrder || '0');
+        $('#today_completedOrder').text(todayReport.completedOrder || '0');
+        $('#today_completedInvoice').text(todayReport.completedInvoice || '0');
+        $('#today_shippedOrders').text(todayReport.shippedOrders || '0');
+        $('#today_deliveredOrder').text(todayReport.deliveredOrder || '0');
+        $('#today_cancelled').text(todayReport.cancelled || '0');
         $('#today_pendingOrder').text(todayReport.pendingOrder || '0');
         $('#today_incompletedOrder').text(todayReport.incompletedOrder || '0');
-        $('#today_completedOrder').text(todayReport.completedOrder || '0');
-        $('#today_shippedOrders').text(todayReport.shippedOrders || '0');
         $('#today_stockOutOrder').text(todayReport.stockOutOrder || '0');
         $('#today_orderList1').text(todayReport.orderList1 || '0');
         $('#today_orderList2').text(todayReport.orderList2 || '0');
         $('#today_incompletedInvoice').text(todayReport.incompletedInvoice || '0');
-        $('#today_completedInvoice').text(todayReport.completedInvoice || '0');
         $('#today_totalCheckout').text(todayReport.totalCheckout || '0');
-        $('#today_delivery').text(todayReport.delivery || '0');
-        $('#today_cancelled').text(todayReport.cancelled || '0');
     }
 
     function requestPayload() {

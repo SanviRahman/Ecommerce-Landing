@@ -34,6 +34,7 @@
     $currentFieldId = $currentOrderField->id ?? null;
     $isInvoiceView = in_array($currentStatusView, ['pending-invoice', 'complete-invoice'], true);
     $canBulkManageOrders = auth()->check() && (auth()->user()->isAdmin() || auth()->user()->isEmployee());
+    $canCreateManualOrder = $canBulkManageOrders;
     $canDeleteOrders = auth()->check() && auth()->user()->isAdmin();
 @endphp
 
@@ -205,7 +206,7 @@
             </div>
 
             <div class="col-md-6 mt-2 mt-md-0 text-md-right">
-                @if(auth()->user()->isAdmin() && empty($isTrash))
+                @if($canCreateManualOrder && empty($isTrash))
                     <a href="{{ route('admin.orders.create', ['return_url' => url()->full()]) }}"
                        class="btn btn-success btn-sm px-3 mr-2 shadow-none">
                         <i class="fas fa-plus-circle mr-1"></i> Create Manual Order
@@ -470,6 +471,9 @@
                                 </a>
                                 <a class="dropdown-item bulk-status-action" href="#" data-action="status_confirmed">
                                     <i class="far fa-check-circle mr-1"></i> Confirmed
+                                </a>
+                                <a class="dropdown-item bulk-status-action" href="#" data-action="status_complete_invoice">
+                                    <i class="fas fa-file-invoice-dollar mr-1"></i> Complete Invoice
                                 </a>
                                 <a class="dropdown-item bulk-status-action" href="#" data-action="status_processing">
                                     <i class="fas fa-spinner mr-1"></i> Processing / New

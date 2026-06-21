@@ -84,6 +84,7 @@ class OrderController extends Controller
         return [
             Order::STATUS_PENDING,
             Order::STATUS_CONFIRMED,
+            Order::STATUS_COMPLETE_INVOICE,
             Order::STATUS_PROCESSING,
             Order::STATUS_SHIPPED,
             Order::STATUS_DELIVERED,
@@ -271,6 +272,13 @@ class OrderController extends Controller
     {
         $baseQuery = Order::query()->forLoggedInUser();
 
+        /*
+         * Static Order List 1/2 are exclusive workflow buckets.
+         * An order placed in a static list must not remain counted inside
+         * Pending, Complete, Shipped, Delivered or another status card.
+         */
+        $workflowBaseQuery = (clone $baseQuery)->whereNull('custom_order_list');
+
         $fields = $this->getActiveOrderFields()
             ->map(fn (OrderField $field) => [
                 'id' => $field->id,
@@ -283,30 +291,39 @@ class OrderController extends Controller
 
         return [
             'all'       => (clone $baseQuery)->count(),
-            'new'       => (clone $baseQuery)->where('order_status', Order::STATUS_PROCESSING)->count(),
-            'pending'   => (clone $baseQuery)->where('order_status', Order::STATUS_PENDING)->count(),
-            // Complete Orders = confirmed orders. Delivered has separate card/menu.
-            'completed' => (clone $baseQuery)->where('order_status', Order::STATUS_CONFIRMED)->count(),
-            'shipped'   => (clone $baseQuery)->where('order_status', Order::STATUS_SHIPPED)->count(),
-            'delivered' => (clone $baseQuery)->where('order_status', Order::STATUS_DELIVERED)->count(),
-            'cancelled' => (clone $baseQuery)->where('order_status', Order::STATUS_CANCELLED)->count(),
-            'stock_out' => (clone $baseQuery)->where('order_status', Order::STATUS_STOCK_OUT)->count(),
-            'order_list_1' => (clone $baseQuery)->where('custom_order_list', Order::CUSTOM_LIST_ONE)->count(),
-            'order_list_2' => (clone $baseQuery)->where('custom_order_list', Order::CUSTOM_LIST_TWO)->count(),
+            'new'       => (clone $workflowBaseQuery)->where('order_status', Order::STATUS_PROCESSING)->count(),
+            'pending'   => (clone $workflowBaseQuery)->where('order_status', Order::STATUS_PENDING)->count(),
+            'completed' => (clone $workflowBaseQuery)->where('order_status', Order::STATUS_CONFIRMED)->count(),
+            'shipped'   => (clone $workflowBaseQuery)->where('order_status', Order::STATUS_SHIPPED)->count(),
+            'delivered' => (clone $workflowBaseQuery)->where('order_status', Order::STATUS_DELIVERED)->count(),
+            'cancelled' => (clone $workflowBaseQuery)->where('order_status', Order::STATUS_CANCELLED)->count(),
+            'stock_out' => (clone $workflowBaseQuery)->where('order_status', Order::STATUS_STOCK_OUT)->count(),
 
-            // Invoice Management stats.
-            'invoice_pending'  => (clone $baseQuery)
+            'order_list_1' => (clone $baseQuery)
+                ->where('custom_order_list', Order::CUSTOM_LIST_ONE)
+                ->count(),
+
+            'order_list_2' => (clone $baseQuery)
+                ->where('custom_order_list', Order::CUSTOM_LIST_TWO)
+                ->count(),
+
+            'invoice_pending' => (clone $workflowBaseQuery)
                 ->where('order_status', Order::STATUS_CONFIRMED)
                 ->whereNull('invoice_printed_at')
                 ->count(),
-            'invoice_complete' => (clone $baseQuery)
-                ->whereNotNull('invoice_printed_at')
+
+            'invoice_complete' => (clone $workflowBaseQuery)
+                ->where('order_status', Order::STATUS_COMPLETE_INVOICE)
                 ->count(),
-            'fake'      => (clone $baseQuery)->where(function ($query) {
-                $query->where('is_fake', true)
-                    ->orWhere('order_status', Order::STATUS_FAKE);
-            })->count(),
-            'fields'    => $fields,
+
+            'fake' => (clone $workflowBaseQuery)
+                ->where(function ($query) {
+                    $query->where('is_fake', true)
+                        ->orWhere('order_status', Order::STATUS_FAKE);
+                })
+                ->count(),
+
+            'fields' => $fields,
         ];
     }
 
@@ -683,6 +700,7 @@ class OrderController extends Controller
     {
         return match ($status) {
             Order::STATUS_CONFIRMED => 'order_completed',
+            Order::STATUS_COMPLETE_INVOICE => 'invoice_completed',
             Order::STATUS_DELIVERED => 'order_delivered',
             Order::STATUS_CANCELLED => 'order_cancelled',
             default => null,
@@ -761,6 +779,22 @@ class OrderController extends Controller
         return $baseNote === '' ? $line : $baseNote . PHP_EOL . $line;
     }
 
+    /**
+     * Clear the exclusive static-list bucket when an order moves to a status.
+     */
+    private function clearStaticOrderListData(): array
+    {
+        $data = [
+            'custom_order_list' => null,
+        ];
+
+        if (Schema::hasColumn('orders', 'custom_order_list_moved_at')) {
+            $data['custom_order_list_moved_at'] = null;
+        }
+
+        return $data;
+    }
+
     private function buildOrderStatusUpdateData(Order $order, string $status, array $extra = []): array
     {
         $updateData = array_merge($extra, [
@@ -768,8 +802,20 @@ class OrderController extends Controller
             'updated_at'   => now(),
         ]);
 
+        /*
+         * Status and static Order List 1/2 are mutually exclusive.
+         * This also works when the selected status equals the order's hidden
+         * underlying status while the order is currently inside a static list.
+         */
+        $updateData = array_merge($updateData, $this->clearStaticOrderListData());
+
         if ($status === Order::STATUS_CONFIRMED && ! $order->confirmed_at) {
             $updateData['confirmed_at'] = now();
+        }
+
+        if ($status === Order::STATUS_COMPLETE_INVOICE && ! $order->invoice_printed_at) {
+            $updateData['invoice_printed_at'] = now();
+            $updateData['invoice_print_count'] = ((int) $order->invoice_print_count) + 1;
         }
 
         if (
@@ -791,6 +837,13 @@ class OrderController extends Controller
         if ($status === Order::STATUS_FAKE) {
             $updateData['is_fake'] = true;
             $updateData['marked_fake_at'] = $order->marked_fake_at ?: now();
+        } else {
+            /*
+             * Moving away from Fake must remove the secondary fake flag too;
+             * otherwise the order would still appear in the Fake list.
+             */
+            $updateData['is_fake'] = false;
+            $updateData['marked_fake_at'] = null;
         }
 
         if ($event = $this->autoAdminNoteEventForStatus($status)) {
@@ -798,10 +851,14 @@ class OrderController extends Controller
                 ? (int) $updateData['assigned_employee_id']
                 : null;
 
+            $baseAdminNote = array_key_exists('admin_note', $updateData)
+                ? $updateData['admin_note']
+                : $order->admin_note;
+
             $updateData['admin_note'] = $this->appendAutoAdminNote(
                 $order,
                 $event,
-                $order->admin_note,
+                $baseAdminNote,
                 $assignedEmployeeId ?: null
             );
         }
@@ -826,26 +883,72 @@ class OrderController extends Controller
         return $updated;
     }
 
-    private function markOrdersAsInvoicePrinted(Collection $orders): void
+    /**
+     * Confirm invoice printing and move active workflow orders to Complete Invoice.
+     *
+     * Printing an invoice must never ship an order automatically. The order will
+     * stay in Complete Invoice until an administrator or assigned employee
+     * manually changes its status to Shipped from the status dropdown/bulk action.
+     *
+     * Already shipped or terminal orders are not moved backwards.
+     */
+    private function markOrdersAsInvoicePrinted(Collection $orders): array
     {
+        $printedCount = 0;
+        $movedCount = 0;
+
         foreach ($orders as $order) {
             if (! $order instanceof Order || ! $order->id) {
                 continue;
             }
 
-            DB::table('orders')
-                ->where('id', $order->id)
-                ->update([
-                    'invoice_printed_at'  => now(),
-                    'invoice_print_count' => DB::raw('COALESCE(invoice_print_count, 0) + 1'),
-                    'admin_note'          => $this->appendAutoAdminNote(
-                        $order,
-                        'invoice_completed',
-                        $order->admin_note
-                    ),
-                    'updated_at'          => now(),
-                ]);
+            $wasPrinted = ! empty($order->invoice_printed_at);
+
+            $canMoveToCompleteInvoice = in_array($order->order_status, [
+                Order::STATUS_PENDING,
+                Order::STATUS_CONFIRMED,
+                Order::STATUS_PROCESSING,
+            ], true);
+
+            $updateData = [
+                'admin_note' => $this->appendAutoAdminNote(
+                    $order,
+                    'invoice_completed',
+                    $order->admin_note
+                ),
+            ];
+
+            if ($canMoveToCompleteInvoice) {
+                $updateData['order_status'] = Order::STATUS_COMPLETE_INVOICE;
+                $updateData = array_merge(
+                    $updateData,
+                    $this->clearStaticOrderListData()
+                );
+                $movedCount++;
+            } elseif ($order->order_status === Order::STATUS_COMPLETE_INVOICE) {
+                /*
+                 * Reconfirming an already completed invoice must also remove
+                 * an accidental stale Order List 1/2 assignment.
+                 */
+                $updateData = array_merge(
+                    $updateData,
+                    $this->clearStaticOrderListData()
+                );
+            }
+
+            if (! $wasPrinted) {
+                $updateData['invoice_printed_at'] = now();
+                $updateData['invoice_print_count'] = ((int) $order->invoice_print_count) + 1;
+                $printedCount++;
+            }
+
+            $order->update($updateData);
         }
+
+        return [
+            'printed' => $printedCount,
+            'moved'   => $movedCount,
+        ];
     }
 
     private function buildExportSheetData(Collection $orders, string $type): array
@@ -1112,11 +1215,15 @@ class OrderController extends Controller
     }
 
     /**
-     * Show the admin-only manual order creation form.
+     * Show the manual order creation form for an administrator or employee.
+     * Employees can only create orders assigned to themselves.
      */
     public function create(Request $request)
     {
-        $this->adminOnly();
+        $this->adminOrEmployeeOnly();
+
+        $currentUser = auth()->user();
+        $isEmployeeCreator = $currentUser?->isEmployee() === true;
 
         $products = Product::query()
             ->where('status', true)
@@ -1141,11 +1248,15 @@ class OrderController extends Controller
                 ->where('status', true)
                 ->orderBy('title')
                 ->get(),
-            'employees'       => User::query()
-                ->where('role', 'employee')
-                ->where('is_active', true)
-                ->orderBy('name')
-                ->get(),
+            'employees'       => $isEmployeeCreator
+                ? collect([$currentUser])
+                : User::query()
+                    ->where('role', 'employee')
+                    ->where('is_active', true)
+                    ->orderBy('name')
+                    ->get(),
+            'isEmployeeCreator' => $isEmployeeCreator,
+            'currentEmployee'   => $isEmployeeCreator ? $currentUser : null,
             'couriers'        => $this->getActiveCouriers(),
             'orderFields'     => $this->getActiveOrderFields(),
             'orderStatuses'   => $this->getOrderStatuses(),
@@ -1159,14 +1270,21 @@ class OrderController extends Controller
     }
 
     /**
-     * Persist an order created manually by an authenticated administrator.
+     * Persist an order created manually by an administrator or employee.
+     * Employee-created orders are forcibly assigned to the authenticated employee.
      */
     public function store(Request $request)
     {
-        $this->adminOnly();
+        $this->adminOrEmployeeOnly();
+
+        $currentUser = auth()->user();
+        $isEmployeeCreator = $currentUser?->isEmployee() === true;
 
         $request->merge([
             'delivery_area' => $this->normalizeDeliveryArea($request->input('delivery_area')),
+            'assigned_employee_id' => $isEmployeeCreator
+                ? $currentUser->id
+                : $request->input('assigned_employee_id'),
         ]);
 
         $validated = $request->validate([
@@ -1182,7 +1300,7 @@ class OrderController extends Controller
             'shipping_charge'      => ['nullable', 'numeric', 'min:0'],
             'cod_charge'           => ['nullable', 'numeric', 'min:0'],
             'assigned_employee_id' => [
-                'nullable',
+                $isEmployeeCreator ? 'required' : 'nullable',
                 'integer',
                 Rule::exists('users', 'id')->where(
                     fn ($query) => $query
@@ -1220,7 +1338,12 @@ class OrderController extends Controller
             'phone.regex' => 'Phone number must contain exactly 11 local digits and start with 01.',
         ]);
 
-        return DB::transaction(function () use ($request, $validated) {
+        if ($isEmployeeCreator) {
+            // Never trust a manipulated employee assignment field from the browser.
+            $validated['assigned_employee_id'] = (int) $currentUser->id;
+        }
+
+        return DB::transaction(function () use ($request, $validated, $isEmployeeCreator) {
             $submittedItems = collect($validated['items']);
 
             $products = Product::query()
@@ -1315,7 +1438,9 @@ class OrderController extends Controller
                 'customer_note'        => $validated['customer_note'] ?? null,
                 'admin_note'           => $validated['admin_note'] ?? null,
 
-                'created_via'          => Order::CREATED_VIA_ADMIN_MANUAL,
+                'created_via'          => $isEmployeeCreator
+                    ? Order::CREATED_VIA_EMPLOYEE_MANUAL
+                    : Order::CREATED_VIA_ADMIN_MANUAL,
                 'created_by_admin_id'  => auth()->id(),
                 'source_ip'            => $request->ip(),
                 'user_agent'           => $request->userAgent(),
@@ -1324,6 +1449,11 @@ class OrderController extends Controller
 
             if ($status === Order::STATUS_CONFIRMED) {
                 $order->confirmed_at = now();
+            }
+
+            if ($status === Order::STATUS_COMPLETE_INVOICE) {
+                $order->invoice_printed_at = now();
+                $order->invoice_print_count = 1;
             }
 
             if (
@@ -1462,6 +1592,7 @@ class OrderController extends Controller
         return $this->listResponse(
             $request,
             $this->orderQuery()
+                ->whereNull('custom_order_list')
                 ->where('order_status', Order::STATUS_CONFIRMED)
                 ->whereNull('invoice_printed_at'),
             'Pending Invoice',
@@ -1476,7 +1607,7 @@ class OrderController extends Controller
 
         return $this->listResponse(
             $request,
-            $this->orderQuery()->whereNotNull('invoice_printed_at'),
+            $this->orderQuery()->completeInvoice(),
             'Complete Invoice',
             false,
             'complete-invoice'
@@ -1715,7 +1846,7 @@ class OrderController extends Controller
                 );
             }
 
-            $updateData = [
+            $updateData = array_merge([
                 'invoice_id'           => $request->invoice_id,
                 'customer_name'        => $request->customer_name,
                 'phone'                => $request->phone,
@@ -1735,7 +1866,7 @@ class OrderController extends Controller
                 'is_free_delivery'     => $shippingCharge <= 0,
                 'cod_charge'           => $codCharge,
                 'total_amount'         => $totalAmount,
-            ];
+            ], $this->clearStaticOrderListData());
 
             if ($status === Order::STATUS_CONFIRMED && ! $order->confirmed_at) {
                 $updateData['confirmed_at'] = now();
@@ -1760,6 +1891,9 @@ class OrderController extends Controller
             if ($status === Order::STATUS_FAKE) {
                 $updateData['is_fake'] = true;
                 $updateData['marked_fake_at'] = $order->marked_fake_at ?: now();
+            } else {
+                $updateData['is_fake'] = false;
+                $updateData['marked_fake_at'] = null;
             }
 
             $order->update($updateData);
@@ -1895,11 +2029,10 @@ class OrderController extends Controller
             'fake_reason' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        $order->update([
-            'is_fake'        => true,
-            'order_status'   => Order::STATUS_FAKE,
-            'marked_fake_at' => now(),
-        ]);
+        $order->update($this->buildOrderStatusUpdateData(
+            $order,
+            Order::STATUS_FAKE
+        ));
 
         $order->fakeLogs()->create([
             'fake_reason' => $request->fake_reason ?: 'Marked manually',
@@ -1917,11 +2050,10 @@ class OrderController extends Controller
         $this->adminOrEmployeeOnly();
         $this->ensureEmployeeOrderAccess($order);
 
-        $order->update([
-            'is_fake'        => false,
-            'order_status'   => Order::STATUS_PENDING,
-            'marked_fake_at' => null,
-        ]);
+        $order->update($this->buildOrderStatusUpdateData(
+            $order,
+            Order::STATUS_PENDING
+        ));
 
         return response()->json([
             'status'  => true,
@@ -1999,27 +2131,28 @@ class OrderController extends Controller
         }
 
         /*
-         * Invoice print confirmation should not depend on order_status.
-         * Otherwise invoice can show "0 invoices printed successfully" when
-         * selected orders are Delivered/Shipped/Processing/Stock Out etc.
-         * After confirmation, every selected accessible order is marked with
-         * invoice_printed_at and will appear in Complete Invoice list.
+         * Confirm printing and move eligible active orders to Complete Invoice.
+         * Shipped remains a separate manual status change by Admin/Employee.
          */
-        $notPrintedOrders = $orders->filter(fn (Order $order) => empty($order->invoice_printed_at));
-        $printedCount = $notPrintedOrders->count();
+        $result = $this->markOrdersAsInvoicePrinted($orders);
+        $printedCount = (int) ($result['printed'] ?? 0);
+        $movedCount = (int) ($result['moved'] ?? 0);
 
-        if ($printedCount > 0) {
-            $this->markOrdersAsInvoicePrinted($notPrintedOrders);
+        if ($printedCount > 0 && $movedCount > 0) {
+            $message = "{$printedCount} invoices confirmed and {$movedCount} orders moved to Complete Invoice successfully.";
+        } elseif ($printedCount > 0) {
+            $message = "{$printedCount} invoices marked as printed successfully. Existing final order statuses were preserved.";
+        } elseif ($movedCount > 0) {
+            $message = "{$movedCount} orders moved to Complete Invoice successfully.";
+        } else {
+            $message = "{$orders->count()} selected invoices are already completed.";
         }
-
-        $message = $printedCount > 0
-            ? $printedCount . ' invoices marked as printed successfully.'
-            : $orders->count() . ' selected invoices are already marked as printed.';
 
         return response()->json([
             'status'         => true,
             'message'        => $message,
             'printed'        => $printedCount,
+            'moved'          => $movedCount,
             'selected_count' => $orders->count(),
         ]);
     }
@@ -2455,19 +2588,24 @@ class OrderController extends Controller
         }
 
         if ($action === 'order_list_1') {
-            $extraData = [
+            $moveData = [
                 'custom_order_list' => Order::CUSTOM_LIST_ONE,
+                'updated_at'        => now(),
             ];
 
-            if (\Illuminate\Support\Facades\Schema::hasColumn('orders', 'custom_order_list_moved_at')) {
-                $extraData['custom_order_list_moved_at'] = now();
+            if (Schema::hasColumn('orders', 'custom_order_list_moved_at')) {
+                $moveData['custom_order_list_moved_at'] = now();
             }
 
-            $updated = $this->updateOrdersStatusWithAutoAdminNotes(
-                $accessibleIds,
-                Order::STATUS_CONFIRMED,
-                $extraData
-            );
+            /*
+             * Do not change order_status here. Static lists are exclusive
+             * holding buckets; status scopes exclude listed orders. Keeping the
+             * hidden status allows Remove From Order List to return the order
+             * to its previous workflow status without copying the record.
+             */
+            $updated = Order::query()
+                ->whereIn('id', $accessibleIds)
+                ->update($moveData);
 
             return response()->json([
                 'status'  => true,
@@ -2476,19 +2614,18 @@ class OrderController extends Controller
         }
 
         if ($action === 'order_list_2') {
-            $extraData = [
+            $moveData = [
                 'custom_order_list' => Order::CUSTOM_LIST_TWO,
+                'updated_at'        => now(),
             ];
 
-            if (\Illuminate\Support\Facades\Schema::hasColumn('orders', 'custom_order_list_moved_at')) {
-                $extraData['custom_order_list_moved_at'] = now();
+            if (Schema::hasColumn('orders', 'custom_order_list_moved_at')) {
+                $moveData['custom_order_list_moved_at'] = now();
             }
 
-            $updated = $this->updateOrdersStatusWithAutoAdminNotes(
-                $accessibleIds,
-                Order::STATUS_CONFIRMED,
-                $extraData
-            );
+            $updated = Order::query()
+                ->whereIn('id', $accessibleIds)
+                ->update($moveData);
 
             return response()->json([
                 'status'  => true,

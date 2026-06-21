@@ -32,7 +32,7 @@
         <div>
             <h4 class="mb-0 font-weight-bold text-dark report-summary-title">
                 <i class="fas fa-chart-pie text-primary mr-2"></i>
-                Todays Report
+                Today's Report Summary
             </h4>
             <small class="text-muted">
                 Daily order, invoice and delivery summary (12:00 AM - 11:59 PM)
@@ -47,7 +47,7 @@
                     <i class="fas fa-shopping-cart"></i>
                 </span>
                 <div class="info-box-content">
-                    <span class="info-box-text text-muted font-weight-bold">Today's Order</span>
+                    <span class="info-box-text text-muted font-weight-bold">Total Orders</span>
                     <span class="info-box-number text-dark h5 mb-0">
                         {{ number_format($summary['todays_order'] ?? 0) }}
                     </span>
@@ -55,10 +55,9 @@
             </div>
         </div>
 
-
         <div class="col-xl-3 col-lg-4 col-md-4 col-sm-6 mb-3">
             <div class="info-box shadow-sm border-0 h-100">
-                <span class="info-box-icon bg-primary">
+                <span class="info-box-icon bg-secondary">
                     <i class="fas fa-cart-plus"></i>
                 </span>
                 <div class="info-box-content">
@@ -72,11 +71,81 @@
 
         <div class="col-xl-3 col-lg-4 col-md-4 col-sm-6 mb-3">
             <div class="info-box shadow-sm border-0 h-100">
+                <span class="info-box-icon bg-success">
+                    <i class="fas fa-check-circle"></i>
+                </span>
+                <div class="info-box-content">
+                    <span class="info-box-text text-muted font-weight-bold">Complete Order</span>
+                    <span class="info-box-number text-dark h5 mb-0">
+                        {{ number_format($summary['completed_order'] ?? 0) }}
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-lg-4 col-md-4 col-sm-6 mb-3">
+            <div class="info-box shadow-sm border-0 h-100">
+                <span class="info-box-icon bg-success">
+                    <i class="fas fa-file-invoice-dollar"></i>
+                </span>
+                <div class="info-box-content">
+                    <span class="info-box-text text-muted font-weight-bold">Complete Invoice</span>
+                    <span class="info-box-number text-dark h5 mb-0">
+                        {{ number_format($summary['completed_invoice'] ?? 0) }}
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-lg-4 col-md-4 col-sm-6 mb-3">
+            <div class="info-box shadow-sm border-0 h-100">
+                <span class="info-box-icon bg-info">
+                    <i class="fas fa-truck-loading"></i>
+                </span>
+                <div class="info-box-content">
+                    <span class="info-box-text text-muted font-weight-bold">Shipped</span>
+                    <span class="info-box-number text-dark h5 mb-0">
+                        {{ number_format($summary['shipped_orders'] ?? 0) }}
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-lg-4 col-md-4 col-sm-6 mb-3">
+            <div class="info-box shadow-sm border-0 h-100">
+                <span class="info-box-icon bg-primary">
+                    <i class="fas fa-truck"></i>
+                </span>
+                <div class="info-box-content">
+                    <span class="info-box-text text-muted font-weight-bold">Delivered</span>
+                    <span class="info-box-number text-dark h5 mb-0">
+                        {{ number_format($summary['delivered_order'] ?? 0) }}
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-lg-4 col-md-4 col-sm-6 mb-3">
+            <div class="info-box shadow-sm border-0 h-100">
+                <span class="info-box-icon bg-danger">
+                    <i class="fas fa-times-circle"></i>
+                </span>
+                <div class="info-box-content">
+                    <span class="info-box-text text-muted font-weight-bold">Cancelled</span>
+                    <span class="info-box-number text-dark h5 mb-0">
+                        {{ number_format($summary['cancelled'] ?? 0) }}
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-lg-4 col-md-4 col-sm-6 mb-3">
+            <div class="info-box shadow-sm border-0 h-100">
                 <span class="info-box-icon bg-warning text-white">
                     <i class="fas fa-clock"></i>
                 </span>
                 <div class="info-box-content">
-                    <span class="info-box-text text-muted font-weight-bold">Pending Order</span>
+                    <span class="info-box-text text-muted font-weight-bold">Pending</span>
                     <span class="info-box-number text-dark h5 mb-0">
                         {{ number_format($summary['pending_order'] ?? 0) }}
                     </span>
@@ -93,34 +162,6 @@
                     <span class="info-box-text text-muted font-weight-bold">Incompleted Order</span>
                     <span class="info-box-number text-dark h5 mb-0">
                         {{ number_format($summary['incompleted_order'] ?? 0) }}
-                    </span>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-xl-3 col-lg-4 col-md-4 col-sm-6 mb-3">
-            <div class="info-box shadow-sm border-0 h-100">
-                <span class="info-box-icon bg-success">
-                    <i class="fas fa-check-circle"></i>
-                </span>
-                <div class="info-box-content">
-                    <span class="info-box-text text-muted font-weight-bold">Completed Order</span>
-                    <span class="info-box-number text-dark h5 mb-0">
-                        {{ number_format($summary['completed_order'] ?? 0) }}
-                    </span>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-xl-3 col-lg-4 col-md-4 col-sm-6 mb-3">
-            <div class="info-box shadow-sm border-0 h-100">
-                <span class="info-box-icon bg-info">
-                    <i class="fas fa-truck-loading"></i>
-                </span>
-                <div class="info-box-content">
-                    <span class="info-box-text text-muted font-weight-bold">Shipped Orders</span>
-                    <span class="info-box-number text-dark h5 mb-0">
-                        {{ number_format($summary['shipped_orders'] ?? 0) }}
                     </span>
                 </div>
             </div>
@@ -184,20 +225,6 @@
 
         <div class="col-xl-3 col-lg-4 col-md-4 col-sm-6 mb-3">
             <div class="info-box shadow-sm border-0 h-100">
-                <span class="info-box-icon bg-success">
-                    <i class="fas fa-file-invoice-dollar"></i>
-                </span>
-                <div class="info-box-content">
-                    <span class="info-box-text text-muted font-weight-bold">Completed Invoice</span>
-                    <span class="info-box-number text-dark h5 mb-0">
-                        {{ number_format($summary['completed_invoice'] ?? 0) }}
-                    </span>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-xl-3 col-lg-4 col-md-4 col-sm-6 mb-3">
-            <div class="info-box shadow-sm border-0 h-100">
                 <span class="info-box-icon bg-secondary">
                     <i class="fas fa-cash-register"></i>
                 </span>
@@ -205,34 +232,6 @@
                     <span class="info-box-text text-muted font-weight-bold">Total Checkout</span>
                     <span class="info-box-number text-dark h5 mb-0">
                         {{ number_format($summary['checkout'] ?? 0) }}
-                    </span>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-xl-3 col-lg-4 col-md-4 col-sm-6 mb-3">
-            <div class="info-box shadow-sm border-0 h-100">
-                <span class="info-box-icon bg-primary">
-                    <i class="fas fa-truck"></i>
-                </span>
-                <div class="info-box-content">
-                    <span class="info-box-text text-muted font-weight-bold">Delivery</span>
-                    <span class="info-box-number text-dark h5 mb-0">
-                        {{ number_format($summary['delivery'] ?? 0) }}
-                    </span>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-xl-3 col-lg-4 col-md-4 col-sm-6 mb-3">
-            <div class="info-box shadow-sm border-0 h-100">
-                <span class="info-box-icon bg-danger">
-                    <i class="fas fa-times-circle"></i>
-                </span>
-                <div class="info-box-content">
-                    <span class="info-box-text text-muted font-weight-bold">Cancelled</span>
-                    <span class="info-box-number text-dark h5 mb-0">
-                        {{ number_format($summary['cancelled'] ?? 0) }}
                     </span>
                 </div>
             </div>
@@ -648,3 +647,5 @@ $(document).ready(function() {
 }
 </style>
 @endsection
+
+

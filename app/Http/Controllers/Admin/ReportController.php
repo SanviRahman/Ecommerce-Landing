@@ -650,6 +650,13 @@ class ReportController extends Controller
 
         if (! empty($filters['order_status'])) {
             $query->where('order_status', $filters['order_status']);
+
+            /*
+             * A custom Order List is an exclusive current bucket.
+             */
+            if (Schema::hasColumn('orders', 'custom_order_list')) {
+                $query->whereNull('custom_order_list');
+            }
         }
 
         if (! empty($filters['payment_status'])) {
@@ -689,7 +696,16 @@ class ReportController extends Controller
 
     private function orderSummary(Builder $query): array
     {
-        $statusCounts = (clone $query)
+        $workflowQuery = clone $query;
+
+        if (Schema::hasColumn('orders', 'custom_order_list')) {
+            $workflowQuery->whereNull('custom_order_list');
+        }
+
+        /*
+         * Status totals are mutually exclusive current-state totals.
+         */
+        $statusCounts = (clone $workflowQuery)
             ->select('order_status', DB::raw('COUNT(*) as total'))
             ->groupBy('order_status')
             ->pluck('total', 'order_status')
@@ -703,12 +719,28 @@ class ReportController extends Controller
             'shipped_orders'    => $statusCounts[Order::STATUS_SHIPPED] ?? 0,
             'delivered_orders'  => $statusCounts[Order::STATUS_DELIVERED] ?? 0,
             'cancelled_orders'  => $statusCounts[Order::STATUS_CANCELLED] ?? 0,
-            'fake_orders'       => (clone $query)->where('is_fake', true)->count(),
+            'fake_orders'       => (clone $workflowQuery)
+                ->where(function (Builder $fakeQuery) {
+                    $fakeQuery
+                        ->where('is_fake', true)
+                        ->orWhere(
+                            'order_status',
+                            Order::STATUS_FAKE
+                        );
+                })
+                ->count(),
             'gross_sales'       => (clone $query)->sum('total_amount'),
-            'delivered_sales'   => (clone $query)->where('order_status', Order::STATUS_DELIVERED)->sum('total_amount'),
+            'delivered_sales'   => (clone $workflowQuery)
+                ->where(
+                    'order_status',
+                    Order::STATUS_DELIVERED
+                )
+                ->sum('total_amount'),
             'shipping_total'    => (clone $query)->sum('shipping_charge'),
             'cod_total'         => (clone $query)->sum('cod_charge'),
-            'unique_customers'  => (clone $query)->distinct('phone')->count('phone'),
+            'unique_customers'  => (clone $query)
+                ->distinct('phone')
+                ->count('phone'),
         ];
     }
 
@@ -743,8 +775,39 @@ class ReportController extends Controller
         }
 
         if ($groupBy === 'status') {
+            if (Schema::hasColumn('orders', 'custom_order_list')) {
+                return (clone $query)
+                    ->selectRaw(
+                        "CASE
+                            WHEN custom_order_list = 'order_list_1'
+                                THEN 'order_list_1'
+                            WHEN custom_order_list = 'order_list_2'
+                                THEN 'order_list_2'
+                            ELSE order_status
+                        END as label,
+                        COUNT(*) as total_orders,
+                        SUM(total_amount) as total_sales"
+                    )
+                    ->groupByRaw(
+                        "CASE
+                            WHEN custom_order_list = 'order_list_1'
+                                THEN 'order_list_1'
+                            WHEN custom_order_list = 'order_list_2'
+                                THEN 'order_list_2'
+                            ELSE order_status
+                        END"
+                    )
+                    ->orderByDesc('total_orders')
+                    ->get()
+                    ->toArray();
+            }
+
             return (clone $query)
-                ->selectRaw('order_status as label, COUNT(*) as total_orders, SUM(total_amount) as total_sales')
+                ->selectRaw(
+                    'order_status as label,
+                    COUNT(*) as total_orders,
+                    SUM(total_amount) as total_sales'
+                )
                 ->groupBy('order_status')
                 ->orderByDesc('total_orders')
                 ->get()
@@ -852,7 +915,8 @@ class ReportController extends Controller
                 'address'           => $order->address,
                 'delivery_area'     => $order->delivery_area,
                 'payment_status'    => $order->payment_status,
-                'order_status'      => $order->order_status,
+                'order_status'      => $order->custom_order_list
+                    ?: $order->order_status,
                 'sub_total'         => $order->sub_total,
                 'shipping_charge'   => $order->shipping_charge,
                 'cod_charge'        => $order->cod_charge,
@@ -910,7 +974,14 @@ class ReportController extends Controller
         }
 
         if (! empty($filters['order_status'])) {
-            $query->where('orders.order_status', $filters['order_status']);
+            $query->where(
+                'orders.order_status',
+                $filters['order_status']
+            );
+
+            if (Schema::hasColumn('orders', 'custom_order_list')) {
+                $query->whereNull('orders.custom_order_list');
+            }
         }
 
         if (! empty($filters['payment_status'])) {

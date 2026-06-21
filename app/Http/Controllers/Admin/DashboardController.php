@@ -11,7 +11,7 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -102,37 +102,118 @@ class DashboardController extends Controller
         ];
     }
 
+    /**
+     * Resolve the business/report timezone from the same source used by
+     * TodayReportSummaryService. This prevents cPanel/server timezone from
+     * changing the Bangladesh reporting day.
+     */
+    private function displayTimezone(): string
+    {
+        return method_exists(Order::class, 'displayTimezone')
+            ? Order::displayTimezone()
+            : config(
+                'app.order_display_timezone',
+                'Asia/Dhaka'
+            );
+    }
+
+    /**
+     * Convert a Bangladesh local calendar window to the UTC window stored in
+     * the database.
+     */
+    private function localWindowToDatabase(
+        CarbonImmutable $localStart,
+        CarbonImmutable $localEnd
+    ): array {
+        return [
+            $localStart->utc(),
+            $localEnd->utc(),
+        ];
+    }
+
+    /**
+     * Current Bangladesh day:
+     * 12:00:00 AM through 11:59:59.999999 PM, converted to UTC.
+     */
+    private function databaseTodayRange(): array
+    {
+        $now = CarbonImmutable::now($this->displayTimezone());
+
+        return $this->localWindowToDatabase(
+            $now->startOfDay(),
+            $now->endOfDay()
+        );
+    }
+
     private function dateRangeFromFilter(array $filters): array
     {
         $dateFilter = $filters['date_filter'] ?? 'all';
-        $now        = now();
+        $now = CarbonImmutable::now($this->displayTimezone());
 
         return match ($dateFilter) {
-            'today'      => [$now->copy()->startOfDay(), $now->copy()->endOfDay()],
-            'yesterday'  => [$now->copy()->subDay()->startOfDay(), $now->copy()->subDay()->endOfDay()],
-            'this_week'  => [$now->copy()->startOfWeek()->startOfDay(), $now->copy()->endOfWeek()->endOfDay()],
-            'this_month' => [$now->copy()->startOfMonth()->startOfDay(), $now->copy()->endOfMonth()->endOfDay()],
-            'last_month' => [$now->copy()->subMonthNoOverflow()->startOfMonth()->startOfDay(), $now->copy()->subMonthNoOverflow()->endOfMonth()->endOfDay()],
-            'this_year'  => [$now->copy()->startOfYear()->startOfDay(), $now->copy()->endOfYear()->endOfDay()],
-            'custom'     => $this->customDateRange($filters),
-            default      => [null, null],
+            'today' => $this->localWindowToDatabase(
+                $now->startOfDay(),
+                $now->endOfDay()
+            ),
+
+            'yesterday' => $this->localWindowToDatabase(
+                $now->subDay()->startOfDay(),
+                $now->subDay()->endOfDay()
+            ),
+
+            'this_week' => $this->localWindowToDatabase(
+                $now->startOfWeek()->startOfDay(),
+                $now->endOfWeek()->endOfDay()
+            ),
+
+            'this_month' => $this->localWindowToDatabase(
+                $now->startOfMonth()->startOfDay(),
+                $now->endOfMonth()->endOfDay()
+            ),
+
+            'last_month' => $this->localWindowToDatabase(
+                $now->subMonthNoOverflow()->startOfMonth()->startOfDay(),
+                $now->subMonthNoOverflow()->endOfMonth()->endOfDay()
+            ),
+
+            'this_year' => $this->localWindowToDatabase(
+                $now->startOfYear()->startOfDay(),
+                $now->endOfYear()->endOfDay()
+            ),
+
+            'custom' => $this->customDateRange($filters),
+
+            /*
+             * "All Time" stays unbounded for the upper Total Count cards.
+             * Daily Product/User reports separately map All Time to today.
+             */
+            default => [null, null],
         };
     }
 
     /**
-     * Dashboard Report/Todays Report rule:
-     * - All Time/Today view uses the current calendar day.
-     * - Range is exactly 12:00 AM to 11:59:59 PM in app timezone.
-     * - Other date filters keep their selected calendar range.
+     * Product Sale Report and User Order Report:
+     * - All Time / Today = current Bangladesh calendar day.
+     * - Other filters = selected Bangladesh local range converted to UTC.
      */
-    private function reportActivityRange(array $filters, array $dateRange): array
-    {
+    private function reportActivityRange(
+        array $filters,
+        array $dateRange
+    ): array {
         $dateFilter = $filters['date_filter'] ?? 'all';
 
         if (in_array($dateFilter, ['all', 'today'], true)) {
-            $now = now();
+            return $this->databaseTodayRange();
+        }
 
-            return [$now->copy()->startOfDay(), $now->copy()->endOfDay()];
+        [$start, $end] = $dateRange;
+
+        /*
+         * Invalid/empty custom date input must never turn the daily report into
+         * an accidental all-time report.
+         */
+        if (! $start && ! $end) {
+            return $this->databaseTodayRange();
         }
 
         return $dateRange;
@@ -141,16 +222,42 @@ class DashboardController extends Controller
     private function customDateRange(array $filters): array
     {
         $startDate = $filters['start_date'] ?? null;
-        $endDate   = $filters['end_date'] ?? null;
+        $endDate = $filters['end_date'] ?? null;
+        $timezone = $this->displayTimezone();
 
-        try {
-            $start = $startDate ? Carbon::parse($startDate)->startOfDay() : null;
-            $end   = $endDate ? Carbon::parse($endDate)->endOfDay() : null;
-        } catch (\Throwable $exception) {
+        if (! $startDate && ! $endDate) {
             return [null, null];
         }
 
-        return [$start, $end];
+        try {
+            $start = $startDate
+                ? CarbonImmutable::parse(
+                    $startDate,
+                    $timezone
+                )->startOfDay()
+                : null;
+
+            $end = $endDate
+                ? CarbonImmutable::parse(
+                    $endDate,
+                    $timezone
+                )->endOfDay()
+                : null;
+        } catch (\Throwable) {
+            return [null, null];
+        }
+
+        if ($start && $end && $start->greaterThan($end)) {
+            [$start, $end] = [
+                $end->startOfDay(),
+                $start->endOfDay(),
+            ];
+        }
+
+        return [
+            $start?->utc(),
+            $end?->utc(),
+        ];
     }
 
     private function filteredOrderQuery(array $filters, array $dateRange = [null, null], bool $applyDate = true): Builder
@@ -165,6 +272,10 @@ class DashboardController extends Controller
 
         if (! empty($filters['order_status'])) {
             $query->where('order_status', $filters['order_status']);
+
+            if (Schema::hasColumn('orders', 'custom_order_list')) {
+                $query->whereNull('custom_order_list');
+            }
         }
 
         if (! empty($filters['payment_status'])) {
@@ -223,12 +334,19 @@ class DashboardController extends Controller
     }
     private function dashboardStats(Builder $orderQuery, array $filters, array $dateRange): array
     {
-        $totalOrders      = (clone $orderQuery)->count();
-        $pendingOrders    = (clone $orderQuery)->where('order_status', 'pending')->count();
-        $confirmedOrders  = (clone $orderQuery)->whereIn('order_status', ['confirmed', 'complete', 'completed'])->count();
-        $processingOrders = (clone $orderQuery)->where('order_status', 'processing')->count();
-        $deliveredOrders  = (clone $orderQuery)->where('order_status', 'delivered')->count();
-        $cancelledOrders  = (clone $orderQuery)->whereIn('order_status', ['cancelled', 'canceled'])->count();
+        $totalOrders = (clone $orderQuery)->count();
+
+        $workflowOrderQuery = clone $orderQuery;
+
+        if (Schema::hasColumn('orders', 'custom_order_list')) {
+            $workflowOrderQuery->whereNull('custom_order_list');
+        }
+
+        $pendingOrders    = (clone $workflowOrderQuery)->where('order_status', 'pending')->count();
+        $confirmedOrders  = (clone $workflowOrderQuery)->whereIn('order_status', ['confirmed', 'complete', 'completed'])->count();
+        $processingOrders = (clone $workflowOrderQuery)->where('order_status', 'processing')->count();
+        $deliveredOrders  = (clone $workflowOrderQuery)->where('order_status', 'delivered')->count();
+        $cancelledOrders  = (clone $workflowOrderQuery)->whereIn('order_status', ['cancelled', 'canceled'])->count();
         $grossSales       = (clone $orderQuery)->sum('total_amount');
 
         $productQuery  = Product::query();
@@ -260,18 +378,19 @@ class DashboardController extends Controller
         return [
             'todaysOrder'        => number_format($summary['todays_order'] ?? 0),
             'newOrder'           => number_format($summary['new_order'] ?? 0),
-            'pendingOrder'       => number_format($summary['pending_order'] ?? 0),
             'incompletedOrder'   => number_format($summary['incompleted_order'] ?? 0),
             'completedOrder'     => number_format($summary['completed_order'] ?? 0),
+            'completedInvoice'   => number_format($summary['completed_invoice'] ?? 0),
             'shippedOrders'      => number_format($summary['shipped_orders'] ?? 0),
+            'deliveredOrder'     => number_format($summary['delivered_order'] ?? 0),
+            'cancelled'          => number_format($summary['cancelled'] ?? 0),
+            'pendingOrder'       => number_format($summary['pending_order'] ?? 0),
             'stockOutOrder'      => number_format($summary['stock_out_order'] ?? 0),
             'orderList1'         => number_format($summary['order_list_1'] ?? 0),
             'orderList2'         => number_format($summary['order_list_2'] ?? 0),
             'incompletedInvoice' => number_format($summary['incompleted_invoice'] ?? 0),
-            'completedInvoice'   => number_format($summary['completed_invoice'] ?? 0),
             'totalCheckout'      => number_format($summary['checkout'] ?? 0),
             'delivery'           => number_format($summary['delivery'] ?? 0),
-            'cancelled'          => number_format($summary['cancelled'] ?? 0),
         ];
     }
 
@@ -336,45 +455,79 @@ class DashboardController extends Controller
     {
         $statuses = array_values(array_unique(array_filter($statuses)));
 
+        /*
+         * Current workflow statuses and Static Order List 1/2 are exclusive.
+         */
+        if (Schema::hasColumn('orders', 'custom_order_list')) {
+            $query->whereNull('custom_order_list');
+        }
+
         $query->whereIn('order_status', $statuses);
-        $this->applyActionDateCondition($query, $dateRange, $statuses, $fallbackColumns);
+
+        $this->applyActionDateCondition(
+            $query,
+            $dateRange,
+            $statuses,
+            $fallbackColumns
+        );
 
         return $query;
     }
 
     private function invoicedActionQuery(Builder $query, array $dateRange): Builder
     {
-        if (Schema::hasColumn('orders', 'invoice_printed_at')) {
-            $query->whereNotNull('invoice_printed_at');
-            $this->applyDateRange($query, $dateRange, 'invoice_printed_at');
-
-            return $query;
+        /*
+         * Complete Invoice is a current workflow status. An old
+         * invoice_printed_at value must not count Shipped, Delivered,
+         * Cancelled or custom-list orders as currently invoiced.
+         */
+        if (Schema::hasColumn('orders', 'custom_order_list')) {
+            $query->whereNull('custom_order_list');
         }
 
-        $query->whereIn('payment_status', ['paid', 'collected']);
-        $this->applyActionDateCondition($query, $dateRange, ['invoiced', 'invoice_completed', 'paid', 'collected'], ['updated_at']);
+        $query->where(
+            'order_status',
+            Order::STATUS_COMPLETE_INVOICE
+        );
+
+        $this->applyActionDateCondition(
+            $query,
+            $dateRange,
+            [Order::STATUS_COMPLETE_INVOICE],
+            ['invoice_printed_at', 'updated_at', 'created_at']
+        );
 
         return $query;
     }
 
     private function pendingInvoiceActionQuery(Builder $query, array $dateRange): Builder
     {
+        if (Schema::hasColumn('orders', 'custom_order_list')) {
+            $query->whereNull('custom_order_list');
+        }
+
+        /*
+         * Pending Invoice belongs only to the current Confirmed state.
+         */
+        $query->where('order_status', Order::STATUS_CONFIRMED);
+
         if (Schema::hasColumn('orders', 'invoice_printed_at')) {
             $query->whereNull('invoice_printed_at');
         } else {
             $query->where(function (Builder $q) {
-                $q->whereNull('payment_status')
-                    ->orWhereNotIn('payment_status', ['paid', 'collected']);
+                $q
+                    ->whereNull('payment_status')
+                    ->orWhereNotIn(
+                        'payment_status',
+                        ['paid', 'collected']
+                    );
             });
         }
 
-        // Pending invoice has no dedicated timestamp in the current schema.
-        // So we count orders that are still pending invoice and were created/updated inside the report window.
-        // If order_status_logs contains pending_invoice/invoice_pending status, that will also be counted accurately.
         $this->applyActionDateCondition(
             $query,
             $dateRange,
-            ['pending_invoice', 'invoice_pending', 'pending'],
+            [Order::STATUS_CONFIRMED],
             ['created_at', 'updated_at']
         );
 
@@ -458,7 +611,14 @@ class DashboardController extends Controller
         }
 
         if (! empty($filters['order_status'])) {
-            $query->where('orders.order_status', $filters['order_status']);
+            $query->where(
+                'orders.order_status',
+                $filters['order_status']
+            );
+
+            if (Schema::hasColumn('orders', 'custom_order_list')) {
+                $query->whereNull('orders.custom_order_list');
+            }
         }
 
         if (! empty($filters['payment_status'])) {
@@ -471,6 +631,10 @@ class DashboardController extends Controller
 
         $this->applyDateRangeToQuery($query, $reportRange, 'orders.created_at');
 
+        $workflowOnlySql = Schema::hasColumn('orders', 'custom_order_list')
+            ? " AND orders.custom_order_list IS NULL"
+            : "";
+
         $customListOneSql = Schema::hasColumn('orders', 'custom_order_list')
             ? "COUNT(DISTINCT CASE WHEN orders.custom_order_list = 'order_list_1' THEN orders.id END)"
             : "0";
@@ -480,16 +644,22 @@ class DashboardController extends Controller
             : "0";
 
         $fakeSql = Schema::hasColumn('orders', 'is_fake')
-            ? "COUNT(DISTINCT CASE WHEN orders.is_fake = 1 OR orders.order_status = 'fake' THEN orders.id END)"
-            : "COUNT(DISTINCT CASE WHEN orders.order_status = 'fake' THEN orders.id END)";
+            ? "COUNT(DISTINCT CASE WHEN (orders.is_fake = 1 OR orders.order_status = 'fake'){$workflowOnlySql} THEN orders.id END)"
+            : "COUNT(DISTINCT CASE WHEN orders.order_status = 'fake'{$workflowOnlySql} THEN orders.id END)";
 
         $pendingInvoiceSql = Schema::hasColumn('orders', 'invoice_printed_at')
-            ? "COUNT(DISTINCT CASE WHEN orders.order_status = 'confirmed' AND orders.invoice_printed_at IS NULL THEN orders.id END)"
+            ? "COUNT(DISTINCT CASE WHEN orders.order_status = 'confirmed' AND orders.invoice_printed_at IS NULL{$workflowOnlySql} THEN orders.id END)"
             : "0";
 
-        $completeInvoiceSql = Schema::hasColumn('orders', 'invoice_printed_at')
-            ? "COUNT(DISTINCT CASE WHEN orders.invoice_printed_at IS NOT NULL THEN orders.id END)"
-            : "0";
+        /*
+         * Product summary follows mutually exclusive CURRENT workflow states.
+         * confirmed_at and invoice_printed_at remain audit fields only.
+         */
+        $completeOrderSql =
+            "COUNT(DISTINCT CASE WHEN orders.order_status = 'confirmed'{$workflowOnlySql} THEN orders.id END)";
+
+        $completeInvoiceSql =
+            "COUNT(DISTINCT CASE WHEN orders.order_status = 'complete_invoice'{$workflowOnlySql} THEN orders.id END)";
 
         return $query
             ->selectRaw("
@@ -499,17 +669,17 @@ class DashboardController extends Controller
 
                 COUNT(DISTINCT orders.id) as total_orders,
 
-                COUNT(DISTINCT CASE WHEN orders.order_status = 'processing' THEN orders.id END) as new_orders,
-                COUNT(DISTINCT CASE WHEN orders.order_status = 'pending' THEN orders.id END) as pending_orders,
-                COUNT(DISTINCT CASE WHEN orders.order_status IN ('confirmed', 'complete', 'completed') THEN orders.id END) as complete_orders,
-                COUNT(DISTINCT CASE WHEN orders.order_status IN ('cancelled', 'canceled') THEN orders.id END) as cancelled_orders,
+                COUNT(DISTINCT CASE WHEN orders.order_status = 'processing'{$workflowOnlySql} THEN orders.id END) as new_orders,
+                COUNT(DISTINCT CASE WHEN orders.order_status = 'pending'{$workflowOnlySql} THEN orders.id END) as pending_orders,
+                {$completeOrderSql} as complete_orders,
+                COUNT(DISTINCT CASE WHEN orders.order_status IN ('cancelled', 'canceled'){$workflowOnlySql} THEN orders.id END) as cancelled_orders,
 
                 {$customListOneSql} as order_list_1,
                 {$customListTwoSql} as order_list_2,
 
-                COUNT(DISTINCT CASE WHEN orders.order_status = 'shipped' THEN orders.id END) as shipped_orders,
-                COUNT(DISTINCT CASE WHEN orders.order_status = 'delivered' THEN orders.id END) as delivered_orders,
-                COUNT(DISTINCT CASE WHEN orders.order_status = 'stock_out' THEN orders.id END) as stock_out_orders,
+                COUNT(DISTINCT CASE WHEN orders.order_status = 'shipped'{$workflowOnlySql} THEN orders.id END) as shipped_orders,
+                COUNT(DISTINCT CASE WHEN orders.order_status = 'delivered'{$workflowOnlySql} THEN orders.id END) as delivered_orders,
+                COUNT(DISTINCT CASE WHEN orders.order_status = 'stock_out'{$workflowOnlySql} THEN orders.id END) as stock_out_orders,
                 {$fakeSql} as fake_orders,
 
                 {$pendingInvoiceSql} as pending_invoice,
@@ -558,11 +728,40 @@ class DashboardController extends Controller
             $createdQuery = clone $baseQuery;
             $this->applyDateRange($createdQuery, $reportRange, 'created_at');
 
-            $processingQuery = $this->statusActionQuery(clone $baseQuery, ['processing'], $reportRange, ['created_at', 'updated_at']);
-            $cancelledQuery  = $this->statusActionQuery(clone $baseQuery, ['cancelled'], $reportRange, ['cancelled_at', 'updated_at']);
-            $completedQuery  = $this->statusActionQuery(clone $baseQuery, ['delivered', 'complete', 'completed'], $reportRange, ['delivered_at', 'updated_at']);
-            $deliveredQuery  = $this->statusActionQuery(clone $baseQuery, ['delivered', 'complete', 'completed'], $reportRange, ['delivered_at', 'updated_at']);
-            $stockOutQuery   = $this->statusActionQuery(clone $baseQuery, ['stock_out'], $reportRange, ['updated_at']);
+            $processingQuery = $this->statusActionQuery(
+                clone $baseQuery,
+                [Order::STATUS_PROCESSING],
+                $reportRange,
+                ['created_at', 'updated_at']
+            );
+
+            $cancelledQuery = $this->statusActionQuery(
+                clone $baseQuery,
+                [Order::STATUS_CANCELLED],
+                $reportRange,
+                ['cancelled_at', 'updated_at']
+            );
+
+            $completedQuery = $this->statusActionQuery(
+                clone $baseQuery,
+                [Order::STATUS_CONFIRMED],
+                $reportRange,
+                ['confirmed_at', 'updated_at']
+            );
+
+            $deliveredQuery = $this->statusActionQuery(
+                clone $baseQuery,
+                [Order::STATUS_DELIVERED],
+                $reportRange,
+                ['delivered_at', 'updated_at']
+            );
+
+            $stockOutQuery = $this->statusActionQuery(
+                clone $baseQuery,
+                [Order::STATUS_STOCK_OUT],
+                $reportRange,
+                ['updated_at']
+            );
             $returnQuery     = $this->statusActionQuery(clone $baseQuery, ['return', 'returned'], $reportRange, ['updated_at']);
             $onHoldQuery     = $this->statusActionQuery(clone $baseQuery, ['on_hold', 'hold', 'customer_on_hold'], $reportRange, ['updated_at']);
             $invoicedQuery   = $this->invoicedActionQuery(clone $baseQuery, $reportRange);
@@ -597,17 +796,30 @@ class DashboardController extends Controller
     private function dateRangeLabel(array $dateRange): string
     {
         [$start, $end] = $dateRange;
+        $timezone = $this->displayTimezone();
 
-        if ($start && $end) {
-            return $start->format('Y-m-d') . ' to ' . $end->format('Y-m-d');
+        $localStart = $start
+            ? CarbonImmutable::instance($start)
+                ->setTimezone($timezone)
+            : null;
+
+        $localEnd = $end
+            ? CarbonImmutable::instance($end)
+                ->setTimezone($timezone)
+            : null;
+
+        if ($localStart && $localEnd) {
+            return $localStart->format('Y-m-d')
+                . ' to '
+                . $localEnd->format('Y-m-d');
         }
 
-        if ($start) {
-            return 'From ' . $start->format('Y-m-d');
+        if ($localStart) {
+            return 'From ' . $localStart->format('Y-m-d');
         }
 
-        if ($end) {
-            return 'Until ' . $end->format('Y-m-d');
+        if ($localEnd) {
+            return 'Until ' . $localEnd->format('Y-m-d');
         }
 
         return 'All Time';
@@ -632,18 +844,19 @@ class DashboardController extends Controller
         return [
             'todaysOrder'        => '0',
             'newOrder'           => '0',
-            'pendingOrder'       => '0',
             'incompletedOrder'   => '0',
             'completedOrder'     => '0',
+            'completedInvoice'   => '0',
             'shippedOrders'      => '0',
+            'deliveredOrder'     => '0',
+            'cancelled'          => '0',
+            'pendingOrder'       => '0',
             'stockOutOrder'      => '0',
             'orderList1'         => '0',
             'orderList2'         => '0',
             'incompletedInvoice' => '0',
-            'completedInvoice'   => '0',
             'totalCheckout'      => '0',
             'delivery'           => '0',
-            'cancelled'          => '0',
         ];
     }
 

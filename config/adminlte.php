@@ -401,20 +401,6 @@ return [
                     'active' => ['admin/orders/order-list-2*'],
                 ],
                 [
-                    'text'   => 'Shipped',
-                    'url'    => 'admin/orders/shipped',
-                    'icon'   => 'fas fa-truck',
-                    'can'    => 'admin-or-employee',
-                    'active' => ['admin/orders/shipped*'],
-                ],
-                [
-                    'text'   => 'Delivered',
-                    'url'    => 'admin/orders/delivered',
-                    'icon'   => 'fas fa-check-double',
-                    'can'    => 'admin-or-employee',
-                    'active' => ['admin/orders/delivered*'],
-                ],
-                [
                     'text'   => 'Stock Out',
                     'url'    => 'admin/orders/stock-out',
                     'icon'   => 'fas fa-box-open',
@@ -454,6 +440,24 @@ return [
             ],
         ],
 
+        [
+            'header' => 'SHIPPED & DELIVERED',
+            'can'    => 'admin-or-employee',
+        ],
+        [
+            'text'   => 'Shipped Orders',
+            'url'    => 'admin/orders/shipped',
+            'icon'   => 'fas fa-truck',
+            'can'    => 'admin-or-employee',
+            'active' => ['admin/orders/shipped*'],
+        ],
+        [
+            'text'   => 'Delivered Orders',
+            'url'    => 'admin/orders/delivered',
+            'icon'   => 'fas fa-check-double',
+            'can'    => 'admin-or-employee',
+            'active' => ['admin/orders/delivered*'],
+        ],
         /*
     |--------------------------------------------------------------------------
     | Product Management

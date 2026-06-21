@@ -16,8 +16,9 @@ class Order extends Model
     use SoftDeletes;
 
     public const STATUS_PENDING    = 'pending';
-    public const STATUS_CONFIRMED  = 'confirmed';
-    public const STATUS_PROCESSING = 'processing';
+    public const STATUS_CONFIRMED        = 'confirmed';
+    public const STATUS_COMPLETE_INVOICE = 'complete_invoice';
+    public const STATUS_PROCESSING       = 'processing';
     public const STATUS_SHIPPED    = 'shipped';
     public const STATUS_DELIVERED  = 'delivered';
     public const STATUS_CANCELLED  = 'cancelled';
@@ -33,8 +34,9 @@ class Order extends Model
     public const CUSTOM_LIST_ONE = 'order_list_1';
     public const CUSTOM_LIST_TWO = 'order_list_2';
 
-    public const CREATED_VIA_FRONTEND     = 'frontend';
-    public const CREATED_VIA_ADMIN_MANUAL = 'admin_manual';
+    public const CREATED_VIA_FRONTEND        = 'frontend';
+    public const CREATED_VIA_ADMIN_MANUAL    = 'admin_manual';
+    public const CREATED_VIA_EMPLOYEE_MANUAL = 'employee_manual';
 
     protected $fillable = [
         'invoice_id',
@@ -156,8 +158,29 @@ class Order extends Model
             $now = now();
             $status = (string) $order->order_status;
 
+            /*
+             * A workflow status and Static Order List 1/2 are mutually
+             * exclusive. This model-level guard also covers courier/services
+             * that update an order outside OrderController.
+             */
+            $order->custom_order_list = null;
+
+            if (Schema::hasColumn('orders', 'custom_order_list_moved_at')) {
+                $order->custom_order_list_moved_at = null;
+            }
+
+            if ($status !== self::STATUS_FAKE) {
+                $order->is_fake = false;
+                $order->marked_fake_at = null;
+            }
+
             if ($status === self::STATUS_CONFIRMED && ! $order->confirmed_at) {
                 $order->confirmed_at = $now;
+            }
+
+            if ($status === self::STATUS_COMPLETE_INVOICE && ! $order->invoice_printed_at) {
+                $order->invoice_printed_at = $now;
+                $order->invoice_print_count = ((int) $order->invoice_print_count) + 1;
             }
 
             if (
@@ -234,9 +257,21 @@ class Order extends Model
         return $this->belongsTo(User::class, 'created_by_admin_id');
     }
 
+    public function isManualOrder(): bool
+    {
+        return in_array($this->created_via, [
+            self::CREATED_VIA_ADMIN_MANUAL,
+            self::CREATED_VIA_EMPLOYEE_MANUAL,
+        ], true);
+    }
+
+    /**
+     * Kept for backward compatibility with the existing order table Blade.
+     * Both admin and employee manual orders use the same light-green row style.
+     */
     public function isAdminManualOrder(): bool
     {
-        return $this->created_via === self::CREATED_VIA_ADMIN_MANUAL;
+        return $this->isManualOrder();
     }
 
     public function courierAccount(): BelongsTo
@@ -356,48 +391,78 @@ class Order extends Model
         return $query->where('assigned_employee_id', $employeeId);
     }
 
+    /**
+     * Status menus are exclusive from Static Order List 1/2.
+     */
+    public function scopeOutsideStaticOrderLists(Builder $query): Builder
+    {
+        return $query->whereNull('custom_order_list');
+    }
+
     public function scopeFake(Builder $query): Builder
     {
-        return $query->where(function ($q) {
-            $q->where('is_fake', true)
-                ->orWhere('order_status', self::STATUS_FAKE);
-        });
+        return $query
+            ->outsideStaticOrderLists()
+            ->where(function ($q) {
+                $q->where('is_fake', true)
+                    ->orWhere('order_status', self::STATUS_FAKE);
+            });
     }
 
     public function scopePending(Builder $query): Builder
     {
-        return $query->where('order_status', self::STATUS_PENDING);
+        return $query
+            ->outsideStaticOrderLists()
+            ->where('order_status', self::STATUS_PENDING);
     }
 
     public function scopeConfirmed(Builder $query): Builder
     {
-        return $query->where('order_status', self::STATUS_CONFIRMED);
+        return $query
+            ->outsideStaticOrderLists()
+            ->where('order_status', self::STATUS_CONFIRMED);
+    }
+
+    public function scopeCompleteInvoice(Builder $query): Builder
+    {
+        return $query
+            ->outsideStaticOrderLists()
+            ->where('order_status', self::STATUS_COMPLETE_INVOICE);
     }
 
     public function scopeProcessing(Builder $query): Builder
     {
-        return $query->where('order_status', self::STATUS_PROCESSING);
+        return $query
+            ->outsideStaticOrderLists()
+            ->where('order_status', self::STATUS_PROCESSING);
     }
 
     public function scopeStockOut(Builder $query): Builder
     {
-        return $query->where('order_status', self::STATUS_STOCK_OUT);
+        return $query
+            ->outsideStaticOrderLists()
+            ->where('order_status', self::STATUS_STOCK_OUT);
     }
 
     public function scopeNewOrders(Builder $query): Builder
     {
-        return $query->where('order_status', self::STATUS_PROCESSING)
-            ->whereNull('custom_order_list');
+        return $query
+            ->outsideStaticOrderLists()
+            ->where('order_status', self::STATUS_PROCESSING);
     }
 
     public function scopeShipped(Builder $query): Builder
     {
-        return $query->where('order_status', self::STATUS_SHIPPED);
+        return $query
+            ->outsideStaticOrderLists()
+            ->where('order_status', self::STATUS_SHIPPED);
     }
 
     public function scopeDelivered(Builder $query): Builder
     {
-        return $query->where('order_status', self::STATUS_DELIVERED);
+        return $query
+            ->outsideStaticOrderLists()
+            ->where('order_status', self::STATUS_DELIVERED);
     }
 
     public function scopeOrderListOne(Builder $query): Builder
@@ -410,10 +475,11 @@ class Order extends Model
         return $query->where('custom_order_list', self::CUSTOM_LIST_TWO);
     }
 
-
     public function scopeCancelled(Builder $query): Builder
     {
-        return $query->where('order_status', self::STATUS_CANCELLED);
+        return $query
+            ->outsideStaticOrderLists()
+            ->where('order_status', self::STATUS_CANCELLED);
     }
-}
 
+}

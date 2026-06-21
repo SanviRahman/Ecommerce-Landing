@@ -25,6 +25,8 @@
 @section('content')
 @php
     $productImageMap = $productImageMap ?? collect();
+    $isEmployeeCreator = $isEmployeeCreator ?? (auth()->check() && auth()->user()->isEmployee());
+    $currentEmployee = $currentEmployee ?? ($isEmployeeCreator ? auth()->user() : null);
 
     $deliveryAreaOptions = [
         'inside_dhaka' => 'ঢাকার ভিতরে',
@@ -91,7 +93,9 @@
 
 <div class="alert alert-success border-0 shadow-sm">
     <i class="fas fa-info-circle mr-1"></i>
-    This order will be recorded as an <strong>Admin Manual Order</strong> and will appear with a light-green background in order lists.
+    This order will be recorded as a
+    <strong>{{ $isEmployeeCreator ? 'Employee Manual Order' : 'Admin Manual Order' }}</strong>
+    and will appear with a light-green background in order lists.
 </div>
 
 <form action="{{ route('admin.orders.store') }}"
@@ -391,18 +395,32 @@
 
                     <div class="form-group">
                         <label class="font-weight-bold">Assigned Employee</label>
-                        <select name="assigned_employee_id" class="form-control">
-                            <option value="">Auto Assign</option>
 
-                            @foreach($employees as $employee)
-                                <option value="{{ $employee->id }}" @selected((int) old('assigned_employee_id') === (int) $employee->id)>
-                                    {{ $employee->name }}
-                                </option>
-                            @endforeach
-                        </select>
-                        <small class="form-text text-muted">
-                            If no employee is selected, the existing assignment service will run normally.
-                        </small>
+                        @if($isEmployeeCreator)
+                            <input type="hidden" name="assigned_employee_id" value="{{ $currentEmployee->id }}">
+
+                            <select class="form-control" disabled>
+                                <option selected>{{ $currentEmployee->name }}</option>
+                            </select>
+
+                            <small class="form-text text-muted">
+                                Employee-created manual orders are automatically assigned to the employee who creates them.
+                            </small>
+                        @else
+                            <select name="assigned_employee_id" class="form-control">
+                                <option value="">Auto Assign</option>
+
+                                @foreach($employees as $employee)
+                                    <option value="{{ $employee->id }}" @selected((int) old('assigned_employee_id') === (int) $employee->id)>
+                                        {{ $employee->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+
+                            <small class="form-text text-muted">
+                                If no employee is selected, the existing assignment service will run normally.
+                            </small>
+                        @endif
                     </div>
 
                     <div class="form-group">
@@ -730,3 +748,4 @@ $(document).ready(function() {
 });
 </script>
 @endsection
+

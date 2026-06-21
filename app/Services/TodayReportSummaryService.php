@@ -21,16 +21,26 @@ final class TodayReportSummaryService
 
         $baseQuery = $this->baseOrderQuery($filters, $user);
 
+        /*
+         * Every workflow card is a CURRENT-STATE metric.
+         *
+         * Historical timestamps/status logs remain available for audit and
+         * for resolving the selected activity window, but they must never keep
+         * an order counted in a previous workflow card after its current state
+         * changes. Static Order List 1/2 are also exclusive holding buckets.
+         */
+        $workflowBaseQuery = $this->outsideStaticOrderLists(clone $baseQuery);
+
         $todayCreatedOrders = (clone $baseQuery)
             ->whereBetween('created_at', [$todayStart, $todayEnd]);
 
         $todayActivityOrders = $this->businessActivityQuery(
-            clone $baseQuery,
+            clone $workflowBaseQuery,
             $todayStart,
             $todayEnd
         );
 
-        $pendingOrders = (clone $baseQuery)
+        $pendingOrders = (clone $workflowBaseQuery)
             ->where('order_status', Order::STATUS_PENDING)
             ->where(function (Builder $query) use ($todayStart, $todayEnd) {
                 $this->applyStatusEventWindow(
@@ -43,11 +53,32 @@ final class TodayReportSummaryService
                 );
             });
 
-        $newOrders = (clone $baseQuery)
+        $newOrders = (clone $workflowBaseQuery)
             ->where('order_status', Order::STATUS_PROCESSING)
             ->whereBetween('created_at', [$todayStart, $todayEnd]);
 
-        $shippedOrders = (clone $baseQuery)
+        /*
+         * Complete Order is counted only while the CURRENT status is Confirmed.
+         * An old confirmed_at value or Confirmed status log cannot keep an
+         * order counted after it moves to Complete Invoice, Shipped, Delivered,
+         * Cancelled, Stock Out, Fake or a custom Order List.
+         */
+        $confirmedOrders = $this->currentStatusActivityQuery(
+            clone $workflowBaseQuery,
+            Order::STATUS_CONFIRMED,
+            $todayStart,
+            $todayEnd,
+            'confirmed_at'
+        );
+
+        /*
+         * Shipped and Delivered are current-state metrics inside the selected
+         * activity window. Historical timestamps/status logs remain available
+         * for audit, but must not keep an order counted after it is manually
+         * moved back to Complete Invoice or another workflow status.
+         */
+        $shippedOrders = (clone $workflowBaseQuery)
+            ->where('order_status', Order::STATUS_SHIPPED)
             ->where(function (Builder $query) use ($todayStart, $todayEnd) {
                 $this->applyStatusEventWindow(
                     $query,
@@ -58,7 +89,8 @@ final class TodayReportSummaryService
                 );
             });
 
-        $deliveredOrders = (clone $baseQuery)
+        $deliveredOrders = (clone $workflowBaseQuery)
+            ->where('order_status', Order::STATUS_DELIVERED)
             ->where(function (Builder $query) use ($todayStart, $todayEnd) {
                 $this->applyStatusEventWindow(
                     $query,
@@ -69,7 +101,7 @@ final class TodayReportSummaryService
                 );
             });
 
-        $stockOutOrders = (clone $baseQuery)
+        $stockOutOrders = (clone $workflowBaseQuery)
             ->where('order_status', Order::STATUS_STOCK_OUT)
             ->where(function (Builder $query) use ($todayStart, $todayEnd) {
                 $this->applyStatusEventWindow(
@@ -82,7 +114,8 @@ final class TodayReportSummaryService
                 );
             });
 
-        $cancelledOrders = (clone $baseQuery)
+        $cancelledOrders = (clone $workflowBaseQuery)
+            ->where('order_status', Order::STATUS_CANCELLED)
             ->where(function (Builder $query) use ($todayStart, $todayEnd) {
                 $this->applyStatusEventWindow(
                     $query,
@@ -94,17 +127,22 @@ final class TodayReportSummaryService
             });
 
         $completedInvoices = $this->completedInvoiceQuery(
-            clone $baseQuery,
+            clone $workflowBaseQuery,
             $todayStart,
             $todayEnd
         );
 
         /*
-         * Delivery counts each order once when it was shipped and/or delivered
-         * inside the selected day. Event conditions are grouped so Dashboard
-         * filters and employee access cannot be bypassed by the OR condition.
+         * Delivery counts each currently Shipped/Delivered order once when its
+         * matching activity happened inside the selected window. Restricting
+         * the current status prevents stale shipped_at/delivered_at values or
+         * historical status logs from counting an order moved backwards.
          */
-        $deliveryActivity = (clone $baseQuery)
+        $deliveryActivity = (clone $workflowBaseQuery)
+            ->whereIn('order_status', [
+                Order::STATUS_SHIPPED,
+                Order::STATUS_DELIVERED,
+            ])
             ->where(function (Builder $activityQuery) use ($todayStart, $todayEnd) {
                 $activityQuery
                     ->where(function (Builder $query) use ($todayStart, $todayEnd) {
@@ -153,7 +191,6 @@ final class TodayReportSummaryService
             ),
 
             'new_order' => $this->countDistinctOrders($newOrders),
-            'pending_order' => $this->countDistinctOrders($pendingOrders),
 
             'incompleted_order' => $this->countDistinctOrders(
                 (clone $todayActivityOrders)->whereNotIn('order_status', [
@@ -165,11 +202,15 @@ final class TodayReportSummaryService
             ),
 
             /*
-             * Keep Report Management's established business meaning:
-             * Completed Order is a delivered-order event for the selected day.
+             * Primary workflow cards are mutually exclusive current states.
+             * Old event timestamps/logs are audit history only.
              */
-            'completed_order' => $this->countDistinctOrders($deliveredOrders),
+            'completed_order' => $this->countDistinctOrders($confirmedOrders),
+            'completed_invoice' => $this->countDistinctOrders($completedInvoices),
             'shipped_orders' => $this->countDistinctOrders($shippedOrders),
+            'delivered_order' => $this->countDistinctOrders($deliveredOrders),
+            'cancelled' => $this->countDistinctOrders($cancelledOrders),
+            'pending_order' => $this->countDistinctOrders($pendingOrders),
             'stock_out_order' => $this->countDistinctOrders($stockOutOrders),
 
             'order_list_1' => $this->orderListMovedCount(
@@ -187,7 +228,6 @@ final class TodayReportSummaryService
             ),
 
             'incompleted_invoice' => $this->countDistinctOrders($incompletedInvoiceQuery),
-            'completed_invoice' => $this->countDistinctOrders($completedInvoices),
 
             'checkout' => $this->countDistinctOrders(
                 (clone $todayCreatedOrders)->whereNotIn('order_status', [
@@ -197,7 +237,6 @@ final class TodayReportSummaryService
             ),
 
             'delivery' => $this->countDistinctOrders($deliveryActivity),
-            'cancelled' => $this->countDistinctOrders($cancelledOrders),
         ];
     }
 
@@ -453,20 +492,117 @@ final class TodayReportSummaryService
         }
     }
 
+    /**
+     * Complete Invoice is a current workflow state, not a permanent event
+     * counter. invoice_printed_at remains audit data only.
+     */
     private function completedInvoiceQuery(
         Builder $baseQuery,
         $todayStart,
         $todayEnd
     ): Builder {
-        if (Schema::hasColumn('orders', 'invoice_printed_at')) {
-            return $baseQuery
-                ->whereNotNull('invoice_printed_at')
-                ->whereBetween('invoice_printed_at', [$todayStart, $todayEnd]);
-        }
+        return $this->currentStatusActivityQuery(
+            $baseQuery,
+            Order::STATUS_COMPLETE_INVOICE,
+            $todayStart,
+            $todayEnd,
+            Schema::hasColumn('orders', 'invoice_printed_at')
+                ? 'invoice_printed_at'
+                : null
+        );
+    }
 
-        return $baseQuery
-            ->whereIn('payment_status', ['paid', 'collected'])
-            ->whereBetween('updated_at', [$todayStart, $todayEnd]);
+    /**
+     * Build a mutually exclusive current-status metric inside a report window.
+     *
+     * The current order_status is always mandatory. Historical timestamps and
+     * status logs are used only to establish activity time. updated_at and
+     * created_at are safe fallbacks for legacy rows or a status revisited after
+     * its original timestamp was already populated.
+     */
+    private function currentStatusActivityQuery(
+        Builder $baseQuery,
+        string $status,
+        $todayStart,
+        $todayEnd,
+        ?string $timestampColumn = null
+    ): Builder {
+        $baseQuery->where('order_status', $status);
+
+        return $baseQuery->where(
+            function (Builder $activityQuery) use (
+                $status,
+                $todayStart,
+                $todayEnd,
+                $timestampColumn
+            ) {
+                $hasCondition = false;
+
+                if (
+                    $timestampColumn
+                    && Schema::hasColumn('orders', $timestampColumn)
+                ) {
+                    $activityQuery->whereBetween(
+                        $timestampColumn,
+                        [$todayStart, $todayEnd]
+                    );
+
+                    $hasCondition = true;
+                }
+
+                if (Schema::hasTable('order_status_logs')) {
+                    $method = $hasCondition ? 'orWhereHas' : 'whereHas';
+
+                    $activityQuery->{$method}(
+                        'statusLogs',
+                        function (Builder $statusLogQuery) use (
+                            $status,
+                            $todayStart,
+                            $todayEnd
+                        ) {
+                            $statusLogQuery
+                                ->where('status', $status)
+                                ->whereBetween(
+                                    'created_at',
+                                    [$todayStart, $todayEnd]
+                                );
+                        }
+                    );
+
+                    $hasCondition = true;
+                }
+
+                if (Schema::hasColumn('orders', 'updated_at')) {
+                    $method = $hasCondition
+                        ? 'orWhereBetween'
+                        : 'whereBetween';
+
+                    $activityQuery->{$method}(
+                        'updated_at',
+                        [$todayStart, $todayEnd]
+                    );
+
+                    $hasCondition = true;
+                }
+
+                if (Schema::hasColumn('orders', 'created_at')) {
+                    $method = $hasCondition
+                        ? 'orWhereBetween'
+                        : 'whereBetween';
+
+                    $activityQuery->{$method}(
+                        'created_at',
+                        [$todayStart, $todayEnd]
+                    );
+
+                    $hasCondition = true;
+                }
+
+                if (! $hasCondition) {
+                    $activityQuery->whereRaw('1 = 0');
+                }
+            }
+        );
     }
 
     private function orderListMovedCount(
@@ -514,6 +650,18 @@ final class TodayReportSummaryService
         return $this->countDistinctOrders($query);
     }
 
+    /**
+     * Keep current workflow status cards separate from Static Order List 1/2.
+     */
+    private function outsideStaticOrderLists(Builder $query): Builder
+    {
+        if (Schema::hasColumn('orders', 'custom_order_list')) {
+            $query->whereNull('custom_order_list');
+        }
+
+        return $query;
+    }
+
     private function countDistinctOrders(Builder $query): int
     {
         return (int) $query
@@ -522,3 +670,4 @@ final class TodayReportSummaryService
             ->count('orders.id');
     }
 }
+

@@ -72,3 +72,5 @@ class ReportExport extends Model
         return $query->where('report_type', $type);
     }
 }
+
+
