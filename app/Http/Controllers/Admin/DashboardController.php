@@ -31,13 +31,15 @@ class DashboardController extends Controller
 
                 $stats           = $this->dashboardStats(clone $orderQuery, $filters, $dateRange);
                 $todayReport     = $this->dailyReportStats($filters, $dateRange);
+                $summaryRange    = $this->reportActivityRange($filters, $dateRange);
                 $productSaleRows = $this->productSaleRows($filters, $dateRange);
                 $userReportRows  = $this->userOrderReportRows($request, $dateRange, $filters);
 
                 return response()->json([
-                    'status'      => true,
-                    'stats'       => $stats,
-                    'todayReport' => $todayReport,
+                    'status'            => true,
+                    'stats'             => $stats,
+                    'todayReport'       => $todayReport,
+                    'summaryRangeLabel' => $this->dateRangeLabel($summaryRange),
                     'sections'    => [
                         'productSaleReport' => view('admin.dashboard.partials.product_sale_report_table', [
                             'productSaleRows' => $productSaleRows,
@@ -59,9 +61,12 @@ class DashboardController extends Controller
                     'message'     => app()->environment('local')
                         ? $exception->getMessage()
                         : 'Dashboard data could not be loaded.',
-                    'stats'       => $this->emptyStats(),
-                    'todayReport' => $this->emptyTodayReport(),
-                    'sections'    => [
+                    'stats'             => $this->emptyStats(),
+                    'todayReport'       => $this->emptyTodayReport(),
+                    'summaryRangeLabel' => $this->dateRangeLabel(
+                        $this->databaseTodayRange()
+                    ),
+                    'sections'          => [
                         'productSaleReport' => '<div class="text-center text-danger p-4"><i class="fas fa-exclamation-triangle"></i> Product sale report could not be loaded.</div>',
                         'userOrderReport'   => '<div class="text-center text-danger p-4"><i class="fas fa-exclamation-triangle"></i> User report could not be loaded.</div>',
                     ],
@@ -158,6 +163,16 @@ class DashboardController extends Controller
 
             'yesterday' => $this->localWindowToDatabase(
                 $now->subDay()->startOfDay(),
+                $now->subDay()->endOfDay()
+            ),
+
+            /*
+             * Previous seven complete Bangladesh calendar days:
+             * yesterday plus the six days before yesterday.
+             * The current day is intentionally excluded.
+             */
+            'last_week' => $this->localWindowToDatabase(
+                $now->subDays(7)->startOfDay(),
                 $now->subDay()->endOfDay()
             ),
 
@@ -345,6 +360,7 @@ class DashboardController extends Controller
         $pendingOrders    = (clone $workflowOrderQuery)->where('order_status', 'pending')->count();
         $confirmedOrders  = (clone $workflowOrderQuery)->whereIn('order_status', ['confirmed', 'complete', 'completed'])->count();
         $processingOrders = (clone $workflowOrderQuery)->where('order_status', 'processing')->count();
+        $shippedOrders    = (clone $workflowOrderQuery)->where('order_status', 'shipped')->count();
         $deliveredOrders  = (clone $workflowOrderQuery)->where('order_status', 'delivered')->count();
         $cancelledOrders  = (clone $workflowOrderQuery)->whereIn('order_status', ['cancelled', 'canceled'])->count();
         $grossSales       = (clone $orderQuery)->sum('total_amount');
@@ -357,6 +373,7 @@ class DashboardController extends Controller
             'pendingOrders'    => number_format($pendingOrders),
             'confirmedOrders'  => number_format($confirmedOrders),
             'processingOrders' => number_format($processingOrders),
+            'shippedOrders'    => number_format($shippedOrders),
             'deliveredOrders'  => number_format($deliveredOrders),
             'cancelledOrders'  => number_format($cancelledOrders),
             'grossSales'       => $this->money($grossSales),
@@ -366,12 +383,39 @@ class DashboardController extends Controller
     private function dailyReportStats(array $filters, array $dateRange): array
     {
         /*
-     * Today's Report is always fixed to the current Bangladesh calendar day.
-     * Dashboard analytics date/campaign/status/payment/area filters do not
-     * change this section.
-     */
+         * Default/All Time keeps the normal Bangladesh current-day summary.
+         * Once a date filter is selected, the same cards follow that selected
+         * Bangladesh calendar window. Campaign, order status, payment and
+         * delivery-area filters continue to apply through the shared service.
+         */
+        [$rangeStart, $rangeEnd] = $this->reportActivityRange(
+            $filters,
+            $dateRange
+        );
+
+        $timezone = $this->displayTimezone();
+
+        $summaryFilters = array_merge($filters, [
+            /*
+             * Passing the already resolved window as a custom local range
+             * keeps DashboardController and TodayReportSummaryService aligned,
+             * including the custom "Last 7 Days excluding today" option.
+             */
+            'date_filter' => 'custom',
+            'start_date'  => $rangeStart
+                ? CarbonImmutable::instance($rangeStart)
+                    ->setTimezone($timezone)
+                    ->format('Y-m-d')
+                : null,
+            'end_date'    => $rangeEnd
+                ? CarbonImmutable::instance($rangeEnd)
+                    ->setTimezone($timezone)
+                    ->format('Y-m-d')
+                : null,
+        ]);
+
         $summary = app(TodayReportSummaryService::class)->summary(
-            [],
+            $summaryFilters,
             auth()->user()
         );
 
@@ -832,6 +876,7 @@ class DashboardController extends Controller
             'pendingOrders'    => '0',
             'confirmedOrders'  => '0',
             'processingOrders' => '0',
+            'shippedOrders'    => '0',
             'deliveredOrders'  => '0',
             'cancelledOrders'  => '0',
             'grossSales'       => '৳0',

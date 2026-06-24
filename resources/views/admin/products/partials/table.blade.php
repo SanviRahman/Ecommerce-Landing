@@ -158,8 +158,8 @@
                                     <i class="fas fa-eye"></i>
                                 </a>
 
-                                {{-- Admin + Employee both can edit product --}}
-                                @if(auth()->user()->isAdmin() || auth()->user()->isEmployee())
+                                {{-- Only Admin can edit product --}}
+                                @if(auth()->user()->isAdmin())
                                     <button type="button"
                                             class="btn btn-sm btn-white text-primary btnEdit"
                                             data-url="{{ route('admin.products.edit', $product->id) }}"

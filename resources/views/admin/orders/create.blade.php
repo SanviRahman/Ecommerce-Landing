@@ -359,6 +359,28 @@
                     </div>
 
                     <div class="form-group">
+                        <label class="font-weight-bold">
+                            Order Date & Time
+                            <span class="text-danger">*</span>
+                        </label>
+
+                        <input type="datetime-local"
+                               name="order_date"
+                               value="{{ old('order_date', $defaultOrderDate) }}"
+                               step="60"
+                               class="form-control @error('order_date') is-invalid @enderror"
+                               required>
+
+                        @error('order_date')
+                            <span class="invalid-feedback">{{ $message }}</span>
+                        @enderror
+
+                        <small class="form-text text-muted">
+                            Bangladesh time (Asia/Dhaka). This date is used in order lists and reports.
+                        </small>
+                    </div>
+
+                    <div class="form-group">
                         <label class="font-weight-bold">Order Status</label>
                         <select name="order_status" class="form-control" required>
                             @foreach($orderStatuses as $status)
@@ -748,4 +770,3 @@ $(document).ready(function() {
 });
 </script>
 @endsection
-

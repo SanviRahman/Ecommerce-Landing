@@ -58,6 +58,7 @@
                             <option value="all">All Time</option>
                             <option value="today">Today</option>
                             <option value="yesterday">Yesterday</option>
+                            <option value="last_week">Last 7 Days</option>
                             <option value="this_week">This Week</option>
                             <option value="this_month">This Month</option>
                             <option value="last_month">Last Month</option>
@@ -134,109 +135,14 @@
     </div>
 </div>
 
-<div class="dashboard-section-heading mb-2" aria-label="Total count summary">
-    <h5 class="mb-0 font-weight-bold">
-        <i class="fas fa-calculator text-primary mr-2"></i>Total Count
-    </h5>
-    <small class="text-muted">Overall dashboard totals based on the selected analytics filters.</small>
-</div>
-
-<div class="row" id="statsContainer">
-    <div class="col-lg-3 col-md-6">
-        <div class="small-box bg-info shadow-sm dashboard-stat-box">
-            <div class="inner">
-                <h3 id="stat_totalOrders"><i class="fas fa-spinner fa-spin"></i></h3>
-                <p>Total Orders</p>
-            </div>
-            <div class="icon"><i class="fas fa-shopping-cart"></i></div>
-            <a href="{{ route('admin.orders.index') }}" class="small-box-footer">Orders <i class="fas fa-arrow-circle-right"></i></a>
-        </div>
-    </div>
-
-    <div class="col-lg-3 col-md-6">
-        <div class="small-box bg-warning shadow-sm dashboard-stat-box">
-            <div class="inner">
-                <h3 id="stat_pendingOrders"><i class="fas fa-spinner fa-spin"></i></h3>
-                <p>Pending Orders</p>
-            </div>
-            <div class="icon"><i class="fas fa-clock"></i></div>
-            <a href="{{ route('admin.orders.pending') }}" class="small-box-footer">Pending <i class="fas fa-arrow-circle-right"></i></a>
-        </div>
-    </div>
-
-    <div class="col-lg-3 col-md-6">
-        <div class="small-box bg-primary shadow-sm dashboard-stat-box">
-            <div class="inner">
-                <h3 id="stat_confirmedOrders"><i class="fas fa-spinner fa-spin"></i></h3>
-                <p>Confirmed Orders</p>
-            </div>
-            <div class="icon"><i class="fas fa-check-circle"></i></div>
-            <a href="{{ route('admin.orders.confirmed') }}" class="small-box-footer">Confirmed <i class="fas fa-arrow-circle-right"></i></a>
-        </div>
-    </div>
-
-    <div class="col-lg-3 col-md-6">
-        <div class="small-box bg-secondary shadow-sm dashboard-stat-box">
-            <div class="inner">
-                <h3 id="stat_processingOrders"><i class="fas fa-spinner fa-spin"></i></h3>
-                <p>Processing Orders</p>
-            </div>
-            <div class="icon"><i class="fas fa-spinner"></i></div>
-            <a href="{{ route('admin.orders.processing') }}" class="small-box-footer">Processing <i class="fas fa-arrow-circle-right"></i></a>
-        </div>
-    </div>
-
-    <div class="col-lg-3 col-md-6">
-        <div class="small-box bg-success shadow-sm dashboard-stat-box">
-            <div class="inner">
-                <h3 id="stat_deliveredOrders"><i class="fas fa-spinner fa-spin"></i></h3>
-                <p>Delivered Orders</p>
-            </div>
-            <div class="icon"><i class="fas fa-truck"></i></div>
-            <a href="{{ route('admin.orders.delivered') }}" class="small-box-footer">Delivered <i class="fas fa-arrow-circle-right"></i></a>
-        </div>
-    </div>
-
-    <div class="col-lg-3 col-md-6">
-        <div class="small-box bg-danger shadow-sm dashboard-stat-box">
-            <div class="inner">
-                <h3 id="stat_cancelledOrders"><i class="fas fa-spinner fa-spin"></i></h3>
-                <p>Cancelled Orders</p>
-            </div>
-            <div class="icon"><i class="fas fa-times-circle"></i></div>
-            <a href="{{ route('admin.orders.cancelled') }}" class="small-box-footer">Cancelled <i class="fas fa-arrow-circle-right"></i></a>
-        </div>
-    </div>
-
-    <div class="col-lg-3 col-md-6">
-        <div class="small-box bg-maroon shadow-sm dashboard-stat-box">
-            <div class="inner">
-                <h3 id="stat_grossSales"><i class="fas fa-spinner fa-spin"></i></h3>
-                <p>Gross Sales</p>
-            </div>
-            <div class="icon"><i class="fas fa-money-bill-wave"></i></div>
-            <a href="{{ route('admin.reports.index') }}" class="small-box-footer">Reports <i class="fas fa-arrow-circle-right"></i></a>
-        </div>
-    </div>
-
-    <div class="col-lg-3 col-md-6">
-        <div class="small-box bg-dark shadow-sm dashboard-stat-box">
-            <div class="inner">
-                <h3 id="stat_totalProducts"><i class="fas fa-spinner fa-spin"></i></h3>
-                <p>Total Products</p>
-            </div>
-            <div class="icon"><i class="fas fa-box"></i></div>
-            <a href="{{ route('admin.products.index') }}" class="small-box-footer">Products <i class="fas fa-arrow-circle-right"></i></a>
-        </div>
-    </div>
-</div>
-
 <div class="card card-outline card-info shadow-sm mb-3">
     <div class="card-header bg-white">
         <h3 class="card-title font-weight-bold">
             <i class="fas fa-chart-pie text-info mr-2"></i> Today's Report Summary
         </h3>
-        <small class="d-block text-muted">Daily order, invoice and delivery summary (12:00 AM - 11:59 PM)</small>
+        <small class="d-block text-muted" id="todayReportRangeText">
+            Daily order, invoice and delivery summary (12:00 AM - 11:59 PM)
+        </small>
     </div>
 
     <div class="card-body">
@@ -432,6 +338,115 @@
     </div>
 </div>
 
+
+<div class="dashboard-section-heading mb-2" aria-label="Total count summary">
+    <h5 class="mb-0 font-weight-bold">
+        <i class="fas fa-calculator text-primary mr-2"></i>Total Count
+    </h5>
+    <small class="text-muted">Overall dashboard totals based on the selected analytics filters.</small>
+</div>
+
+<div class="row" id="statsContainer">
+    <div class="col-lg-3 col-md-6">
+        <div class="small-box bg-info shadow-sm dashboard-stat-box">
+            <div class="inner">
+                <h3 id="stat_totalOrders"><i class="fas fa-spinner fa-spin"></i></h3>
+                <p>Total Orders</p>
+            </div>
+            <div class="icon"><i class="fas fa-shopping-cart"></i></div>
+            <a href="{{ route('admin.orders.index') }}" class="small-box-footer">Orders <i class="fas fa-arrow-circle-right"></i></a>
+        </div>
+    </div>
+
+    <div class="col-lg-3 col-md-6">
+        <div class="small-box bg-danger shadow-sm dashboard-stat-box">
+            <div class="inner">
+                <h3 id="stat_cancelledOrders"><i class="fas fa-spinner fa-spin"></i></h3>
+                <p>Cancelled Orders</p>
+            </div>
+            <div class="icon"><i class="fas fa-times-circle"></i></div>
+            <a href="{{ route('admin.orders.cancelled') }}" class="small-box-footer">Cancelled <i class="fas fa-arrow-circle-right"></i></a>
+        </div>
+    </div>
+
+    <div class="col-lg-3 col-md-6">
+        <div class="small-box bg-primary shadow-sm dashboard-stat-box">
+            <div class="inner">
+                <h3 id="stat_confirmedOrders"><i class="fas fa-spinner fa-spin"></i></h3>
+                <p>Confirmed Orders</p>
+            </div>
+            <div class="icon"><i class="fas fa-check-circle"></i></div>
+            <a href="{{ route('admin.orders.confirmed') }}" class="small-box-footer">Confirmed <i class="fas fa-arrow-circle-right"></i></a>
+        </div>
+    </div>
+
+    <div class="col-lg-3 col-md-6">
+        <div class="small-box bg-info shadow-sm dashboard-stat-box">
+            <div class="inner">
+                <h3 id="stat_shippedOrders"><i class="fas fa-spinner fa-spin"></i></h3>
+                <p>Shipped Orders</p>
+            </div>
+            <div class="icon"><i class="fas fa-truck-loading"></i></div>
+            <a href="{{ route('admin.orders.shipped') }}" class="small-box-footer">Shipped <i class="fas fa-arrow-circle-right"></i></a>
+        </div>
+    </div>
+
+    <div class="col-lg-3 col-md-6">
+        <div class="small-box bg-success shadow-sm dashboard-stat-box">
+            <div class="inner">
+                <h3 id="stat_deliveredOrders"><i class="fas fa-spinner fa-spin"></i></h3>
+                <p>Delivered Orders</p>
+            </div>
+            <div class="icon"><i class="fas fa-truck"></i></div>
+            <a href="{{ route('admin.orders.delivered') }}" class="small-box-footer">Delivered <i class="fas fa-arrow-circle-right"></i></a>
+        </div>
+    </div>
+
+    <div class="col-lg-3 col-md-6">
+        <div class="small-box bg-warning shadow-sm dashboard-stat-box">
+            <div class="inner">
+                <h3 id="stat_pendingOrders"><i class="fas fa-spinner fa-spin"></i></h3>
+                <p>Pending Orders</p>
+            </div>
+            <div class="icon"><i class="fas fa-clock"></i></div>
+            <a href="{{ route('admin.orders.pending') }}" class="small-box-footer">Pending <i class="fas fa-arrow-circle-right"></i></a>
+        </div>
+    </div>
+
+    <div class="col-lg-3 col-md-6">
+        <div class="small-box bg-secondary shadow-sm dashboard-stat-box">
+            <div class="inner">
+                <h3 id="stat_processingOrders"><i class="fas fa-spinner fa-spin"></i></h3>
+                <p>Processing Orders</p>
+            </div>
+            <div class="icon"><i class="fas fa-spinner"></i></div>
+            <a href="{{ route('admin.orders.processing') }}" class="small-box-footer">Processing <i class="fas fa-arrow-circle-right"></i></a>
+        </div>
+    </div>
+
+    <div class="col-lg-3 col-md-6">
+        <div class="small-box bg-maroon shadow-sm dashboard-stat-box">
+            <div class="inner">
+                <h3 id="stat_grossSales"><i class="fas fa-spinner fa-spin"></i></h3>
+                <p>Gross Sales</p>
+            </div>
+            <div class="icon"><i class="fas fa-money-bill-wave"></i></div>
+            <a href="{{ route('admin.reports.index') }}" class="small-box-footer">Reports <i class="fas fa-arrow-circle-right"></i></a>
+        </div>
+    </div>
+
+    <div class="col-lg-3 col-md-6">
+        <div class="small-box bg-dark shadow-sm dashboard-stat-box">
+            <div class="inner">
+                <h3 id="stat_totalProducts"><i class="fas fa-spinner fa-spin"></i></h3>
+                <p>Total Products</p>
+            </div>
+            <div class="icon"><i class="fas fa-box"></i></div>
+            <a href="{{ route('admin.products.index') }}" class="small-box-footer">Products <i class="fas fa-arrow-circle-right"></i></a>
+        </div>
+    </div>
+</div>
+
 @endsection
 
 @section('footer')
@@ -451,7 +466,7 @@ $(function() {
     function setLoadingState() {
         const loader = '<i class="fas fa-spinner fa-spin"></i>';
 
-        $('#stat_totalOrders, #stat_pendingOrders, #stat_confirmedOrders, #stat_processingOrders, #stat_deliveredOrders, #stat_cancelledOrders, #stat_grossSales, #stat_totalProducts').html(loader);
+        $('#stat_totalOrders, #stat_cancelledOrders, #stat_confirmedOrders, #stat_shippedOrders, #stat_deliveredOrders, #stat_pendingOrders, #stat_processingOrders, #stat_grossSales, #stat_totalProducts').html(loader);
 
         $('#today_todaysOrder, #today_newOrder, #today_completedOrder, #today_completedInvoice, #today_shippedOrders, #today_deliveredOrder, #today_cancelled, #today_pendingOrder, #today_incompletedOrder, #today_stockOutOrder, #today_orderList1, #today_orderList2, #today_incompletedInvoice, #today_totalCheckout').html(loader);
 
@@ -463,11 +478,12 @@ $(function() {
         stats = stats || {};
 
         $('#stat_totalOrders').text(stats.totalOrders || '0');
-        $('#stat_pendingOrders').text(stats.pendingOrders || '0');
-        $('#stat_confirmedOrders').text(stats.confirmedOrders || '0');
-        $('#stat_processingOrders').text(stats.processingOrders || '0');
-        $('#stat_deliveredOrders').text(stats.deliveredOrders || '0');
         $('#stat_cancelledOrders').text(stats.cancelledOrders || '0');
+        $('#stat_confirmedOrders').text(stats.confirmedOrders || '0');
+        $('#stat_shippedOrders').text(stats.shippedOrders || '0');
+        $('#stat_deliveredOrders').text(stats.deliveredOrders || '0');
+        $('#stat_pendingOrders').text(stats.pendingOrders || '0');
+        $('#stat_processingOrders').text(stats.processingOrders || '0');
         $('#stat_grossSales').text(stats.grossSales || '৳0');
         $('#stat_totalProducts').text(stats.totalProducts || '0');
     }
@@ -510,6 +526,14 @@ $(function() {
             success: function(response) {
                 updateStats(response.stats || {});
                 updateTodayReport(response.todayReport || {});
+
+                if (response.summaryRangeLabel) {
+                    $('#todayReportRangeText').text(
+                        'Selected Bangladesh date range: '
+                        + response.summaryRangeLabel
+                        + ' (12:00 AM - 11:59 PM)'
+                    );
+                }
 
                 $('#productSaleReportContainer').html(response.sections?.productSaleReport || '<div class="text-center text-muted p-4">No product sale data found.</div>');
                 $('#userOrderReportContainer').html(response.sections?.userOrderReport || '<div class="text-center text-muted p-4">No user report data found.</div>');

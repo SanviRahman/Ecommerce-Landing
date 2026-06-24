@@ -17,6 +17,7 @@ use App\Services\OrderAssignmentService;
 use App\Services\PathaoCourierService;
 use App\Services\SteadfastCourierService;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -41,6 +42,53 @@ class OrderController extends Controller
         if (! auth()->check() || (! auth()->user()->isAdmin() && ! auth()->user()->isEmployee())) {
             abort(403, 'Unauthorized access.');
         }
+    }
+
+    /**
+     * Use the same Bangladesh timezone as Order lists and reports.
+     */
+    private function orderDisplayTimezone(): string
+    {
+        return method_exists(Order::class, 'displayTimezone')
+            ? Order::displayTimezone()
+            : config(
+                'app.order_display_timezone',
+                'Asia/Dhaka'
+            );
+    }
+
+    /**
+     * datetime-local contains no timezone. Treat it as Bangladesh local time
+     * and convert it to the UTC timestamp stored in the database.
+     */
+    private function orderDateToDatabase(string $value): CarbonImmutable
+    {
+        return CarbonImmutable::createFromFormat(
+            'Y-m-d\\TH:i',
+            $value,
+            $this->orderDisplayTimezone()
+        )->utc();
+    }
+
+    /**
+     * Convert the stored UTC created_at value back to Bangladesh local time
+     * for the edit form.
+     */
+    private function orderDateForInput(Order $order): string
+    {
+        $localDate = method_exists($order, 'localDateTime')
+            ? $order->localDateTime('created_at')
+            : CarbonImmutable::parse(
+                $order->getRawOriginal('created_at')
+                    ?: $order->created_at,
+                'UTC'
+            )->setTimezone($this->orderDisplayTimezone());
+
+        return $localDate
+            ? $localDate->format('Y-m-d\\TH:i')
+            : CarbonImmutable::now(
+                $this->orderDisplayTimezone()
+            )->format('Y-m-d\\TH:i');
     }
 
     private function ensureEmployeeOrderAccess(Order $order): void
@@ -1242,6 +1290,9 @@ class OrderController extends Controller
         return view('admin.orders.create', [
             'title'           => 'Create Manual Order',
             'returnUrl'       => $returnUrl,
+            'defaultOrderDate'=> CarbonImmutable::now(
+                $this->orderDisplayTimezone()
+            )->format('Y-m-d\\TH:i'),
             'products'        => $products,
             'productImageMap' => $productImageMap,
             'campaigns'       => Campaign::query()
@@ -1289,6 +1340,7 @@ class OrderController extends Controller
 
         $validated = $request->validate([
             'campaign_id'          => ['nullable', 'integer', 'exists:campaigns,id'],
+            'order_date'           => ['required', 'date_format:Y-m-d\\TH:i'],
             'customer_name'        => ['required', 'string', 'max:255'],
             'phone'                => ['required', 'string', 'regex:/^01\d{9}$/'],
             'address'              => ['required', 'string', 'max:2000'],
@@ -1343,7 +1395,16 @@ class OrderController extends Controller
             $validated['assigned_employee_id'] = (int) $currentUser->id;
         }
 
-        return DB::transaction(function () use ($request, $validated, $isEmployeeCreator) {
+        $orderDate = $this->orderDateToDatabase(
+            $validated['order_date']
+        );
+
+        return DB::transaction(function () use (
+            $request,
+            $validated,
+            $isEmployeeCreator,
+            $orderDate
+        ) {
             $submittedItems = collect($validated['items']);
 
             $products = Product::query()
@@ -1446,6 +1507,11 @@ class OrderController extends Controller
                 'user_agent'           => $request->userAgent(),
                 'source_url'           => route('admin.orders.create'),
             ]);
+
+            /*
+             * Selected manual Order Date controls orders.created_at.
+             */
+            $order->created_at = $orderDate;
 
             if ($status === Order::STATUS_CONFIRMED) {
                 $order->confirmed_at = now();
@@ -1715,6 +1781,7 @@ class OrderController extends Controller
             'title'           => 'Edit Order - ' . $order->invoice_id,
             'order'           => $order,
             'returnUrl'       => $returnUrl,
+            'orderDateValue'  => $this->orderDateForInput($order),
             'products'        => $products,
             'productImageMap' => $productImageMap,
             'employees'       => User::query()->where('role', 'employee')->where('is_active', true)->orderBy('name')->get(),
@@ -1745,8 +1812,9 @@ class OrderController extends Controller
             'delivery_area' => $this->normalizeDeliveryArea($request->input('delivery_area')),
         ]);
 
-        $request->validate([
+        $validated = $request->validate([
             'invoice_id'           => ['required', 'string', 'max:255', Rule::unique('orders', 'invoice_id')->ignore($order->id)],
+            'order_date'           => ['required', 'date_format:Y-m-d\\TH:i'],
             'customer_name'        => ['required', 'string', 'max:255'],
             'phone'                => ['required', 'string', 'max:20'],
             'address'              => ['required', 'string'],
@@ -1768,7 +1836,15 @@ class OrderController extends Controller
             'items.*.discount_amount' => ['nullable', 'numeric', 'min:0'],
         ]);
 
-        return DB::transaction(function () use ($request, $order) {
+        $orderDate = $this->orderDateToDatabase(
+            $validated['order_date']
+        );
+
+        return DB::transaction(function () use (
+            $request,
+            $order,
+            $orderDate
+        ) {
             $products = Product::query()
                 ->whereIn('id', collect($request->items)->pluck('product_id')->filter()->unique())
                 ->get()
@@ -1896,6 +1972,11 @@ class OrderController extends Controller
                 $updateData['marked_fake_at'] = null;
             }
 
+            /*
+             * created_at is assigned directly after validation instead of
+             * making a framework timestamp generally mass assignable.
+             */
+            $order->created_at = $orderDate;
             $order->update($updateData);
 
             return redirect()

@@ -189,13 +189,22 @@ Route::middleware(['auth'])->group(function () {
                 Route::delete('/force-delete/{id}', [ProductController::class, 'forceDelete'])->name('force_delete');
                 Route::post('/multiple-action', [ProductController::class, 'multipleAction'])->name('multiple_action');
                 Route::delete('/media/{id}', [ProductController::class, 'deleteMedia'])->name('delete_media');
+
+                /*
+                 * Product edit/update is Admin-only.
+                 */
+                Route::get('/{product}/edit', [ProductController::class, 'edit'])->name('edit');
+                Route::put('/{product}', [ProductController::class, 'update'])->name('update');
+                Route::patch('/{product}', [ProductController::class, 'update']);
+
                 Route::delete('/{product}', [ProductController::class, 'destroy'])->name('destroy');
             });
 
+            /*
+             * Employees retain Product index and details view only.
+             * Keep the dynamic show route last.
+             */
             Route::get('/', [ProductController::class, 'index'])->name('index');
-            Route::get('/{product}/edit', [ProductController::class, 'edit'])->name('edit');
-            Route::put('/{product}', [ProductController::class, 'update'])->name('update');
-            Route::patch('/{product}', [ProductController::class, 'update']);
             Route::get('/{product}', [ProductController::class, 'show'])->name('show');
         });
 

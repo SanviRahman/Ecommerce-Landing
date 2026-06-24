@@ -25,7 +25,7 @@
 @if(auth()->user()->isEmployee())
     <div class="alert alert-info">
         <i class="fas fa-info-circle mr-1"></i>
-        Employee can view and edit products. Product add/delete/trash/bulk delete access is disabled.
+        Employee product access is view-only. Add, edit, delete, trash and bulk actions are disabled.
     </div>
 @endif
 

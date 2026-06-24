@@ -1014,7 +1014,7 @@ body {
 .hero-video-box video,
 .hero-video-box iframe {
     width: 100%;
-    height: 500px;
+    height: 600px;
     object-fit: cover;
     border: 0;
     display: block;

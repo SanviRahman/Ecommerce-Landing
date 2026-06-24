@@ -285,6 +285,28 @@ $selectedDeliveryArea = $deliveryAreaAliases[$normalizedDeliveryAreaKey]
 
                 <div class="card-body">
                     <div class="form-group">
+                        <label class="font-weight-bold">
+                            Order Date & Time
+                            <span class="text-danger">*</span>
+                        </label>
+
+                        <input type="datetime-local"
+                               name="order_date"
+                               value="{{ old('order_date', $orderDateValue) }}"
+                               step="60"
+                               class="form-control @error('order_date') is-invalid @enderror"
+                               required>
+
+                        @error('order_date')
+                            <span class="invalid-feedback">{{ $message }}</span>
+                        @enderror
+
+                        <small class="form-text text-muted">
+                            Bangladesh time (Asia/Dhaka). Changing it updates the order's created date.
+                        </small>
+                    </div>
+
+                    <div class="form-group">
                         <label class="font-weight-bold">Order Status</label>
                         <select name="order_status" class="form-control">
                             @foreach($orderStatuses as $status)

@@ -348,7 +348,10 @@ class ProductController extends Controller
     */
     public function edit(Request $request, Product $product)
     {
-        $this->adminOrEmployeeOnly();
+        /*
+         * Product modification is administrator-only.
+         */
+        $this->adminOnly();
 
         $product->load(['category', 'brand']);
 
@@ -378,7 +381,10 @@ class ProductController extends Controller
 
     public function update(Request $request, Product $product)
     {
-        $this->adminOrEmployeeOnly();
+        /*
+         * Blocks direct or manipulated employee update requests.
+         */
+        $this->adminOnly();
 
         $request->validate([
             'category_id'       => ['required', 'integer', 'exists:categories,id'],
