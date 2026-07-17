@@ -83,21 +83,27 @@ $duplicatePhoneCounts = $duplicatePhoneCounts ?? [];
                     </div>
 
                     @if(empty($isTrash))
-                    <button type="button" class="btn btn-xs btn-outline-primary btnFraudCheck mt-1"
-                        data-url="{{ route('admin.orders.fraud_check', $order->id) }}" data-phone="{{ $order->phone }}"
-                        data-customer="{{ $order->customer_name }}" data-invoice="{{ $order->invoice_id }}"
-                        title="Fraud Check">
-                        <i class="fas fa-user-shield mr-1"></i>
-                        Check
-                    </button>
-                    @endif
+                    <div class="fraud-check-controls d-flex align-items-center flex-wrap mt-1">
+                        <button type="button" class="btn btn-xs btn-outline-primary btnFraudCheck"
+                            data-url="{{ route('admin.orders.fraud_check', $order->id) }}" data-phone="{{ $order->phone }}"
+                            data-customer="{{ $order->customer_name }}" data-invoice="{{ $order->invoice_id }}"
+                            title="Fraud Check">
+                            <i class="fas fa-user-shield mr-1"></i>
+                            Check
+                        </button>
 
-                    <div class="small text-muted mt-1">
-                        Source:
-                        <span title="{{ $order->source_url }}">
-                            {{ $order->source_url ? \Illuminate\Support\Str::limit($order->source_url, 28) : '-' }}
+                        <span class="fraud-check-summary ml-2">
+                            @if($order->fraud_checked_at)
+                            <span class="badge badge-success">
+                                Success: {{ number_format((int) $order->fraud_check_success) }}
+                            </span>
+                            <span class="badge badge-danger ml-1">
+                                Cancel: {{ number_format((int) $order->fraud_check_cancel) }}
+                            </span>
+                            @endif
                         </span>
                     </div>
+                    @endif
 
                     @if($order->campaign)
                     <span class="badge badge-light border mt-1">
@@ -469,6 +475,17 @@ $duplicatePhoneCounts = $duplicatePhoneCounts ?? [];
     font-size: 11px;
     line-height: 1.4;
     border-radius: 4px;
+}
+
+.fraud-check-summary {
+    display: inline-flex;
+    align-items: center;
+    white-space: nowrap;
+    font-size: 11px;
+}
+
+.fraud-check-summary .badge {
+    padding: 4px 6px;
 }
 
 .pagination {

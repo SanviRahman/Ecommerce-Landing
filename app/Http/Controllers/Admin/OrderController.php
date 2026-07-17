@@ -2826,6 +2826,12 @@ class OrderController extends Controller
         try {
             $data = $bdCourierFraudCheckerService->check($order->phone);
 
+            $order->forceFill([
+                'fraud_check_success' => max(0, (int) ($data['success'] ?? 0)),
+                'fraud_check_cancel'  => max(0, (int) ($data['cancel'] ?? 0)),
+                'fraud_checked_at'    => now(),
+            ])->save();
+
             return response()->json([
                 'status'  => true,
                 'message' => 'Fraud checker data fetched successfully.',

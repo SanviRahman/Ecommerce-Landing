@@ -122,6 +122,9 @@ class Order extends Model
         'total_amount'         => 'decimal:2',
 
         'is_fake'              => 'boolean',
+        'fraud_check_success'  => 'integer',
+        'fraud_check_cancel'   => 'integer',
+        'fraud_checked_at'     => 'datetime',
 
         'confirmed_at'         => 'datetime',
         'shipped_at'           => 'datetime',

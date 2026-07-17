@@ -1130,6 +1130,21 @@ $(document).ready(function() {
             </div>`;
     }
 
+    function updateFraudCheckSummary(button, data) {
+        let total = Number(data.total || 0);
+        let success = Number(data.success || 0);
+        let cancel = Number(data.cancel || data.cancelled || data.canceled || data.return || data.returned || data.failed || 0);
+
+        if (total > 0 && success >= 0 && success < total && cancel === 0) {
+            cancel = Math.max(cancel, total - success);
+        }
+
+        button.closest('.fraud-check-controls').find('.fraud-check-summary').html(`
+            <span class="badge badge-success">Success: ${numberText(success)}</span>
+            <span class="badge badge-danger ml-1">Cancel: ${numberText(cancel)}</span>
+        `);
+    }
+
     function submitSelectedInvoices(ids) {
         let form = $('<form>', { method: 'POST', action: "{{ route('admin.orders.selected_invoices') }}", target: '_blank' });
         form.append($('<input>', { type: 'hidden', name: '_token', value: '{{ csrf_token() }}' }));
@@ -1589,6 +1604,8 @@ $(document).ready(function() {
                 button.prop('disabled', false).html(oldHtml);
 
                 if (res.status) {
+                    updateFraudCheckSummary(button, res.data || {});
+
                     Swal.fire({
                         title: 'Fraud Check Result',
                         html: renderFraudCheckerHtml(res),
