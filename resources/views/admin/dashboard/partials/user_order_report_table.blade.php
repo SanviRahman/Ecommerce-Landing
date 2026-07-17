@@ -5,6 +5,7 @@
                 <th>Date</th>
                 <th>User Name</th>
                 <th class="text-center">Total Order</th>
+                <th class="text-center">Total Checkout</th>
                 <th class="text-center">Processing</th>
                 <th class="text-center">Pending Payment</th>
                 <th class="text-center">On Hold</th>
@@ -25,6 +26,7 @@
                     <td>{{ $row['date'] ?? 'All Time' }}</td>
                     <td>{{ $row['user_name'] ?? 'N/A' }}</td>
                     <td class="text-center">{{ number_format((int) ($row['total_order'] ?? 0)) }}</td>
+                    <td class="text-center">{{ number_format((int) ($row['total_checkout'] ?? 0)) }}</td>
                     <td class="text-center">{{ number_format((int) ($row['processing'] ?? 0)) }}</td>
                     <td class="text-center">{{ number_format((int) ($row['pending_payment'] ?? 0)) }}</td>
                     <td class="text-center">{{ number_format((int) ($row['on_hold'] ?? 0)) }}</td>
@@ -39,7 +41,7 @@
                 </tr>
             @empty
                 <tr>
-                    <td colspan="14" class="text-center text-muted py-4">
+                    <td colspan="15" class="text-center text-muted py-4">
                         No user order report found.
                     </td>
                 </tr>

@@ -434,6 +434,7 @@ class DashboardController extends Controller
             'orderList2'         => number_format($summary['order_list_2'] ?? 0),
             'incompletedInvoice' => number_format($summary['incompleted_invoice'] ?? 0),
             'totalCheckout'      => number_format($summary['checkout'] ?? 0),
+            'manualOrder'        => number_format($summary['manual_order'] ?? 0),
             'delivery'           => number_format($summary['delivery'] ?? 0),
         ];
     }
@@ -646,6 +647,10 @@ class DashboardController extends Controller
             $query->whereNull('orders.deleted_at');
         }
 
+        if (Schema::hasColumn('order_items', 'deleted_at')) {
+            $query->whereNull('order_items.deleted_at');
+        }
+
         if ($this->isEmployee($user) && Schema::hasColumn('orders', 'assigned_employee_id')) {
             $query->where('orders.assigned_employee_id', $user->id);
         }
@@ -705,6 +710,9 @@ class DashboardController extends Controller
         $completeInvoiceSql =
             "COUNT(DISTINCT CASE WHEN orders.order_status = 'complete_invoice'{$workflowOnlySql} THEN orders.id END)";
 
+        $totalCheckoutSql = $this->productReportCheckoutSql();
+        $manualOrderSql   = $this->productReportManualOrderSql();
+
         return $query
             ->selectRaw("
                 COALESCE(order_items.product_id, products.id, 0) as product_id,
@@ -712,8 +720,10 @@ class DashboardController extends Controller
                 COALESCE(order_items.product_name, products.name, 'Unknown Product') as product_name,
 
                 COUNT(DISTINCT orders.id) as total_orders,
+                {$totalCheckoutSql} as total_checkout,
 
                 COUNT(DISTINCT CASE WHEN orders.order_status = 'processing'{$workflowOnlySql} THEN orders.id END) as new_orders,
+                {$manualOrderSql} as manual_orders,
                 COUNT(DISTINCT CASE WHEN orders.order_status = 'pending'{$workflowOnlySql} THEN orders.id END) as pending_orders,
                 {$completeOrderSql} as complete_orders,
                 COUNT(DISTINCT CASE WHEN orders.order_status IN ('cancelled', 'canceled'){$workflowOnlySql} THEN orders.id END) as cancelled_orders,
@@ -742,6 +752,103 @@ class DashboardController extends Controller
             ->toArray();
     }
 
+
+    private function productReportCheckoutSql(): string
+    {
+        $notFakeSql = $this->productReportNotFakeConditionSql();
+
+        if (Schema::hasColumn('orders', 'created_via')) {
+            $frontendValue = $this->sqlQuote($this->createdViaFrontendValue());
+
+            return "COUNT(DISTINCT CASE WHEN {$notFakeSql} AND (orders.created_via IS NULL OR orders.created_via = {$frontendValue}) THEN orders.id END)";
+        }
+
+        if (Schema::hasColumn('orders', 'created_by_admin_id')) {
+            return "COUNT(DISTINCT CASE WHEN {$notFakeSql} AND orders.created_by_admin_id IS NULL THEN orders.id END)";
+        }
+
+        if (Schema::hasColumn('orders', 'source_url')) {
+            return "COUNT(DISTINCT CASE WHEN {$notFakeSql} AND (orders.source_url IS NULL OR (orders.source_url NOT LIKE '%/admin/orders/create%' AND orders.source_url NOT LIKE '%admin/orders/create%')) THEN orders.id END)";
+        }
+
+        return "COUNT(DISTINCT CASE WHEN {$notFakeSql} THEN orders.id END)";
+    }
+
+    private function productReportManualOrderSql(): string
+    {
+        $notFakeSql = $this->productReportNotFakeConditionSql();
+
+        if (Schema::hasColumn('orders', 'created_via')) {
+            $manualValues = $this->sqlQuoteList($this->createdViaManualValues());
+
+            if (Schema::hasColumn('orders', 'created_by_admin_id')) {
+                return "COUNT(DISTINCT CASE WHEN {$notFakeSql} AND (orders.created_via IN ({$manualValues}) OR orders.created_by_admin_id IS NOT NULL) THEN orders.id END)";
+            }
+
+            return "COUNT(DISTINCT CASE WHEN {$notFakeSql} AND orders.created_via IN ({$manualValues}) THEN orders.id END)";
+        }
+
+        if (Schema::hasColumn('orders', 'created_by_admin_id')) {
+            return "COUNT(DISTINCT CASE WHEN {$notFakeSql} AND orders.created_by_admin_id IS NOT NULL THEN orders.id END)";
+        }
+
+        if (Schema::hasColumn('orders', 'source_url')) {
+            return "COUNT(DISTINCT CASE WHEN {$notFakeSql} AND (orders.source_url LIKE '%/admin/orders/create%' OR orders.source_url LIKE '%admin/orders/create%') THEN orders.id END)";
+        }
+
+        return "0";
+    }
+
+    private function productReportNotFakeConditionSql(): string
+    {
+        if (Schema::hasColumn('orders', 'order_status')) {
+            return "(orders.order_status IS NULL OR orders.order_status != 'fake')";
+        }
+
+        return "1 = 1";
+    }
+
+    private function createdViaFrontendValue(): string
+    {
+        return defined(Order::class . '::CREATED_VIA_FRONTEND')
+            ? constant(Order::class . '::CREATED_VIA_FRONTEND')
+            : 'frontend';
+    }
+
+    private function createdViaManualValues(): array
+    {
+        $values = [];
+
+        if (defined(Order::class . '::CREATED_VIA_ADMIN_MANUAL')) {
+            $values[] = constant(Order::class . '::CREATED_VIA_ADMIN_MANUAL');
+        }
+
+        if (defined(Order::class . '::CREATED_VIA_EMPLOYEE_MANUAL')) {
+            $values[] = constant(Order::class . '::CREATED_VIA_EMPLOYEE_MANUAL');
+        }
+
+        $values[] = 'admin_manual';
+        $values[] = 'employee_manual';
+        $values[] = 'manual';
+        $values[] = 'admin';
+        $values[] = 'employee';
+
+        return array_values(array_unique(array_filter($values)));
+    }
+
+    private function sqlQuoteList(array $values): string
+    {
+        return collect($values)
+            ->map(fn ($value) => $this->sqlQuote((string) $value))
+            ->implode(', ');
+    }
+
+    private function sqlQuote(string $value): string
+    {
+        return "'" . str_replace("'", "''", $value) . "'";
+    }
+
+
     private function userOrderReportRows(Request $request, array $dateRange, array $filters = []): array
     {
         $user           = auth()->user();
@@ -756,85 +863,167 @@ class DashboardController extends Controller
             $usersQuery->whereKey($selectedUserId);
         }
 
-        $users = $usersQuery->get(['id', 'name']);
+        $rows = $usersQuery
+            ->get(['id', 'name'])
+            ->map(function (User $reportUser) use ($filters, $reportRange) {
+                $baseQuery = $this->userReportBaseQuery($reportUser->id);
 
-        return $users->map(function (User $reportUser) use ($reportRange) {
-            $baseQuery = Order::query();
+                $summary = $this->userReportSummary(
+                    $filters,
+                    $reportRange,
+                    ['report_user_id' => $reportUser->id]
+                );
 
-            if (Schema::hasColumn('orders', 'assigned_employee_id')) {
-                $baseQuery->where('assigned_employee_id', $reportUser->id);
-            } elseif (Schema::hasColumn('orders', 'user_id')) {
-                $baseQuery->where('user_id', $reportUser->id);
-            } else {
-                $baseQuery->whereRaw('1 = 0');
+                return $this->buildUserReportRow(
+                    $reportUser->name,
+                    $reportRange,
+                    $summary,
+                    $baseQuery
+                );
+            })
+            ->toArray();
+
+        /*
+         * When All Users is selected, Today's Report total can include orders
+         * that are not assigned to any employee/user yet. Without this row the
+         * table sum becomes lower than Today's Total Orders.
+         */
+        if (! $this->isEmployee($user) && ! $selectedUserId) {
+            $unassignedSummary = $this->userReportSummary(
+                $filters,
+                $reportRange,
+                ['report_unassigned' => true]
+            );
+
+            if ((int) ($unassignedSummary['todays_order'] ?? 0) > 0) {
+                $rows[] = $this->buildUserReportRow(
+                    'Unassigned',
+                    $reportRange,
+                    $unassignedSummary,
+                    $this->unassignedUserReportBaseQuery()
+                );
             }
+        }
 
-            $createdQuery = clone $baseQuery;
-            $this->applyDateRange($createdQuery, $reportRange, 'created_at');
+        return $rows;
+    }
 
-            $processingQuery = $this->statusActionQuery(
-                clone $baseQuery,
-                [Order::STATUS_PROCESSING],
-                $reportRange,
-                ['created_at', 'updated_at']
-            );
+    private function userReportSummary(array $filters, array $reportRange, array $extraFilters = []): array
+    {
+        [$rangeStart, $rangeEnd] = $reportRange;
+        $timezone = $this->displayTimezone();
 
-            $cancelledQuery = $this->statusActionQuery(
-                clone $baseQuery,
-                [Order::STATUS_CANCELLED],
-                $reportRange,
-                ['cancelled_at', 'updated_at']
-            );
+        $summaryFilters = array_merge($filters, $extraFilters, [
+            'date_filter' => 'custom',
+            'start_date'  => $rangeStart
+                ? CarbonImmutable::instance($rangeStart)
+                    ->setTimezone($timezone)
+                    ->format('Y-m-d')
+                : null,
+            'end_date'    => $rangeEnd
+                ? CarbonImmutable::instance($rangeEnd)
+                    ->setTimezone($timezone)
+                    ->format('Y-m-d')
+                : null,
+        ]);
 
-            $completedQuery = $this->statusActionQuery(
-                clone $baseQuery,
-                [Order::STATUS_CONFIRMED],
-                $reportRange,
-                ['confirmed_at', 'updated_at']
-            );
+        return app(TodayReportSummaryService::class)->summary(
+            $summaryFilters,
+            auth()->user()
+        );
+    }
 
-            $deliveredQuery = $this->statusActionQuery(
-                clone $baseQuery,
-                [Order::STATUS_DELIVERED],
-                $reportRange,
-                ['delivered_at', 'updated_at']
-            );
+    private function userReportBaseQuery(int $userId): Builder
+    {
+        $baseQuery = Order::query();
 
-            $stockOutQuery = $this->statusActionQuery(
-                clone $baseQuery,
-                [Order::STATUS_STOCK_OUT],
-                $reportRange,
-                ['updated_at']
-            );
-            $returnQuery     = $this->statusActionQuery(clone $baseQuery, ['return', 'returned'], $reportRange, ['updated_at']);
-            $onHoldQuery     = $this->statusActionQuery(clone $baseQuery, ['on_hold', 'hold', 'customer_on_hold'], $reportRange, ['updated_at']);
-            $invoicedQuery   = $this->invoicedActionQuery(clone $baseQuery, $reportRange);
+        if (Schema::hasColumn('orders', 'assigned_employee_id')) {
+            return $baseQuery->where('assigned_employee_id', $userId);
+        }
 
-            $paidQuery = clone $baseQuery;
-            $paidQuery->whereIn('payment_status', ['paid', 'collected']);
-            $this->applyActionDateCondition($paidQuery, $reportRange, ['paid', 'collected'], ['updated_at']);
+        if (Schema::hasColumn('orders', 'user_id')) {
+            return $baseQuery->where('user_id', $userId);
+        }
 
-            $pendingPaymentQuery = clone $baseQuery;
-            $pendingPaymentQuery->whereIn('payment_status', ['cod_pending', 'pending', 'unpaid']);
-            $this->applyActionDateCondition($pendingPaymentQuery, $reportRange, ['cod_pending', 'payment_pending', 'pending', 'unpaid'], ['created_at', 'updated_at']);
+        return $baseQuery->whereRaw('1 = 0');
+    }
 
-            return [
-                'date'            => $this->dateRangeLabel($reportRange),
-                'user_name'       => $reportUser->name,
-                'total_order'     => (clone $createdQuery)->count(),
-                'processing'      => $processingQuery->count(),
-                'pending_payment' => $pendingPaymentQuery->count(),
-                'on_hold'         => $onHoldQuery->count(),
-                'cancelled'       => $cancelledQuery->count(),
-                'completed'       => $completedQuery->count(),
-                'invoiced'        => $invoicedQuery->count(),
-                'stock_out'       => $stockOutQuery->count(),
-                'delivered'       => $deliveredQuery->count(),
-                'paid'            => $paidQuery->count(),
-                'return'          => $returnQuery->count(),
-                'paid_amount'     => $paidQuery->sum('total_amount'),
-            ];
-        })->toArray();
+    private function unassignedUserReportBaseQuery(): Builder
+    {
+        $baseQuery = Order::query();
+
+        if (Schema::hasColumn('orders', 'assigned_employee_id')) {
+            return $baseQuery->whereNull('assigned_employee_id');
+        }
+
+        if (Schema::hasColumn('orders', 'user_id')) {
+            return $baseQuery->whereNull('user_id');
+        }
+
+        return $baseQuery->whereRaw('1 = 0');
+    }
+
+    private function buildUserReportRow(
+        string $userName,
+        array $reportRange,
+        array $summary,
+        Builder $baseQuery
+    ): array {
+        $returnQuery = $this->statusActionQuery(
+            clone $baseQuery,
+            ['return', 'returned'],
+            $reportRange,
+            ['updated_at']
+        );
+
+        $onHoldQuery = $this->statusActionQuery(
+            clone $baseQuery,
+            ['on_hold', 'hold', 'customer_on_hold'],
+            $reportRange,
+            ['updated_at']
+        );
+
+        $paidQuery = clone $baseQuery;
+        $paidQuery->whereIn('payment_status', ['paid', 'collected']);
+        $this->applyActionDateCondition(
+            $paidQuery,
+            $reportRange,
+            ['paid', 'collected'],
+            ['updated_at']
+        );
+
+        $pendingPaymentQuery = clone $baseQuery;
+        $pendingPaymentQuery->whereIn('payment_status', ['cod_pending', 'pending', 'unpaid']);
+        $this->applyActionDateCondition(
+            $pendingPaymentQuery,
+            $reportRange,
+            ['cod_pending', 'payment_pending', 'pending', 'unpaid'],
+            ['created_at', 'updated_at']
+        );
+
+        return [
+            'date'            => $this->dateRangeLabel($reportRange),
+            'user_name'       => $userName,
+
+            /*
+             * Same source of truth as Today's Report Summary.
+             * This makes Today's Total Orders equal to the sum of User Report
+             * Total Order rows for the same dashboard range.
+             */
+            'total_order'     => (int) ($summary['todays_order'] ?? 0),
+            'total_checkout'  => (int) ($summary['checkout'] ?? 0),
+            'processing'      => (int) ($summary['new_order'] ?? 0),
+            'pending_payment' => $pendingPaymentQuery->count(),
+            'on_hold'         => $onHoldQuery->count(),
+            'cancelled'       => (int) ($summary['cancelled'] ?? 0),
+            'completed'       => (int) ($summary['completed_order'] ?? 0),
+            'invoiced'        => (int) ($summary['completed_invoice'] ?? 0),
+            'stock_out'       => (int) ($summary['stock_out_order'] ?? 0),
+            'delivered'       => (int) ($summary['delivered_order'] ?? 0),
+            'paid'            => $paidQuery->count(),
+            'return'          => $returnQuery->count(),
+            'paid_amount'     => $paidQuery->sum('total_amount'),
+        ];
     }
 
     private function dateRangeLabel(array $dateRange): string
@@ -901,6 +1090,7 @@ class DashboardController extends Controller
             'orderList2'         => '0',
             'incompletedInvoice' => '0',
             'totalCheckout'      => '0',
+            'manualOrder'        => '0',
             'delivery'           => '0',
         ];
     }

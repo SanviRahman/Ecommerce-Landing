@@ -159,6 +159,26 @@
 
             <div class="col-lg-3 col-md-6">
                 <div class="today-report-item">
+                    <span class="today-icon bg-secondary"><i class="fas fa-cash-register"></i></span>
+                    <div>
+                        <strong>Total Checkout</strong>
+                        <h5 id="today_totalCheckout">0</h5>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-3 col-md-6">
+                <div class="today-report-item">
+                    <span class="today-icon bg-dark"><i class="fas fa-user-edit"></i></span>
+                    <div>
+                        <strong>Manual Order</strong>
+                        <h5 id="today_manualOrder">0</h5>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-3 col-md-6">
+                <div class="today-report-item">
                     <span class="today-icon bg-secondary"><i class="fas fa-cart-plus"></i></span>
                     <div>
                         <strong>New Order</strong>
@@ -273,16 +293,6 @@
                     <div>
                         <strong>Incompleted Invoice</strong>
                         <h5 id="today_incompletedInvoice">0</h5>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-lg-3 col-md-6">
-                <div class="today-report-item mb-0">
-                    <span class="today-icon bg-secondary"><i class="fas fa-cash-register"></i></span>
-                    <div>
-                        <strong>Total Checkout</strong>
-                        <h5 id="today_totalCheckout">0</h5>
                     </div>
                 </div>
             </div>
@@ -468,7 +478,7 @@ $(function() {
 
         $('#stat_totalOrders, #stat_cancelledOrders, #stat_confirmedOrders, #stat_shippedOrders, #stat_deliveredOrders, #stat_pendingOrders, #stat_processingOrders, #stat_grossSales, #stat_totalProducts').html(loader);
 
-        $('#today_todaysOrder, #today_newOrder, #today_completedOrder, #today_completedInvoice, #today_shippedOrders, #today_deliveredOrder, #today_cancelled, #today_pendingOrder, #today_incompletedOrder, #today_stockOutOrder, #today_orderList1, #today_orderList2, #today_incompletedInvoice, #today_totalCheckout').html(loader);
+        $('#today_todaysOrder, #today_newOrder, #today_completedOrder, #today_completedInvoice, #today_shippedOrders, #today_deliveredOrder, #today_cancelled, #today_pendingOrder, #today_incompletedOrder, #today_stockOutOrder, #today_orderList1, #today_orderList2, #today_incompletedInvoice, #today_totalCheckout, #today_manualOrder').html(loader);
 
         $('#productSaleReportContainer, #userOrderReportContainer')
             .html('<div class="text-center p-4"><i class="fas fa-spinner fa-spin fa-2x text-primary"></i></div>');
@@ -505,6 +515,7 @@ $(function() {
         $('#today_orderList2').text(todayReport.orderList2 || '0');
         $('#today_incompletedInvoice').text(todayReport.incompletedInvoice || '0');
         $('#today_totalCheckout').text(todayReport.totalCheckout || '0');
+        $('#today_manualOrder').text(todayReport.manualOrder || '0');
     }
 
     function requestPayload() {

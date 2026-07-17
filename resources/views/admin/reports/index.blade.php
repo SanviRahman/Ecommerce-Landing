@@ -58,6 +58,34 @@
         <div class="col-xl-3 col-lg-4 col-md-4 col-sm-6 mb-3">
             <div class="info-box shadow-sm border-0 h-100">
                 <span class="info-box-icon bg-secondary">
+                    <i class="fas fa-cash-register"></i>
+                </span>
+                <div class="info-box-content">
+                    <span class="info-box-text text-muted font-weight-bold">Total Checkout</span>
+                    <span class="info-box-number text-dark h5 mb-0">
+                        {{ number_format($summary['checkout'] ?? 0) }}
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-lg-4 col-md-4 col-sm-6 mb-3">
+            <div class="info-box shadow-sm border-0 h-100">
+                <span class="info-box-icon bg-dark">
+                    <i class="fas fa-user-edit"></i>
+                </span>
+                <div class="info-box-content">
+                    <span class="info-box-text text-muted font-weight-bold">Manual Order</span>
+                    <span class="info-box-number text-dark h5 mb-0">
+                        {{ number_format($summary['manual_order'] ?? 0) }}
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-lg-4 col-md-4 col-sm-6 mb-3">
+            <div class="info-box shadow-sm border-0 h-100">
+                <span class="info-box-icon bg-secondary">
                     <i class="fas fa-cart-plus"></i>
                 </span>
                 <div class="info-box-content">
@@ -218,20 +246,6 @@
                     <span class="info-box-text text-muted font-weight-bold">Incompleted Invoice</span>
                     <span class="info-box-number text-dark h5 mb-0">
                         {{ number_format($summary['incompleted_invoice'] ?? 0) }}
-                    </span>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-xl-3 col-lg-4 col-md-4 col-sm-6 mb-3">
-            <div class="info-box shadow-sm border-0 h-100">
-                <span class="info-box-icon bg-secondary">
-                    <i class="fas fa-cash-register"></i>
-                </span>
-                <div class="info-box-content">
-                    <span class="info-box-text text-muted font-weight-bold">Total Checkout</span>
-                    <span class="info-box-number text-dark h5 mb-0">
-                        {{ number_format($summary['checkout'] ?? 0) }}
                     </span>
                 </div>
             </div>
@@ -647,5 +661,3 @@ $(document).ready(function() {
 }
 </style>
 @endsection
-
-

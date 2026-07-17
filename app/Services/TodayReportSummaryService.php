@@ -10,201 +10,152 @@ use Illuminate\Support\Facades\Schema;
 final class TodayReportSummaryService
 {
     /**
-     * Generate the daily report summary from one shared source of truth.
+     * Generate the dashboard daily summary from one shared source of truth.
      *
-     * Database timestamps are treated as UTC, while the report day follows
-     * Order::displayTimezone() (Asia/Dhaka by default).
+     * Business rules:
+     * - The report day follows Bangladesh local date, then converts to database UTC.
+     * - Checkout counts only orders created from frontend checkout in the selected day.
+     * - Manual orders are excluded from Checkout, shown in Manual Order card, and included in Total Orders/Product total.
+     * - Old orders moved today to Confirmed/Complete Invoice/Shipped/Delivered count in
+     *   those activity cards and in Total Orders, but not in Checkout.
+     * - Old orders cancelled today do not count in today's Cancelled card.
      */
     public function summary(array $filters = [], mixed $user = null): array
     {
         [$todayStart, $todayEnd] = $this->databaseWindow($filters);
 
         $baseQuery = $this->baseOrderQuery($filters, $user);
-
-        /*
-         * Every workflow card is a CURRENT-STATE metric.
-         *
-         * Historical timestamps/status logs remain available for audit and
-         * for resolving the selected activity window, but they must never keep
-         * an order counted in a previous workflow card after its current state
-         * changes. Static Order List 1/2 are also exclusive holding buckets.
-         */
         $workflowBaseQuery = $this->outsideStaticOrderLists(clone $baseQuery);
 
-        $todayCreatedOrders = (clone $baseQuery)
-            ->whereBetween('created_at', [$todayStart, $todayEnd]);
+        $createdOrders = (clone $baseQuery)
+            ->whereBetween('orders.created_at', [$todayStart, $todayEnd]);
 
-        $todayActivityOrders = $this->businessActivityQuery(
+        $workflowCreatedOrders = (clone $workflowBaseQuery)
+            ->whereBetween('orders.created_at', [$todayStart, $todayEnd]);
+
+        $totalOrdersQuery = $this->reportTotalOrdersQuery(
+            clone $baseQuery,
+            $todayStart,
+            $todayEnd
+        );
+
+        $totalWorkflowOrdersQuery = $this->reportTotalOrdersQuery(
             clone $workflowBaseQuery,
             $todayStart,
             $todayEnd
         );
 
-        $pendingOrders = (clone $workflowBaseQuery)
-            ->where('order_status', Order::STATUS_PENDING)
-            ->where(function (Builder $query) use ($todayStart, $todayEnd) {
-                $this->applyStatusEventWindow(
-                    $query,
-                    Order::STATUS_PENDING,
-                    $todayStart,
-                    $todayEnd,
-                    null,
-                    true
-                );
-            });
+        $newOrders = (clone $workflowCreatedOrders)
+            ->where('orders.order_status', Order::STATUS_PROCESSING);
 
-        $newOrders = (clone $workflowBaseQuery)
-            ->where('order_status', Order::STATUS_PROCESSING)
-            ->whereBetween('created_at', [$todayStart, $todayEnd]);
+        $pendingOrders = (clone $workflowCreatedOrders)
+            ->where('orders.order_status', Order::STATUS_PENDING);
 
-        /*
-         * Complete Order is counted only while the CURRENT status is Confirmed.
-         * An old confirmed_at value or Confirmed status log cannot keep an
-         * order counted after it moves to Complete Invoice, Shipped, Delivered,
-         * Cancelled, Stock Out, Fake or a custom Order List.
-         */
         $confirmedOrders = $this->currentStatusActivityQuery(
             clone $workflowBaseQuery,
-            Order::STATUS_CONFIRMED,
+            [Order::STATUS_CONFIRMED],
             $todayStart,
             $todayEnd,
-            'confirmed_at'
+            [
+                Order::STATUS_CONFIRMED => 'confirmed_at',
+            ]
         );
 
-        /*
-         * Shipped and Delivered are current-state metrics inside the selected
-         * activity window. Historical timestamps/status logs remain available
-         * for audit, but must not keep an order counted after it is manually
-         * moved back to Complete Invoice or another workflow status.
-         */
-        $shippedOrders = (clone $workflowBaseQuery)
-            ->where('order_status', Order::STATUS_SHIPPED)
-            ->where(function (Builder $query) use ($todayStart, $todayEnd) {
-                $this->applyStatusEventWindow(
-                    $query,
-                    Order::STATUS_SHIPPED,
-                    $todayStart,
-                    $todayEnd,
-                    'shipped_at'
-                );
-            });
-
-        $deliveredOrders = (clone $workflowBaseQuery)
-            ->where('order_status', Order::STATUS_DELIVERED)
-            ->where(function (Builder $query) use ($todayStart, $todayEnd) {
-                $this->applyStatusEventWindow(
-                    $query,
-                    Order::STATUS_DELIVERED,
-                    $todayStart,
-                    $todayEnd,
-                    'delivered_at'
-                );
-            });
-
-        $stockOutOrders = (clone $workflowBaseQuery)
-            ->where('order_status', Order::STATUS_STOCK_OUT)
-            ->where(function (Builder $query) use ($todayStart, $todayEnd) {
-                $this->applyStatusEventWindow(
-                    $query,
-                    Order::STATUS_STOCK_OUT,
-                    $todayStart,
-                    $todayEnd,
-                    null,
-                    true
-                );
-            });
-
-        $cancelledOrders = (clone $workflowBaseQuery)
-            ->where('order_status', Order::STATUS_CANCELLED)
-            ->where(function (Builder $query) use ($todayStart, $todayEnd) {
-                $this->applyStatusEventWindow(
-                    $query,
-                    Order::STATUS_CANCELLED,
-                    $todayStart,
-                    $todayEnd,
-                    'cancelled_at'
-                );
-            });
-
-        $completedInvoices = $this->completedInvoiceQuery(
+        $completedInvoices = $this->currentStatusActivityQuery(
             clone $workflowBaseQuery,
+            [$this->completeInvoiceStatus()],
             $todayStart,
-            $todayEnd
+            $todayEnd,
+            [
+                $this->completeInvoiceStatus() => 'invoice_printed_at',
+            ]
+        );
+
+        $shippedOrders = $this->currentStatusActivityQuery(
+            clone $workflowBaseQuery,
+            [Order::STATUS_SHIPPED],
+            $todayStart,
+            $todayEnd,
+            [
+                Order::STATUS_SHIPPED => 'shipped_at',
+            ]
+        );
+
+        $deliveredOrders = $this->currentStatusActivityQuery(
+            clone $workflowBaseQuery,
+            [Order::STATUS_DELIVERED],
+            $todayStart,
+            $todayEnd,
+            [
+                Order::STATUS_DELIVERED => 'delivered_at',
+            ]
         );
 
         /*
-         * Delivery counts each currently Shipped/Delivered order once when its
-         * matching activity happened inside the selected window. Restricting
-         * the current status prevents stale shipped_at/delivered_at values or
-         * historical status logs from counting an order moved backwards.
+         * Cancelled is intentionally created-date based. If yesterday's order is
+         * cancelled today, it must not increase today's Cancelled count.
          */
-        $deliveryActivity = (clone $workflowBaseQuery)
-            ->whereIn('order_status', [
-                Order::STATUS_SHIPPED,
-                Order::STATUS_DELIVERED,
-            ])
-            ->where(function (Builder $activityQuery) use ($todayStart, $todayEnd) {
-                $activityQuery
-                    ->where(function (Builder $query) use ($todayStart, $todayEnd) {
-                        $this->applyStatusEventWindow(
-                            $query,
-                            Order::STATUS_SHIPPED,
-                            $todayStart,
-                            $todayEnd,
-                            'shipped_at'
-                        );
-                    })
-                    ->orWhere(function (Builder $query) use ($todayStart, $todayEnd) {
-                        $this->applyStatusEventWindow(
-                            $query,
-                            Order::STATUS_DELIVERED,
-                            $todayStart,
-                            $todayEnd,
-                            'delivered_at'
-                        );
-                    });
-            });
+        $cancelledOrders = (clone $workflowCreatedOrders)
+            ->whereIn('orders.order_status', $this->cancelledStatuses());
 
-        $incompletedInvoiceQuery = clone $todayActivityOrders;
+        $stockOutOrders = (clone $workflowCreatedOrders)
+            ->where('orders.order_status', Order::STATUS_STOCK_OUT);
+
+        $deliveryActivity = $this->currentStatusActivityQuery(
+            clone $workflowBaseQuery,
+            [Order::STATUS_SHIPPED, Order::STATUS_DELIVERED],
+            $todayStart,
+            $todayEnd,
+            [
+                Order::STATUS_SHIPPED   => 'shipped_at',
+                Order::STATUS_DELIVERED => 'delivered_at',
+            ]
+        );
+
+        $incompletedOrderQuery = clone $totalWorkflowOrdersQuery;
+        $incompletedOrderQuery->whereNotIn('orders.order_status', array_merge(
+            $this->cancelledStatuses(),
+            [
+                Order::STATUS_DELIVERED,
+                Order::STATUS_FAKE,
+                Order::STATUS_STOCK_OUT,
+            ]
+        ));
+
+        $incompletedInvoiceQuery = clone $totalWorkflowOrdersQuery;
+        $incompletedInvoiceQuery->whereNotIn('orders.order_status', array_merge(
+            $this->cancelledStatuses(),
+            [
+                Order::STATUS_FAKE,
+            ]
+        ));
 
         if (Schema::hasColumn('orders', 'invoice_printed_at')) {
-            $incompletedInvoiceQuery->whereNull('invoice_printed_at');
+            $incompletedInvoiceQuery->whereNull('orders.invoice_printed_at');
         } else {
             $incompletedInvoiceQuery->where(function (Builder $query) {
                 $query
-                    ->whereNull('payment_status')
-                    ->orWhereNotIn('payment_status', ['paid', 'collected']);
+                    ->whereNull('orders.payment_status')
+                    ->orWhereNotIn('orders.payment_status', ['paid', 'collected']);
             });
         }
 
+        $checkoutOrders = $this->frontendCheckoutCreatedQuery(
+            clone $baseQuery,
+            $todayStart,
+            $todayEnd
+        );
+
+        $manualOrders = $this->manualOrderCreatedQuery(
+            clone $baseQuery,
+            $todayStart,
+            $todayEnd
+        );
+
         return [
-            /*
-             * Today's Order counts only valid orders created in the selected
-             * Bangladesh calendar day. Old orders acted on today are counted
-             * only in their own activity cards.
-             */
-            'todays_order' => $this->countDistinctOrders(
-                (clone $todayCreatedOrders)->whereNotIn('order_status', [
-                    Order::STATUS_CANCELLED,
-                    Order::STATUS_FAKE,
-                ])
-            ),
-
+            'todays_order' => $this->countDistinctOrders($totalOrdersQuery),
             'new_order' => $this->countDistinctOrders($newOrders),
-
-            'incompleted_order' => $this->countDistinctOrders(
-                (clone $todayActivityOrders)->whereNotIn('order_status', [
-                    Order::STATUS_DELIVERED,
-                    Order::STATUS_CANCELLED,
-                    Order::STATUS_FAKE,
-                    Order::STATUS_STOCK_OUT,
-                ])
-            ),
-
-            /*
-             * Primary workflow cards are mutually exclusive current states.
-             * Old event timestamps/logs are audit history only.
-             */
+            'incompleted_order' => $this->countDistinctOrders($incompletedOrderQuery),
             'completed_order' => $this->countDistinctOrders($confirmedOrders),
             'completed_invoice' => $this->countDistinctOrders($completedInvoices),
             'shipped_orders' => $this->countDistinctOrders($shippedOrders),
@@ -228,71 +179,71 @@ final class TodayReportSummaryService
             ),
 
             'incompleted_invoice' => $this->countDistinctOrders($incompletedInvoiceQuery),
-
-            'checkout' => $this->countDistinctOrders(
-                (clone $todayCreatedOrders)->whereNotIn('order_status', [
-                    Order::STATUS_CANCELLED,
-                    Order::STATUS_FAKE,
-                ])
-            ),
-
+            'checkout' => $this->countDistinctOrders($checkoutOrders),
+            'manual_order' => $this->countDistinctOrders($manualOrders),
             'delivery' => $this->countDistinctOrders($deliveryActivity),
         ];
     }
 
-    /**
-     * Apply Dashboard filters and employee data-access restriction once,
-     * before building the individual report-card queries.
-     */
     private function baseOrderQuery(array $filters, mixed $user): Builder
     {
         $query = Order::query();
 
+        /*
+         * Employee login must always see only his/her assigned orders.
+         * Admin can additionally request a single user row or the Unassigned row
+         * from DashboardController's User Order Report.
+         */
         if (
             $user
             && method_exists($user, 'isEmployee')
             && $user->isEmployee()
             && Schema::hasColumn('orders', 'assigned_employee_id')
         ) {
-            $query->where('assigned_employee_id', $user->id);
+            $query->where('orders.assigned_employee_id', $user->id);
         }
 
-        if (
-            ! empty($filters['campaign_id'])
-            && Schema::hasColumn('orders', 'campaign_id')
-        ) {
-            $query->where('campaign_id', $filters['campaign_id']);
+        if (! empty($filters['report_user_id'])) {
+            $reportUserId = (int) $filters['report_user_id'];
+
+            if (Schema::hasColumn('orders', 'assigned_employee_id')) {
+                $query->where('orders.assigned_employee_id', $reportUserId);
+            } elseif (Schema::hasColumn('orders', 'user_id')) {
+                $query->where('orders.user_id', $reportUserId);
+            } else {
+                $query->whereRaw('1 = 0');
+            }
         }
 
-        if (
-            ! empty($filters['order_status'])
-            && Schema::hasColumn('orders', 'order_status')
-        ) {
-            $query->where('order_status', $filters['order_status']);
+        if (! empty($filters['report_unassigned'])) {
+            if (Schema::hasColumn('orders', 'assigned_employee_id')) {
+                $query->whereNull('orders.assigned_employee_id');
+            } elseif (Schema::hasColumn('orders', 'user_id')) {
+                $query->whereNull('orders.user_id');
+            } else {
+                $query->whereRaw('1 = 0');
+            }
         }
 
-        if (
-            ! empty($filters['payment_status'])
-            && Schema::hasColumn('orders', 'payment_status')
-        ) {
-            $query->where('payment_status', $filters['payment_status']);
+        if (! empty($filters['campaign_id']) && Schema::hasColumn('orders', 'campaign_id')) {
+            $query->where('orders.campaign_id', $filters['campaign_id']);
         }
 
-        if (
-            ! empty($filters['delivery_area'])
-            && Schema::hasColumn('orders', 'delivery_area')
-        ) {
-            $query->where('delivery_area', $filters['delivery_area']);
+        if (! empty($filters['order_status']) && Schema::hasColumn('orders', 'order_status')) {
+            $query->where('orders.order_status', $filters['order_status']);
+        }
+
+        if (! empty($filters['payment_status']) && Schema::hasColumn('orders', 'payment_status')) {
+            $query->where('orders.payment_status', $filters['payment_status']);
+        }
+
+        if (! empty($filters['delivery_area']) && Schema::hasColumn('orders', 'delivery_area')) {
+            $query->where('orders.delivery_area', $filters['delivery_area']);
         }
 
         return $query;
     }
 
-    /**
-     * Resolve a local calendar range and convert it into the UTC range stored
-     * in the database. "All Time" intentionally means today's summary here,
-     * matching the current Dashboard/Report card business rule.
-     */
     private function databaseWindow(array $filters): array
     {
         $timezone = method_exists(Order::class, 'displayTimezone')
@@ -305,6 +256,10 @@ final class TodayReportSummaryService
         [$localStart, $localEnd] = match ($dateFilter) {
             'yesterday' => [
                 $now->subDay()->startOfDay(),
+                $now->subDay()->endOfDay(),
+            ],
+            'last_week' => [
+                $now->subDays(7)->startOfDay(),
                 $now->subDay()->endOfDay(),
             ],
             'this_week' => [
@@ -378,231 +333,229 @@ final class TodayReportSummaryService
         return [$start, $end];
     }
 
-    private function businessActivityQuery(
+    /**
+     * Total Orders = created today + old orders that got a positive workflow
+     * activity today. Checkout remains created-today frontend only.
+     */
+    private function reportTotalOrdersQuery(
         Builder $baseQuery,
         $todayStart,
         $todayEnd
     ): Builder {
-        $query = $baseQuery
-            ->whereNotIn('order_status', [
-                Order::STATUS_CANCELLED,
-                Order::STATUS_FAKE,
-            ])
-            ->where(function (Builder $activityQuery) use ($todayStart, $todayEnd) {
-                $activityQuery->whereBetween('created_at', [$todayStart, $todayEnd]);
+        $positiveStatuses = $this->positiveActivityStatuses();
 
-                if (Schema::hasColumn('orders', 'shipped_at')) {
-                    $activityQuery->orWhereBetween('shipped_at', [$todayStart, $todayEnd]);
-                }
+        $baseQuery->where(function (Builder $query) use ($todayStart, $todayEnd, $positiveStatuses) {
+            $query->whereBetween('orders.created_at', [$todayStart, $todayEnd])
+                ->orWhere(function (Builder $positiveQuery) use ($todayStart, $todayEnd, $positiveStatuses) {
+                    $positiveQuery->whereIn('orders.order_status', $positiveStatuses);
 
-                if (Schema::hasColumn('orders', 'delivered_at')) {
-                    $activityQuery->orWhereBetween('delivered_at', [$todayStart, $todayEnd]);
-                }
-
-                if (Schema::hasColumn('orders', 'invoice_printed_at')) {
-                    $activityQuery->orWhereBetween('invoice_printed_at', [$todayStart, $todayEnd]);
-                }
-
-                if (Schema::hasTable('order_status_logs')) {
-                    $activityQuery->orWhereHas(
-                        'statusLogs',
-                        function (Builder $statusLogQuery) use ($todayStart, $todayEnd) {
-                            $statusLogQuery
-                                ->whereIn('status', [
-                                    Order::STATUS_SHIPPED,
-                                    Order::STATUS_DELIVERED,
-                                ])
-                                ->whereBetween('created_at', [$todayStart, $todayEnd]);
-                        }
+                    $this->applyStatusActivityCondition(
+                        $positiveQuery,
+                        $positiveStatuses,
+                        $todayStart,
+                        $todayEnd,
+                        [
+                            Order::STATUS_CONFIRMED      => 'confirmed_at',
+                            $this->completeInvoiceStatus() => 'invoice_printed_at',
+                            Order::STATUS_SHIPPED        => 'shipped_at',
+                            Order::STATUS_DELIVERED      => 'delivered_at',
+                        ],
+                        false
                     );
-                }
-            });
+                });
+        });
 
-        /*
-         * A cancellation event during this same report window takes priority
-         * over the broader activity cards.
-         */
-        if (Schema::hasColumn('orders', 'cancelled_at')) {
-            $query->where(function (Builder $cancelQuery) use ($todayStart, $todayEnd) {
-                $cancelQuery
-                    ->whereNull('cancelled_at')
-                    ->orWhereNotBetween('cancelled_at', [$todayStart, $todayEnd]);
-            });
+        if (Schema::hasColumn('orders', 'order_status')) {
+            $baseQuery->where('orders.order_status', '!=', Order::STATUS_FAKE);
         }
 
-        if (Schema::hasTable('order_status_logs')) {
-            $query->whereDoesntHave(
-                'statusLogs',
-                function (Builder $statusLogQuery) use ($todayStart, $todayEnd) {
-                    $statusLogQuery
-                        ->where('status', Order::STATUS_CANCELLED)
-                        ->whereBetween('created_at', [$todayStart, $todayEnd]);
-                }
-            );
-        }
-
-        return $query;
+        return $baseQuery;
     }
 
-    private function applyStatusEventWindow(
-        Builder $query,
-        string $status,
+    private function currentStatusActivityQuery(
+        Builder $baseQuery,
+        array $statuses,
         $todayStart,
         $todayEnd,
-        ?string $timestampColumn = null,
-        bool $includeCreatedToday = false
+        array $timestampColumnsByStatus = []
+    ): Builder {
+        $baseQuery->whereIn('orders.order_status', $statuses);
+
+        $this->applyStatusActivityCondition(
+            $baseQuery,
+            $statuses,
+            $todayStart,
+            $todayEnd,
+            $timestampColumnsByStatus,
+            true
+        );
+
+        return $baseQuery;
+    }
+
+    /**
+     * Activity check uses created_at, dedicated status timestamps and
+     * order_status_logs. updated_at is only a final legacy fallback when no
+     * reliable activity source exists; it is not used while logs/timestamps exist.
+     */
+    private function applyStatusActivityCondition(
+        Builder $query,
+        array $statuses,
+        $todayStart,
+        $todayEnd,
+        array $timestampColumnsByStatus = [],
+        bool $includeCreatedToday = true
     ): void {
-        $hasCondition = false;
-
-        if (
-            $timestampColumn
-            && Schema::hasColumn('orders', $timestampColumn)
+        $query->where(function (Builder $activityQuery) use (
+            $statuses,
+            $todayStart,
+            $todayEnd,
+            $timestampColumnsByStatus,
+            $includeCreatedToday
         ) {
-            $query->whereBetween($timestampColumn, [$todayStart, $todayEnd]);
-            $hasCondition = true;
-        }
+            $hasReliableCondition = false;
 
-        if (Schema::hasTable('order_status_logs')) {
-            $method = $hasCondition ? 'orWhereHas' : 'whereHas';
+            if ($includeCreatedToday && Schema::hasColumn('orders', 'created_at')) {
+                $activityQuery->whereBetween('orders.created_at', [$todayStart, $todayEnd]);
+                $hasReliableCondition = true;
+            }
 
-            $query->{$method}(
-                'statusLogs',
-                function (Builder $statusLogQuery) use (
+            foreach ($timestampColumnsByStatus as $status => $column) {
+                if (! $column || ! Schema::hasColumn('orders', $column)) {
+                    continue;
+                }
+
+                $method = $hasReliableCondition ? 'orWhere' : 'where';
+
+                $activityQuery->{$method}(function (Builder $timestampQuery) use (
                     $status,
+                    $column,
                     $todayStart,
                     $todayEnd
                 ) {
-                    $statusLogQuery
-                        ->where('status', $status)
-                        ->whereBetween('created_at', [$todayStart, $todayEnd]);
-                }
-            );
+                    $timestampQuery
+                        ->where('orders.order_status', $status)
+                        ->whereBetween('orders.' . $column, [$todayStart, $todayEnd]);
+                });
 
-            $hasCondition = true;
-        }
+                $hasReliableCondition = true;
+            }
 
-        if ($includeCreatedToday) {
-            $method = $hasCondition ? 'orWhereBetween' : 'whereBetween';
-            $query->{$method}('created_at', [$todayStart, $todayEnd]);
-            $hasCondition = true;
-        }
+            if (Schema::hasTable('order_status_logs')) {
+                $method = $hasReliableCondition ? 'orWhereHas' : 'whereHas';
+                $logStatuses = $this->statusLogAliases($statuses);
 
-        if (! $hasCondition) {
-            $query->whereRaw('1 = 0');
-        }
+                $activityQuery->{$method}(
+                    'statusLogs',
+                    function (Builder $statusLogQuery) use ($logStatuses, $todayStart, $todayEnd) {
+                        $statusLogQuery
+                            ->whereIn('status', $logStatuses)
+                            ->whereBetween('created_at', [$todayStart, $todayEnd]);
+
+                        if (Schema::hasColumn('order_status_logs', 'deleted_at')) {
+                            $statusLogQuery->whereNull('deleted_at');
+                        }
+                    }
+                );
+
+                $hasReliableCondition = true;
+            }
+
+            if (! $hasReliableCondition && Schema::hasColumn('orders', 'updated_at')) {
+                $activityQuery->whereBetween('orders.updated_at', [$todayStart, $todayEnd]);
+                $hasReliableCondition = true;
+            }
+
+            if (! $hasReliableCondition) {
+                $activityQuery->whereRaw('1 = 0');
+            }
+        });
     }
 
-    /**
-     * Complete Invoice is a current workflow state, not a permanent event
-     * counter. invoice_printed_at remains audit data only.
-     */
-    private function completedInvoiceQuery(
+    private function manualOrderCreatedQuery(
         Builder $baseQuery,
         $todayStart,
         $todayEnd
     ): Builder {
-        return $this->currentStatusActivityQuery(
-            $baseQuery,
-            Order::STATUS_COMPLETE_INVOICE,
-            $todayStart,
-            $todayEnd,
-            Schema::hasColumn('orders', 'invoice_printed_at')
-                ? 'invoice_printed_at'
-                : null
-        );
+        $baseQuery->whereBetween('orders.created_at', [$todayStart, $todayEnd]);
+
+        if (Schema::hasColumn('orders', 'order_status')) {
+            $baseQuery->where('orders.order_status', '!=', Order::STATUS_FAKE);
+        }
+
+        if (Schema::hasColumn('orders', 'created_via')) {
+            $manualValues = $this->createdViaManualValues();
+
+            $baseQuery->where(function (Builder $query) use ($manualValues) {
+                $query->whereIn('orders.created_via', $manualValues);
+
+                if (Schema::hasColumn('orders', 'created_by_admin_id')) {
+                    $query->orWhereNotNull('orders.created_by_admin_id');
+                }
+            });
+
+            return $baseQuery;
+        }
+
+        if (Schema::hasColumn('orders', 'created_by_admin_id')) {
+            $baseQuery->whereNotNull('orders.created_by_admin_id');
+            return $baseQuery;
+        }
+
+        if (Schema::hasColumn('orders', 'source_url')) {
+            $baseQuery->where(function (Builder $query) {
+                $query
+                    ->where('orders.source_url', 'like', '%/admin/orders/create%')
+                    ->orWhere('orders.source_url', 'like', '%admin/orders/create%');
+            });
+
+            return $baseQuery;
+        }
+
+        return $baseQuery->whereRaw('1 = 0');
     }
 
-    /**
-     * Build a mutually exclusive current-status metric inside a report window.
-     *
-     * The current order_status is always mandatory. Historical timestamps and
-     * status logs are used only to establish activity time. updated_at and
-     * created_at are safe fallbacks for legacy rows or a status revisited after
-     * its original timestamp was already populated.
-     */
-    private function currentStatusActivityQuery(
+    private function frontendCheckoutCreatedQuery(
         Builder $baseQuery,
-        string $status,
         $todayStart,
-        $todayEnd,
-        ?string $timestampColumn = null
+        $todayEnd
     ): Builder {
-        $baseQuery->where('order_status', $status);
+        $baseQuery->whereBetween('orders.created_at', [$todayStart, $todayEnd]);
 
-        return $baseQuery->where(
-            function (Builder $activityQuery) use (
-                $status,
-                $todayStart,
-                $todayEnd,
-                $timestampColumn
-            ) {
-                $hasCondition = false;
+        if (Schema::hasColumn('orders', 'order_status')) {
+            $baseQuery->where('orders.order_status', '!=', Order::STATUS_FAKE);
+        }
 
-                if (
-                    $timestampColumn
-                    && Schema::hasColumn('orders', $timestampColumn)
-                ) {
-                    $activityQuery->whereBetween(
-                        $timestampColumn,
-                        [$todayStart, $todayEnd]
-                    );
+        if (Schema::hasColumn('orders', 'created_via')) {
+            $frontendValue = $this->createdViaFrontendValue();
 
-                    $hasCondition = true;
-                }
+            $baseQuery->where(function (Builder $query) use ($frontendValue) {
+                $query
+                    ->whereNull('orders.created_via')
+                    ->orWhere('orders.created_via', $frontendValue);
+            });
 
-                if (Schema::hasTable('order_status_logs')) {
-                    $method = $hasCondition ? 'orWhereHas' : 'whereHas';
+            return $baseQuery;
+        }
 
-                    $activityQuery->{$method}(
-                        'statusLogs',
-                        function (Builder $statusLogQuery) use (
-                            $status,
-                            $todayStart,
-                            $todayEnd
-                        ) {
-                            $statusLogQuery
-                                ->where('status', $status)
-                                ->whereBetween(
-                                    'created_at',
-                                    [$todayStart, $todayEnd]
-                                );
-                        }
-                    );
+        if (Schema::hasColumn('orders', 'created_by_admin_id')) {
+            $baseQuery->whereNull('orders.created_by_admin_id');
+            return $baseQuery;
+        }
 
-                    $hasCondition = true;
-                }
+        if (Schema::hasColumn('orders', 'source_url')) {
+            $baseQuery->where(function (Builder $query) {
+                $query
+                    ->whereNull('orders.source_url')
+                    ->orWhere(function (Builder $urlQuery) {
+                        $urlQuery
+                            ->where('orders.source_url', 'not like', '%/admin/orders/create%')
+                            ->where('orders.source_url', 'not like', '%admin/orders/create%');
+                    });
+            });
+        }
 
-                if (Schema::hasColumn('orders', 'updated_at')) {
-                    $method = $hasCondition
-                        ? 'orWhereBetween'
-                        : 'whereBetween';
-
-                    $activityQuery->{$method}(
-                        'updated_at',
-                        [$todayStart, $todayEnd]
-                    );
-
-                    $hasCondition = true;
-                }
-
-                if (Schema::hasColumn('orders', 'created_at')) {
-                    $method = $hasCondition
-                        ? 'orWhereBetween'
-                        : 'whereBetween';
-
-                    $activityQuery->{$method}(
-                        'created_at',
-                        [$todayStart, $todayEnd]
-                    );
-
-                    $hasCondition = true;
-                }
-
-                if (! $hasCondition) {
-                    $activityQuery->whereRaw('1 = 0');
-                }
-            }
-        );
+        return $baseQuery;
     }
 
     private function orderListMovedCount(
@@ -616,50 +569,106 @@ final class TodayReportSummaryService
         }
 
         $query = $baseQuery
-            ->where('custom_order_list', $listName)
+            ->where('orders.custom_order_list', $listName)
             ->where(function (Builder $movementQuery) use ($todayStart, $todayEnd) {
                 if (Schema::hasColumn('orders', 'custom_order_list_moved_at')) {
                     $movementQuery
-                        ->whereBetween(
-                            'custom_order_list_moved_at',
-                            [$todayStart, $todayEnd]
-                        )
-                        ->orWhere(
-                            function (Builder $fallbackQuery) use (
-                                $todayStart,
-                                $todayEnd
-                            ) {
-                                $fallbackQuery
-                                    ->whereNull('custom_order_list_moved_at')
-                                    ->whereBetween(
-                                        'updated_at',
-                                        [$todayStart, $todayEnd]
-                                    );
-                            }
-                        );
+                        ->whereBetween('orders.custom_order_list_moved_at', [$todayStart, $todayEnd])
+                        ->orWhere(function (Builder $fallbackQuery) use ($todayStart, $todayEnd) {
+                            $fallbackQuery
+                                ->whereNull('orders.custom_order_list_moved_at')
+                                ->whereBetween('orders.updated_at', [$todayStart, $todayEnd]);
+                        });
 
                     return;
                 }
 
-                $movementQuery->whereBetween(
-                    'updated_at',
-                    [$todayStart, $todayEnd]
-                );
+                $movementQuery->whereBetween('orders.updated_at', [$todayStart, $todayEnd]);
             });
 
         return $this->countDistinctOrders($query);
     }
 
-    /**
-     * Keep current workflow status cards separate from Static Order List 1/2.
-     */
     private function outsideStaticOrderLists(Builder $query): Builder
     {
         if (Schema::hasColumn('orders', 'custom_order_list')) {
-            $query->whereNull('custom_order_list');
+            $query->whereNull('orders.custom_order_list');
         }
 
         return $query;
+    }
+
+    private function positiveActivityStatuses(): array
+    {
+        return [
+            Order::STATUS_CONFIRMED,
+            $this->completeInvoiceStatus(),
+            Order::STATUS_SHIPPED,
+            Order::STATUS_DELIVERED,
+        ];
+    }
+
+    private function cancelledStatuses(): array
+    {
+        return array_values(array_unique([
+            Order::STATUS_CANCELLED,
+            'canceled',
+        ]));
+    }
+
+    private function completeInvoiceStatus(): string
+    {
+        return defined(Order::class . '::STATUS_COMPLETE_INVOICE')
+            ? constant(Order::class . '::STATUS_COMPLETE_INVOICE')
+            : 'complete_invoice';
+    }
+
+    private function createdViaFrontendValue(): string
+    {
+        return defined(Order::class . '::CREATED_VIA_FRONTEND')
+            ? constant(Order::class . '::CREATED_VIA_FRONTEND')
+            : 'frontend';
+    }
+
+    private function createdViaManualValues(): array
+    {
+        $values = [];
+
+        if (defined(Order::class . '::CREATED_VIA_ADMIN_MANUAL')) {
+            $values[] = constant(Order::class . '::CREATED_VIA_ADMIN_MANUAL');
+        }
+
+        if (defined(Order::class . '::CREATED_VIA_EMPLOYEE_MANUAL')) {
+            $values[] = constant(Order::class . '::CREATED_VIA_EMPLOYEE_MANUAL');
+        }
+
+        $values[] = 'admin_manual';
+        $values[] = 'employee_manual';
+        $values[] = 'manual';
+        $values[] = 'admin';
+        $values[] = 'employee';
+
+        return array_values(array_unique(array_filter($values)));
+    }
+
+    private function statusLogAliases(array $statuses): array
+    {
+        $aliases = [];
+
+        foreach ($statuses as $status) {
+            $aliases[] = $status;
+
+            if ($status === $this->completeInvoiceStatus()) {
+                $aliases[] = 'invoiced';
+                $aliases[] = 'invoice_completed';
+            }
+
+            if ($status === Order::STATUS_CANCELLED) {
+                $aliases[] = 'canceled';
+            }
+        }
+
+        return array_values(array_unique($aliases));
     }
 
     private function countDistinctOrders(Builder $query): int
@@ -670,4 +679,3 @@ final class TodayReportSummaryService
             ->count('orders.id');
     }
 }
-

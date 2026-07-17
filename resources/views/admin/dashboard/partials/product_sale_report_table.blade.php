@@ -26,6 +26,7 @@
 
                 {{-- Priority summary columns --}}
                 <th class="text-center">Total Orders</th>
+                <th class="text-center">Total Checkout</th>
                 <th class="text-center">Complete Orders</th>
                 <th class="text-center">Cancelled Orders</th>
                 <th class="text-center">Shipped</th>
@@ -34,6 +35,7 @@
 
                 {{-- Remaining order and invoice workflow columns --}}
                 <th class="text-center">New Orders</th>
+                <th class="text-center">Manual Order</th>
                 <th class="text-center">Order List 1</th>
                 <th class="text-center">Order List 2</th>
                 <th class="text-center">Stock Out</th>
@@ -50,12 +52,14 @@
                     <td>{{ $row['product_name'] ?? 'Unknown Product' }}</td>
 
                     <td class="text-center">{{ number_format((int) ($row['total_orders'] ?? 0)) }}</td>
+                    <td class="text-center">{{ number_format((int) ($row['total_checkout'] ?? 0)) }}</td>
                     <td class="text-center">{{ number_format((int) ($row['complete_orders'] ?? 0)) }}</td>
                     <td class="text-center">{{ number_format((int) ($row['cancelled_orders'] ?? 0)) }}</td>
                     <td class="text-center">{{ number_format((int) ($row['shipped_orders'] ?? 0)) }}</td>
                     <td class="text-center">{{ number_format((int) ($row['delivered_orders'] ?? 0)) }}</td>
                     <td class="text-center">{{ number_format((int) ($row['pending_orders'] ?? 0)) }}</td>
                     <td class="text-center">{{ number_format((int) ($row['new_orders'] ?? 0)) }}</td>
+                    <td class="text-center">{{ number_format((int) ($row['manual_orders'] ?? 0)) }}</td>
                     <td class="text-center">{{ number_format((int) ($row['order_list_1'] ?? 0)) }}</td>
                     <td class="text-center">{{ number_format((int) ($row['order_list_2'] ?? 0)) }}</td>
                     <td class="text-center">{{ number_format((int) ($row['stock_out_orders'] ?? 0)) }}</td>
@@ -65,7 +69,7 @@
                 </tr>
             @empty
                 <tr>
-                    <td colspan="15" class="text-center text-muted py-4">
+                    <td colspan="17" class="text-center text-muted py-4">
                         No product sale report found.
                     </td>
                 </tr>

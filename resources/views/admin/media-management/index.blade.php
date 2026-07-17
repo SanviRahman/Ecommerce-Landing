@@ -29,6 +29,8 @@
 </div>
 @endsection
 
+@section('plugins.Sweetalert2', true)
+
 @section('css')
 <style>
     .media-stat-card {
@@ -151,6 +153,7 @@
                 </div>
             </div>
         </div>
+
         <div class="col-md-3 mb-3">
             <div class="card media-stat-card mb-0">
                 <div class="card-body d-flex align-items-center">
@@ -162,6 +165,7 @@
                 </div>
             </div>
         </div>
+
         <div class="col-md-3 mb-3">
             <div class="card media-stat-card mb-0">
                 <div class="card-body d-flex align-items-center">
@@ -173,6 +177,7 @@
                 </div>
             </div>
         </div>
+
         <div class="col-md-3 mb-3">
             <div class="card media-stat-card mb-0">
                 <div class="card-body d-flex align-items-center">
@@ -304,6 +309,9 @@
         </div>
     </div>
 </div>
+
+{{-- Important Fix: Media Library delete/trash confirmation popup force top --}}
+@include('admin.media-management.partials.modal_stack_fix')
 @endsection
 
 @section('js')
@@ -380,7 +388,6 @@
         formData.forEach(function(value, key) {
             value = String(value || '').trim();
 
-            // Keep trash context; skip empty/all values to avoid stale browser-restored filters.
             if (key !== 'context' && (value === '' || value === 'all')) {
                 return;
             }
@@ -460,16 +467,20 @@
 
     $(document).on('click', '.media-reset-filter', function(e) {
         e.preventDefault();
+
         const form = $('#media-filter-form');
+
         form.find('input[name="search"]').val('');
         form.find('select[name="type"]').val('all');
         form.find('select[name="collection"]').val('all');
         form.find('select[name="disk"]').val('all');
+
         reloadMediaTable(form.attr('action'));
     });
 
     $(document).on('change', '#select-all-media, #select-all-media-table', function() {
         const checked = $(this).is(':checked');
+
         $('#select-all-media, #select-all-media-table').prop('checked', checked);
         $('.media-row-checkbox').prop('checked', checked);
     });
@@ -477,11 +488,13 @@
     $(document).on('change', '.media-row-checkbox', function() {
         const total = $('.media-row-checkbox').length;
         const checked = $('.media-row-checkbox:checked').length;
+
         $('#select-all-media, #select-all-media-table').prop('checked', total > 0 && total === checked);
     });
 
     $(document).on('click', '.btn-media-edit', function() {
         const url = $(this).data('url');
+
         $('#mediaEditModal').modal('show');
         $('#media-edit-modal-content').html('<div class="modal-body text-center py-5"><i class="fas fa-spinner fa-spin fa-2x text-primary"></i></div>');
 
@@ -513,6 +526,7 @@
             },
             success: function(res) {
                 button.prop('disabled', false).html(oldHtml);
+
                 if (res.status) {
                     $('#mediaEditModal').modal('hide');
                     notify('success', res.message || 'Media updated.');
@@ -568,8 +582,6 @@
             complete: function() {
                 form.data('replacing', false);
                 browseButton.prop('disabled', false).html(oldButtonHtml);
-
-                // Allow the same media file to be selected again after an error.
                 input.value = '';
             }
         });
@@ -583,9 +595,9 @@
         }
     );
 
-    // Defensive fallback: no visible submit button exists, but prevent accidental normal submission.
     $(document).on('submit', '#media-replace-form', function(e) {
         e.preventDefault();
+
         const input = this.querySelector('input[name="file"]');
         replaceMediaImmediately(input);
     });
@@ -593,24 +605,29 @@
     $(document).on('click', '.btn-media-delete', function() {
         const url = $(this).data('url');
 
-        confirmAction('Move media to trash?', 'This file will be hidden from active Media Management list but physical file will stay until Force Delete.', function() {
-            $.ajax({
-                url: url,
-                method: 'POST',
-                data: { _method: 'DELETE' },
-                success: function(res) {
-                    if (res.status) {
-                        notify('success', res.message || 'Media moved to trash.');
-                        reloadMediaTable();
-                    } else {
-                        notify('error', res.message || 'Media delete failed.');
+        confirmAction(
+            'Move media to trash?',
+            'This file will be hidden from active Media Management list but physical file will stay until Force Delete.',
+            function() {
+                $.ajax({
+                    url: url,
+                    method: 'POST',
+                    data: { _method: 'DELETE' },
+                    success: function(res) {
+                        if (res.status) {
+                            notify('success', res.message || 'Media moved to trash.');
+                            reloadMediaTable();
+                        } else {
+                            notify('error', res.message || 'Media delete failed.');
+                        }
+                    },
+                    error: function(xhr) {
+                        notify('error', xhr.responseJSON?.message || 'Media delete failed.');
                     }
-                },
-                error: function(xhr) {
-                    notify('error', xhr.responseJSON?.message || 'Media delete failed.');
-                }
-            });
-        }, 'Move To Trash');
+                });
+            },
+            'Move To Trash'
+        );
     });
 
     $(document).on('click', '.btn-media-restore', function() {
@@ -631,24 +648,29 @@
     $(document).on('click', '.btn-media-force-delete', function() {
         const url = $(this).data('url');
 
-        confirmAction('Force delete media?', 'This will permanently delete the database row and physical file. This cannot be undone.', function() {
-            $.ajax({
-                url: url,
-                method: 'POST',
-                data: { _method: 'DELETE' },
-                success: function(res) {
-                    if (res.status) {
-                        notify('success', res.message || 'Media permanently deleted.');
-                        reloadMediaTable();
-                    } else {
-                        notify('error', res.message || 'Media force delete failed.');
+        confirmAction(
+            'Force delete media?',
+            'This will permanently delete the database row and physical file. This cannot be undone.',
+            function() {
+                $.ajax({
+                    url: url,
+                    method: 'POST',
+                    data: { _method: 'DELETE' },
+                    success: function(res) {
+                        if (res.status) {
+                            notify('success', res.message || 'Media permanently deleted.');
+                            reloadMediaTable();
+                        } else {
+                            notify('error', res.message || 'Media force delete failed.');
+                        }
+                    },
+                    error: function(xhr) {
+                        notify('error', xhr.responseJSON?.message || 'Media force delete failed.');
                     }
-                },
-                error: function(xhr) {
-                    notify('error', xhr.responseJSON?.message || 'Media force delete failed.');
-                }
-            });
-        }, 'Force Delete');
+                });
+            },
+            'Force Delete'
+        );
     });
 
     $('.media-bulk-action').on('click', function() {
@@ -702,4 +724,3 @@
 })(jQuery);
 </script>
 @endsection
-
