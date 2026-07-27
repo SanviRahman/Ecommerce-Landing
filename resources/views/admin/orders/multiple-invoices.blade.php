@@ -86,9 +86,33 @@
             $courierPhoneNumber = $order->courierAccount?->phone ?? $order->courierAccount?->phone_number ?? $order->courier?->phone_number ?? null;
 
             $subtotal = (float) ($order->sub_total ?? $order->items->sum('total_price'));
-            $shipping = (float) ($order->shipping_charge ?? 0);
-            $codCharge = (float) ($order->cod_charge ?? 0);
+            $shipping = max(0, (float) ($order->shipping_charge ?? 0));
+            $codCharge = max(0, (float) ($order->cod_charge ?? 0));
             $grandTotal = (float) ($order->total_amount ?? ($subtotal + $shipping + $codCharge));
+
+            // Bulk Price already includes delivery, but Admin/Employee does not enter
+            // a separate delivery amount. Therefore show an explicit included label.
+            // All non-bulk orders keep their existing amount/Free behavior.
+            $isNegotiatedBulkOrder = in_array((string) $order->created_via, [
+                \App\Models\Order::CREATED_VIA_ADMIN_BULK,
+                \App\Models\Order::CREATED_VIA_EMPLOYEE_BULK,
+            ], true);
+
+            if ($isNegotiatedBulkOrder) {
+                $deliveryDisplay = $shipping > 0
+                    ? number_format($shipping) . ' Tk (Included)'
+                    : 'Included in Total';
+                $deliveryDisplayMini = $shipping > 0
+                    ? number_format($shipping) . ' ৳ (Included)'
+                    : 'Included';
+            } else {
+                $deliveryDisplay = ! empty($order->is_free_delivery)
+                    ? 'Free'
+                    : number_format($shipping) . ' Tk';
+                $deliveryDisplayMini = ! empty($order->is_free_delivery)
+                    ? 'Free'
+                    : number_format($shipping) . ' ৳';
+            }
             
             // CID / Tracking value resolver for Pathao + SteadFast.
             // Pathao saves CID in pathao_consignment_id.
@@ -182,7 +206,7 @@
                     </tbody>
                     <tfoot>
                         <tr><td class="border-none"></td><th>Sub Total:</th><td>{{ number_format($subtotal) }} Tk</td></tr>
-                        <tr><td class="border-none"></td><th>Delivery:</th><td>{{ !empty($order->is_free_delivery) ? 'Free' : number_format($shipping).' Tk' }}</td></tr>
+                        <tr><td class="border-none"></td><th>Delivery Charge:</th><td>{{ $deliveryDisplay }}</td></tr>
                         @if($codCharge > 0)
                             <tr><td class="border-none"></td><th>COD:</th><td>{{ number_format($codCharge) }} Tk</td></tr>
                         @endif
@@ -271,7 +295,7 @@
                     </div>
                     <div class="pricing-summary">
                         <div class="price-line">Sub: <span>{{ number_format($subtotal) }} ৳</span></div>
-                        <div class="price-line">Del: <span>{{ !empty($order->is_free_delivery) ? 'Free' : number_format($shipping) }}</span></div>
+                        <div class="price-line">Delivery: <span>{{ $deliveryDisplayMini }}</span></div>
                         <div class="price-line total-highlight">Total: <span>{{ number_format($grandTotal) }} ৳</span></div>
                     </div>
                 </div>

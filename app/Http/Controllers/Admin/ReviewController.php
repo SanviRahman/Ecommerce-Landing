@@ -3,11 +3,15 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\MediaLibrary\LandingMediaSectionMap;
 use App\Models\Review;
 use App\Models\Campaign;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
 class ReviewController extends Controller
@@ -158,7 +162,10 @@ class ReviewController extends Controller
             ]);
 
             if ($request->hasFile('customer_image')) {
-                $review->addMediaFromRequest('customer_image')->toMediaCollection('review_customer_image');
+                $this->uploadReviewImage(
+                    $review,
+                    $request->file('customer_image')
+                );
             }
         });
 
@@ -230,7 +237,10 @@ class ReviewController extends Controller
 
             if ($request->hasFile('customer_image')) {
                 $review->clearMediaCollection('review_customer_image');
-                $review->addMediaFromRequest('customer_image')->toMediaCollection('review_customer_image');
+                $this->uploadReviewImage(
+                    $review,
+                    $request->file('customer_image')
+                );
             }
         });
 
@@ -238,6 +248,79 @@ class ReviewController extends Controller
             'status' => true,
             'message' => 'Review updated successfully.',
         ]);
+    }
+
+    private function uploadReviewImage(
+        Review $review,
+        mixed $file
+    ): void {
+        if (! $file instanceof UploadedFile || ! $file->isValid()) {
+            return;
+        }
+
+        $review->loadMissing('campaign');
+
+        $landingSlug = $review->campaign
+            ? (Str::slug((string) (
+                $review->campaign->slug ?: $review->campaign->title
+            )) ?: 'landing-' . (int) $review->campaign->getKey())
+            : 'general-reviews';
+
+        $path = LandingMediaSectionMap::forCollection(
+            'review_customer_image'
+        );
+        $directory = sprintf(
+            'landings/%s/%s',
+            $landingSlug,
+            $path['section']
+        );
+
+        $disk = Storage::disk('public');
+
+        if (! $disk->exists($directory) && ! $disk->makeDirectory($directory)) {
+            throw new \RuntimeException(
+                'Unable to create the review media directory: ' . $directory
+            );
+        }
+
+        $customerSlug = Str::slug((string) $review->customer_name)
+            ?: 'customer';
+        $extension = strtolower((string) (
+            $file->extension()
+            ?: $file->getClientOriginalExtension()
+            ?: 'jpg'
+        ));
+        $extension = preg_replace('/[^a-z0-9]+/i', '', $extension) ?: 'jpg';
+
+        $media = $review
+            ->addMedia($file)
+            ->usingName(
+                ($review->campaign?->title ?: 'Review')
+                . ' Customer Review '
+                . $review->id
+            )
+            ->usingFileName(sprintf(
+                '%s-customer-review-%d-%s.%s',
+                $landingSlug,
+                (int) $review->id,
+                $customerSlug,
+                $extension
+            ))
+            ->withCustomProperties([
+                'landing_named_path' => true,
+                'landing_path_slug' => $landingSlug,
+                'landing_section_folder' => $path['section'],
+                'landing_media_folder' => $path['media_type'],
+            ])
+            ->toMediaCollection('review_customer_image', 'public');
+
+        $relativePath = $media->getPathRelativeToRoot();
+
+        if (! Storage::disk($media->disk)->exists($relativePath)) {
+            throw new \RuntimeException(
+                'Review image upload failed at: ' . $relativePath
+            );
+        }
     }
 
     public function destroy(Review $review)

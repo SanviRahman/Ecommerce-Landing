@@ -15,12 +15,20 @@ class OrderManagementService
     public function __construct(
         protected DynamicPricingService $pricingService,
         protected FakeOrderDetectionService $fakeOrderDetectionService,
-        protected OrderAssignmentService $orderAssignmentService
+        protected OrderAssignmentService $orderAssignmentService,
+        protected CustomerIdentityService $customerIdentityService
     ) {}
 
     public function createOrder(array $data, Request $request): Order
     {
         return DB::transaction(function () use ($data, $request) {
+            $phone = $this->customerIdentityService->normalizePhone($data['phone'] ?? null);
+            $customer = $this->customerIdentityService->resolveOrCreate(
+                (string) ($data['customer_name'] ?? ''),
+                $phone,
+                'phone'
+            );
+
             $product = Product::where('status', true)->findOrFail($data['product_id']);
 
             $pricing = $this->pricingService->calculate(
@@ -48,8 +56,8 @@ class OrderManagementService
             }
 
             $fakeCheck = $this->fakeOrderDetectionService->detect([
-                'customer_name' => $data['customer_name'],
-                'phone'         => $data['phone'],
+                'customer_name' => $customer->name,
+                'phone'         => $customer->phone,
                 'address'       => $data['address'],
                 'quantity'      => $pricing['quantity'],
             ], $request);
@@ -57,9 +65,10 @@ class OrderManagementService
             $order = Order::create([
                 'invoice_id'        => $this->generateInvoiceId(),
                 'campaign_id'       => $data['campaign_id'] ?? null,
+                'customer_id'       => $customer->id,
 
-                'customer_name'     => $data['customer_name'],
-                'phone'             => $data['phone'],
+                'customer_name'     => $customer->name,
+                'phone'             => $customer->phone,
                 'address'           => $data['address'],
                 'delivery_area'     => $isFreeDelivery ? 'free_delivery' : ($data['delivery_area'] ?? null),
 

@@ -207,6 +207,11 @@
 
             <div class="col-md-6 mt-2 mt-md-0 text-md-right">
                 @if($canCreateManualOrder && empty($isTrash))
+                    <a href="{{ route('admin.orders.bulk_create', ['return_url' => url()->full()]) }}"
+                       class="btn btn-primary btn-sm px-3 mr-2 shadow-none">
+                        <i class="fas fa-layer-group mr-1"></i> Bulk Order
+                    </a>
+
                     <a href="{{ route('admin.orders.create', ['return_url' => url()->full()]) }}"
                        class="btn btn-success btn-sm px-3 mr-2 shadow-none">
                         <i class="fas fa-plus-circle mr-1"></i> Create Manual Order

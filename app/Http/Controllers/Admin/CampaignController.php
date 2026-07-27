@@ -2,6 +2,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\MediaLibrary\LandingMediaSectionMap;
 use App\Models\Brand;
 use App\Models\Campaign;
 use App\Models\Faq;
@@ -11,9 +12,12 @@ use App\Models\Review;
 use App\Models\ShippingCharge;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
 class CampaignController extends Controller
 {
@@ -874,6 +878,8 @@ class CampaignController extends Controller
 
     private function uploadCampaignMedia(Campaign $campaign, Request $request): void
     {
+        $pathSlug = $this->campaignMediaPathSlug($campaign);
+
         $singleMediaFields = [
             'banner_image',
             'image_one',
@@ -884,34 +890,233 @@ class CampaignController extends Controller
         ];
 
         foreach ($singleMediaFields as $field) {
-            if ($request->hasFile($field)) {
-                $campaign->clearMediaCollection($field);
-                $campaign->addMediaFromRequest($field)->toMediaCollection($field);
+            if (! $request->hasFile($field)) {
+                continue;
             }
+
+            $file = $request->file($field);
+
+            if (! $file instanceof UploadedFile || ! $file->isValid()) {
+                continue;
+            }
+
+            $campaign->clearMediaCollection($field);
+            $this->ensureLandingMediaDirectory($pathSlug, $field);
+
+            $media = $campaign
+                ->addMedia($file)
+                ->usingName($campaign->title . ' ' . Str::headline($field))
+                ->usingFileName(
+                    $this->campaignSingleMediaFileName(
+                        $campaign,
+                        $file,
+                        $field
+                    )
+                )
+                ->withCustomProperties(
+                    $this->landingMediaCustomProperties(
+                        $pathSlug,
+                        $field
+                    )
+                )
+                ->toMediaCollection($field, 'public');
+
+            $this->assertLandingMediaStored($media);
         }
 
-        // Hero multiple slider images.
-        // Existing hero slider images will stay; newly selected images will be added.
         if ($request->hasFile('hero_slider_images')) {
-            foreach ($request->file('hero_slider_images') as $image) {
-                if ($image && $image->isValid()) {
-                    $campaign
-                        ->addMedia($image)
-                        ->toMediaCollection('hero_slider_images');
+            $sequence = (int) $campaign->media()
+                ->where('collection_name', 'hero_slider_images')
+                ->count();
+
+            foreach ((array) $request->file('hero_slider_images', []) as $image) {
+                if (! $image instanceof UploadedFile || ! $image->isValid()) {
+                    continue;
                 }
+
+                $sequence++;
+                $this->ensureLandingMediaDirectory(
+                    $pathSlug,
+                    'hero_slider_images'
+                );
+
+                $media = $campaign
+                    ->addMedia($image)
+                    ->usingName($campaign->title . ' Hero Slider ' . $sequence)
+                    ->usingFileName(
+                        $this->campaignMultipleMediaFileName(
+                            $campaign,
+                            $image,
+                            'hero-slider',
+                            $sequence
+                        )
+                    )
+                    ->withCustomProperties(
+                        $this->landingMediaCustomProperties(
+                            $pathSlug,
+                            'hero_slider_images'
+                        )
+                    )
+                    ->toMediaCollection('hero_slider_images', 'public');
+
+                $this->assertLandingMediaStored($media);
             }
         }
 
-        // Campaign product gallery images.
-        // Existing gallery images will stay; newly selected images will be added.
         if ($request->hasFile('campaign_product_gallery')) {
-            foreach ($request->file('campaign_product_gallery') as $image) {
-                if ($image && $image->isValid()) {
-                    $campaign
-                        ->addMedia($image)
-                        ->toMediaCollection('campaign_product_gallery');
+            $sequence = (int) $campaign->media()
+                ->where('collection_name', 'campaign_product_gallery')
+                ->count();
+
+            foreach ((array) $request->file('campaign_product_gallery', []) as $image) {
+                if (! $image instanceof UploadedFile || ! $image->isValid()) {
+                    continue;
                 }
+
+                $sequence++;
+                $this->ensureLandingMediaDirectory(
+                    $pathSlug,
+                    'campaign_product_gallery'
+                );
+
+                $media = $campaign
+                    ->addMedia($image)
+                    ->usingName($campaign->title . ' Product Gallery ' . $sequence)
+                    ->usingFileName(
+                        $this->campaignMultipleMediaFileName(
+                            $campaign,
+                            $image,
+                            'product-gallery',
+                            $sequence
+                        )
+                    )
+                    ->withCustomProperties(
+                        $this->landingMediaCustomProperties(
+                            $pathSlug,
+                            'campaign_product_gallery'
+                        )
+                    )
+                    ->toMediaCollection('campaign_product_gallery', 'public');
+
+                $this->assertLandingMediaStored($media);
             }
+        }
+    }
+
+    private function campaignMediaPathSlug(Campaign $campaign): string
+    {
+        $slug = Str::slug((string) ($campaign->slug ?: $campaign->title));
+
+        if ($slug !== '') {
+            return $slug;
+        }
+
+        return 'landing-' . (int) $campaign->getKey();
+    }
+
+    private function campaignSingleMediaFileName(
+        Campaign $campaign,
+        UploadedFile $file,
+        string $field
+    ): string {
+        return sprintf(
+            '%s-%s.%s',
+            $this->campaignMediaPathSlug($campaign),
+            Str::slug($field),
+            $this->uploadedMediaExtension($file)
+        );
+    }
+
+    private function campaignMultipleMediaFileName(
+        Campaign $campaign,
+        UploadedFile $file,
+        string $type,
+        int $sequence
+    ): string {
+        return sprintf(
+            '%s-%s-%s-%s.%s',
+            $this->campaignMediaPathSlug($campaign),
+            Str::slug($type),
+            str_pad((string) max(1, $sequence), 2, '0', STR_PAD_LEFT),
+            Str::lower(Str::random(8)),
+            $this->uploadedMediaExtension($file)
+        );
+    }
+
+    private function reviewCustomerImageFileName(
+        Campaign $campaign,
+        Review $review,
+        UploadedFile $file
+    ): string {
+        $customerSlug = Str::slug((string) $review->customer_name)
+            ?: 'customer';
+
+        return sprintf(
+            '%s-customer-review-%d-%s.%s',
+            $this->campaignMediaPathSlug($campaign),
+            (int) $review->id,
+            $customerSlug,
+            $this->uploadedMediaExtension($file)
+        );
+    }
+
+    private function uploadedMediaExtension(UploadedFile $file): string
+    {
+        $extension = strtolower((string) (
+            $file->extension()
+            ?: $file->getClientOriginalExtension()
+            ?: 'jpg'
+        ));
+
+        return preg_replace('/[^a-z0-9]+/i', '', $extension) ?: 'jpg';
+    }
+
+    private function landingMediaCustomProperties(
+        string $pathSlug,
+        string $collection
+    ): array {
+        $path = LandingMediaSectionMap::forCollection($collection);
+
+        return [
+            'landing_named_path'    => true,
+            'landing_path_slug'     => $pathSlug,
+            'landing_section_folder'=> $path['section'],
+            'landing_media_folder'  => $path['media_type'],
+        ];
+    }
+
+    private function ensureLandingMediaDirectory(
+        string $pathSlug,
+        string $collection
+    ): void {
+        $path = LandingMediaSectionMap::forCollection($collection);
+        $directory = sprintf(
+            'landings/%s/%s',
+            trim($pathSlug, '/'),
+            trim((string) $path['section'], '/')
+        );
+
+        $disk = Storage::disk('public');
+
+        if (! $disk->exists($directory) && ! $disk->makeDirectory($directory)) {
+            throw new \RuntimeException(
+                'Unable to create the Landing media directory: ' . $directory
+            );
+        }
+    }
+
+    private function assertLandingMediaStored(Media $media): void
+    {
+        $relativePath = $media->getPathRelativeToRoot();
+
+        if (! Storage::disk($media->disk)->exists($relativePath)) {
+            throw new \RuntimeException(
+                sprintf(
+                    'Landing media upload failed. Expected file was not found on disk [%s] at [%s].',
+                    $media->disk,
+                    $relativePath
+                )
+            );
         }
     }
 
@@ -1002,9 +1207,36 @@ class CampaignController extends Controller
 
             $image = $request->file("campaign_reviews.$index.customer_image");
 
-            if ($image && $image->isValid()) {
+            if ($image instanceof UploadedFile && $image->isValid()) {
                 $review->clearMediaCollection('review_customer_image');
-                $review->addMedia($image)->toMediaCollection('review_customer_image');
+
+                $pathSlug = $this->campaignMediaPathSlug($campaign);
+                $this->ensureLandingMediaDirectory(
+                    $pathSlug,
+                    'review_customer_image'
+                );
+
+                $media = $review
+                    ->addMedia($image)
+                    ->usingName(
+                        $campaign->title . ' Customer Review ' . $review->id
+                    )
+                    ->usingFileName(
+                        $this->reviewCustomerImageFileName(
+                            $campaign,
+                            $review,
+                            $image
+                        )
+                    )
+                    ->withCustomProperties(
+                        $this->landingMediaCustomProperties(
+                            $this->campaignMediaPathSlug($campaign),
+                            'review_customer_image'
+                        )
+                    )
+                    ->toMediaCollection('review_customer_image', 'public');
+
+                $this->assertLandingMediaStored($media);
             }
 
             $keptIds[] = $review->id;

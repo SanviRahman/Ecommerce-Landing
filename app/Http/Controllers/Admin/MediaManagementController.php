@@ -15,6 +15,7 @@ use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -591,6 +592,30 @@ class MediaManagementController extends Controller
             . ($extension !== '' ? '.' . $extension : '');
     }
 
+    private function replacementFileName(
+        Media $media,
+        UploadedFile $file
+    ): string {
+        $extension = strtolower((string) (
+            $file->extension()
+            ?: $file->getClientOriginalExtension()
+            ?: pathinfo($media->file_name, PATHINFO_EXTENSION)
+            ?: 'bin'
+        ));
+        $extension = preg_replace('/[^a-z0-9]+/i', '', $extension) ?: 'bin';
+
+        $baseName = Str::slug((string) pathinfo(
+            $media->file_name,
+            PATHINFO_FILENAME
+        ));
+
+        if ($baseName === '') {
+            $baseName = Str::slug((string) $media->name) ?: 'media-' . $media->id;
+        }
+
+        return $baseName . '.' . $extension;
+    }
+
     public function index(Request $request)
     {
         return $this->listResponse($request, 'all');
@@ -727,6 +752,9 @@ class MediaManagementController extends Controller
         $newMedia = $model
             ->addMediaFromRequest('file')
             ->usingName($validated['name'] ?? $media->name)
+            ->usingFileName(
+                $this->replacementFileName($media, $uploadedFile)
+            )
             ->withCustomProperties($customProperties)
             ->toMediaCollection($collectionName, $disk);
 

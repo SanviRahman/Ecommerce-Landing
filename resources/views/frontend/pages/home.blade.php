@@ -3500,19 +3500,26 @@ $(document).ready(function() {
         }
     });
 
-    function showOrderWarningPopup(message) {
+    function showOrderWarningPopup(message, title) {
         const popup = $('#orderWarningPopup');
 
         if (!popup.length) {
             return;
         }
 
+        $('#orderWarningPopupTitle').text(title || 'প্রোডাক্ট সিলেক্ট করুন');
         $('#orderWarningPopupMessage').text(message || 'দয়া করে কমপক্ষে একটি product select করুন।');
         popup.addClass('show').attr('aria-hidden', 'false');
 
         setTimeout(function () {
             $('#orderWarningPopupClose').trigger('focus');
         }, 80);
+    }
+
+    const blockedOrderMessage = @json(session('blocked_order_error'));
+
+    if (blockedOrderMessage) {
+        showOrderWarningPopup(blockedOrderMessage, 'অর্ডার গ্রহণ করা হয়নি');
     }
 
     function hideOrderWarningPopup() {
@@ -3591,4 +3598,3 @@ $(document).ready(function() {
 </script>
 @endpush
 @endif
-

@@ -1,5 +1,10 @@
 <?php
 
+use App\MediaLibrary\LandingMediaPathGenerator;
+use App\MediaLibrary\ProductMediaPathGenerator;
+use App\Models\Campaign;
+use App\Models\Product;
+use App\Models\Review;
 use Spatie\ImageOptimizer\Optimizers\Avifenc;
 use Spatie\ImageOptimizer\Optimizers\Cwebp;
 use Spatie\ImageOptimizer\Optimizers\Gifsicle;
@@ -118,9 +123,9 @@ return [
      * Here you can specify which path generator should be used for the given class.
      */
     'custom_path_generators' => [
-        // Model::class => PathGenerator::class
-        // or
-        // 'model_morph_alias' => PathGenerator::class
+        Product::class => ProductMediaPathGenerator::class,
+        Campaign::class => LandingMediaPathGenerator::class,
+        Review::class => LandingMediaPathGenerator::class,
     ],
 
     /*

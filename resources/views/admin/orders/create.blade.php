@@ -27,6 +27,8 @@
     $productImageMap = $productImageMap ?? collect();
     $isEmployeeCreator = $isEmployeeCreator ?? (auth()->check() && auth()->user()->isEmployee());
     $currentEmployee = $currentEmployee ?? ($isEmployeeCreator ? auth()->user() : null);
+    $shippingChargeMap = $shippingChargeMap ?? [];
+    $hasOldShippingCharge = array_key_exists('shipping_charge', session()->getOldInput());
 
     $deliveryAreaOptions = [
         'inside_dhaka' => 'ঢাকার ভিতরে',
@@ -160,6 +162,7 @@
                         <div class="col-md-6 mb-3">
                             <label class="font-weight-bold">Delivery Area</label>
                             <select name="delivery_area"
+                                    id="deliveryAreaSelect"
                                     class="form-control @error('delivery_area') is-invalid @enderror">
                                 <option value="">Select Delivery Area</option>
 
@@ -347,7 +350,9 @@
                 <div class="card-body">
                     <div class="form-group">
                         <label class="font-weight-bold">Campaign</label>
-                        <select name="campaign_id" class="form-control">
+                        <select name="campaign_id"
+                                id="campaignSelect"
+                                class="form-control @error('campaign_id') is-invalid @enderror">
                             <option value="">No Campaign</option>
 
                             @foreach($campaigns as $campaign)
@@ -356,6 +361,9 @@
                                 </option>
                             @endforeach
                         </select>
+                        @error('campaign_id')
+                            <span class="invalid-feedback">{{ $message }}</span>
+                        @enderror
                     </div>
 
                     <div class="form-group">
@@ -478,6 +486,9 @@
                                step="0.01"
                                class="form-control total-input"
                                id="shippingChargeInput">
+                        <small class="form-text text-muted">
+                            Campaign ও Delivery Area select করলে charge auto-fill হবে। প্রয়োজন হলে edit করতে পারবেন।
+                        </small>
                     </div>
 
                     <div class="form-group">
@@ -567,6 +578,8 @@ $(document).ready(function() {
     let itemIndex = @json($rows->count());
 
     const products = @json($productsForJs);
+    const shippingChargeMap = @json($shippingChargeMap);
+    const hasOldShippingCharge = @json($hasOldShippingCharge);
 
     function toNumber(value) {
         const cleaned = String(value || 0).replace(/[^0-9.\-]/g, '');
@@ -624,6 +637,42 @@ $(document).ready(function() {
 
         $('#subTotalPreview').val(money(subTotal));
         $('#grandTotalPreview').val(money(subTotal + shipping + cod));
+    }
+
+    function normalizeDeliveryArea(value) {
+        const raw = String(value || '').trim().toLowerCase();
+        const aliases = {
+            'inside dhaka': 'inside_dhaka',
+            'dhaka': 'inside_dhaka',
+            'ঢাকার ভিতরে': 'inside_dhaka',
+            'ঢাকা সিটির ভিতরে': 'inside_dhaka',
+            'outside dhaka': 'outside_dhaka',
+            'ঢাকার বাইরে': 'outside_dhaka',
+            'free delivery': 'free_delivery',
+            'ফ্রি ডেলিভারি': 'free_delivery'
+        };
+
+        return aliases[raw] || raw.replace(/[\s-]+/g, '_');
+    }
+
+    function applyCampaignShippingCharge() {
+        const campaignId = $('#campaignSelect').val();
+        const deliveryArea = normalizeDeliveryArea($('#deliveryAreaSelect').val());
+
+        if (!campaignId || !deliveryArea) {
+            return;
+        }
+
+        const charge = deliveryArea === 'free_delivery'
+            ? 0
+            : shippingChargeMap[deliveryArea];
+
+        if (typeof charge === 'undefined') {
+            return;
+        }
+
+        $('#shippingChargeInput').val(toNumber(charge).toFixed(2));
+        recalcTotals();
     }
 
     function productOptions() {
@@ -752,6 +801,16 @@ $(document).ready(function() {
     $('input[name="phone"]').on('input', function() {
         this.value = this.value.replace(/\D/g, '').slice(0, 11);
     });
+
+    $('#campaignSelect, #deliveryAreaSelect').on('change', applyCampaignShippingCharge);
+
+    if (
+        !hasOldShippingCharge
+        && $('#campaignSelect').val()
+        && $('#deliveryAreaSelect').val()
+    ) {
+        applyCampaignShippingCharge();
+    }
 
     $('#manualOrderCreateForm').on('submit', function() {
         const button = $('#btnSaveManualOrder');

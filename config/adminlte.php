@@ -655,6 +655,13 @@ return [
             'can'  => 'admin-only',
         ],
         [
+            'text'   => 'Blocked Customers',
+            'url'    => 'admin/blocked-customers',
+            'icon'   => 'fas fa-user-slash',
+            'can'    => 'admin-or-employee',
+            'active' => ['admin/blocked-customers*'],
+        ],
+        [
             'text'    => 'API Integration',
             'icon'    => 'fas fa-fw fa-plug',
             'can'     => 'admin-only',
@@ -875,8 +882,14 @@ return [
                     'can'  => 'admin-only',
                 ],
                 [
-                    'text' => 'Storage Link',
+                    'text' => 'Prepare Media Storage',
                     'url'  => 'command/storage-link',
+                    'icon' => 'far fa-fw fa-circle',
+                    'can'  => 'admin-only',
+                ],
+                [
+                    'text' => 'Media Storage Check',
+                    'url'  => 'command/media-storage-doctor',
                     'icon' => 'far fa-fw fa-circle',
                     'can'  => 'admin-only',
                 ],

@@ -38,11 +38,15 @@ class Order extends Model
     public const CREATED_VIA_FRONTEND        = 'frontend';
     public const CREATED_VIA_ADMIN_MANUAL    = 'admin_manual';
     public const CREATED_VIA_EMPLOYEE_MANUAL = 'employee_manual';
+    public const CREATED_VIA_ADMIN_BULK      = 'admin_bulk';
+    public const CREATED_VIA_EMPLOYEE_BULK   = 'employee_bulk';
 
     protected $fillable = [
         'invoice_id',
         'success_token',
         'campaign_id',
+        'customer_id',
+        'bulk_order_batch_id',
         'assigned_employee_id',
         'created_via',
         'created_by_admin_id',
@@ -104,7 +108,9 @@ class Order extends Model
     ];
 
     protected $casts = [
-        'campaign_id'          => 'integer',
+        'campaign_id'               => 'integer',
+        'customer_id'               => 'integer',
+        'bulk_order_batch_id'       => 'integer',
         'assigned_employee_id'      => 'integer',
         'created_by_admin_id'       => 'integer',
         'order_field_id'            => 'integer',
@@ -246,6 +252,16 @@ class Order extends Model
     public function campaign(): BelongsTo
     {
         return $this->belongsTo(Campaign::class);
+    }
+
+    public function customer(): BelongsTo
+    {
+        return $this->belongsTo(Customer::class);
+    }
+
+    public function bulkOrderBatch(): BelongsTo
+    {
+        return $this->belongsTo(BulkOrderBatch::class, 'bulk_order_batch_id');
     }
 
     public function assignedEmployee(): BelongsTo
@@ -439,6 +455,8 @@ class Order extends Model
         return in_array($this->created_via, [
             self::CREATED_VIA_ADMIN_MANUAL,
             self::CREATED_VIA_EMPLOYEE_MANUAL,
+            self::CREATED_VIA_ADMIN_BULK,
+            self::CREATED_VIA_EMPLOYEE_BULK,
         ], true);
     }
 }

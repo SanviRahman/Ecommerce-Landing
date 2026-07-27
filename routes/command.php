@@ -1,23 +1,10 @@
 <?php
 
+use App\Services\LandingMediaSectionOrganizerService;
+use App\Services\PublicMediaStorageService;
+use App\Services\ProductMediaSectionOrganizerService;
 use Illuminate\Support\Facades\Artisan;
-use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Route;
-
-/*
-|--------------------------------------------------------------------------
-| Admin Artisan Command Routes
-|--------------------------------------------------------------------------
-| cPanel / shared hosting safe command routes.
-|
-| Storage Link Fix:
-| - Laravel project যদি public_html/website2 folder থেকে run হয়,
-|   public_path('storage') অনেক সময় website2/public/storage এ create হয়,
-|   কিন্তু website URL থেকে file serve হয় public_html/storage থেকে।
-| - তাই এখানে public_html/storage + public_path('storage') দুই জায়গাতেই
-|   storage/app/public link/copy prepare করা হবে।
-| - symlink permission denied হলেও 500 error দিবে না। fallback copy করবে।
-*/
 
 $redirectWithToast = function (string $type, string $message) {
     $previousUrl = url()->previous() ?: route('admin.dashboard');
@@ -29,170 +16,10 @@ $redirectWithToast = function (string $type, string $message) {
     ]));
 };
 
-$normalizePath = function (?string $path): ?string {
-    if (! $path) {
-        return null;
-    }
-
-    $path = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $path);
-
-    return rtrim($path, DIRECTORY_SEPARATOR);
-};
-
-$uniquePaths = function (array $paths) use ($normalizePath): array {
-    $clean = [];
-
-    foreach ($paths as $path) {
-        $path = $normalizePath($path);
-
-        if (! $path) {
-            continue;
-        }
-
-        $clean[$path] = $path;
-    }
-
-    return array_values($clean);
-};
-
-$getPublicHtmlPath = function () use ($normalizePath): ?string {
-    /*
-     * Priority 1: server document root. Live URL usually points here.
-     */
-    $documentRoot = $normalizePath($_SERVER['DOCUMENT_ROOT'] ?? null);
-
-    if ($documentRoot && File::isDirectory($documentRoot)) {
-        return $documentRoot;
-    }
-
-    /*
-     * Priority 2: common cPanel layout.
-     * Example:
-     * base_path() = /home/username/public_html/website2
-     * public_html  = /home/username/public_html
-     */
-    $parentOfProject = $normalizePath(dirname(base_path()));
-
-    if ($parentOfProject && basename($parentOfProject) === 'public_html' && File::isDirectory($parentOfProject)) {
-        return $parentOfProject;
-    }
-
-    /*
-     * Priority 3: Laravel project outside public_html.
-     * Example:
-     * base_path() = /home/username/website2
-     * public_html  = /home/username/public_html
-     */
-    $homePublicHtml = $normalizePath(dirname(base_path()) . DIRECTORY_SEPARATOR . 'public_html');
-
-    if ($homePublicHtml && File::isDirectory($homePublicHtml)) {
-        return $homePublicHtml;
-    }
-
-    /*
-     * Fallback: Laravel public path.
-     */
-    return $normalizePath(public_path());
-};
-
-$removeBadStoragePath = function (string $linkPath): void {
-    /*
-     * Wrong/broken symlink হলে remove করা safe.
-     */
-    if (is_link($linkPath)) {
-        @unlink($linkPath);
-        return;
-    }
-
-    /*
-     * storage নামে file থাকলে delete করা safe.
-     */
-    if (File::exists($linkPath) && ! File::isDirectory($linkPath)) {
-        @File::delete($linkPath);
-    }
-
-    /*
-     * Real directory হলে delete করা হবে না।
-     * কারণ সেখানে আগে copy fallback দিয়ে file থাকতে পারে।
-     */
-};
-
-$copyStorageFallback = function (string $target, string $linkPath): void {
-    if (! File::isDirectory($linkPath)) {
-        File::makeDirectory($linkPath, 0755, true);
-    }
-
-    /*
-     * target empty হলেও directory ready থাকবে।
-     * File::copyDirectory existing folder update/overwrite করে।
-     */
-    if (File::isDirectory($target)) {
-        File::copyDirectory($target, $linkPath);
-    }
-};
-
-$prepareStoragePath = function (string $target, string $linkPath) use ($removeBadStoragePath, $copyStorageFallback): array {
-    $targetReal = realpath($target) ?: $target;
-
-    try {
-        if (! File::exists($target)) {
-            File::makeDirectory($target, 0755, true);
-        }
-
-        if (is_link($linkPath)) {
-            $currentReal = realpath($linkPath);
-
-            if ($currentReal && $currentReal === $targetReal) {
-                return [
-                    'status'  => true,
-                    'mode'    => 'exists',
-                    'message' => 'Storage link already exists: ' . $linkPath,
-                ];
-            }
-        }
-
-        $removeBadStoragePath($linkPath);
-
-        /*
-         * Try real symlink first.
-         */
-        if (! file_exists($linkPath) && @symlink($target, $linkPath)) {
-            return [
-                'status'  => true,
-                'mode'    => 'symlink',
-                'message' => 'Storage symlink created: ' . $linkPath,
-            ];
-        }
-
-        /*
-         * Shared hosting fallback: copy storage/app/public into public storage.
-         */
-        $copyStorageFallback($target, $linkPath);
-
-        return [
-            'status'  => true,
-            'mode'    => 'copy',
-            'message' => 'Storage files copied: ' . $linkPath,
-        ];
-    } catch (Throwable $exception) {
-        return [
-            'status'  => false,
-            'mode'    => 'failed',
-            'message' => $linkPath . ' => ' . $exception->getMessage(),
-        ];
-    }
-};
-
 Route::prefix('command')
     ->name('command.')
     ->middleware(['auth', 'role:admin', 'lte_context:admin'])
-    ->group(function () use (
-        $redirectWithToast,
-        $normalizePath,
-        $uniquePaths,
-        $getPublicHtmlPath,
-        $prepareStoragePath
-    ) {
+    ->group(function () use ($redirectWithToast) {
         Route::get('/clear-cache', function () use ($redirectWithToast) {
             Artisan::call('cache:clear');
 
@@ -217,14 +44,18 @@ Route::prefix('command')
             return $redirectWithToast('success', 'View cache cleared successfully.');
         })->name('clear-view');
 
-
         Route::get('/clear-events', function () use ($redirectWithToast) {
             try {
                 Artisan::call('event:clear');
 
                 return $redirectWithToast('success', 'Events cache cleared successfully.');
-            } catch (Throwable $exception) {
-                return $redirectWithToast('error', 'Events cache clear failed: ' . $exception->getMessage());
+            } catch (\Throwable $exception) {
+                report($exception);
+
+                return $redirectWithToast(
+                    'error',
+                    'Events cache clear failed: ' . $exception->getMessage()
+                );
             }
         })->name('clear-events');
 
@@ -256,70 +87,78 @@ Route::prefix('command')
             return $redirectWithToast('success', 'Database seeded successfully.');
         })->name('seed');
 
-        Route::get('/storage-link', function () use (
-            $redirectWithToast,
-            $normalizePath,
-            $uniquePaths,
-            $getPublicHtmlPath,
-            $prepareStoragePath
-        ) {
-            $target = $normalizePath(storage_path('app/public'));
-            $publicHtml = $getPublicHtmlPath();
+        Route::get('/storage-link', function () use ($redirectWithToast) {
+            try {
+                $result = app(PublicMediaStorageService::class)->prepare(true);
+                $productResult = app(
+                    ProductMediaSectionOrganizerService::class
+                )->organize();
+                $landingResult = app(
+                    LandingMediaSectionOrganizerService::class
+                )->organize();
 
-            /*
-             * Important for your cPanel structure:
-             * public_html/storage must exist because website URL loads /storage/...
-             * Also prepare public_path('storage') for normal Laravel behavior.
-             */
-            $candidateLinks = $uniquePaths([
-                $publicHtml ? $publicHtml . DIRECTORY_SEPARATOR . 'storage' : null,
-                base_path('..' . DIRECTORY_SEPARATOR . 'storage'),
-                public_path('storage'),
-            ]);
+                Artisan::call('optimize:clear');
 
-            $results = [];
-            $successCount = 0;
-            $copyCount = 0;
-            $symlinkCount = 0;
+                $message = sprintf(
+                    'Media storage prepared successfully. Root: %s. Migrated: %d files. Legacy files removed: %d. Product media organized: %d. Landing media organized: %d. Missing product files: %d. Missing landing files: %d.',
+                    $result['target'],
+                    $result['copied_files'],
+                    $result['removed_files'],
+                    $productResult['organized_media'],
+                    $landingResult['organized_media'],
+                    $productResult['missing_files'],
+                    $landingResult['missing_files']
+                );
 
-            foreach ($candidateLinks as $linkPath) {
-                if (! $target || $normalizePath($linkPath) === $normalizePath($target)) {
-                    continue;
+                if (! $result['writable']) {
+                    return $redirectWithToast(
+                        'error',
+                        $message . ' The media directory is not writable.'
+                    );
                 }
 
-                $result = $prepareStoragePath($target, $linkPath);
-                $results[] = $result['message'];
+                return $redirectWithToast('success', $message);
+            } catch (\Throwable $exception) {
+                report($exception);
 
-                if ($result['status']) {
-                    $successCount++;
-                }
-
-                if (($result['mode'] ?? null) === 'copy') {
-                    $copyCount++;
-                }
-
-                if (($result['mode'] ?? null) === 'symlink' || ($result['mode'] ?? null) === 'exists') {
-                    $symlinkCount++;
-                }
+                return $redirectWithToast(
+                    'error',
+                    'Media storage preparation failed: ' . $exception->getMessage()
+                );
             }
-
-            if ($successCount > 0) {
-                $mainMessage = $symlinkCount > 0
-                    ? 'Storage link created successfully. public_html/storage is ready.'
-                    : 'Symlink blocked, but storage files copied successfully. public_html/storage is ready.';
-
-                return $redirectWithToast('success', $mainMessage);
-            }
-
-            return $redirectWithToast(
-                'error',
-                'Storage link failed. ' . implode(' | ', $results)
-            );
         })->name('storage-link');
+
+        Route::get('/media-storage-doctor', function () use ($redirectWithToast) {
+            try {
+                Artisan::call('media:storage-doctor', [
+                    '--limit' => 20,
+                ]);
+
+                $output = trim(Artisan::output());
+                $message = str_contains($output, 'Single public media root is ready.')
+                    ? 'Media storage check passed. Admin and public images use one physical folder.'
+                    : 'Media storage needs attention. Run Prepare Media Storage first.';
+
+                return $redirectWithToast(
+                    str_contains($output, 'Single public media root is ready.') ? 'success' : 'error',
+                    $message
+                );
+            } catch (\Throwable $exception) {
+                report($exception);
+
+                return $redirectWithToast(
+                    'error',
+                    'Media storage check failed: ' . $exception->getMessage()
+                );
+            }
+        })->name('media-storage-doctor');
 
         Route::get('/migrate-fresh', function () use ($redirectWithToast) {
             if (! app()->environment('local')) {
-                return $redirectWithToast('error', 'Fresh migrate is allowed only in local environment.');
+                return $redirectWithToast(
+                    'error',
+                    'Fresh migrate is allowed only in local environment.'
+                );
             }
 
             Artisan::call('migrate:fresh', [
@@ -331,7 +170,10 @@ Route::prefix('command')
 
         Route::get('/migrate-fresh-seed', function () use ($redirectWithToast) {
             if (! app()->environment('local')) {
-                return $redirectWithToast('error', 'Fresh migrate seed is allowed only in local environment.');
+                return $redirectWithToast(
+                    'error',
+                    'Fresh migrate seed is allowed only in local environment.'
+                );
             }
 
             Artisan::call('migrate:fresh', [
@@ -339,6 +181,9 @@ Route::prefix('command')
                 '--force' => true,
             ]);
 
-            return $redirectWithToast('success', 'Database fresh migrated and seeded successfully.');
+            return $redirectWithToast(
+                'success',
+                'Database fresh migrated and seeded successfully.'
+            );
         })->name('migrate-fresh-seed');
     });

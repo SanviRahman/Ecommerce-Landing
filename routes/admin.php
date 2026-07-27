@@ -2,7 +2,9 @@
 
 use App\Http\Controllers\Admin\BannerController;
 use App\Http\Controllers\Admin\BrandController;
+use App\Http\Controllers\Admin\BlockedCustomerController;
 use App\Http\Controllers\Admin\BulkOrderController;
+use App\Http\Controllers\Admin\BulkOrderEntryController;
 use App\Http\Controllers\Admin\CampaignController;
 use App\Http\Controllers\Admin\CategoryController;
 use App\Http\Controllers\Admin\CourierAccountController;
@@ -37,6 +39,35 @@ Route::middleware(['auth'])->group(function () {
 
     Route::get('/password', [ProfileController::class, 'password'])->name('change-password');
     Route::post('/password', [ProfileController::class, 'updatePassword'])->name('change-password.update');
+
+    /*
+    |--------------------------------------------------------------------------
+    | Customer Phone / IP Block List: Admin + Employee
+    |--------------------------------------------------------------------------
+    */
+    Route::middleware(['role:admin,employee'])
+        ->prefix('blocked-customers')
+        ->as('blocked-customers.')
+        ->group(function () {
+            Route::get('/', [BlockedCustomerController::class, 'index'])->name('index');
+            Route::get('/trash', [BlockedCustomerController::class, 'trash'])->name('trash');
+            Route::get('/create', [BlockedCustomerController::class, 'create'])->name('create');
+            Route::post('/', [BlockedCustomerController::class, 'store'])->name('store');
+
+            Route::post('/from-order/{order}', [BlockedCustomerController::class, 'blockFromOrder'])
+                ->name('block-from-order');
+
+            Route::post('/restore/{id}', [BlockedCustomerController::class, 'restore'])->name('restore');
+            Route::delete('/force-delete/{id}', [BlockedCustomerController::class, 'forceDelete'])
+                ->name('force-delete');
+
+            Route::get('/{blockedCustomer}/edit', [BlockedCustomerController::class, 'edit'])->name('edit');
+            Route::put('/{blockedCustomer}', [BlockedCustomerController::class, 'update'])->name('update');
+            Route::patch('/{blockedCustomer}/toggle-status', [BlockedCustomerController::class, 'toggleStatus'])
+                ->name('toggle-status');
+            Route::delete('/{blockedCustomer}', [BlockedCustomerController::class, 'destroy'])->name('destroy');
+            Route::get('/{blockedCustomer}', [BlockedCustomerController::class, 'show'])->name('show');
+        });
 
     /*
     |--------------------------------------------------------------------------
@@ -113,6 +144,9 @@ Route::middleware(['auth'])->group(function () {
              * treated as an order model key. Employee assignment is enforced
              * again inside OrderController::store().
              */
+            Route::get('/bulk-create', [BulkOrderEntryController::class, 'create'])->name('bulk_create');
+            Route::post('/bulk-create', [BulkOrderEntryController::class, 'store'])->name('bulk_store');
+
             Route::get('/create', [OrderController::class, 'create'])->name('create');
             Route::post('/', [OrderController::class, 'store'])->name('store');
 

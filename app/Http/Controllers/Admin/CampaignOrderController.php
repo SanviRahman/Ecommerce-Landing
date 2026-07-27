@@ -8,7 +8,9 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\ShippingCharge;
+use App\Services\CustomerIdentityService;
 use App\Services\OrderAssignmentService;
+use App\Services\OrderBlockService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -151,8 +153,12 @@ class CampaignOrderController extends Controller
         return null;
     }
 
-    public function store(Request $request, Campaign $campaign)
-    {
+    public function store(
+        Request $request,
+        Campaign $campaign,
+        CustomerIdentityService $customerIdentityService,
+        OrderBlockService $orderBlockService
+    ) {
         abort_if(! $campaign->status, 404);
 
         $request->merge([
@@ -172,13 +178,32 @@ class CampaignOrderController extends Controller
             'products.*.quantity' => ['required', 'integer', 'min:1'],
         ]);
 
+        $activeBlock = $orderBlockService->findActiveBlock(
+            $request->input('phone'),
+            $request->ip()
+        );
+
+        if ($activeBlock) {
+            return back()
+                ->withInput($request->except(['products', 'order_form_token']))
+                ->with(
+                    'blocked_order_error',
+                    'আপনি অর্ডার করতে পারবেন না। সহায়তার জন্য আমাদের সঙ্গে যোগাযোগ করুন।'
+                );
+        }
+
         if (! $this->consumeOrderFormToken($request->input('order_form_token'))) {
             return back()
                 ->withInput($request->except(['products']))
                 ->with('error', 'এই পুরোনো ফর্ম দিয়ে আবার অর্ডার করা যাবে না। অনুগ্রহ করে পেজ refresh করে নতুন করে অর্ডার করুন।');
         }
 
-        return DB::transaction(function () use ($request, $campaign) {
+        return DB::transaction(function () use ($request, $campaign, $customerIdentityService) {
+            $customer = $customerIdentityService->resolveOrCreate(
+                $request->customer_name,
+                $request->phone,
+                'phone'
+            );
             $campaign->load([
                 'products' => function ($query) {
                     $query->where('products.status', true);
@@ -278,9 +303,10 @@ class CampaignOrderController extends Controller
                 'invoice_id'        => $this->generateInvoiceId(),
                 'success_token'     => Str::random(40),
                 'campaign_id'       => $campaign->id,
+                'customer_id'       => $customer->id,
 
-                'customer_name'     => $request->customer_name,
-                'phone'             => $request->phone,
+                'customer_name'     => $customer->name,
+                'phone'             => $customer->phone,
                 'address'           => $request->address,
                 'delivery_area'     => $deliveryAreaName,
 
@@ -356,4 +382,3 @@ class CampaignOrderController extends Controller
         return $invoiceId;
     }
 }
-

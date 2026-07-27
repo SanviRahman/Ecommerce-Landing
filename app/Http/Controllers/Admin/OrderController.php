@@ -10,10 +10,14 @@ use App\Models\OrderField;
 use App\Models\OrderItem;
 use App\Models\OrderStatusLog;
 use App\Models\Product;
+use App\Models\ShippingCharge;
 use App\Models\SiteSetting;
 use App\Models\User;
 use App\Services\BdCourierFraudCheckerService;
+use App\Services\CampaignAutoSelectionService;
+use App\Services\CustomerIdentityService;
 use App\Services\OrderAssignmentService;
+use App\Services\OrderBlockService;
 use App\Services\PathaoCourierService;
 use App\Services\SteadfastCourierService;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -44,6 +48,19 @@ class OrderController extends Controller
         }
     }
 
+    private function normalizeCustomerPhone(?string $phone): string
+    {
+        return preg_replace('/\D+/', '', (string) $phone) ?: '';
+    }
+
+    private function isNegotiatedBulkOrder(Order $order): bool
+    {
+        return in_array((string) $order->created_via, [
+            Order::CREATED_VIA_ADMIN_BULK,
+            Order::CREATED_VIA_EMPLOYEE_BULK,
+        ], true);
+    }
+
     /**
      * Use the same Bangladesh timezone as Order lists and reports.
      */
@@ -52,9 +69,9 @@ class OrderController extends Controller
         return method_exists(Order::class, 'displayTimezone')
             ? Order::displayTimezone()
             : config(
-                'app.order_display_timezone',
-                'Asia/Dhaka'
-            );
+            'app.order_display_timezone',
+            'Asia/Dhaka'
+        );
     }
 
     /**
@@ -79,16 +96,16 @@ class OrderController extends Controller
         $localDate = method_exists($order, 'localDateTime')
             ? $order->localDateTime('created_at')
             : CarbonImmutable::parse(
-                $order->getRawOriginal('created_at')
-                    ?: $order->created_at,
-                'UTC'
-            )->setTimezone($this->orderDisplayTimezone());
+            $order->getRawOriginal('created_at')
+                ?: $order->created_at,
+            'UTC'
+        )->setTimezone($this->orderDisplayTimezone());
 
         return $localDate
             ? $localDate->format('Y-m-d\\TH:i')
             : CarbonImmutable::now(
-                $this->orderDisplayTimezone()
-            )->format('Y-m-d\\TH:i');
+            $this->orderDisplayTimezone()
+        )->format('Y-m-d\\TH:i');
     }
 
     private function ensureEmployeeOrderAccess(Order $order): void
@@ -106,7 +123,7 @@ class OrderController extends Controller
             ->forLoggedInUser()
             ->whereIn('id', $ids)
             ->pluck('id')
-            ->map(fn ($id) => (int) $id)
+            ->map(fn($id) => (int) $id)
             ->all();
     }
 
@@ -315,7 +332,6 @@ class OrderController extends Controller
         return null;
     }
 
-
     private function getStats(): array
     {
         $baseQuery = Order::query()->forLoggedInUser();
@@ -328,34 +344,34 @@ class OrderController extends Controller
         $workflowBaseQuery = (clone $baseQuery)->whereNull('custom_order_list');
 
         $fields = $this->getActiveOrderFields()
-            ->map(fn (OrderField $field) => [
-                'id' => $field->id,
-                'name' => $field->name,
-                'slug' => $field->slug,
+            ->map(fn(OrderField $field) => [
+                'id'    => $field->id,
+                'name'  => $field->name,
+                'slug'  => $field->slug,
                 'color' => $field->color ?: '#2563eb',
                 'count' => (int) $field->orders_count,
             ])
             ->values();
 
         return [
-            'all'       => (clone $baseQuery)->count(),
-            'new'       => (clone $workflowBaseQuery)->where('order_status', Order::STATUS_PROCESSING)->count(),
-            'pending'   => (clone $workflowBaseQuery)->where('order_status', Order::STATUS_PENDING)->count(),
-            'completed' => (clone $workflowBaseQuery)->where('order_status', Order::STATUS_CONFIRMED)->count(),
-            'shipped'   => (clone $workflowBaseQuery)->where('order_status', Order::STATUS_SHIPPED)->count(),
-            'delivered' => (clone $workflowBaseQuery)->where('order_status', Order::STATUS_DELIVERED)->count(),
-            'cancelled' => (clone $workflowBaseQuery)->where('order_status', Order::STATUS_CANCELLED)->count(),
-            'stock_out' => (clone $workflowBaseQuery)->where('order_status', Order::STATUS_STOCK_OUT)->count(),
+            'all'              => (clone $baseQuery)->count(),
+            'new'              => (clone $workflowBaseQuery)->where('order_status', Order::STATUS_PROCESSING)->count(),
+            'pending'          => (clone $workflowBaseQuery)->where('order_status', Order::STATUS_PENDING)->count(),
+            'completed'        => (clone $workflowBaseQuery)->where('order_status', Order::STATUS_CONFIRMED)->count(),
+            'shipped'          => (clone $workflowBaseQuery)->where('order_status', Order::STATUS_SHIPPED)->count(),
+            'delivered'        => (clone $workflowBaseQuery)->where('order_status', Order::STATUS_DELIVERED)->count(),
+            'cancelled'        => (clone $workflowBaseQuery)->where('order_status', Order::STATUS_CANCELLED)->count(),
+            'stock_out'        => (clone $workflowBaseQuery)->where('order_status', Order::STATUS_STOCK_OUT)->count(),
 
-            'order_list_1' => (clone $baseQuery)
+            'order_list_1'     => (clone $baseQuery)
                 ->where('custom_order_list', Order::CUSTOM_LIST_ONE)
                 ->count(),
 
-            'order_list_2' => (clone $baseQuery)
+            'order_list_2'     => (clone $baseQuery)
                 ->where('custom_order_list', Order::CUSTOM_LIST_TWO)
                 ->count(),
 
-            'invoice_pending' => (clone $workflowBaseQuery)
+            'invoice_pending'  => (clone $workflowBaseQuery)
                 ->where('order_status', Order::STATUS_CONFIRMED)
                 ->whereNull('invoice_printed_at')
                 ->count(),
@@ -364,14 +380,14 @@ class OrderController extends Controller
                 ->where('order_status', Order::STATUS_COMPLETE_INVOICE)
                 ->count(),
 
-            'fake' => (clone $workflowBaseQuery)
+            'fake'             => (clone $workflowBaseQuery)
                 ->where(function ($query) {
                     $query->where('is_fake', true)
                         ->orWhere('order_status', Order::STATUS_FAKE);
                 })
                 ->count(),
 
-            'fields' => $fields,
+            'fields'           => $fields,
         ];
     }
 
@@ -489,7 +505,6 @@ class OrderController extends Controller
         return $query;
     }
 
-
     /**
      * Normalize delivery area values coming from old/public checkout labels.
      * This keeps edit/update stable even when old orders saved Bangla labels.
@@ -509,20 +524,48 @@ class OrderController extends Controller
         $key = \Illuminate\Support\Str::lower($raw);
 
         $aliases = [
-            'inside_dhaka'      => 'inside_dhaka',
-            'inside dhaka'      => 'inside_dhaka',
-            'dhaka'             => 'inside_dhaka',
-            'ঢাকার ভিতরে'       => 'inside_dhaka',
-            'ঢাকা সিটির ভিতরে'  => 'inside_dhaka',
-            'outside_dhaka'     => 'outside_dhaka',
-            'outside dhaka'     => 'outside_dhaka',
-            'ঢাকার বাইরে'       => 'outside_dhaka',
-            'free_delivery'     => 'free_delivery',
-            'free delivery'     => 'free_delivery',
-            'ফ্রি ডেলিভারি'     => 'free_delivery',
+            'inside_dhaka'     => 'inside_dhaka',
+            'inside dhaka'     => 'inside_dhaka',
+            'dhaka'            => 'inside_dhaka',
+            'ঢাকার ভিতরে'      => 'inside_dhaka',
+            'ঢাকা সিটির ভিতরে' => 'inside_dhaka',
+            'outside_dhaka'    => 'outside_dhaka',
+            'outside dhaka'    => 'outside_dhaka',
+            'ঢাকার বাইরে'      => 'outside_dhaka',
+            'free_delivery'    => 'free_delivery',
+            'free delivery'    => 'free_delivery',
+            'ফ্রি ডেলিভারি'    => 'free_delivery',
         ];
 
         return $aliases[$key] ?? $raw;
+    }
+
+    /**
+     * Return the currently active delivery charges using the same normalized
+     * delivery-area values used by the manual order forms.
+     *
+     * The existing project stores these rows in the shared shipping_charges
+     * table. This method only reads those settings and does not change the
+     * campaign, checkout, pricing, or shipping-charge management workflow.
+     */
+    private function getActiveShippingChargeMap(): array
+    {
+        return ShippingCharge::query()
+            ->active()
+            ->orderBy('id')
+            ->get(['area_name', 'delivery_charge'])
+            ->mapWithKeys(function (ShippingCharge $shippingCharge) {
+                $areaKey = $this->normalizeDeliveryArea($shippingCharge->area_name);
+
+                if (! $areaKey) {
+                    return [];
+                }
+
+                return [
+                    $areaKey => max(0, (float) $shippingCharge->delivery_charge),
+                ];
+            })
+            ->toArray();
     }
 
     /**
@@ -564,7 +607,7 @@ class OrderController extends Controller
     {
         $phones = $orders->getCollection()
             ->pluck('phone')
-            ->map(fn ($phone) => trim((string) $phone))
+            ->map(fn($phone) => trim((string) $phone))
             ->filter()
             ->unique()
             ->values();
@@ -582,7 +625,7 @@ class OrderController extends Controller
             ->groupBy('phone')
             ->havingRaw('COUNT(*) > 1')
             ->pluck('total', 'phone')
-            ->map(fn ($count) => (int) $count)
+            ->map(fn($count) => (int) $count)
             ->toArray();
     }
 
@@ -594,15 +637,15 @@ class OrderController extends Controller
         string $currentStatusView = 'active',
         ?OrderField $currentOrderField = null
     ) {
-        $query = $this->applyFilters($query, $request);
+        $query          = $this->applyFilters($query, $request);
         $perPageOptions = [15, 20, 50, 100, 150, 200, 250, 300, 350, 400, 450, 500];
-        $perPage = (int) $request->input('per_page', 15);
+        $perPage        = (int) $request->input('per_page', 15);
 
         if (! in_array($perPage, $perPageOptions, true)) {
             $perPage = 15;
         }
 
-        $orders = $query->paginate($perPage)->withQueryString();
+        $orders               = $query->paginate($perPage)->withQueryString();
         $duplicatePhoneCounts = $this->duplicatePhoneCountsForOrders($orders, $isTrash);
 
         $employees = User::query()
@@ -611,11 +654,11 @@ class OrderController extends Controller
             ->orderBy('name')
             ->get();
 
-        $couriers = $this->getActiveCouriers();
-        $orderFields = $this->getActiveOrderFields();
-        $defaultCourier = CourierAccount::defaultActive();
-        $stats = $this->getStats();
-        $orderStatuses = $this->getOrderStatuses();
+        $couriers        = $this->getActiveCouriers();
+        $orderFields     = $this->getActiveOrderFields();
+        $defaultCourier  = CourierAccount::defaultActive();
+        $stats           = $this->getStats();
+        $orderStatuses   = $this->getOrderStatuses();
         $paymentStatuses = $this->getPaymentStatuses();
         $courierServices = $this->getCourierServices();
 
@@ -624,35 +667,35 @@ class OrderController extends Controller
                 'status' => true,
                 'stats'  => $stats,
                 'html'   => view('admin.orders.partials.table', [
-                    'orders'          => $orders,
-                    'isTrash'         => $isTrash,
-                    'defaultCourier'  => $defaultCourier,
-                    'couriers'         => $couriers,
-                    'courierServices' => $courierServices,
-                    'orderFields'     => $orderFields,
-                    'orderStatuses'   => $orderStatuses,
+                    'orders'               => $orders,
+                    'isTrash'              => $isTrash,
+                    'defaultCourier'       => $defaultCourier,
+                    'couriers'             => $couriers,
+                    'courierServices'      => $courierServices,
+                    'orderFields'          => $orderFields,
+                    'orderStatuses'        => $orderStatuses,
                     'duplicatePhoneCounts' => $duplicatePhoneCounts,
                 ])->render(),
             ]);
         }
 
         return view('admin.orders.index', [
-            'title'              => $title,
-            'orders'             => $orders,
-            'employees'          => $employees,
-            'couriers'           => $couriers,
-            'courierAccounts'    => collect(),
-            'courierServices'    => $courierServices,
-            'defaultCourier'     => $defaultCourier,
-            'stats'              => $stats,
-            'orderStatuses'      => $orderStatuses,
-            'paymentStatuses'    => $paymentStatuses,
-            'orderFields'        => $orderFields,
+            'title'                => $title,
+            'orders'               => $orders,
+            'employees'            => $employees,
+            'couriers'             => $couriers,
+            'courierAccounts'      => collect(),
+            'courierServices'      => $courierServices,
+            'defaultCourier'       => $defaultCourier,
+            'stats'                => $stats,
+            'orderStatuses'        => $orderStatuses,
+            'paymentStatuses'      => $paymentStatuses,
+            'orderFields'          => $orderFields,
             'duplicatePhoneCounts' => $duplicatePhoneCounts,
-            'currentStatusView'  => $currentStatusView,
-            'currentOrderField'  => $currentOrderField,
-            'isTrash'            => $isTrash,
-            'breadcrumb'         => [
+            'currentStatusView'    => $currentStatusView,
+            'currentOrderField'    => $currentOrderField,
+            'isTrash'              => $isTrash,
+            'breadcrumb'           => [
                 ['text' => 'Dashboard', 'url' => route('admin.dashboard')],
                 ['text' => $title, 'url' => url()->current()],
             ],
@@ -701,13 +744,12 @@ class OrderController extends Controller
         return $order->fresh(['courier', 'courierAccount', 'items.product']);
     }
 
-
     private function getOrderProductDescription(Order $order): string
     {
         return $order->items
             ->map(function (OrderItem $item) {
-                $name = $item->product_name ?: ($item->product->name ?? 'Product');
-                $price = (float) ($item->unit_price ?? 0);
+                $name     = $item->product_name ?: ($item->product->name ?? 'Product');
+                $price    = (float) ($item->unit_price ?? 0);
                 $quantity = (int) ($item->quantity ?? 0);
 
                 return $name . ' (' . number_format($price, 0, '.', '') . 'X' . $quantity . ')';
@@ -743,15 +785,14 @@ class OrderController extends Controller
         ])->filter()->implode(' | ');
     }
 
-
     private function autoAdminNoteEventForStatus(?string $status): ?string
     {
         return match ($status) {
-            Order::STATUS_CONFIRMED => 'order_completed',
+            Order::STATUS_CONFIRMED        => 'order_completed',
             Order::STATUS_COMPLETE_INVOICE => 'invoice_completed',
-            Order::STATUS_DELIVERED => 'order_delivered',
-            Order::STATUS_CANCELLED => 'order_cancelled',
-            default => null,
+            Order::STATUS_DELIVERED        => 'order_delivered',
+            Order::STATUS_CANCELLED        => 'order_cancelled',
+            default                        => null,
         };
     }
 
@@ -762,7 +803,7 @@ class OrderController extends Controller
             'order_delivered'   => 'Order delivered by',
             'order_cancelled'   => 'Order cancelled by',
             'invoice_completed' => 'Invoice completed by',
-            default => null,
+            default             => null,
         };
     }
 
@@ -819,8 +860,8 @@ class OrderController extends Controller
         }
 
         $employeeName = $this->autoAdminNoteEmployeeName($order, $assignedEmployeeId);
-        $date = now()->format('d M Y');
-        $time = now()->format('h:i A');
+        $date         = now()->format('d M Y');
+        $time         = now()->format('h:i A');
 
         $line = "{$prefix} {$employeeName} on {$date} at {$time}.";
 
@@ -862,7 +903,7 @@ class OrderController extends Controller
         }
 
         if ($status === Order::STATUS_COMPLETE_INVOICE && ! $order->invoice_printed_at) {
-            $updateData['invoice_printed_at'] = now();
+            $updateData['invoice_printed_at']  = now();
             $updateData['invoice_print_count'] = ((int) $order->invoice_print_count) + 1;
         }
 
@@ -883,14 +924,14 @@ class OrderController extends Controller
         }
 
         if ($status === Order::STATUS_FAKE) {
-            $updateData['is_fake'] = true;
+            $updateData['is_fake']        = true;
             $updateData['marked_fake_at'] = $order->marked_fake_at ?: now();
         } else {
             /*
              * Moving away from Fake must remove the secondary fake flag too;
              * otherwise the order would still appear in the Fake list.
              */
-            $updateData['is_fake'] = false;
+            $updateData['is_fake']        = false;
             $updateData['marked_fake_at'] = null;
         }
 
@@ -943,7 +984,7 @@ class OrderController extends Controller
     private function markOrdersAsInvoicePrinted(Collection $orders): array
     {
         $printedCount = 0;
-        $movedCount = 0;
+        $movedCount   = 0;
 
         foreach ($orders as $order) {
             if (! $order instanceof Order || ! $order->id) {
@@ -968,7 +1009,7 @@ class OrderController extends Controller
 
             if ($canMoveToCompleteInvoice) {
                 $updateData['order_status'] = Order::STATUS_COMPLETE_INVOICE;
-                $updateData = array_merge(
+                $updateData                 = array_merge(
                     $updateData,
                     $this->clearStaticOrderListData()
                 );
@@ -985,7 +1026,7 @@ class OrderController extends Controller
             }
 
             if (! $wasPrinted) {
-                $updateData['invoice_printed_at'] = now();
+                $updateData['invoice_printed_at']  = now();
                 $updateData['invoice_print_count'] = ((int) $order->invoice_print_count) + 1;
                 $printedCount++;
             }
@@ -1009,7 +1050,7 @@ class OrderController extends Controller
              * SteadFast export format
              * Screenshot sample অনুযায়ী simple title রাখা হয়েছে।
              */
-            $headers = ['Invoice', 'Name', 'Address', 'Phone', 'Amount', 'Note', 'Contact Name', 'Contact Phone'];
+            $headers  = ['Invoice', 'Name', 'Address', 'Phone', 'Amount', 'Note', 'Contact Name', 'Contact Phone'];
             $fileName = 'SteadFastExport_' . now()->format('Y_m_d_H_i_s') . '.xlsx';
 
             foreach ($orders as $order) {
@@ -1029,7 +1070,7 @@ class OrderController extends Controller
              * Pathao export থেকে screenshot-e red mark করা unnecessary fields remove করা হয়েছে:
              * ItemType, RecipientCity, RecipientZone, RecipientArea, ItemWeight, ItemDesc, SpecialInstruction.
              */
-            $headers = ['Store Name', 'Invoice', 'Name', 'Phone', 'Address', 'Amount', 'Quantity'];
+            $headers  = ['Store Name', 'Invoice', 'Name', 'Phone', 'Address', 'Amount', 'Quantity'];
             $fileName = 'PathaoExport_' . now()->format('Y_m_d_H_i_s') . '.xlsx';
 
             foreach ($orders as $order) {
@@ -1044,7 +1085,7 @@ class OrderController extends Controller
                 ];
             }
         } elseif ($type === 'redex' || $type === 'redx') {
-            $headers = ['Invoice', 'Customer Name', 'Contact No.', 'Customer Address', 'District', 'Area', 'Area ID', 'Division', 'Products', 'Price', 'Weight(g)', 'Instruction', 'Product Selling Price', 'Seller Name', 'Seller Phone'];
+            $headers  = ['Invoice', 'Customer Name', 'Contact No.', 'Customer Address', 'District', 'Area', 'Area ID', 'Division', 'Products', 'Price', 'Weight(g)', 'Instruction', 'Product Selling Price', 'Seller Name', 'Seller Phone'];
             $fileName = 'RedxExport_' . now()->format('Y_m_d_H_i_s') . '.xlsx';
 
             foreach ($orders as $order) {
@@ -1067,7 +1108,7 @@ class OrderController extends Controller
                 ];
             }
         } else {
-            $headers = ['Store Name', 'Order Id', 'Customer Name', 'Customer Phone No', 'Customer Address', 'Item Description', 'Item Quentity', 'Order Amount', 'Delivery Charge', 'Total'];
+            $headers  = ['Store Name', 'Order Id', 'Customer Name', 'Customer Phone No', 'Customer Address', 'Item Description', 'Item Quentity', 'Order Amount', 'Delivery Charge', 'Total'];
             $fileName = 'orders_' . now()->format('Y_m_d_H_i_s') . '.xlsx';
 
             foreach ($orders as $order) {
@@ -1107,8 +1148,8 @@ class OrderController extends Controller
         $columnName = '';
 
         while ($columnNumber > 0) {
-            $remainder = ($columnNumber - 1) % 26;
-            $columnName = chr(65 + $remainder) . $columnName;
+            $remainder    = ($columnNumber - 1) % 26;
+            $columnName   = chr(65 + $remainder) . $columnName;
             $columnNumber = intdiv($columnNumber - 1, 26);
         }
 
@@ -1118,11 +1159,11 @@ class OrderController extends Controller
     private function buildXlsxSheetXml(array $headers, array $rows): string
     {
         $sheetRows = array_merge([$headers], $rows);
-        $xmlRows = [];
+        $xmlRows   = [];
 
         foreach ($sheetRows as $rowIndex => $row) {
             $excelRowNumber = $rowIndex + 1;
-            $cells = [];
+            $cells          = [];
 
             foreach (array_values($row) as $columnIndex => $value) {
                 $cellReference = $this->xlsxColumnName($columnIndex + 1) . $excelRowNumber;
@@ -1132,7 +1173,7 @@ class OrderController extends Controller
                  * invoice id, address সবকিছু Excel-এ safe text হিসেবে থাকে।
                  */
                 $cells[] = '<c r="' . $cellReference . '" t="inlineStr"><is><t xml:space="preserve">'
-                    . $this->xmlEscape($value)
+                . $this->xmlEscape($value)
                     . '</t></is></c>';
             }
 
@@ -1140,11 +1181,11 @@ class OrderController extends Controller
         }
 
         return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-            . '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
-            . 'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
-            . '<sheetViews><sheetView workbookViewId="0"/></sheetViews>'
-            . '<sheetFormatPr defaultRowHeight="15"/>'
-            . '<sheetData>' . implode('', $xmlRows) . '</sheetData>'
+        . '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
+        . 'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+        . '<sheetViews><sheetView workbookViewId="0"/></sheetViews>'
+        . '<sheetFormatPr defaultRowHeight="15"/>'
+        . '<sheetData>' . implode('', $xmlRows) . '</sheetData>'
             . '</worksheet>';
     }
 
@@ -1215,9 +1256,9 @@ class OrderController extends Controller
 
         return response()
             ->download($tempFile, $fileName, [
-                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'Content-Type'  => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                 'Cache-Control' => 'max-age=0, no-cache, no-store, must-revalidate',
-                'Pragma' => 'no-cache',
+                'Pragma'        => 'no-cache',
             ])
             ->deleteFileAfterSend(true);
     }
@@ -1244,9 +1285,9 @@ class OrderController extends Controller
 
             echo '</table></body></html>';
         }, $fileName, [
-            'Content-Type' => 'application/vnd.ms-excel; charset=UTF-8',
+            'Content-Type'  => 'application/vnd.ms-excel; charset=UTF-8',
             'Cache-Control' => 'max-age=0, no-cache, no-store, must-revalidate',
-            'Pragma' => 'no-cache',
+            'Pragma'        => 'no-cache',
         ]);
     }
 
@@ -1270,7 +1311,7 @@ class OrderController extends Controller
     {
         $this->adminOrEmployeeOnly();
 
-        $currentUser = auth()->user();
+        $currentUser       = auth()->user();
         $isEmployeeCreator = $currentUser?->isEmployee() === true;
 
         $products = Product::query()
@@ -1279,7 +1320,7 @@ class OrderController extends Controller
             ->get();
 
         $productImageMap = $products
-            ->mapWithKeys(fn (Product $product) => [
+            ->mapWithKeys(fn(Product $product) => [
                 $product->id => $this->resolveProductImageUrl($product),
             ]);
 
@@ -1288,31 +1329,32 @@ class OrderController extends Controller
         );
 
         return view('admin.orders.create', [
-            'title'           => 'Create Manual Order',
-            'returnUrl'       => $returnUrl,
-            'defaultOrderDate'=> CarbonImmutable::now(
+            'title'             => 'Create Manual Order',
+            'returnUrl'         => $returnUrl,
+            'defaultOrderDate'  => CarbonImmutable::now(
                 $this->orderDisplayTimezone()
             )->format('Y-m-d\\TH:i'),
-            'products'        => $products,
-            'productImageMap' => $productImageMap,
-            'campaigns'       => Campaign::query()
+            'products'          => $products,
+            'productImageMap'   => $productImageMap,
+            'campaigns'         => Campaign::query()
                 ->where('status', true)
                 ->orderBy('title')
                 ->get(),
-            'employees'       => $isEmployeeCreator
+            'shippingChargeMap' => $this->getActiveShippingChargeMap(),
+            'employees'         => $isEmployeeCreator
                 ? collect([$currentUser])
                 : User::query()
-                    ->where('role', 'employee')
-                    ->where('is_active', true)
-                    ->orderBy('name')
-                    ->get(),
+                ->where('role', 'employee')
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(),
             'isEmployeeCreator' => $isEmployeeCreator,
             'currentEmployee'   => $isEmployeeCreator ? $currentUser : null,
-            'couriers'        => $this->getActiveCouriers(),
-            'orderFields'     => $this->getActiveOrderFields(),
-            'orderStatuses'   => $this->getOrderStatuses(),
-            'paymentStatuses' => $this->getPaymentStatuses(),
-            'breadcrumb'      => [
+            'couriers'          => $this->getActiveCouriers(),
+            'orderFields'       => $this->getActiveOrderFields(),
+            'orderStatuses'     => $this->getOrderStatuses(),
+            'paymentStatuses'   => $this->getPaymentStatuses(),
+            'breadcrumb'        => [
                 ['text' => 'Dashboard', 'url' => route('admin.dashboard')],
                 ['text' => 'Orders', 'url' => $returnUrl],
                 ['text' => 'Create Manual Order', 'url' => route('admin.orders.create')],
@@ -1324,68 +1366,79 @@ class OrderController extends Controller
      * Persist an order created manually by an administrator or employee.
      * Employee-created orders are forcibly assigned to the authenticated employee.
      */
-    public function store(Request $request)
+    public function store(
+        Request $request,
+        CustomerIdentityService $customerIdentityService,
+        CampaignAutoSelectionService $campaignAutoSelectionService
+    )
     {
         $this->adminOrEmployeeOnly();
 
-        $currentUser = auth()->user();
+        $currentUser       = auth()->user();
         $isEmployeeCreator = $currentUser?->isEmployee() === true;
 
         $request->merge([
-            'delivery_area' => $this->normalizeDeliveryArea($request->input('delivery_area')),
+            'phone'                => $this->normalizeCustomerPhone($request->input('phone')),
+            'delivery_area'        => $this->normalizeDeliveryArea($request->input('delivery_area')),
             'assigned_employee_id' => $isEmployeeCreator
                 ? $currentUser->id
                 : $request->input('assigned_employee_id'),
         ]);
 
         $validated = $request->validate([
-            'campaign_id'          => ['nullable', 'integer', 'exists:campaigns,id'],
-            'order_date'           => ['required', 'date_format:Y-m-d\\TH:i'],
-            'customer_name'        => ['required', 'string', 'max:255'],
-            'phone'                => ['required', 'string', 'regex:/^01\d{9}$/'],
-            'address'              => ['required', 'string', 'max:2000'],
-            'delivery_area'        => ['nullable', 'string', 'max:255'],
-            'customer_note'        => ['nullable', 'string', 'max:3000'],
-            'admin_note'           => ['nullable', 'string', 'max:5000'],
-            'order_status'         => ['required', 'string', Rule::in($this->getOrderStatuses())],
-            'payment_status'       => ['required', 'string', Rule::in($this->getPaymentStatuses())],
-            'shipping_charge'      => ['nullable', 'numeric', 'min:0'],
-            'cod_charge'           => ['nullable', 'numeric', 'min:0'],
-            'assigned_employee_id' => [
+            'campaign_id'             => [
+                'nullable',
+                'integer',
+                Rule::exists('campaigns', 'id')->where(
+                    fn($query) => $query->where('status', true)
+                ),
+            ],
+            'order_date'              => ['required', 'date_format:Y-m-d\\TH:i'],
+            'customer_name'           => ['required', 'string', 'max:255'],
+            'phone'                   => ['required', 'string', 'regex:/^01\d{9}$/'],
+            'address'                 => ['required', 'string', 'max:2000'],
+            'delivery_area'           => ['nullable', 'string', 'max:255'],
+            'customer_note'           => ['nullable', 'string', 'max:3000'],
+            'admin_note'              => ['nullable', 'string', 'max:5000'],
+            'order_status'            => ['required', 'string', Rule::in($this->getOrderStatuses())],
+            'payment_status'          => ['required', 'string', Rule::in($this->getPaymentStatuses())],
+            'shipping_charge'         => ['nullable', 'numeric', 'min:0'],
+            'cod_charge'              => ['nullable', 'numeric', 'min:0'],
+            'assigned_employee_id'    => [
                 $isEmployeeCreator ? 'required' : 'nullable',
                 'integer',
                 Rule::exists('users', 'id')->where(
-                    fn ($query) => $query
+                    fn($query) => $query
                         ->where('role', 'employee')
                         ->where('is_active', true)
                 ),
             ],
-            'courier_id'           => [
+            'courier_id'              => [
                 'nullable',
                 'integer',
                 Rule::exists('couriers', 'id')->where(
-                    fn ($query) => $query->where('status', true)
+                    fn($query) => $query->where('status', true)
                 ),
             ],
-            'order_field_id'       => [
+            'order_field_id'          => [
                 'nullable',
                 'integer',
                 Rule::exists('order_fields', 'id')->where(
-                    fn ($query) => $query->where('status', true)
+                    fn($query) => $query->where('status', true)
                 ),
             ],
-            'items'                    => ['required', 'array', 'min:1'],
-            'items.*.product_id'       => [
+            'items'                   => ['required', 'array', 'min:1'],
+            'items.*.product_id'      => [
                 'required',
                 'integer',
                 Rule::exists('products', 'id')->where(
-                    fn ($query) => $query->where('status', true)
+                    fn($query) => $query->where('status', true)
                 ),
             ],
-            'items.*.quantity'         => ['required', 'integer', 'min:1', 'max:100000'],
-            'items.*.unit_price'       => ['required', 'numeric', 'min:0'],
-            'items.*.discount_amount'  => ['nullable', 'numeric', 'min:0'],
-            'return_url'               => ['nullable', 'string', 'max:2048'],
+            'items.*.quantity'        => ['required', 'integer', 'min:1', 'max:100000'],
+            'items.*.unit_price'      => ['required', 'numeric', 'min:0'],
+            'items.*.discount_amount' => ['nullable', 'numeric', 'min:0'],
+            'return_url'              => ['nullable', 'string', 'max:2048'],
         ], [
             'phone.regex' => 'Phone number must contain exactly 11 local digits and start with 01.',
         ]);
@@ -1403,21 +1456,29 @@ class OrderController extends Controller
             $request,
             $validated,
             $isEmployeeCreator,
-            $orderDate
+            $orderDate,
+            $customerIdentityService,
+            $campaignAutoSelectionService
         ) {
+            $customer = $customerIdentityService->resolveOrCreate(
+                $validated['customer_name'],
+                $validated['phone'],
+                'phone'
+            );
+
             $submittedItems = collect($validated['items']);
 
             $products = Product::query()
                 ->where('status', true)
                 ->whereIn(
                     'id',
-                    $submittedItems->pluck('product_id')->map(fn ($id) => (int) $id)->unique()
+                    $submittedItems->pluck('product_id')->map(fn($id) => (int) $id)->unique()
                 )
                 ->get()
                 ->keyBy('id');
 
             $orderItems = [];
-            $subTotal = 0.0;
+            $subTotal   = 0.0;
 
             foreach ($submittedItems as $row) {
                 $product = $products->get((int) $row['product_id']);
@@ -1426,11 +1487,11 @@ class OrderController extends Controller
                     continue;
                 }
 
-                $quantity = max(1, (int) $row['quantity']);
-                $unitPrice = max(0, (float) $row['unit_price']);
+                $quantity       = max(1, (int) $row['quantity']);
+                $unitPrice      = max(0, (float) $row['unit_price']);
                 $discountAmount = max(0, (float) ($row['discount_amount'] ?? 0));
                 $grossLineTotal = $quantity * $unitPrice;
-                $lineTotal = max(0, $grossLineTotal - $discountAmount);
+                $lineTotal      = max(0, $grossLineTotal - $discountAmount);
 
                 $subTotal += $lineTotal;
 
@@ -1449,8 +1510,8 @@ class OrderController extends Controller
                     ->with('error', 'Please add at least one valid active product.');
             }
 
-            $courier = null;
-            $courierAccount = null;
+            $courier         = null;
+            $courierAccount  = null;
 
             if (! empty($validated['courier_id'])) {
                 $courier = Courier::query()
@@ -1465,19 +1526,34 @@ class OrderController extends Controller
             }
 
             $shippingCharge = max(0, (float) ($validated['shipping_charge'] ?? 0));
-            $codCharge = max(0, (float) ($validated['cod_charge'] ?? 0));
-            $totalAmount = $subTotal + $shippingCharge + $codCharge;
-            $status = (string) $validated['order_status'];
+            $codCharge      = max(0, (float) ($validated['cod_charge'] ?? 0));
+            $totalAmount    = $subTotal + $shippingCharge + $codCharge;
+            $status         = (string) $validated['order_status'];
+
+            /*
+             * Respect an explicitly selected Campaign. When Admin/Employee
+             * leaves Campaign empty, resolve it from all ordered products.
+             * If the same products are in multiple active Campaigns, the
+             * active + default Campaign wins.
+             */
+            $resolvedCampaignId = ! empty($validated['campaign_id'])
+                ? (int) $validated['campaign_id']
+                : $campaignAutoSelectionService->resolveForProductIds(
+                    collect($orderItems)
+                        ->map(fn (array $item) => (int) $item['product']->id)
+                        ->all()
+                );
 
             $order = new Order([
                 'invoice_id'           => $this->generateManualInvoiceId(),
                 'success_token'        => Str::random(40),
-                'campaign_id'          => $validated['campaign_id'] ?? null,
+                'campaign_id'          => $resolvedCampaignId,
+                'customer_id'          => $customer->id,
                 'assigned_employee_id' => $validated['assigned_employee_id'] ?? null,
                 'order_field_id'       => $validated['order_field_id'] ?? null,
 
-                'customer_name'        => $validated['customer_name'],
-                'phone'                => $validated['phone'],
+                'customer_name'        => $customer->name,
+                'phone'                => $customer->phone,
                 'address'              => $validated['address'],
                 'delivery_area'        => $validated['delivery_area'] ?? null,
 
@@ -1518,7 +1594,7 @@ class OrderController extends Controller
             }
 
             if ($status === Order::STATUS_COMPLETE_INVOICE) {
-                $order->invoice_printed_at = now();
+                $order->invoice_printed_at  = now();
                 $order->invoice_print_count = 1;
             }
 
@@ -1556,13 +1632,13 @@ class OrderController extends Controller
 
             foreach ($orderItems as $item) {
                 OrderItem::query()->create([
-                    'order_id'         => $order->id,
-                    'product_id'       => $item['product']->id,
-                    'product_name'     => $item['product']->name,
-                    'unit_price'       => $item['unit_price'],
-                    'quantity'         => $item['quantity'],
-                    'discount_amount'  => $item['discount_amount'],
-                    'total_price'      => $item['total_price'],
+                    'order_id'        => $order->id,
+                    'product_id'      => $item['product']->id,
+                    'product_name'    => $item['product']->name,
+                    'unit_price'      => $item['unit_price'],
+                    'quantity'        => $item['quantity'],
+                    'discount_amount' => $item['discount_amount'],
+                    'total_price'     => $item['total_price'],
                 ]);
             }
 
@@ -1584,7 +1660,7 @@ class OrderController extends Controller
         return $this->listResponse($request, $this->orderQuery(), 'All Orders', false, 'all');
     }
 
-    public function new(Request $request)
+    public function new (Request $request)
     {
         $this->adminOrEmployeeOnly();
 
@@ -1728,10 +1804,11 @@ class OrderController extends Controller
         return $this->listResponse($request, $this->orderQuery(true), 'Order Trash', true, 'trash');
     }
 
-    public function show(Order $order)
-    {
+    public function show(
+        Order $order,
+        OrderBlockService $orderBlockService
+    ) {
         $this->adminOrEmployeeOnly();
-
         $this->ensureEmployeeOrderAccess($order);
 
         $order->load([
@@ -1745,12 +1822,41 @@ class OrderController extends Controller
             'orderField',
         ]);
 
+        $activeCustomerBlocks = $orderBlockService->findActiveBlocks(
+            $order->phone,
+            $order->source_ip
+        );
+
+        $normalizedOrderPhone = $orderBlockService->normalizePhone($order->phone);
+        $canBlockOrderIp = (string) $order->created_via === Order::CREATED_VIA_FRONTEND;
+        $normalizedOrderIp = $canBlockOrderIp
+            ? $orderBlockService->normalizeIp($order->source_ip)
+            : null;
+
+        $isPhoneBlocked = $normalizedOrderPhone
+            ? $activeCustomerBlocks->contains(function ($block) use ($normalizedOrderPhone) {
+                return (bool) $block->block_phone
+                    && $block->phone === $normalizedOrderPhone;
+            })
+            : false;
+
+        $isIpBlocked = $normalizedOrderIp
+            ? $activeCustomerBlocks->contains(function ($block) use ($normalizedOrderIp) {
+                return (bool) $block->block_ip
+                    && $block->ip_address === $normalizedOrderIp;
+            })
+            : false;
+
         return view('admin.orders.show', [
-            'title'      => 'Order Details',
-            'order'      => $order,
-            'couriers'   => $this->getActiveCouriers(),
-            'orderFields'=> $this->getActiveOrderFields(),
-            'breadcrumb' => [
+            'title'                => 'Order Details',
+            'order'                => $order,
+            'couriers'             => $this->getActiveCouriers(),
+            'orderFields'          => $this->getActiveOrderFields(),
+            'activeCustomerBlocks' => $activeCustomerBlocks,
+            'isPhoneBlocked'       => $isPhoneBlocked,
+            'isIpBlocked'          => $isIpBlocked,
+            'canBlockOrderIp'      => $canBlockOrderIp,
+            'breadcrumb'           => [
                 ['text' => 'Dashboard', 'url' => route('admin.dashboard')],
                 ['text' => 'Orders', 'url' => route('admin.orders.index')],
                 ['text' => $order->invoice_id, 'url' => route('admin.orders.show', $order->id)],
@@ -1758,12 +1864,32 @@ class OrderController extends Controller
         ]);
     }
 
-    public function edit(Request $request, Order $order)
+    public function edit(
+        Request $request,
+        Order $order,
+        CampaignAutoSelectionService $campaignAutoSelectionService,
+        OrderBlockService $orderBlockService
+    )
     {
         $this->adminOrEmployeeOnly();
         $this->ensureEmployeeOrderAccess($order);
 
-        $order->load(['items.product', 'assignedEmployee', 'courier', 'orderField']);
+        $order->load([
+            'campaign',
+            'items.product',
+            'assignedEmployee',
+            'courier',
+            'orderField',
+        ]);
+
+        $suggestedCampaignId = $order->campaign_id
+            ? (int) $order->campaign_id
+            : $campaignAutoSelectionService->resolveForProductIds(
+                $order->items
+                    ->pluck('product_id')
+                    ->map(fn ($id) => (int) $id)
+                    ->all()
+            );
 
         $products = Product::query()
             ->where('status', true)
@@ -1771,33 +1897,104 @@ class OrderController extends Controller
             ->get();
 
         $productImageMap = $products
-            ->mapWithKeys(fn (Product $product) => [
+            ->mapWithKeys(fn(Product $product) => [
                 $product->id => $this->resolveProductImageUrl($product),
             ]);
 
-        $returnUrl = $this->safeOrderReturnUrl($request->query('return_url', url()->previous()));
+        $campaigns = Campaign::query()
+            ->where(function ($query) use ($order) {
+                $query->where('status', true);
+
+                if ($order->campaign_id) {
+                    $query->orWhere(
+                        'campaigns.id',
+                        (int) $order->campaign_id
+                    );
+                }
+            })
+            ->orderBy('title')
+            ->get();
+
+        $returnUrl = $this->safeOrderReturnUrl(
+            $request->query('return_url', url()->previous())
+        );
+
+        $isNegotiatedBulkOrder = $this->isNegotiatedBulkOrder($order);
+        $activeCustomerBlocks = $orderBlockService->findActiveBlocks(
+            $order->phone,
+            $order->source_ip
+        );
+        $normalizedOrderPhone = $orderBlockService->normalizePhone($order->phone);
+        $canBlockOrderIp = (string) $order->created_via === Order::CREATED_VIA_FRONTEND;
+        $normalizedOrderIp = $canBlockOrderIp
+            ? $orderBlockService->normalizeIp($order->source_ip)
+            : null;
+        $isPhoneBlocked = $normalizedOrderPhone
+            ? $activeCustomerBlocks->contains(function ($block) use ($normalizedOrderPhone) {
+                return (bool) $block->block_phone
+                    && $block->phone === $normalizedOrderPhone;
+            })
+            : false;
+        $isIpBlocked = $normalizedOrderIp
+            ? $activeCustomerBlocks->contains(function ($block) use ($normalizedOrderIp) {
+                return (bool) $block->block_ip
+                    && $block->ip_address === $normalizedOrderIp;
+            })
+            : false;
 
         return view('admin.orders.edit', [
-            'title'           => 'Edit Order - ' . $order->invoice_id,
-            'order'           => $order,
-            'returnUrl'       => $returnUrl,
-            'orderDateValue'  => $this->orderDateForInput($order),
-            'products'        => $products,
-            'productImageMap' => $productImageMap,
-            'employees'       => User::query()->where('role', 'employee')->where('is_active', true)->orderBy('name')->get(),
-            'couriers'        => $this->getActiveCouriers(),
-            'orderFields'     => $this->getActiveOrderFields(),
-            'orderStatuses'   => $this->getOrderStatuses(),
-            'paymentStatuses' => $this->getPaymentStatuses(),
-            'breadcrumb'      => [
-                ['text' => 'Dashboard', 'url' => route('admin.dashboard')],
-                ['text' => 'Orders', 'url' => $returnUrl],
-                ['text' => 'Edit Order', 'url' => route('admin.orders.edit', $order->id)],
+            'title'             => 'Edit Order - ' . $order->invoice_id,
+            'order'             => $order,
+            'returnUrl'         => $returnUrl,
+            'orderDateValue'    => $this->orderDateForInput($order),
+            'products'          => $products,
+            'productImageMap'   => $productImageMap,
+            'campaigns'         => $campaigns,
+            'suggestedCampaignId' => $suggestedCampaignId,
+            'shippingChargeMap'    => $this->getActiveShippingChargeMap(),
+            'isNegotiatedBulkOrder' => $isNegotiatedBulkOrder,
+            'bulkNegotiatedTotal'   => $isNegotiatedBulkOrder
+                ? max(0, (float) old('bulk_negotiated_total', $order->total_amount))
+                : null,
+            'activeCustomerBlocks' => $activeCustomerBlocks,
+            'isPhoneBlocked'       => $isPhoneBlocked,
+            'isIpBlocked'          => $isIpBlocked,
+            'canBlockOrderIp'      => $canBlockOrderIp && (bool) $normalizedOrderIp,
+
+            'employees'         => User::query()
+                ->where('role', 'employee')
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(),
+
+            'couriers'          => $this->getActiveCouriers(),
+            'orderFields'       => $this->getActiveOrderFields(),
+            'orderStatuses'     => $this->getOrderStatuses(),
+            'paymentStatuses'   => $this->getPaymentStatuses(),
+
+            'breadcrumb'        => [
+                [
+                    'text' => 'Dashboard',
+                    'url'  => route('admin.dashboard'),
+                ],
+                [
+                    'text' => 'Orders',
+                    'url'  => $returnUrl,
+                ],
+                [
+                    'text' => 'Edit Order',
+                    'url'  => route('admin.orders.edit', $order->id),
+                ],
             ],
         ]);
     }
 
-    public function update(Request $request, Order $order)
+    public function update(
+        Request $request,
+        Order $order,
+        CustomerIdentityService $customerIdentityService,
+        CampaignAutoSelectionService $campaignAutoSelectionService
+    )
     {
         $this->adminOrEmployeeOnly();
         $this->ensureEmployeeOrderAccess($order);
@@ -1809,31 +2006,54 @@ class OrderController extends Controller
         }
 
         $request->merge([
+            'phone'         => $this->normalizeCustomerPhone($request->input('phone')),
             'delivery_area' => $this->normalizeDeliveryArea($request->input('delivery_area')),
         ]);
 
+        $isNegotiatedBulkOrder = $this->isNegotiatedBulkOrder($order);
+
         $validated = $request->validate([
-            'invoice_id'           => ['required', 'string', 'max:255', Rule::unique('orders', 'invoice_id')->ignore($order->id)],
-            'order_date'           => ['required', 'date_format:Y-m-d\\TH:i'],
-            'customer_name'        => ['required', 'string', 'max:255'],
-            'phone'                => ['required', 'string', 'max:20'],
-            'address'              => ['required', 'string'],
-            'delivery_area'        => ['nullable', 'string', 'max:255'],
-            'customer_note'        => ['nullable', 'string'],
-            'admin_note'           => ['nullable', 'string'],
-            'order_status'         => ['required', 'string', Rule::in($this->getOrderStatuses())],
-            'payment_status'       => ['required', 'string', Rule::in($this->getPaymentStatuses())],
-            'shipping_charge'      => ['nullable', 'numeric', 'min:0'],
-            'cod_charge'           => ['nullable', 'numeric', 'min:0'],
-            'assigned_employee_id' => ['nullable', 'integer', 'exists:users,id'],
-            'courier_id'           => ['nullable', 'integer', 'exists:couriers,id'],
-            'order_field_id'       => ['nullable', 'integer', 'exists:order_fields,id'],
-            'items'                => ['required', 'array', 'min:1'],
-            'items.*.id'           => ['nullable', 'integer', 'exists:order_items,id'],
-            'items.*.product_id'   => ['required', 'integer', 'exists:products,id'],
-            'items.*.quantity'     => ['required', 'integer', 'min:1'],
-            'items.*.unit_price'   => ['required', 'numeric', 'min:0'],
+            'campaign_id'             => [
+                'nullable',
+                'integer',
+                Rule::exists('campaigns', 'id')->where(function ($query) use ($order) {
+                    $query->where('status', true);
+
+                    if ($order->campaign_id) {
+                        $query->orWhere('id', $order->campaign_id);
+                    }
+                }),
+            ],
+            'invoice_id'              => ['required', 'string', 'max:255', Rule::unique('orders', 'invoice_id')->ignore($order->id)],
+            'order_date'              => ['required', 'date_format:Y-m-d\\TH:i'],
+            'customer_name'           => ['required', 'string', 'max:255'],
+            'phone'                   => ['required', 'string', 'regex:/^01\d{9}$/'],
+            'address'                 => ['required', 'string'],
+            'delivery_area'           => ['nullable', 'string', 'max:255'],
+            'customer_note'           => ['nullable', 'string'],
+            'admin_note'              => ['nullable', 'string'],
+            'order_status'            => ['required', 'string', Rule::in($this->getOrderStatuses())],
+            'payment_status'          => ['required', 'string', Rule::in($this->getPaymentStatuses())],
+            'shipping_charge'         => ['nullable', 'numeric', 'min:0'],
+            'cod_charge'              => ['nullable', 'numeric', 'min:0'],
+            'bulk_negotiated_total'   => [
+                Rule::requiredIf($isNegotiatedBulkOrder),
+                'nullable',
+                'numeric',
+                'gt:0',
+                'max:999999999.99',
+            ],
+            'assigned_employee_id'    => ['nullable', 'integer', 'exists:users,id'],
+            'courier_id'              => ['nullable', 'integer', 'exists:couriers,id'],
+            'order_field_id'          => ['nullable', 'integer', 'exists:order_fields,id'],
+            'items'                   => ['required', 'array', 'min:1'],
+            'items.*.id'              => ['nullable', 'integer', 'exists:order_items,id'],
+            'items.*.product_id'      => ['required', 'integer', 'exists:products,id'],
+            'items.*.quantity'        => ['required', 'integer', 'min:1'],
+            'items.*.unit_price'      => ['required', 'numeric', 'min:0'],
             'items.*.discount_amount' => ['nullable', 'numeric', 'min:0'],
+        ], [
+            'phone.regex' => 'Phone number must contain exactly 11 local digits and start with 01.',
         ]);
 
         $orderDate = $this->orderDateToDatabase(
@@ -1843,15 +2063,25 @@ class OrderController extends Controller
         return DB::transaction(function () use (
             $request,
             $order,
-            $orderDate
+            $orderDate,
+            $customerIdentityService,
+            $isNegotiatedBulkOrder,
+            $campaignAutoSelectionService
         ) {
+            $customer = $customerIdentityService->resolveOrCreate(
+                $request->customer_name,
+                $request->phone,
+                'phone'
+            );
+
             $products = Product::query()
                 ->whereIn('id', collect($request->items)->pluck('product_id')->filter()->unique())
                 ->get()
                 ->keyBy('id');
 
-            $subTotal = 0;
-            $keepItemIds = [];
+            $subTotal          = 0;
+            $keepItemIds       = [];
+            $resolvedProductIds = [];
 
             foreach ($request->items as $row) {
                 $product = $products->get((int) $row['product_id']);
@@ -1860,12 +2090,14 @@ class OrderController extends Controller
                     continue;
                 }
 
-                $quantity = max(1, (int) $row['quantity']);
-                $unitPrice = max(0, (float) $row['unit_price']);
-                $discountAmount = max(0, (float) ($row['discount_amount'] ?? 0));
-                $grossLineTotal = $quantity * $unitPrice;
-                $lineTotal = max(0, $grossLineTotal - $discountAmount);
-                $subTotal += $lineTotal;
+                $resolvedProductIds[] = (int) $product->id;
+
+                $quantity        = max(1, (int) $row['quantity']);
+                $unitPrice       = max(0, (float) $row['unit_price']);
+                $discountAmount  = max(0, (float) ($row['discount_amount'] ?? 0));
+                $grossLineTotal  = $quantity * $unitPrice;
+                $lineTotal       = max(0, $grossLineTotal - $discountAmount);
+                $subTotal       += $lineTotal;
 
                 $item = null;
 
@@ -1878,13 +2110,13 @@ class OrderController extends Controller
                 }
 
                 $item->fill([
-                    'order_id'     => $order->id,
-                    'product_id'   => $product->id,
-                    'product_name' => $product->name,
-                    'unit_price'       => $unitPrice,
-                    'quantity'         => $quantity,
-                    'discount_amount'  => $discountAmount,
-                    'total_price'      => $lineTotal,
+                    'order_id'        => $order->id,
+                    'product_id'      => $product->id,
+                    'product_name'    => $product->name,
+                    'unit_price'      => $unitPrice,
+                    'quantity'        => $quantity,
+                    'discount_amount' => $discountAmount,
+                    'total_price'     => $lineTotal,
                 ])->save();
 
                 $keepItemIds[] = $item->id;
@@ -1896,7 +2128,7 @@ class OrderController extends Controller
 
             $order->items()->whereNotIn('id', $keepItemIds)->delete();
 
-            $courier = null;
+            $courier        = null;
             $courierAccount = null;
 
             if ($request->filled('courier_id')) {
@@ -1908,10 +2140,23 @@ class OrderController extends Controller
             }
 
             $shippingCharge = (float) ($request->shipping_charge ?? 0);
-            $codCharge = (float) ($request->cod_charge ?? 0);
-            $totalAmount = $subTotal + $shippingCharge + $codCharge;
-            $status = $request->order_status;
-            $adminNote = $request->admin_note;
+            $codCharge      = (float) ($request->cod_charge ?? 0);
+            $totalAmount    = $isNegotiatedBulkOrder
+                ? max(0, (float) $request->input('bulk_negotiated_total', $order->total_amount))
+                : $subTotal + $shippingCharge + $codCharge;
+            $status         = $request->order_status;
+            $adminNote      = $request->admin_note;
+
+            /*
+             * Explicit Campaign selection always wins. When Campaign is left
+             * empty, use the shared resolver so Edit follows the same rules as
+             * Bulk Order creation and Manual Order creation.
+             */
+            $resolvedCampaignId = $request->filled('campaign_id')
+                ? (int) $request->campaign_id
+                : $campaignAutoSelectionService->resolveForProductIds(
+                    $resolvedProductIds
+                );
 
             if ($event = $this->autoAdminNoteEventForStatus($status)) {
                 $adminNote = $this->appendAutoAdminNote(
@@ -1924,8 +2169,10 @@ class OrderController extends Controller
 
             $updateData = array_merge([
                 'invoice_id'           => $request->invoice_id,
-                'customer_name'        => $request->customer_name,
-                'phone'                => $request->phone,
+                'campaign_id'          => $resolvedCampaignId,
+                'customer_id'          => $customer->id,
+                'customer_name'        => $customer->name,
+                'phone'                => $customer->phone,
                 'address'              => $request->address,
                 'delivery_area'        => $request->delivery_area,
                 'customer_note'        => $request->customer_note,
@@ -1965,10 +2212,10 @@ class OrderController extends Controller
             }
 
             if ($status === Order::STATUS_FAKE) {
-                $updateData['is_fake'] = true;
+                $updateData['is_fake']        = true;
                 $updateData['marked_fake_at'] = $order->marked_fake_at ?: now();
             } else {
-                $updateData['is_fake'] = false;
+                $updateData['is_fake']        = false;
                 $updateData['marked_fake_at'] = null;
             }
 
@@ -2026,7 +2273,7 @@ class OrderController extends Controller
             'note'         => ['nullable', 'string', 'max:1000'],
         ]);
 
-        $status = $request->order_status;
+        $status     = $request->order_status;
         $updateData = $this->buildOrderStatusUpdateData($order, $status);
 
         $order->update($updateData);
@@ -2096,7 +2343,7 @@ class OrderController extends Controller
         ]);
 
         return response()->json([
-            'status' => true,
+            'status'  => true,
             'message' => 'Order field updated successfully.',
         ]);
     }
@@ -2171,14 +2418,14 @@ class OrderController extends Controller
 
         // Important: selected invoices are NOT marked as printed here.
         // They will stay in Pending Invoice until admin confirms from the print preview page.
-        $siteSetting = SiteSetting::query()->where('status', true)->latest()->first();
+        $siteSetting     = SiteSetting::query()->where('status', true)->latest()->first();
         $courierServices = $this->getCourierServices();
 
         return view('admin.orders.multiple-invoices', [
-            'title'           => 'Selected Invoices',
-            'orders'          => $orders,
-            'siteSetting'     => $siteSetting,
-            'courierServices' => $courierServices,
+            'title'            => 'Selected Invoices',
+            'orders'           => $orders,
+            'siteSetting'      => $siteSetting,
+            'courierServices'  => $courierServices,
             'selectedOrderIds' => $orders->pluck('id')->values(),
         ]);
     }
@@ -2193,7 +2440,7 @@ class OrderController extends Controller
         ]);
 
         $selectedIds = collect($request->ids)
-            ->map(fn ($id) => (int) $id)
+            ->map(fn($id) => (int) $id)
             ->filter()
             ->unique()
             ->values();
@@ -2215,9 +2462,9 @@ class OrderController extends Controller
          * Confirm printing and move eligible active orders to Complete Invoice.
          * Shipped remains a separate manual status change by Admin/Employee.
          */
-        $result = $this->markOrdersAsInvoicePrinted($orders);
+        $result       = $this->markOrdersAsInvoicePrinted($orders);
         $printedCount = (int) ($result['printed'] ?? 0);
-        $movedCount = (int) ($result['moved'] ?? 0);
+        $movedCount   = (int) ($result['moved'] ?? 0);
 
         if ($printedCount > 0 && $movedCount > 0) {
             $message = "{$printedCount} invoices confirmed and {$movedCount} orders moved to Complete Invoice successfully.";
@@ -2286,7 +2533,7 @@ class OrderController extends Controller
          * Print dialog close howar pore admin popup-e Yes dile only then
          * invoice_printed_at update hobe and Pending Invoice theke Complete Invoice-e jabe.
          */
-        $siteSetting = SiteSetting::query()->where('status', true)->latest()->first();
+        $siteSetting     = SiteSetting::query()->where('status', true)->latest()->first();
         $courierServices = $this->getCourierServices();
 
         return view('admin.orders.multiple-invoices', [
@@ -2326,7 +2573,7 @@ class OrderController extends Controller
 
         try {
             $order = $this->assignCourierToOrder($order, $courierAccount);
-            $data = $steadfastCourierService->createOrder($order);
+            $data  = $steadfastCourierService->createOrder($order);
 
             return response()->json([
                 'status'  => true,
@@ -2337,7 +2584,6 @@ class OrderController extends Controller
             return response()->json(['status' => false, 'message' => $e->getMessage()], 422);
         }
     }
-
 
     public function bulkAssignCourier(Request $request)
     {
@@ -2382,7 +2628,7 @@ class OrderController extends Controller
             ->findOrFail((int) $courierId);
 
         $courierAccount = null;
-        $courierCode = strtolower((string) ($courier->code ?? ''));
+        $courierCode    = strtolower((string) ($courier->code ?? ''));
 
         if (in_array($courierCode, ['steadfast', 'pathao'], true)) {
             $courierAccount = $this->activeCourierByCode($courierCode);
@@ -2427,8 +2673,8 @@ class OrderController extends Controller
         }
 
         $success = 0;
-        $failed = 0;
-        $errors = [];
+        $failed  = 0;
+        $errors  = [];
 
         foreach ($orders as $order) {
             try {
@@ -2462,7 +2708,7 @@ class OrderController extends Controller
 
         try {
             $order = $this->assignCourierToOrder($order, $courierAccount);
-            $data = $pathaoCourierService->createOrder($order);
+            $data  = $pathaoCourierService->createOrder($order);
 
             return response()->json([
                 'status'  => true,
@@ -2497,8 +2743,8 @@ class OrderController extends Controller
         }
 
         $success = 0;
-        $failed = 0;
-        $errors = [];
+        $failed  = 0;
+        $errors  = [];
 
         foreach ($orders as $order) {
             try {
@@ -2602,7 +2848,7 @@ class OrderController extends Controller
         ]);
 
         $action = $request->action;
-        $ids = $request->ids;
+        $ids    = $request->ids;
 
         if (in_array($action, ['delete', 'restore', 'force_delete'], true)) {
             $this->adminOnly();
@@ -2627,7 +2873,7 @@ class OrderController extends Controller
 
         if (empty($accessibleIds)) {
             return response()->json([
-                'status' => false,
+                'status'  => false,
                 'message' => 'No accessible selected orders found.',
             ], 403);
         }
@@ -2647,7 +2893,7 @@ class OrderController extends Controller
 
         if (str_starts_with($action, 'field_')) {
             $fieldId = (int) str_replace('field_', '', $action);
-            $field = OrderField::query()->active()->find($fieldId);
+            $field   = OrderField::query()->active()->find($fieldId);
 
             if ($field) {
                 Order::whereIn('id', $accessibleIds)->update([
@@ -2772,24 +3018,24 @@ class OrderController extends Controller
         $this->adminOnly();
 
         $request->validate([
-            'limit' => ['required', 'integer', Rule::in([50,100,150,200,250,300,350,400,450,500])],
+            'limit' => ['required', 'integer', Rule::in([50, 100, 150, 200, 250, 300, 350, 400, 450, 500])],
         ]);
 
         $ids = $this->orderQuery()
             ->when($request->filled('current_status_view'), function ($query) use ($request) {
                 match ($request->current_status_view) {
-                    'new' => $query->newOrders(),
-                    'pending' => $query->pending(),
-                    'shipped' => $query->shipped(),
-                    'completed' => $query->confirmed(),
-                    'delivered' => $query->delivered(),
-                    'cancelled' => $query->cancelled(),
-                    'pending-invoice' => $query->confirmed()->whereNull('invoice_printed_at'),
+                    'new'              => $query->newOrders(),
+                    'pending'          => $query->pending(),
+                    'shipped'          => $query->shipped(),
+                    'completed'        => $query->confirmed(),
+                    'delivered'        => $query->delivered(),
+                    'cancelled'        => $query->cancelled(),
+                    'pending-invoice'  => $query->confirmed()->whereNull('invoice_printed_at'),
                     'complete-invoice' => $query->whereNotNull('invoice_printed_at'),
-                    'stock-out' => $query->stockOut(),
-                    'order-list-1' => $query->orderListOne(),
-                    'order-list-2' => $query->orderListTwo(),
-                    default => $query,
+                    'stock-out'        => $query->stockOut(),
+                    'order-list-1'     => $query->orderListOne(),
+                    'order-list-2'     => $query->orderListTwo(),
+                    default            => $query,
                 };
             })
             ->limit((int) $request->limit)
@@ -2798,7 +3044,7 @@ class OrderController extends Controller
         $deleted = Order::query()->whereIn('id', $ids)->delete();
 
         return response()->json([
-            'status' => true,
+            'status'  => true,
             'message' => "{$deleted} orders moved to trash successfully.",
             'deleted' => $deleted,
         ]);
@@ -2811,7 +3057,7 @@ class OrderController extends Controller
         $deleted = Order::onlyTrashed()->forceDelete();
 
         return response()->json([
-            'status' => true,
+            'status'  => true,
             'message' => "Trash bin emptied successfully. {$deleted} orders permanently deleted.",
             'deleted' => $deleted,
         ]);
@@ -2856,27 +3102,27 @@ class OrderController extends Controller
         $this->adminOrEmployeeOnly();
 
         $request->validate([
-            'name' => ['required', 'string', 'max:80', 'unique:order_fields,name'],
+            'name'  => ['required', 'string', 'max:80', 'unique:order_fields,name'],
             'color' => ['nullable', 'string', 'max:20'],
         ]);
 
         $maxSort = (int) OrderField::query()->max('sort_order');
 
         $field = OrderField::create([
-            'name' => trim($request->name),
-            'color' => $request->color ?: '#2563eb',
-            'status' => true,
+            'name'       => trim($request->name),
+            'color'      => $request->color ?: '#2563eb',
+            'status'     => true,
             'sort_order' => $maxSort + 1,
         ]);
 
         return response()->json([
-            'status' => true,
+            'status'  => true,
             'message' => 'Order field created successfully.',
-            'field' => [
-                'id' => $field->id,
-                'name' => $field->name,
-                'slug' => $field->slug,
-                'url' => route('admin.orders.field', $field->slug),
+            'field'   => [
+                'id'    => $field->id,
+                'name'  => $field->name,
+                'slug'  => $field->slug,
+                'url'   => route('admin.orders.field', $field->slug),
                 'count' => 0,
                 'color' => $field->color,
             ],
@@ -2888,11 +3134,11 @@ class OrderController extends Controller
         $this->adminOrEmployeeOnly();
 
         $fields = $this->getActiveOrderFields()
-            ->map(fn (OrderField $field) => [
-                'id' => $field->id,
-                'name' => $field->name,
-                'slug' => $field->slug,
-                'url' => route('admin.orders.field', $field->slug),
+            ->map(fn(OrderField $field) => [
+                'id'    => $field->id,
+                'name'  => $field->name,
+                'slug'  => $field->slug,
+                'url'   => route('admin.orders.field', $field->slug),
                 'count' => (int) $field->orders_count,
                 'color' => $field->color ?: '#2563eb',
             ])

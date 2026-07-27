@@ -80,18 +80,18 @@ class Campaign extends Model implements HasMedia
 
     public function registerMediaCollections(): void
     {
-        $this->addMediaCollection('banner_image')->singleFile();
-        $this->addMediaCollection('image_one')->singleFile();
-        $this->addMediaCollection('image_two')->singleFile();
-        $this->addMediaCollection('image_three')->singleFile();
-        $this->addMediaCollection('review_image')->singleFile();
-        $this->addMediaCollection('campaign_video')->singleFile();
+        $this->addMediaCollection('banner_image')->useDisk('public')->singleFile();
+        $this->addMediaCollection('image_one')->useDisk('public')->singleFile();
+        $this->addMediaCollection('image_two')->useDisk('public')->singleFile();
+        $this->addMediaCollection('image_three')->useDisk('public')->singleFile();
+        $this->addMediaCollection('review_image')->useDisk('public')->singleFile();
+        $this->addMediaCollection('campaign_video')->useDisk('public')->singleFile();
 
         // Hero section multiple slider images.
-        $this->addMediaCollection('hero_slider_images');
+        $this->addMediaCollection('hero_slider_images')->useDisk('public');
 
         // Campaign product gallery images.
-        $this->addMediaCollection('campaign_product_gallery');
+        $this->addMediaCollection('campaign_product_gallery')->useDisk('public');
     }
 
     public function getBannerImageUrlAttribute(): ?string

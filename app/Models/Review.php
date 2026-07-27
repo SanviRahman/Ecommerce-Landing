@@ -48,7 +48,7 @@ class Review extends Model implements HasMedia
     */
     public function registerMediaCollections(): void
     {
-        $this->addMediaCollection('review_customer_image')->singleFile();
+        $this->addMediaCollection('review_customer_image')->useDisk('public')->singleFile();
     }
 
     /*

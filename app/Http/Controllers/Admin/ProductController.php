@@ -8,7 +8,9 @@ use App\Models\Category;
 use App\Models\Product;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
@@ -637,20 +639,176 @@ class ProductController extends Controller
         ]);
     }
 
+    private const PRODUCT_MEDIA_DISK = 'public';
+
     private function uploadProductMedia(Product $product, Request $request): void
     {
-        if ($request->hasFile('product_thumbnail')) {
-            $product->clearMediaCollection('product_thumbnail');
+        $product->refresh();
 
-            $product->addMediaFromRequest('product_thumbnail')
-                ->toMediaCollection('product_thumbnail');
+        $pathSlug = $this->productMediaPathSlug($product);
+
+        if ($request->hasFile('product_thumbnail')) {
+            $thumbnail = $request->file('product_thumbnail');
+
+            if ($thumbnail instanceof UploadedFile && $thumbnail->isValid()) {
+                $product->clearMediaCollection('product_thumbnail');
+                $this->ensureProductMediaDirectory($pathSlug, 'thumbnail');
+
+                $media = $product->addMedia($thumbnail)
+                    ->usingName($product->name . ' Thumbnail')
+                    ->usingFileName(
+                        $this->productThumbnailFileName($product, $thumbnail)
+                    )
+                    ->withCustomProperties(
+                        $this->productMediaCustomProperties(
+                            $pathSlug,
+                            'thumbnail'
+                        )
+                    )
+                    ->toMediaCollection(
+                        'product_thumbnail',
+                        self::PRODUCT_MEDIA_DISK
+                    );
+
+                $this->assertProductMediaStored($media);
+            }
         }
 
         if ($request->hasFile('product_gallery')) {
-            foreach ($request->file('product_gallery') as $galleryImage) {
-                $product->addMedia($galleryImage)
-                    ->toMediaCollection('product_gallery');
+            $this->ensureProductMediaDirectory($pathSlug, 'gallery');
+
+            $gallerySequence = (int) $product->media()
+                ->where('collection_name', 'product_gallery')
+                ->count();
+
+            foreach ((array) $request->file('product_gallery', []) as $galleryImage) {
+                if (! $galleryImage instanceof UploadedFile || ! $galleryImage->isValid()) {
+                    continue;
+                }
+
+                $gallerySequence++;
+
+                $media = $product->addMedia($galleryImage)
+                    ->usingName(
+                        $product->name . ' Gallery ' . $gallerySequence
+                    )
+                    ->usingFileName(
+                        $this->productGalleryFileName(
+                            $product,
+                            $galleryImage,
+                            $gallerySequence
+                        )
+                    )
+                    ->withCustomProperties(
+                        $this->productMediaCustomProperties(
+                            $pathSlug,
+                            'gallery'
+                        )
+                    )
+                    ->toMediaCollection(
+                        'product_gallery',
+                        self::PRODUCT_MEDIA_DISK
+                    );
+
+                $this->assertProductMediaStored($media);
             }
         }
+
+        $product->unsetRelation('media');
     }
+
+    private function ensureProductMediaDirectory(
+        string $pathSlug,
+        string $folder
+    ): void {
+        $directory = sprintf(
+            'products/%s/%s',
+            trim($pathSlug, '/'),
+            trim($folder, '/')
+        );
+
+        $disk = Storage::disk(self::PRODUCT_MEDIA_DISK);
+
+        if (! $disk->exists($directory) && ! $disk->makeDirectory($directory)) {
+            throw new \RuntimeException(
+                'Unable to create the product media directory: ' . $directory
+            );
+        }
+    }
+
+    private function assertProductMediaStored(Media $media): void
+    {
+        $relativePath = $media->getPathRelativeToRoot();
+
+        if (! Storage::disk($media->disk)->exists($relativePath)) {
+            throw new \RuntimeException(
+                sprintf(
+                    'Product image upload failed. Expected file was not found on disk [%s] at [%s].',
+                    $media->disk,
+                    $relativePath
+                )
+            );
+        }
+    }
+
+    private function productMediaPathSlug(Product $product): string
+    {
+        $slug = Str::slug((string) ($product->slug ?: $product->name));
+
+        if ($slug !== '') {
+            return $slug;
+        }
+
+        return 'product-' . (int) $product->getKey();
+    }
+
+    private function productThumbnailFileName(
+        Product $product,
+        UploadedFile $file
+    ): string {
+        return sprintf(
+            '%s-thumbnail.%s',
+            $this->productMediaPathSlug($product),
+            $this->uploadedImageExtension($file)
+        );
+    }
+
+    private function productGalleryFileName(
+        Product $product,
+        UploadedFile $file,
+        int $sequence
+    ): string {
+        return sprintf(
+            '%s-gallery-%s-%s.%s',
+            $this->productMediaPathSlug($product),
+            str_pad((string) max(1, $sequence), 2, '0', STR_PAD_LEFT),
+            Str::lower(Str::random(8)),
+            $this->uploadedImageExtension($file)
+        );
+    }
+
+    private function uploadedImageExtension(UploadedFile $file): string
+    {
+        $extension = strtolower((string) (
+            $file->extension()
+            ?: $file->getClientOriginalExtension()
+            ?: 'jpg'
+        ));
+
+        $extension = preg_replace('/[^a-z0-9]+/i', '', $extension) ?: 'jpg';
+
+        return $extension;
+    }
+
+    private function productMediaCustomProperties(
+        string $pathSlug,
+        string $folder
+    ): array {
+        return [
+            'product_named_path'   => true,
+            'product_path_slug'    => $pathSlug,
+            'product_media_folder' => $folder,
+        ];
+    }
+
 }

@@ -1,6 +1,7 @@
 @extends('adminlte::page')
 
 @section('title', $title ?? 'Edit Order')
+@section('plugins.Sweetalert2', true)
 
 @section('content_header')
 <div class="d-flex justify-content-between align-items-center flex-wrap">
@@ -24,6 +25,20 @@
 @section('content')
 @php
 $productImageMap = $productImageMap ?? collect();
+$shippingChargeMap = $shippingChargeMap ?? [];
+$isNegotiatedBulkOrder = $isNegotiatedBulkOrder ?? in_array((string) $order->created_via, [
+    \App\Models\Order::CREATED_VIA_ADMIN_BULK,
+    \App\Models\Order::CREATED_VIA_EMPLOYEE_BULK,
+], true);
+$bulkNegotiatedTotal = max(
+    0,
+    (float) ($bulkNegotiatedTotal ?? old('bulk_negotiated_total', $order->total_amount))
+);
+$activeCustomerBlocks = $activeCustomerBlocks ?? collect();
+$isPhoneBlocked = (bool) ($isPhoneBlocked ?? false);
+$isIpBlocked = (bool) ($isIpBlocked ?? false);
+$canBlockOrderIp = (bool) ($canBlockOrderIp ?? false);
+$orderSourceIp = trim((string) ($order->source_ip ?? ''));
 
 /*
 * Delivery area can come from the public checkout in different formats
@@ -71,6 +86,13 @@ $selectedDeliveryArea = $deliveryAreaAliases[$normalizedDeliveryAreaKey]
     @method('PUT')
     <input type="hidden" name="return_url" value="{{ $returnUrl ?? request('return_url') }}">
 
+    @if($isNegotiatedBulkOrder)
+        <input type="hidden"
+               name="bulk_negotiated_total"
+               id="bulkNegotiatedTotalInput"
+               value="{{ old('bulk_negotiated_total', $bulkNegotiatedTotal) }}">
+    @endif
+
     <div class="row">
         <div class="col-lg-8">
             <div class="card shadow-sm border-0 mb-3" style="border-radius: 12px;">
@@ -100,8 +122,17 @@ $selectedDeliveryArea = $deliveryAreaAliases[$normalizedDeliveryAreaKey]
 
                         <div class="col-md-6 mb-3">
                             <label class="font-weight-bold">Phone</label>
-                            <input type="text" name="phone" value="{{ old('phone', $order->phone) }}"
-                                class="form-control @error('phone') is-invalid @enderror" required>
+                            <input type="text"
+                                   name="phone"
+                                   value="{{ old('phone', $order->phone) }}"
+                                   maxlength="11"
+                                   minlength="11"
+                                   inputmode="numeric"
+                                   pattern="01[0-9]{9}"
+                                   placeholder="01XXXXXXXXX"
+                                   class="form-control @error('phone') is-invalid @enderror"
+                                   required>
+                            <small class="form-text text-muted">Exactly 11 local digits without +88.</small>
                             @error('phone') <span class="invalid-feedback">{{ $message }}</span> @enderror
                         </div>
 
@@ -118,15 +149,20 @@ $selectedDeliveryArea = $deliveryAreaAliases[$normalizedDeliveryAreaKey]
                             ];
                             @endphp
 
-                            <select name="delivery_area" class="form-control">
+                            <select name="delivery_area"
+                                    id="deliveryAreaSelect"
+                                    class="form-control @error('delivery_area') is-invalid @enderror">
                                 <option value="">Select Delivery Area</option>
 
                                 @foreach($deliveryAreaOptions as $value => $label)
-                                <option value="{{ $value }}" @selected($normalizedDeliveryArea===$value)>
+                                <option value="{{ $value }}" @selected($selectedDeliveryArea === $value)>
                                     {{ $label }}
                                 </option>
                                 @endforeach
                             </select>
+                            @error('delivery_area')
+                                <span class="invalid-feedback">{{ $message }}</span>
+                            @enderror
                         </div>
 
                         <div class="col-md-12 mb-3">
@@ -148,6 +184,100 @@ $selectedDeliveryArea = $deliveryAreaAliases[$normalizedDeliveryAreaKey]
                             <textarea name="admin_note" rows="3"
                                 class="form-control">{{ old('admin_note', $order->admin_note) }}</textarea>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card shadow-sm border-0 mb-3 customer-security-card" style="border-radius: 12px;">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap">
+                    <h5 class="mb-0 font-weight-bold">
+                        <i class="fas fa-user-shield text-danger mr-1"></i>
+                        Customer Access Control
+                    </h5>
+                    <a href="{{ route('admin.blocked-customers.index') }}"
+                       class="btn btn-sm btn-outline-secondary mt-2 mt-md-0">
+                        <i class="fas fa-list mr-1"></i> View Block List
+                    </a>
+                </div>
+
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <div class="security-identifier-box">
+                                <div class="small text-muted text-uppercase font-weight-bold mb-1">Phone Number</div>
+                                <div class="d-flex justify-content-between align-items-center flex-wrap">
+                                    <code class="security-identifier-value">{{ $order->phone ?: 'Not available' }}</code>
+                                    @if($isPhoneBlocked)
+                                        <span class="badge badge-danger px-2 py-1">Blocked</span>
+                                    @else
+                                        <span class="badge badge-success px-2 py-1">Allowed</span>
+                                    @endif
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <div class="security-identifier-box">
+                                <div class="small text-muted text-uppercase font-weight-bold mb-1">Source IP Address</div>
+                                <div class="d-flex justify-content-between align-items-center flex-wrap">
+                                    <code class="security-identifier-value">{{ $orderSourceIp !== '' ? $orderSourceIp : 'Not captured' }}</code>
+                                    @if(! $canBlockOrderIp)
+                                        <span class="badge badge-secondary px-2 py-1">Not Customer IP</span>
+                                    @elseif($isIpBlocked)
+                                        <span class="badge badge-danger px-2 py-1">Blocked</span>
+                                    @else
+                                        <span class="badge badge-success px-2 py-1">Allowed</span>
+                                    @endif
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    @if($activeCustomerBlocks->isNotEmpty())
+                        <div class="border rounded bg-light mb-3">
+                            @foreach($activeCustomerBlocks as $activeBlock)
+                                <div class="d-flex justify-content-between align-items-center flex-wrap p-3 {{ ! $loop->last ? 'border-bottom' : '' }}">
+                                    <div class="pr-3">
+                                        <div class="font-weight-bold text-danger">
+                                            Active Block Rule #{{ $activeBlock->id }}
+                                            @if($activeBlock->block_phone)
+                                                <span class="badge badge-danger ml-1">Phone</span>
+                                            @endif
+                                            @if($activeBlock->block_ip)
+                                                <span class="badge badge-danger ml-1">IP</span>
+                                            @endif
+                                        </div>
+                                        <div class="small text-muted mt-1">
+                                            {{ $activeBlock->reason ?: 'No reason provided.' }}
+                                        </div>
+                                    </div>
+                                    <button type="button"
+                                            class="btn btn-sm btn-outline-success btn-unblock-order-rule mt-2 mt-md-0"
+                                            data-url="{{ route('admin.blocked-customers.toggle-status', $activeBlock->id) }}">
+                                        <i class="fas fa-unlock mr-1"></i> Unblock
+                                    </button>
+                                </div>
+                            @endforeach
+                        </div>
+                    @endif
+
+                    <div class="d-flex justify-content-between align-items-center flex-wrap">
+                        <small class="text-muted pr-3">
+                            Public checkout is rejected when an active blocked phone OR blocked IP matches.
+                        </small>
+
+                        @if((! $isPhoneBlocked && $order->phone) || (! $isIpBlocked && $canBlockOrderIp))
+                            <button type="button"
+                                    class="btn btn-danger mt-2 mt-md-0"
+                                    data-toggle="modal"
+                                    data-target="#quickBlockCustomerModal">
+                                <i class="fas fa-ban mr-1"></i> Block Customer
+                            </button>
+                        @else
+                            <button type="button" class="btn btn-secondary mt-2 mt-md-0" disabled>
+                                <i class="fas fa-ban mr-1"></i> Available Identifiers Already Blocked
+                            </button>
+                        @endif
                     </div>
                 </div>
             </div>
@@ -180,7 +310,9 @@ $selectedDeliveryArea = $deliveryAreaAliases[$normalizedDeliveryAreaKey]
 
                         $initialShippingCharge = (float) old('shipping_charge', $order->shipping_charge ?? 0);
                         $initialCodCharge = (float) old('cod_charge', $order->cod_charge ?? 0);
-                        $initialGrandTotal = $initialSubTotal + $initialShippingCharge + $initialCodCharge;
+                        $initialGrandTotal = $isNegotiatedBulkOrder
+                            ? $bulkNegotiatedTotal
+                            : $initialSubTotal + $initialShippingCharge + $initialCodCharge;
                         @endphp
 
                         @foreach($rows as $index => $item)
@@ -285,6 +417,28 @@ $selectedDeliveryArea = $deliveryAreaAliases[$normalizedDeliveryAreaKey]
 
                 <div class="card-body">
                     <div class="form-group">
+                        <label class="font-weight-bold">Campaign</label>
+                        <select name="campaign_id"
+                                id="campaignSelect"
+                                class="form-control @error('campaign_id') is-invalid @enderror">
+                            <option value="">No Campaign</option>
+
+                            @foreach($campaigns as $campaign)
+                                <option value="{{ $campaign->id }}"
+                                        @selected((int) old('campaign_id', $suggestedCampaignId ?? $order->campaign_id) === (int) $campaign->id)>
+                                    {{ $campaign->title }}
+                                </option>
+                            @endforeach
+                        </select>
+                        @error('campaign_id')
+                            <span class="invalid-feedback">{{ $message }}</span>
+                        @enderror
+                        <small class="form-text text-muted">
+                            Campaign empty থাকলে ordered products-এর common active Campaign resolve হবে; multiple match হলে active + default Campaign select হবে।
+                        </small>
+                    </div>
+
+                    <div class="form-group">
                         <label class="font-weight-bold">
                             Order Date & Time
                             <span class="text-danger">*</span>
@@ -379,6 +533,9 @@ $selectedDeliveryArea = $deliveryAreaAliases[$normalizedDeliveryAreaKey]
                         <input type="number" name="shipping_charge"
                             value="{{ old('shipping_charge', $order->shipping_charge) }}" min="0" step="0.01"
                             class="form-control total-input" id="shippingChargeInput">
+                        <small class="form-text text-muted">
+                            Campaign ও Delivery Area select করলে charge auto-fill হবে। প্রয়োজন হলে edit করতে পারবেন।
+                        </small>
                     </div>
 
                     <div class="form-group">
@@ -409,6 +566,84 @@ $selectedDeliveryArea = $deliveryAreaAliases[$normalizedDeliveryAreaKey]
         </div>
     </div>
 </form>
+
+<div class="modal fade" id="quickBlockCustomerModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 12px;">
+            <form id="quickBlockCustomerForm"
+                  action="{{ route('admin.blocked-customers.block-from-order', $order->id) }}"
+                  method="POST">
+                @csrf
+
+                <div class="modal-header bg-danger text-white border-bottom-0">
+                    <h5 class="modal-title font-weight-bold">
+                        <i class="fas fa-user-slash mr-2"></i>Block Customer
+                    </h5>
+                    <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+
+                <div class="modal-body p-4">
+                    <div class="alert alert-danger d-none" id="quickBlockErrors" style="white-space: pre-line;"></div>
+
+                    <div class="form-group">
+                        <label class="font-weight-bold">Customer</label>
+                        <input type="text" class="form-control" value="{{ $order->customer_name }}" readonly>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="font-weight-bold d-block">Identifiers to Block</label>
+
+                        <div class="custom-control custom-checkbox mb-2">
+                            <input type="checkbox"
+                                   class="custom-control-input"
+                                   id="quickBlockPhone"
+                                   name="block_phone"
+                                   value="1"
+                                   @checked(! $isPhoneBlocked && ! empty($order->phone))
+                                   @disabled($isPhoneBlocked || empty($order->phone))>
+                            <label class="custom-control-label" for="quickBlockPhone">
+                                Phone: {{ $order->phone ?: 'Not available' }}
+                                @if($isPhoneBlocked)<span class="text-danger">(Already blocked)</span>@endif
+                            </label>
+                        </div>
+
+                        <div class="custom-control custom-checkbox">
+                            <input type="checkbox"
+                                   class="custom-control-input"
+                                   id="quickBlockIp"
+                                   name="block_ip"
+                                   value="1"
+                                   @checked(! $isIpBlocked && $canBlockOrderIp)
+                                   @disabled($isIpBlocked || ! $canBlockOrderIp)>
+                            <label class="custom-control-label" for="quickBlockIp">
+                                IP: {{ $canBlockOrderIp ? $orderSourceIp : 'Customer IP not available for this order type' }}
+                                @if($isIpBlocked)<span class="text-danger">(Already blocked)</span>@endif
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="form-group mb-0">
+                        <label class="font-weight-bold">Reason</label>
+                        <textarea name="reason"
+                                  rows="4"
+                                  maxlength="2000"
+                                  class="form-control"
+                                  placeholder="Example: Repeated fake orders"></textarea>
+                    </div>
+                </div>
+
+                <div class="modal-footer bg-light border-top-0">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger" id="quickBlockSubmitButton">
+                        <i class="fas fa-ban mr-1"></i> Block Selected
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 @endsection
 
 
@@ -449,6 +684,24 @@ $selectedDeliveryArea = $deliveryAreaAliases[$normalizedDeliveryAreaKey]
 .item-line-total {
     font-size: 12px;
 }
+
+.customer-security-card {
+    border-left: 4px solid #dc3545 !important;
+}
+
+.security-identifier-box {
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    background: #f8fafc;
+    padding: 14px;
+    min-height: 82px;
+}
+
+.security-identifier-value {
+    color: #1f2937;
+    font-size: 14px;
+    word-break: break-all;
+}
 </style>
 @endsection
 
@@ -456,6 +709,9 @@ $selectedDeliveryArea = $deliveryAreaAliases[$normalizedDeliveryAreaKey]
 <script>
 $(document).ready(function() {
     let itemIndex = @json($rows->count());
+    const shippingChargeMap = @json($shippingChargeMap);
+    const isNegotiatedBulkOrder = @json($isNegotiatedBulkOrder);
+    const bulkNegotiatedTotal = @json($bulkNegotiatedTotal);
 
     function toNumber(value) {
         const cleaned = String(value || 0).replace(/[^0-9.\-]/g, '');
@@ -510,7 +766,48 @@ $(document).ready(function() {
         const cod = toNumber($('#codChargeInput').val());
 
         $('#subTotalPreview').val(money(subTotal));
-        $('#grandTotalPreview').val(money(subTotal + shipping + cod));
+
+        const grandTotal = isNegotiatedBulkOrder
+            ? toNumber($('#bulkNegotiatedTotalInput').val() || bulkNegotiatedTotal)
+            : subTotal + shipping + cod;
+
+        $('#grandTotalPreview').val(money(grandTotal));
+    }
+
+    function normalizeDeliveryArea(value) {
+        const raw = String(value || '').trim().toLowerCase();
+        const aliases = {
+            'inside dhaka': 'inside_dhaka',
+            'dhaka': 'inside_dhaka',
+            'ঢাকার ভিতরে': 'inside_dhaka',
+            'ঢাকা সিটির ভিতরে': 'inside_dhaka',
+            'outside dhaka': 'outside_dhaka',
+            'ঢাকার বাইরে': 'outside_dhaka',
+            'free delivery': 'free_delivery',
+            'ফ্রি ডেলিভারি': 'free_delivery'
+        };
+
+        return aliases[raw] || raw.replace(/[\s-]+/g, '_');
+    }
+
+    function applyCampaignShippingCharge() {
+        const campaignId = $('#campaignSelect').val();
+        const deliveryArea = normalizeDeliveryArea($('#deliveryAreaSelect').val());
+
+        if (!campaignId || !deliveryArea) {
+            return;
+        }
+
+        const charge = deliveryArea === 'free_delivery'
+            ? 0
+            : shippingChargeMap[deliveryArea];
+
+        if (typeof charge === 'undefined') {
+            return;
+        }
+
+        $('#shippingChargeInput').val(toNumber(charge).toFixed(2));
+        recalcTotals();
     }
 
     function productOptions() {
@@ -595,6 +892,92 @@ $(document).ready(function() {
 
     $(document).on('input change keyup', '.item-qty, .item-price, .item-discount, .total-input', recalcTotals);
 
+    $('#campaignSelect, #deliveryAreaSelect').on('change', applyCampaignShippingCharge);
+
+    function blockRequestError(xhr) {
+        if (xhr.responseJSON && xhr.responseJSON.errors) {
+            return Object.values(xhr.responseJSON.errors).flat().join('\n');
+        }
+
+        return xhr.responseJSON && xhr.responseJSON.message
+            ? xhr.responseJSON.message
+            : 'The block operation could not be completed.';
+    }
+
+    $('#quickBlockCustomerForm').on('submit', function(event) {
+        event.preventDefault();
+
+        const form = $(this);
+        const button = $('#quickBlockSubmitButton');
+        const originalText = button.html();
+
+        $('#quickBlockErrors').addClass('d-none').empty();
+        button.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i> Blocking...');
+
+        $.ajax({
+            url: form.attr('action'),
+            method: 'POST',
+            data: form.serialize(),
+            headers: {
+                'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+            }
+        }).done(function(response) {
+            $('#quickBlockCustomerModal').modal('hide');
+            Swal.fire({
+                icon: 'success',
+                title: response.message || 'Customer blocked successfully.',
+                timer: 1700,
+                showConfirmButton: false
+            }).then(function() {
+                window.location.reload();
+            });
+        }).fail(function(xhr) {
+            $('#quickBlockErrors')
+                .removeClass('d-none')
+                .text(blockRequestError(xhr));
+        }).always(function() {
+            button.prop('disabled', false).html(originalText);
+        });
+    });
+
+    $(document).on('click', '.btn-unblock-order-rule', function() {
+        const url = $(this).data('url');
+
+        Swal.fire({
+            icon: 'question',
+            title: 'Unblock this customer rule?',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, unblock'
+        }).then(function(result) {
+            if (!result.isConfirmed) {
+                return;
+            }
+
+            $.ajax({
+                url: url,
+                method: 'POST',
+                data: {
+                    _method: 'PATCH',
+                    status: 0
+                },
+                headers: {
+                    'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+                }
+            }).done(function(response) {
+                Swal.fire({
+                    icon: 'success',
+                    title: response.message || 'Customer unblocked successfully.',
+                    timer: 1500,
+                    showConfirmButton: false
+                }).then(function() {
+                    window.location.reload();
+                });
+            }).fail(function(xhr) {
+                Swal.fire('Error', blockRequestError(xhr), 'error');
+            });
+        });
+    });
+
     $(document).on('click', '.btn-remove-item', function() {
         if ($('.order-item-row').length <= 1) {
             alert('At least one product is required.');
@@ -610,3 +993,11 @@ $(document).ready(function() {
 });
 </script>
 @endsection
+
+@push('js')
+<script>
+$(document).on('input', 'input[name="phone"]', function () {
+    this.value = this.value.replace(/\D/g, '').slice(0, 11);
+});
+</script>
+@endpush
