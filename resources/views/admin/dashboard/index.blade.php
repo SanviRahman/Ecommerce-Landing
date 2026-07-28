@@ -148,153 +148,183 @@
     <div class="card-body">
         <div class="row today-report-grid">
             <div class="col-lg-3 col-md-6">
-                <div class="today-report-item">
+                <a href="{{ route('admin.orders.all') }}"
+                   class="today-report-item today-report-link text-decoration-none"
+                   aria-label="View all orders">
                     <span class="today-icon bg-primary"><i class="fas fa-shopping-cart"></i></span>
                     <div>
                         <strong>Total Orders</strong>
                         <h5 id="today_todaysOrder">0</h5>
                     </div>
-                </div>
+                </a>
             </div>
 
             <div class="col-lg-3 col-md-6">
-                <div class="today-report-item">
+                <a href="{{ route('admin.orders.new') }}"
+                   class="today-report-item today-report-link text-decoration-none"
+                   aria-label="View checkout orders">
                     <span class="today-icon bg-secondary"><i class="fas fa-cash-register"></i></span>
                     <div>
                         <strong>Total Checkout</strong>
                         <h5 id="today_totalCheckout">0</h5>
                     </div>
-                </div>
+                </a>
             </div>
 
             <div class="col-lg-3 col-md-6">
-                <div class="today-report-item">
+                <a href="{{ route('admin.orders.create') }}"
+                   class="today-report-item today-report-link text-decoration-none"
+                   aria-label="Create manual order">
                     <span class="today-icon bg-dark"><i class="fas fa-user-edit"></i></span>
                     <div>
                         <strong>Manual Order</strong>
                         <h5 id="today_manualOrder">0</h5>
                     </div>
-                </div>
+                </a>
             </div>
 
             <div class="col-lg-3 col-md-6">
-                <div class="today-report-item">
+                <a href="{{ route('admin.orders.new') }}"
+                   class="today-report-item today-report-link text-decoration-none"
+                   aria-label="View new orders">
                     <span class="today-icon bg-secondary"><i class="fas fa-cart-plus"></i></span>
                     <div>
                         <strong>New Order</strong>
                         <h5 id="today_newOrder">0</h5>
                     </div>
-                </div>
+                </a>
             </div>
 
             <div class="col-lg-3 col-md-6">
-                <div class="today-report-item">
+                <a href="{{ route('admin.orders.confirmed') }}"
+                   class="today-report-item today-report-link text-decoration-none"
+                   aria-label="View complete orders">
                     <span class="today-icon bg-success"><i class="fas fa-check-circle"></i></span>
                     <div>
                         <strong>Complete Order</strong>
                         <h5 id="today_completedOrder">0</h5>
                     </div>
-                </div>
+                </a>
             </div>
 
             <div class="col-lg-3 col-md-6">
-                <div class="today-report-item">
+                <a href="{{ route('admin.orders.invoices.complete') }}"
+                   class="today-report-item today-report-link text-decoration-none"
+                   aria-label="View complete invoices">
                     <span class="today-icon bg-success"><i class="fas fa-file-invoice-dollar"></i></span>
                     <div>
                         <strong>Complete Invoice</strong>
                         <h5 id="today_completedInvoice">0</h5>
                     </div>
-                </div>
+                </a>
             </div>
 
             <div class="col-lg-3 col-md-6">
-                <div class="today-report-item">
+                <a href="{{ route('admin.orders.shipped') }}"
+                   class="today-report-item today-report-link text-decoration-none"
+                   aria-label="View shipped orders">
                     <span class="today-icon bg-info"><i class="fas fa-truck-loading"></i></span>
                     <div>
                         <strong>Shipped</strong>
                         <h5 id="today_shippedOrders">0</h5>
                     </div>
-                </div>
+                </a>
             </div>
 
             <div class="col-lg-3 col-md-6">
-                <div class="today-report-item">
+                <a href="{{ route('admin.orders.delivered') }}"
+                   class="today-report-item today-report-link text-decoration-none"
+                   aria-label="View delivered orders">
                     <span class="today-icon bg-primary"><i class="fas fa-truck"></i></span>
                     <div>
                         <strong>Delivered</strong>
                         <h5 id="today_deliveredOrder">0</h5>
                     </div>
-                </div>
+                </a>
             </div>
 
             <div class="col-lg-3 col-md-6">
-                <div class="today-report-item">
+                <a href="{{ route('admin.orders.cancelled') }}"
+                   class="today-report-item today-report-link text-decoration-none"
+                   aria-label="View cancelled orders">
                     <span class="today-icon bg-danger"><i class="fas fa-times-circle"></i></span>
                     <div>
                         <strong>Cancelled</strong>
                         <h5 id="today_cancelled">0</h5>
                     </div>
-                </div>
+                </a>
             </div>
 
             <div class="col-lg-3 col-md-6">
-                <div class="today-report-item">
+                <a href="{{ route('admin.orders.pending') }}"
+                   class="today-report-item today-report-link text-decoration-none"
+                   aria-label="View pending orders">
                     <span class="today-icon bg-warning"><i class="fas fa-clock"></i></span>
                     <div>
                         <strong>Pending</strong>
                         <h5 id="today_pendingOrder">0</h5>
                     </div>
-                </div>
+                </a>
             </div>
 
             <div class="col-lg-3 col-md-6">
-                <div class="today-report-item">
+                <a href="{{ route('admin.orders.all') }}"
+                   class="today-report-item today-report-link text-decoration-none"
+                   aria-label="View incompleted orders">
                     <span class="today-icon bg-info"><i class="fas fa-spinner"></i></span>
                     <div>
                         <strong>Incompleted Order</strong>
                         <h5 id="today_incompletedOrder">0</h5>
                     </div>
-                </div>
+                </a>
             </div>
 
             <div class="col-lg-3 col-md-6">
-                <div class="today-report-item">
+                <a href="{{ route('admin.orders.stock_out') }}"
+                   class="today-report-item today-report-link text-decoration-none"
+                   aria-label="View stock out orders">
                     <span class="today-icon bg-dark"><i class="fas fa-box-open"></i></span>
                     <div>
                         <strong>Stock Out</strong>
                         <h5 id="today_stockOutOrder">0</h5>
                     </div>
-                </div>
+                </a>
             </div>
 
             <div class="col-lg-3 col-md-6">
-                <div class="today-report-item">
+                <a href="{{ route('admin.orders.order_list_1') }}"
+                   class="today-report-item today-report-link text-decoration-none"
+                   aria-label="View order list 1">
                     <span class="today-icon bg-primary"><i class="fas fa-list-ol"></i></span>
                     <div>
                         <strong>Order List 1</strong>
                         <h5 id="today_orderList1">0</h5>
                     </div>
-                </div>
+                </a>
             </div>
 
             <div class="col-lg-3 col-md-6">
-                <div class="today-report-item">
+                <a href="{{ route('admin.orders.order_list_2') }}"
+                   class="today-report-item today-report-link text-decoration-none"
+                   aria-label="View order list 2">
                     <span class="today-icon bg-success"><i class="fas fa-list-ol"></i></span>
                     <div>
                         <strong>Order List 2</strong>
                         <h5 id="today_orderList2">0</h5>
                     </div>
-                </div>
+                </a>
             </div>
 
             <div class="col-lg-3 col-md-6">
-                <div class="today-report-item">
+                <a href="{{ route('admin.orders.invoices.pending') }}"
+                   class="today-report-item today-report-link text-decoration-none"
+                   aria-label="View incompleted invoices">
                     <span class="today-icon bg-danger"><i class="fas fa-file-invoice"></i></span>
                     <div>
                         <strong>Incompleted Invoice</strong>
                         <h5 id="today_incompletedInvoice">0</h5>
                     </div>
-                </div>
+                </a>
             </div>
         </div>
     </div>
@@ -733,6 +763,13 @@ $(function() {
     padding: 14px;
     margin-bottom: 14px;
     box-shadow: 0 4px 12px rgba(0,0,0,.03);
+}
+
+.today-report-link,
+.today-report-link:hover,
+.today-report-link:focus {
+    color: inherit;
+    text-decoration: none;
 }
 
 .today-report-item strong {
