@@ -2,7 +2,8 @@
 $canBulkManageOrders = auth()->check() && (auth()->user()->isAdmin() || auth()->user()->isEmployee());
 $canDeleteOrders = auth()->check() && auth()->user()->isAdmin();
 $orderStatuses = $orderStatuses ?? [];
-$duplicatePhoneCounts = $duplicatePhoneCounts ?? [];
+$duplicateCustomerCounts = $duplicateCustomerCounts ?? [];
+$duplicateIpCounts = $duplicateIpCounts ?? [];
 @endphp
 <div class="table-responsive">
     <table class="table table-hover align-middle mb-0 order-index-table">
@@ -35,10 +36,29 @@ $duplicatePhoneCounts = $duplicatePhoneCounts ?? [];
             $orderCreatedAt = method_exists($order, 'localDateTime')
             ? $order->localDateTime('created_at')
             : ($order->created_at ? $order->created_at->copy()->timezone('Asia/Dhaka') : null);
-            $duplicatePhoneTotal = (int) ($duplicatePhoneCounts[$order->phone] ?? 0);
+            $orderCustomerId = (int) ($order->customer_id ?? 0);
+            $orderSourceIp = trim((string) $order->source_ip);
+            $duplicateCustomerTotal = $orderCustomerId > 0
+                ? (int) ($duplicateCustomerCounts[$orderCustomerId] ?? 0)
+                : 0;
+            $duplicateIpTotal = $orderSourceIp !== ''
+                ? (int) ($duplicateIpCounts[$orderSourceIp] ?? 0)
+                : 0;
+
             $isAdminManualOrder = method_exists($order, 'isAdminManualOrder')
                 ? $order->isAdminManualOrder()
                 : (($order->created_via ?? null) === 'admin_manual');
+
+            $isBulkCreatedOrder = in_array((string) ($order->created_via ?? ''), [
+                \App\Models\Order::CREATED_VIA_ADMIN_BULK,
+                \App\Models\Order::CREATED_VIA_EMPLOYEE_BULK,
+            ], true);
+
+            $isFrontendOrder = (string) ($order->created_via ?? '') === \App\Models\Order::CREATED_VIA_FRONTEND;
+            $hasDuplicateCustomer = $duplicateCustomerTotal > 1;
+            $hasDuplicateIp = $isFrontendOrder && $duplicateIpTotal > 1;
+            $hasDuplicateRisk = $hasDuplicateCustomer || $hasDuplicateIp;
+            $isSingleBulkCustomerOrder = $isBulkCreatedOrder && ! $hasDuplicateRisk;
 
             $rowClassParts = [];
 
@@ -50,11 +70,19 @@ $duplicatePhoneCounts = $duplicatePhoneCounts ?? [];
                 $rowClassParts[] = 'order-manual-row';
             }
 
-            if ($duplicatePhoneTotal > 1) {
-                $rowClassParts[] = 'order-duplicate-phone-row';
+            if ($isSingleBulkCustomerOrder) {
+                $rowClassParts[] = 'order-single-bulk-row';
             }
 
-            $rowClasses = implode(' ', $rowClassParts);
+            if ($hasDuplicateCustomer) {
+                $rowClassParts[] = 'order-duplicate-customer-row';
+            }
+
+            if ($hasDuplicateIp) {
+                $rowClassParts[] = 'order-duplicate-ip-row';
+            }
+
+            $rowClasses = implode(' ', array_unique($rowClassParts));
 
             $rowTitleParts = [];
 
@@ -62,8 +90,16 @@ $duplicatePhoneCounts = $duplicatePhoneCounts ?? [];
                 $rowTitleParts[] = 'Created manually by admin';
             }
 
-            if ($duplicatePhoneTotal > 1) {
-                $rowTitleParts[] = "Same phone number has {$duplicatePhoneTotal} orders";
+            if ($isSingleBulkCustomerOrder) {
+                $rowTitleParts[] = 'This customer has one bulk-created order';
+            }
+
+            if ($hasDuplicateCustomer) {
+                $rowTitleParts[] = "Same customer has {$duplicateCustomerTotal} orders";
+            }
+
+            if ($hasDuplicateIp) {
+                $rowTitleParts[] = "Same IP address has {$duplicateIpTotal} orders";
             }
 
             $rowTitle = implode(' | ', $rowTitleParts);
@@ -571,38 +607,69 @@ $duplicatePhoneCounts = $duplicatePhoneCounts ?? [];
     color: #ffffff;
 }
 
-.order-duplicate-phone-row>td {
-    background: #fee2e2 !important;
-}
-
-.order-duplicate-phone-row:hover>td {
-    background: #fecaca !important;
-}
-
-.order-manual-row>td {
-    background: #e8f5e9 !important;
-}
-
-.order-manual-row:hover>td {
-    background: #d1fae5 !important;
-}
-
 /*
- * A manual order can also share a duplicate phone number.
- * Keep the requested green manual background and add a clear red warning edge
- * so both states remain visible without changing the table structure.
+ * Duplicate customer/IP orders are risk-marked in red.
+ * Shared phone numbers are allowed, so duplication is based on customer_id.
  */
-.order-manual-row.order-duplicate-phone-row>td {
-    background: #e8f5e9 !important;
+.order-duplicate-customer-row>td,
+.order-duplicate-ip-row>td {
+    background: #fee2e2 !important;
     border-top-color: #fca5a5 !important;
     border-bottom-color: #fca5a5 !important;
 }
 
-.order-manual-row.order-duplicate-phone-row:hover>td {
+.order-duplicate-customer-row:hover>td,
+.order-duplicate-ip-row:hover>td {
+    background: #fecaca !important;
+}
+
+.order-duplicate-customer-row>td:first-child,
+.order-duplicate-ip-row>td:first-child {
+    box-shadow: inset 5px 0 0 #dc2626;
+}
+
+.order-manual-row>td,
+.order-single-bulk-row>td {
+    background: #e8f5e9 !important;
+}
+
+.order-manual-row:hover>td,
+.order-single-bulk-row:hover>td {
     background: #d1fae5 !important;
 }
 
-.order-manual-row.order-duplicate-phone-row>td:first-child {
+/*
+ * Duplicate customer/IP must take precedence over the green single-bulk marker.
+ * This guarantees repeated customers and repeated frontend IP addresses are red.
+ */
+.order-single-bulk-row.order-duplicate-customer-row>td,
+.order-single-bulk-row.order-duplicate-ip-row>td {
+    background: #fee2e2 !important;
+}
+
+.order-single-bulk-row.order-duplicate-customer-row:hover>td,
+.order-single-bulk-row.order-duplicate-ip-row:hover>td {
+    background: #fecaca !important;
+}
+
+/*
+ * Repeated customers/IP addresses must stay red even when the order was
+ * created manually. Red risk marking always has priority over green.
+ */
+.order-manual-row.order-duplicate-customer-row>td,
+.order-manual-row.order-duplicate-ip-row>td {
+    background: #fee2e2 !important;
+    border-top-color: #fca5a5 !important;
+    border-bottom-color: #fca5a5 !important;
+}
+
+.order-manual-row.order-duplicate-customer-row:hover>td,
+.order-manual-row.order-duplicate-ip-row:hover>td {
+    background: #fecaca !important;
+}
+
+.order-manual-row.order-duplicate-customer-row>td:first-child,
+.order-manual-row.order-duplicate-ip-row>td:first-child {
     box-shadow: inset 5px 0 0 #dc2626;
 }
 

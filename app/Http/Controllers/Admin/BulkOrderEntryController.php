@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\BulkOrderBatch;
-use App\Models\Customer;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
@@ -306,7 +305,6 @@ class BulkOrderEntryController extends Controller
 
         $rows = [];
         $errors = $formatErrors;
-        $batchPhoneOwners = [];
         $allLookupCodes = [];
 
         foreach ($records as $index => $record) {
@@ -322,7 +320,6 @@ class BulkOrderEntryController extends Controller
             $productText = trim((string) ($record['product_text'] ?? ''));
             $priceText = trim((string) ($record['negotiated_price'] ?? ''));
             $negotiatedPrice = $this->parseNegotiatedPrice($priceText);
-            $normalizedName = $customerIdentityService->normalizeName($name);
 
             if ($name === '' || mb_strlen($name) > 255) {
                 $errors[] = "{$orderLabel}: customer name is required and must be within 255 characters.";
@@ -340,17 +337,6 @@ class BulkOrderEntryController extends Controller
                 $errors[] = "{$orderLabel}: The fifth value must be a valid positive final price, for example 500.";
             } elseif ($negotiatedPrice <= 0 || $negotiatedPrice > 999999999.99) {
                 $errors[] = "{$orderLabel}: Price must be greater than 0 and not exceed 999999999.99.";
-            }
-
-            if (preg_match('/^01\d{9}$/', $phone)) {
-                if (
-                    isset($batchPhoneOwners[$phone])
-                    && $batchPhoneOwners[$phone] !== $normalizedName
-                ) {
-                    $errors[] = "{$orderLabel}: phone {$phone} is already used by another customer name in this bulk input.";
-                } else {
-                    $batchPhoneOwners[$phone] = $normalizedName;
-                }
             }
 
             $items = $this->parseProductItems(
@@ -373,29 +359,6 @@ class BulkOrderEntryController extends Controller
                 'negotiated_price' => $negotiatedPrice ?? 0,
                 'items'            => $items,
             ];
-        }
-
-        $validPhones = collect(array_keys($batchPhoneOwners))
-            ->filter(fn ($phone) => preg_match('/^01\d{9}$/', $phone))
-            ->values();
-
-        if ($validPhones->isNotEmpty()) {
-            $existingCustomers = Customer::query()
-                ->whereIn('phone', $validPhones)
-                ->get(['name', 'normalized_name', 'phone'])
-                ->keyBy('phone');
-
-            foreach ($batchPhoneOwners as $phone => $normalizedName) {
-                $customer = $existingCustomers->get($phone);
-
-                if ($customer && $customer->normalized_name !== $normalizedName) {
-                    $errors[] = sprintf(
-                        'Phone %s already belongs to customer "%s" and cannot be used by another customer.',
-                        $phone,
-                        $customer->name
-                    );
-                }
-            }
         }
 
         $products = $this->loadProductsByCodes(array_unique($allLookupCodes));

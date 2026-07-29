@@ -604,7 +604,8 @@
                 'courierServices' => $courierServices ?? [],
                 'orderFields' => $orderFields ?? collect(),
                 'orderStatuses' => $orderStatuses ?? [],
-                'duplicatePhoneCounts' => $duplicatePhoneCounts ?? [],
+                'duplicateCustomerCounts' => $duplicateCustomerCounts ?? [],
+                'duplicateIpCounts' => $duplicateIpCounts ?? [],
             ])
         </div>
     </div>

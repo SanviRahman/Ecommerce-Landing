@@ -39,14 +39,18 @@ class CustomerIdentityService
             ]);
         }
 
+        /*
+         * A phone number is not a unique customer identity.
+         * Different customers may share one phone number, so the stable
+         * customer identity is normalized name + normalized phone.
+         */
         $customer = Customer::query()
+            ->where('normalized_name', $normalizedName)
             ->where('phone', $phone)
             ->lockForUpdate()
             ->first();
 
         if ($customer) {
-            $this->ensureSameCustomer($customer, $normalizedName, $errorField);
-
             return $customer;
         }
 
@@ -57,8 +61,12 @@ class CustomerIdentityService
                 'phone'           => $phone,
             ]);
         } catch (QueryException $exception) {
-            // Protect against two requests creating the same unique phone concurrently.
+            /*
+             * Protect against concurrent creation of the exact same customer
+             * identity pair. A different name using the same phone remains valid.
+             */
             $customer = Customer::query()
+                ->where('normalized_name', $normalizedName)
                 ->where('phone', $phone)
                 ->lockForUpdate()
                 ->first();
@@ -67,27 +75,7 @@ class CustomerIdentityService
                 throw $exception;
             }
 
-            $this->ensureSameCustomer($customer, $normalizedName, $errorField);
-
             return $customer;
         }
-    }
-
-    private function ensureSameCustomer(
-        Customer $customer,
-        string $normalizedName,
-        string $errorField
-    ): void {
-        if ($customer->normalized_name === $normalizedName) {
-            return;
-        }
-
-        throw ValidationException::withMessages([
-            $errorField => sprintf(
-                'Phone %s is already registered to customer "%s". A different customer cannot use this phone number.',
-                $customer->phone,
-                $customer->name
-            ),
-        ]);
     }
 }
