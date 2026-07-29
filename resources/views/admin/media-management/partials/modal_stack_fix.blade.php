@@ -235,11 +235,22 @@
         const button = target.closest('button, a, [role="button"]');
         if (!button) return null;
 
-        const hasTrashIcon = !!button.querySelector('.fa-trash, .fa-trash-alt, .fa-trash-can, .fas.fa-trash, .fas.fa-trash-alt');
-        const explicitDelete = button.matches('[data-delete-url], [data-action="delete"], [data-action="delete-media"], .btn-media-delete, .btn-delete-media, .btn-media-browser-delete, .js-media-delete, .js-media-browser-delete, .media-delete, .media-browser-delete, .delete-media-item');
+        /*
+         * Trash Bin navigation also contains a trash icon, but it is not a
+         * destructive action. Never pass navigation links to ajaxDelete().
+         */
+        if (button.matches('[data-media-trash-navigation="1"], .js-open-media-trash')) {
+            return null;
+        }
 
-        if (!hasTrashIcon && !explicitDelete) return null;
-        return button;
+        /*
+         * Only explicitly marked delete controls are destructive. Checking a
+         * trash icon alone caused normal Trash Bin navigation to be submitted
+         * as POST/DELETE and produced HTTP 405 errors.
+         */
+        const explicitDelete = button.matches('[data-delete-url], [data-action="delete"], [data-action="delete-media"], .btn-delete-media, .btn-media-browser-delete, .js-media-delete, .js-media-browser-delete, .media-delete, .media-browser-delete, .delete-media-item');
+
+        return explicitDelete ? button : null;
     }
 
     function findDeleteUrl(button) {

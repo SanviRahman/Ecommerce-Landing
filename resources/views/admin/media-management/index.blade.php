@@ -22,7 +22,9 @@
         <a href="{{ route('admin.media-management.index') }}" class="btn btn-outline-primary">
             <i class="fas fa-photo-video mr-1"></i> Active Media
         </a>
-        <a href="{{ route('admin.media-management.trash', ['context' => $context ?? 'all']) }}" class="btn btn-outline-danger">
+        <a href="{{ route('admin.media-management.trash', ['context' => $context ?? 'all']) }}"
+           class="btn btn-outline-danger"
+           data-media-trash-navigation="1">
             <i class="fas fa-trash mr-1"></i> Trash Bin
         </a>
     </div>
@@ -207,7 +209,9 @@
                 <a href="{{ route('admin.media-management.products') }}" class="btn btn-outline-primary {{ !$trashMode && $currentContext === 'products' ? 'active' : '' }}">Products</a>
                 <a href="{{ route('admin.media-management.campaign') }}" class="btn btn-outline-primary {{ !$trashMode && str_starts_with($currentContext, 'campaign') ? 'active' : '' }}">Campaign</a>
                 <a href="{{ route('admin.media-management.other') }}" class="btn btn-outline-primary {{ !$trashMode && $currentContext === 'other' ? 'active' : '' }}">Other</a>
-                <a href="{{ route('admin.media-management.trash', ['context' => $currentContext]) }}" class="btn btn-outline-danger {{ $trashMode ? 'active' : '' }}">
+                <a href="{{ route('admin.media-management.trash', ['context' => $currentContext]) }}"
+                   class="btn btn-outline-danger {{ $trashMode ? 'active' : '' }}"
+                   data-media-trash-navigation="1">
                     <i class="fas fa-trash mr-1"></i> Trash
                 </a>
             </div>
@@ -285,6 +289,14 @@
                     </button>
                     <button type="button" class="btn btn-sm btn-danger mb-1 media-bulk-action" data-action="force_delete">
                         <i class="fas fa-times-circle mr-1"></i> Force Delete Selected
+                    </button>
+
+                    <button type="button"
+                            class="btn btn-sm btn-outline-danger ml-auto mb-1 btn-media-empty-trash"
+                            data-url="{{ route('admin.media-management.empty-trash') }}"
+                            data-context="{{ $currentContext }}"
+                            data-total="{{ (int) ($stats['total'] ?? 0) }}">
+                        <i class="fas fa-trash-alt mr-1"></i> Permanently Delete All
                     </button>
                 @else
                     <button type="button" class="btn btn-sm btn-danger mb-1 media-bulk-action" data-action="delete">
@@ -368,10 +380,13 @@
     function updateStats(stats) {
         if (!stats) return;
 
-        $('[data-stat="total"]').text(Number(stats.total || 0).toLocaleString());
+        const total = Number(stats.total || 0);
+
+        $('[data-stat="total"]').text(total.toLocaleString());
         $('[data-stat="images"]').text(Number(stats.images || 0).toLocaleString());
         $('[data-stat="videos"]').text(Number(stats.videos || 0).toLocaleString());
         $('[data-stat="size"]').text(stats.size || '0 B');
+        $('.btn-media-empty-trash').attr('data-total', total).data('total', total);
     }
 
     let mediaSearchTimer = null;
@@ -670,6 +685,58 @@
                 });
             },
             'Force Delete'
+        );
+    });
+
+    $(document).on('click', '.btn-media-empty-trash', function() {
+        const button = $(this);
+        const url = button.data('url');
+        const total = Number(
+            $('[data-stat="total"]').first().text().replace(/[^0-9]/g, '')
+            || button.attr('data-total')
+            || 0
+        );
+
+        if (total < 1) {
+            notify('info', 'Media Trash Bin is already empty.');
+            return;
+        }
+
+        confirmAction(
+            'Permanently delete all trashed media?',
+            'All ' + total + ' trashed media file(s) will be removed from the database and physical storage. This cannot be undone.',
+            function() {
+                const oldHtml = button.html();
+
+                $.ajax({
+                    url: url,
+                    method: 'POST',
+                    data: {
+                        _method: 'DELETE',
+                        context: button.data('context') || 'all'
+                    },
+                    beforeSend: function() {
+                        button
+                            .prop('disabled', true)
+                            .html('<i class="fas fa-spinner fa-spin mr-1"></i> Deleting...');
+                    },
+                    success: function(res) {
+                        if (res.status) {
+                            notify('success', res.message || 'Media Trash Bin emptied successfully.');
+                            reloadMediaTable();
+                        } else {
+                            notify('error', res.message || 'Media Trash Bin could not be emptied.');
+                        }
+                    },
+                    error: function(xhr) {
+                        notify('error', xhr.responseJSON?.message || 'Media Trash Bin could not be emptied.');
+                    },
+                    complete: function() {
+                        button.prop('disabled', false).html(oldHtml);
+                    }
+                });
+            },
+            'Delete All Permanently'
         );
     });
 

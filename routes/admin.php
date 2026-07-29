@@ -632,17 +632,42 @@ Route::middleware(['auth'])->group(function () {
                 Route::get('/browser', 'browser')->name('browser');
                 Route::post('/browser/upload', 'browserUpload')->name('browser.upload');
 
-                Route::get('/media/trash', 'trash')->name('trash');
+                /*
+                 * Trash routes use a dedicated prefix so the literal word "trash"
+                 * can never be treated as a {media} route-model-binding value.
+                 */
+                Route::get('/trash-bin', 'trash')->name('trash');
+                Route::delete('/trash-bin/empty', 'emptyTrash')->name('empty-trash');
+
                 Route::post('/media/multiple-action', 'multipleAction')->name('multiple-action');
 
-                Route::post('/media/{media}/restore', 'restore')->name('restore');
-                Route::delete('/media/{media}/force-delete', 'forceDelete')->name('force-delete');
+                Route::post('/media/{media}/restore', 'restore')
+                    ->whereNumber('media')
+                    ->name('restore');
 
-                Route::get('/media/{media}/edit', 'edit')->name('edit');
-                Route::patch('/media/{media}', 'update')->name('update');
-                Route::post('/media/{media}/replace', 'replace')->name('replace');
-                Route::delete('/media/{media}', 'destroy')->name('destroy');
-                Route::get('/media/{media}/download', 'download')->name('download');
+                Route::delete('/media/{media}/force-delete', 'forceDelete')
+                    ->whereNumber('media')
+                    ->name('force-delete');
+
+                Route::get('/media/{media}/edit', 'edit')
+                    ->whereNumber('media')
+                    ->name('edit');
+
+                Route::patch('/media/{media}', 'update')
+                    ->whereNumber('media')
+                    ->name('update');
+
+                Route::post('/media/{media}/replace', 'replace')
+                    ->whereNumber('media')
+                    ->name('replace');
+
+                Route::delete('/media/{media}', 'destroy')
+                    ->whereNumber('media')
+                    ->name('destroy');
+
+                Route::get('/media/{media}/download', 'download')
+                    ->whereNumber('media')
+                    ->name('download');
             });
 
     });

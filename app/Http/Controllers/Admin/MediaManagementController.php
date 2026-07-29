@@ -246,6 +246,10 @@ class MediaManagementController extends Controller
     {
         $query = Media::query()
             ->with('model')
+            ->withCasts([
+                'trashed_at' => 'datetime',
+                'trashed_by' => 'integer',
+            ])
             ->latest('id');
 
         if ($this->hasTrashColumns()) {
@@ -847,6 +851,38 @@ class MediaManagementController extends Controller
     }
 
     /**
+     * Permanently delete Media rows through Spatie so both the database row and
+     * the original/conversion/responsive physical files are removed together.
+     */
+    private function permanentlyDeleteMediaItems(iterable $mediaItems): array
+    {
+        $deleted = 0;
+        $failed = 0;
+        $errors = [];
+
+        foreach ($mediaItems as $media) {
+            try {
+                $mediaId = (int) $media->getKey();
+                $media->delete();
+                $deleted++;
+            } catch (\Throwable $exception) {
+                report($exception);
+
+                $failed++;
+                if (count($errors) < 5) {
+                    $errors[] = 'Media #' . ($mediaId ?? 'unknown') . ': ' . $exception->getMessage();
+                }
+            }
+        }
+
+        return [
+            'deleted' => $deleted,
+            'failed' => $failed,
+            'errors' => $errors,
+        ];
+    }
+
+    /**
      * Permanently remove DB row + physical file through Spatie Media Library.
      */
     public function forceDelete(mixed $media): JsonResponse
@@ -862,18 +898,87 @@ class MediaManagementController extends Controller
             ], 422);
         }
 
-        try {
-            $media->delete();
-        } catch (\Throwable $exception) {
+        $result = $this->permanentlyDeleteMediaItems([$media]);
+
+        if ($result['failed'] > 0) {
             return response()->json([
                 'status' => false,
-                'message' => 'Media permanent delete failed: ' . $exception->getMessage(),
+                'message' => 'Media permanent delete failed. ' . implode(' | ', $result['errors']),
             ], 500);
         }
 
         return response()->json([
             'status' => true,
             'message' => 'Media permanently deleted successfully.',
+        ]);
+    }
+
+    /**
+     * Permanently delete every item currently in the global Media Trash Bin.
+     */
+    public function emptyTrash(Request $request): JsonResponse
+    {
+        $this->adminOnly();
+
+        if (! $this->hasTrashColumns()) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Media trash columns are missing. Please run the included migration first.',
+            ], 422);
+        }
+
+        $context = $this->normalizeContext($request->input('context', 'all'));
+
+        $query = $this->applyContext(
+            Media::query()->whereNotNull('trashed_at'),
+            $context
+        );
+
+        $total = (clone $query)->count();
+
+        if ($total === 0) {
+            return response()->json([
+                'status' => true,
+                'message' => 'Media Trash Bin is already empty.',
+                'deleted' => 0,
+            ]);
+        }
+
+        $deleted = 0;
+        $failed = 0;
+        $errors = [];
+
+        $query->chunkById(100, function ($mediaItems) use (&$deleted, &$failed, &$errors): void {
+            $result = $this->permanentlyDeleteMediaItems($mediaItems);
+
+            $deleted += $result['deleted'];
+            $failed += $result['failed'];
+
+            foreach ($result['errors'] as $error) {
+                if (count($errors) >= 5) {
+                    break;
+                }
+
+                $errors[] = $error;
+            }
+        });
+
+        if ($failed > 0) {
+            return response()->json([
+                'status' => false,
+                'message' => "{$deleted} media file(s) permanently deleted, but {$failed} failed. "
+                    . implode(' | ', $errors),
+                'deleted' => $deleted,
+                'failed' => $failed,
+            ], 500);
+        }
+
+        return response()->json([
+            'status' => true,
+            'message' => "{$deleted} trashed media file(s) permanently deleted successfully.",
+            'deleted' => $deleted,
+            'failed' => 0,
+            'context' => $context,
         ]);
     }
 
@@ -940,20 +1045,20 @@ class MediaManagementController extends Controller
             ->when($this->hasTrashColumns(), fn (Builder $query) => $query->whereNotNull('trashed_at'))
             ->get();
 
-        foreach ($mediaItems as $media) {
-            try {
-                $media->delete();
-            } catch (\Throwable $exception) {
-                return response()->json([
-                    'status' => false,
-                    'message' => 'Bulk force delete failed: ' . $exception->getMessage(),
-                ], 500);
-            }
+        $result = $this->permanentlyDeleteMediaItems($mediaItems);
+
+        if ($result['failed'] > 0) {
+            return response()->json([
+                'status' => false,
+                'message' => "{$result['deleted']} selected media file(s) permanently deleted, "
+                    . "but {$result['failed']} failed. "
+                    . implode(' | ', $result['errors']),
+            ], 500);
         }
 
         return response()->json([
             'status' => true,
-            'message' => $mediaItems->count() . ' selected media file(s) permanently deleted.',
+            'message' => $result['deleted'] . ' selected media file(s) permanently deleted.',
         ]);
     }
 

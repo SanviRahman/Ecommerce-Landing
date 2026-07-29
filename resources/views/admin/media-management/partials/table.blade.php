@@ -50,6 +50,17 @@
                         }
                     }
 
+                    $trashedAt = null;
+                    if ($trashMode && ! empty($media->trashed_at)) {
+                        try {
+                            $trashedAt = $media->trashed_at instanceof \Illuminate\Support\Carbon
+                                ? $media->trashed_at
+                                : \Illuminate\Support\Carbon::parse($media->trashed_at);
+                        } catch (Throwable $exception) {
+                            $trashedAt = null;
+                        }
+                    }
+
                     $bytes = (float) ($media->size ?? 0);
                     $size = '0 B';
                     if ($bytes > 0) {
@@ -66,7 +77,7 @@
                     <td>
                         @if($isImage)
                             <a href="{{ $mediaUrl }}" target="_blank">
-                                <img src="{{ $mediaUrl }}" alt="{{ $media->name }}" class="media-thumb" onerror="this.src='{{ asset('vendor/adminlte/dist/img/no-image.png') }}'">
+                                <img src="{{ $mediaUrl }}" alt="{{ $media->name }}" class="media-thumb" onerror="this.onerror=null;this.src='{{ asset('vendor/adminlte/dist/img/no-image.png') }}';">
                             </a>
                         @elseif($isVideo)
                             <a href="{{ $mediaUrl }}" target="_blank" class="media-file-box text-decoration-none"><i class="fas fa-video"></i></a>
@@ -100,9 +111,9 @@
                     </td>
                     <td>{{ $size }}</td>
                     <td>
-                        @if($trashMode && isset($media->trashed_at))
-                            {{ optional($media->trashed_at)->format('d M Y') }}
-                            <div class="text-muted small">{{ optional($media->trashed_at)->format('h:i A') }}</div>
+                        @if($trashMode && $trashedAt)
+                            {{ $trashedAt->format('d M Y') }}
+                            <div class="text-muted small">{{ $trashedAt->format('h:i A') }}</div>
                         @else
                             {{ optional($media->created_at)->format('d M Y') }}
                             <div class="text-muted small">{{ optional($media->created_at)->format('h:i A') }}</div>
