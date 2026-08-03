@@ -71,6 +71,19 @@ Route::middleware(['auth'])->group(function () {
 
     /*
     |--------------------------------------------------------------------------
+    | Homepage Order Tracking Settings: Admin + Employee
+    |--------------------------------------------------------------------------
+    */
+    Route::middleware(['role:admin,employee'])
+        ->prefix('order-tracking-settings')
+        ->as('order-tracking-settings.')
+        ->group(function () {
+            Route::get('/', [CampaignController::class, 'orderTrackingSettings'])->name('index');
+            Route::patch('/{campaign}', [CampaignController::class, 'updateOrderTrackingSettings'])->name('update');
+        });
+
+    /*
+    |--------------------------------------------------------------------------
     | Orders: Admin + Employee
     |--------------------------------------------------------------------------
     */
@@ -91,6 +104,8 @@ Route::middleware(['auth'])->group(function () {
             Route::get('/confirmed', [OrderController::class, 'confirmed'])->name('confirmed');
             Route::get('/processing', [OrderController::class, 'processing'])->name('processing');
             Route::get('/shipped', [OrderController::class, 'shipped'])->name('shipped');
+            Route::get('/courier-pending', [OrderController::class, 'courierPending'])->name('courier_pending');
+            Route::get('/courier-cancelled', [OrderController::class, 'courierCancelled'])->name('courier_cancelled');
             Route::get('/delivered', [OrderController::class, 'delivered'])->name('delivered');
             Route::get('/cancelled', [OrderController::class, 'cancelled'])->name('cancelled');
             Route::get('/stock-out', [OrderController::class, 'stockOut'])->name('stock_out');
@@ -254,6 +269,11 @@ Route::middleware(['auth'])->group(function () {
         | Courier API Accounts
         |--------------------------------------------------------------------------
         */
+        Route::post(
+            'courier-accounts/{courierAccount}/refresh-pathao-token',
+            [CourierAccountController::class, 'refreshPathaoToken']
+        )->name('courier-accounts.refresh-pathao-token');
+
         Route::resource('courier-accounts', CourierAccountController::class)
             ->only(['index', 'store', 'update', 'destroy']);
 

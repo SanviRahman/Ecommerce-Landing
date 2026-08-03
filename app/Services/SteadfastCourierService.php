@@ -15,8 +15,9 @@ class SteadfastCourierService
 {
     private int $timeout;
 
-    public function __construct()
-    {
+    public function __construct(
+        private readonly SteadfastStatusService $statusService
+    ) {
         $this->timeout = (int) config('steadfast.timeout', 30);
     }
 
@@ -126,27 +127,28 @@ class SteadfastCourierService
         }
 
         $data = $this->decodeResponse($response);
-        $deliveryStatus = data_get($data, 'delivery_status');
 
-        $updateData = [
-            'steadfast_status' => $deliveryStatus,
-            'steadfast_response' => $data,
-            'steadfast_synced_at' => now(),
-        ];
+        if (! $response->successful() || (int) data_get($data, 'status', 200) !== 200) {
+            $message = data_get($data, 'message')
+                ?: data_get($data, 'error')
+                ?: 'SteadFast status sync failed.';
 
-        if (config('steadfast.auto_update_order_status')) {
-            if ($deliveryStatus === 'delivered') {
-                $updateData['order_status'] = Order::STATUS_DELIVERED;
-                $updateData['delivered_at'] = now();
-            }
-
-            if ($deliveryStatus === 'cancelled') {
-                $updateData['order_status'] = Order::STATUS_CANCELLED;
-                $updateData['cancelled_at'] = now();
-            }
+            throw new RuntimeException($message);
         }
 
-        $order->update($updateData);
+        $deliveryStatus = data_get($data, 'delivery_status');
+
+        if (blank($deliveryStatus)) {
+            throw new RuntimeException('SteadFast response did not contain delivery_status.');
+        }
+
+        $this->statusService->apply(
+            $order,
+            $courier,
+            $deliveryStatus,
+            $data,
+            'api'
+        );
 
         return $data;
     }
@@ -318,4 +320,3 @@ class SteadfastCourierService
         return $items ? Str::limit($items, 250, '') : null;
     }
 }
-

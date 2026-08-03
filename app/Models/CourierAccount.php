@@ -15,13 +15,28 @@ class CourierAccount extends Model
         'base_url',
         'api_key',
         'secret_key',
+        'auth_username',
+        'auth_password',
         'token',
+        'refresh_token',
+        'token_type',
+        'token_expires_at',
         'settings',
         'is_default',
         'status',
     ];
 
+    protected $hidden = [
+        'secret_key',
+        'auth_password',
+        'token',
+        'refresh_token',
+    ];
+
     protected $casts = [
+        'auth_password' => 'encrypted',
+        'refresh_token' => 'encrypted',
+        'token_expires_at' => 'datetime',
         'settings' => 'array',
         'is_default' => 'boolean',
         'status' => 'boolean',
@@ -49,5 +64,15 @@ class CourierAccount extends Model
     public function setting(string $key, mixed $default = null): mixed
     {
         return data_get($this->settings ?? [], $key, $default);
+    }
+
+    public function hasStoredSecretKey(): bool
+    {
+        return filled($this->getRawOriginal('secret_key'));
+    }
+
+    public function hasStoredAuthPassword(): bool
+    {
+        return filled($this->getRawOriginal('auth_password'));
     }
 }

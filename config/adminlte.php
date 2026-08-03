@@ -452,6 +452,20 @@ return [
             'active' => ['admin/orders/shipped*'],
         ],
         [
+            'text'   => 'Courier Pending',
+            'url'    => 'admin/orders/courier-pending',
+            'icon'   => 'fas fa-hourglass-half',
+            'can'    => 'admin-or-employee',
+            'active' => ['admin/orders/courier-pending*'],
+        ],
+        [
+            'text'   => 'Courier Cancel',
+            'url'    => 'admin/orders/courier-cancelled',
+            'icon'   => 'fas fa-ban',
+            'can'    => 'admin-or-employee',
+            'active' => ['admin/orders/courier-cancelled*'],
+        ],
+        [
             'text'   => 'Delivered Orders',
             'url'    => 'admin/orders/delivered',
             'icon'   => 'fas fa-check-double',
@@ -660,6 +674,13 @@ return [
             'icon'   => 'fas fa-user-slash',
             'can'    => 'admin-or-employee',
             'active' => ['admin/blocked-customers*'],
+        ],
+        [
+            'text'   => 'Order Tracking Settings',
+            'url'    => 'admin/order-tracking-settings',
+            'icon'   => 'fas fa-search-location',
+            'can'    => 'admin-or-employee',
+            'active' => ['admin/order-tracking-settings*'],
         ],
         [
             'text'    => 'API Integration',
@@ -890,6 +911,12 @@ return [
                 [
                     'text' => 'Media Storage Check',
                     'url'  => 'command/media-storage-doctor',
+                    'icon' => 'far fa-fw fa-circle',
+                    'can'  => 'admin-only',
+                ],
+                [
+                    'text' => 'Sync SteadFast Status',
+                    'url'  => 'command/sync-steadfast-statuses',
                     'icon' => 'far fa-fw fa-circle',
                     'can'  => 'admin-only',
                 ],

@@ -70,7 +70,7 @@
                     <input type="text"
                            id="table_search"
                            class="form-control shadow-none"
-                           placeholder="Search landing page title, slug or description...">
+                           placeholder="Search title, slug, custom route or description...">
                 </div>
 
                 <div class="col-md-2 col-sm-4 mb-2 d-flex align-items-end">

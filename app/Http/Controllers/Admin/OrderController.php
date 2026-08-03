@@ -361,6 +361,8 @@ class OrderController extends Controller
             'shipped'          => (clone $workflowBaseQuery)->where('order_status', Order::STATUS_SHIPPED)->count(),
             'delivered'        => (clone $workflowBaseQuery)->where('order_status', Order::STATUS_DELIVERED)->count(),
             'cancelled'        => (clone $workflowBaseQuery)->where('order_status', Order::STATUS_CANCELLED)->count(),
+            'courier_pending'  => (clone $workflowBaseQuery)->courierPending()->count(),
+            'courier_cancelled'=> (clone $workflowBaseQuery)->courierCancelled()->count(),
             'stock_out'        => (clone $workflowBaseQuery)->where('order_status', Order::STATUS_STOCK_OUT)->count(),
 
             'order_list_1'     => (clone $baseQuery)
@@ -1751,6 +1753,32 @@ class OrderController extends Controller
         $this->adminOrEmployeeOnly();
 
         return $this->listResponse($request, $this->orderQuery()->delivered(), 'Delivered Orders', false, 'delivered');
+    }
+
+    public function courierPending(Request $request)
+    {
+        $this->adminOrEmployeeOnly();
+
+        return $this->listResponse(
+            $request,
+            $this->orderQuery()->courierPending(),
+            'Courier Pending Orders',
+            false,
+            'courier-pending'
+        );
+    }
+
+    public function courierCancelled(Request $request)
+    {
+        $this->adminOrEmployeeOnly();
+
+        return $this->listResponse(
+            $request,
+            $this->orderQuery()->courierCancelled(),
+            'Courier Cancel Orders',
+            false,
+            'courier-cancelled'
+        );
     }
 
     public function cancelled(Request $request)

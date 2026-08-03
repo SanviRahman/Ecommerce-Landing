@@ -33,6 +33,7 @@
     $currentStatusView = $currentStatusView ?? 'new';
     $currentFieldId = $currentOrderField->id ?? null;
     $isInvoiceView = in_array($currentStatusView, ['pending-invoice', 'complete-invoice'], true);
+    $isCourierStatusView = in_array($currentStatusView, ['courier-pending', 'courier-cancelled'], true);
     $canBulkManageOrders = auth()->check() && (auth()->user()->isAdmin() || auth()->user()->isEmployee());
     $canCreateManualOrder = $canBulkManageOrders;
     $canDeleteOrders = auth()->check() && auth()->user()->isAdmin();
@@ -60,6 +61,30 @@
                     <p>Complete Invoice</p>
                 </div>
                 <i class="fas fa-print"></i>
+            </a>
+        </div>
+    </div>
+@elseif($isCourierStatusView)
+    <div class="row mb-3" id="orderStatsCards">
+        <div class="col-lg-3 col-md-4 col-sm-6 mb-2">
+            <a href="{{ route('admin.orders.courier_pending') }}"
+               class="order-stat-card text-decoration-none {{ $currentStatusView === 'courier-pending' ? 'active' : '' }}">
+                <div>
+                    <h4 id="stat_courier_pending">{{ $stats['courier_pending'] ?? 0 }}</h4>
+                    <p>Courier Pending</p>
+                </div>
+                <i class="fas fa-hourglass-half"></i>
+            </a>
+        </div>
+
+        <div class="col-lg-3 col-md-4 col-sm-6 mb-2">
+            <a href="{{ route('admin.orders.courier_cancelled') }}"
+               class="order-stat-card text-decoration-none {{ $currentStatusView === 'courier-cancelled' ? 'active' : '' }}">
+                <div>
+                    <h4 id="stat_courier_cancelled">{{ $stats['courier_cancelled'] ?? 0 }}</h4>
+                    <p>Courier Cancel</p>
+                </div>
+                <i class="fas fa-ban"></i>
             </a>
         </div>
     </div>
@@ -875,6 +900,8 @@ $(document).ready(function() {
         $('#stat_pending').text(stats.pending ?? 0);
         $('#stat_completed').text(stats.completed ?? 0);
         $('#stat_shipped').text(stats.shipped ?? 0);
+        $('#stat_courier_pending').text(stats.courier_pending ?? 0);
+        $('#stat_courier_cancelled').text(stats.courier_cancelled ?? 0);
         $('#stat_cancelled').text(stats.cancelled ?? 0);
         $('#stat_delivered').text(stats.delivered ?? 0);
         $('#stat_stock_out').text(stats.stock_out ?? 0);

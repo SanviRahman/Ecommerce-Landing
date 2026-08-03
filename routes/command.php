@@ -128,6 +128,31 @@ Route::prefix('command')
             }
         })->name('storage-link');
 
+        Route::get('/sync-steadfast-statuses', function () use ($redirectWithToast) {
+            try {
+                Artisan::call('courier:sync-steadfast-statuses', [
+                    '--limit' => 100,
+                    '--force' => true,
+                ]);
+
+                $output = trim(Artisan::output());
+                $lines = preg_split('/\r\n|\r|\n/', $output) ?: [];
+                $summary = trim((string) end($lines));
+
+                return $redirectWithToast(
+                    str_contains($summary, 'Failed: 0') ? 'success' : 'error',
+                    $summary ?: 'SteadFast courier statuses synced.'
+                );
+            } catch (\Throwable $exception) {
+                report($exception);
+
+                return $redirectWithToast(
+                    'error',
+                    'SteadFast status sync failed: ' . $exception->getMessage()
+                );
+            }
+        })->name('sync-steadfast-statuses');
+
         Route::get('/media-storage-doctor', function () use ($redirectWithToast) {
             try {
                 Artisan::call('media:storage-doctor', [

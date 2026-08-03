@@ -15,6 +15,23 @@ class CampaignPageController extends Controller
 {
     public function show(Campaign $campaign)
     {
+        abort_if($campaign->usesCustomRoute(), 404);
+
+        return $this->renderCampaign($campaign);
+    }
+
+    public function showByCustomRoute(string $customRoute)
+    {
+        $campaign = Campaign::query()
+            ->where('route_type', Campaign::ROUTE_CUSTOM)
+            ->where('custom_route', strtolower($customRoute))
+            ->firstOrFail();
+
+        return $this->renderCampaign($campaign);
+    }
+
+    private function renderCampaign(Campaign $campaign)
+    {
         abort_if(! $campaign->status, 404);
 
         $campaign->load([

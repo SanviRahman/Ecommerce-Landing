@@ -19,6 +19,10 @@
     $selectedBrands = $normalizeSelectedIds(old('brands', $selectedBrands ?? []));
     $selectedProducts = $normalizeSelectedIds(old('products', $selectedProducts ?? []));
 
+    $routeType = old('route_type', $campaign->route_type ?? \App\Models\Campaign::ROUTE_STANDARD);
+    $customRoute = old('custom_route', $campaign->custom_route ?? '');
+    $publicBaseUrl = rtrim(url('/'), '/');
+
     $orderItemsBySelectedIds = function ($items, array $selectedIds) {
         $items = collect($items);
         $selectedIdMap = collect($selectedIds)->flip();
@@ -326,6 +330,7 @@
 
                     <input type="text"
                            name="slug"
+                           id="campaignSlugInput"
                            value="{{ old('slug', $campaign->slug ?? '') }}"
                            class="form-control @error('slug') is-invalid @enderror"
                            placeholder="Auto generated if empty">
@@ -333,6 +338,65 @@
                     @error('slug')
                         <span class="invalid-feedback">{{ $message }}</span>
                     @enderror
+                </div>
+
+                <div class="col-md-4 mb-3">
+                    <label class="font-weight-bold">
+                        Public URL Type <span class="text-danger">*</span>
+                    </label>
+
+                    <select name="route_type"
+                            id="campaignRouteType"
+                            class="form-control @error('route_type') is-invalid @enderror"
+                            required>
+                        <option value="standard" @selected($routeType === 'standard')>
+                            Standard — /campaign/slug
+                        </option>
+                        <option value="custom" @selected($routeType === 'custom')>
+                            Custom Root URL — /your-route
+                        </option>
+                    </select>
+
+                    @error('route_type')
+                        <span class="invalid-feedback">{{ $message }}</span>
+                    @enderror
+                </div>
+
+                <div class="col-md-8 mb-3" id="customCampaignRouteWrapper">
+                    <label class="font-weight-bold">
+                        Custom Route Name <span class="text-danger">*</span>
+                    </label>
+
+                    <div class="input-group">
+                        <div class="input-group-prepend">
+                            <span class="input-group-text">{{ $publicBaseUrl }}/</span>
+                        </div>
+
+                        <input type="text"
+                               name="custom_route"
+                               id="customCampaignRouteInput"
+                               value="{{ $customRoute }}"
+                               class="form-control @error('custom_route') is-invalid @enderror"
+                               placeholder="admin_name_dibe"
+                               maxlength="190"
+                               autocomplete="off">
+
+                        @error('custom_route')
+                            <span class="invalid-feedback">{{ $message }}</span>
+                        @enderror
+                    </div>
+
+                    <small class="form-text text-muted">
+                        One root-level route only. Lowercase letters, numbers, hyphen and underscore are allowed.
+                        Reserved paths such as admin, campaign, track-order and webhooks cannot be used.
+                    </small>
+                </div>
+
+                <div class="col-md-12 mb-3">
+                    <div class="alert alert-light border mb-0 py-2">
+                        <strong>Public URL Preview:</strong>
+                        <code id="campaignPublicUrlPreview"></code>
+                    </div>
                 </div>
 
                 <div class="col-md-12 mb-3">
@@ -1337,6 +1401,32 @@
             <div class="alert alert-light border mb-0">
                 <i class="fas fa-info-circle text-primary mr-1"></i>
                 Order Form Title এবং Order Form Subtitle উপরের Basic Information section থেকে manage হবে।
+            </div>
+        </div>
+    </div>
+
+
+    {{-- Order Tracking Section --}}
+    <div class="card shadow-sm border-0 mb-3" style="border-radius: 12px;">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap">
+            <div>
+                <h5 class="mb-0 font-weight-bold">
+                    <i class="fas fa-search-location text-success mr-1"></i>
+                    Order Tracking Section
+                </h5>
+
+                <small class="text-muted">
+                    Homepage order tracking form and header menu link একই switch দিয়ে active/inactive হবে।
+                </small>
+            </div>
+
+            {!! $sectionSwitch('order_tracking_section_status', 'Active / Inactive') !!}
+        </div>
+
+        <div class="card-body">
+            <div class="alert alert-light border mb-0">
+                <i class="fas fa-info-circle text-primary mr-1"></i>
+                Active থাকলে customer homepage থেকে phone number দিয়ে order track করতে পারবে।
             </div>
         </div>
     </div>
@@ -2581,8 +2671,61 @@ $(document).ready(function() {
         });
     }
 
+    function campaignSlugPreview(value) {
+        return String(value || '')
+            .trim()
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-+|-+$/g, '');
+    }
+
+    function customCampaignRoutePreview(value) {
+        return String(value || '')
+            .trim()
+            .replace(/^https?:\/\/[^/]+/i, '')
+            .replace(/^\/+|\/+$/g, '')
+            .replace(/\s+/g, '-')
+            .toLowerCase();
+    }
+
+    function syncCampaignRouteFields() {
+        const routeType = $('#campaignRouteType').val() || 'standard';
+        const customWrapper = $('#customCampaignRouteWrapper');
+        const customInput = $('#customCampaignRouteInput');
+        const baseUrl = @json($publicBaseUrl);
+
+        customWrapper.toggle(routeType === 'custom');
+        customInput.prop('required', routeType === 'custom');
+
+        let publicPath;
+
+        if (routeType === 'custom') {
+            const customRoute = customCampaignRoutePreview(customInput.val());
+            publicPath = '/' + (customRoute || 'your-route');
+        } else {
+            const slugInput = $('#campaignSlugInput').val();
+            const titleInput = $('[name="title"]').val();
+            const slug = campaignSlugPreview(slugInput || titleInput) || 'campaign-slug';
+            publicPath = '/campaign/' + slug;
+        }
+
+        $('#campaignPublicUrlPreview').text(baseUrl + publicPath);
+    }
+
+    $(document).on(
+        'change input',
+        '#campaignRouteType, #customCampaignRouteInput, #campaignSlugInput, [name="title"]',
+        syncCampaignRouteFields
+    );
+
+    $(document).on('blur', '#customCampaignRouteInput', function () {
+        $(this).val(customCampaignRoutePreview($(this).val()));
+        syncCampaignRouteFields();
+    });
+
     $(document).ready(function () {
         initCampaignSectionToggle();
+        syncCampaignRouteFields();
     });
 
 })(jQuery);

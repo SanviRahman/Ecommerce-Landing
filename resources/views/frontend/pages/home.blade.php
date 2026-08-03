@@ -782,6 +782,23 @@
     $isFaqSectionActive = (bool) ($campaign?->faq_section_status ?? true) && $faqItems->isNotEmpty();
     $isHelpSectionActive = (bool) ($campaign?->help_section_status ?? true);
     $isOrderSectionActive = (bool) ($campaign?->order_section_status ?? true) && (bool) $campaign;
+    $isOrderTrackingSectionActive = (bool) ($campaign?->order_tracking_section_status ?? true) && (bool) $campaign;
+
+    $trackingOrders = $trackingOrders ?? null;
+    $trackingSearchedPhone = $trackingSearchedPhone ?? null;
+
+    $orderTrackingStatusLabels = [
+        'pending' => 'Pending',
+        'confirmed' => 'Confirmed',
+        'complete_invoice' => 'Invoice Complete',
+        'processing' => 'Processing',
+        'shipped' => 'Shipped',
+        'delivered' => 'Delivered',
+        'cancelled' => 'Cancelled',
+        'canceled' => 'Cancelled',
+        'fake' => 'Fake',
+        'stock_out' => 'Stock Out',
+    ];
 
 @endphp
 
@@ -1672,6 +1689,62 @@ body {
     border-color: var(--front-green);
 }
 
+.order-tracking-section {
+    padding: 82px 0;
+    background: #f8fafc;
+}
+
+.order-tracking-box {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 34px;
+    border: 1px solid #e5e7eb;
+    border-radius: 18px;
+    background: #ffffff;
+    box-shadow: 0 18px 50px rgba(15, 23, 42, .07);
+}
+
+.order-tracking-subtitle {
+    color: #64748b;
+    text-align: center;
+    margin: -24px 0 26px;
+}
+
+.order-tracking-input {
+    height: 50px;
+    border-radius: 10px;
+}
+
+.order-tracking-button {
+    min-width: 150px;
+    height: 50px;
+    border-radius: 10px;
+    font-weight: 800;
+}
+
+.order-tracking-card {
+    border: 1px solid #e5e7eb;
+    border-radius: 14px;
+    padding: 20px;
+    margin-top: 18px;
+}
+
+.order-tracking-status {
+    display: inline-block;
+    padding: 5px 10px;
+    border-radius: 999px;
+    background: #dcfce7;
+    color: #166534;
+    font-weight: 800;
+    font-size: 13px;
+}
+
+.order-tracking-meta {
+    color: #64748b;
+    font-size: 14px;
+    line-height: 1.8;
+}
+
 .help-cta-section {
     padding: 30px 0 76px;
     background: #ffffff;
@@ -2211,6 +2284,19 @@ body {
 
     .difference-mobile-images img {
         height: 125px;
+    }
+
+    .order-tracking-box {
+        padding: 24px 18px;
+    }
+
+    .order-tracking-form-row {
+        display: block !important;
+    }
+
+    .order-tracking-button {
+        width: 100%;
+        margin-top: 10px;
     }
 }
 
@@ -2893,7 +2979,7 @@ body {
     <div class="container">
         <h2 class="section-title">{{ $orderSectionTitle }}</h2>
 
-        <form action="{{ route('campaign.order.store', $campaign->slug) }}" method="POST"
+        <form action="{{ $campaign->order_submit_url }}" method="POST"
             class="checkout-form order-panel" id="campaignOrderForm">
             @csrf
             <input type="hidden" name="order_form_token" value="{{ $orderFormToken ?? '' }}">
@@ -3062,6 +3148,113 @@ body {
                 </div>
             </div>
         </form>
+    </div>
+</section>
+@endif
+
+
+{{-- Order Tracking --}}
+@if($isOrderTrackingSectionActive)
+<section class="order-tracking-section" id="order-track-section">
+    <div class="container">
+        <div class="order-tracking-box">
+            <h2 class="section-title">অর্ডার ট্র্যাক করুন</h2>
+            <p class="order-tracking-subtitle">অর্ডারে ব্যবহার করা ১১ সংখ্যার ফোন নম্বরটি লিখুন।</p>
+
+            <form action="{{ route('order.track.search') }}" method="POST">
+                @csrf
+
+                <div class="d-flex order-tracking-form-row">
+                    <input type="tel"
+                           name="tracking_phone"
+                           value="{{ old('tracking_phone', $trackingSearchedPhone) }}"
+                           class="form-control order-tracking-input mr-sm-2 @error('tracking_phone') is-invalid @enderror"
+                           placeholder="01XXXXXXXXX"
+                           maxlength="11"
+                           inputmode="numeric"
+                           pattern="01[0-9]{9}"
+                           autocomplete="tel"
+                           required>
+
+                    <button type="submit" class="btn btn-success order-tracking-button">
+                        <i class="fas fa-search mr-1"></i> Track Order
+                    </button>
+                </div>
+
+                @error('tracking_phone')
+                    <div class="text-danger small mt-2">{{ $message }}</div>
+                @enderror
+            </form>
+
+            @if($trackingOrders !== null)
+                @if($trackingOrders->isEmpty())
+                    <div class="alert alert-warning mt-4 mb-0">
+                        এই ফোন নম্বরে কোনো অর্ডার পাওয়া যায়নি।
+                    </div>
+                @else
+                    <div class="mt-4">
+                        <div class="font-weight-bold text-muted">
+                            সর্বশেষ {{ $trackingOrders->count() }}টি অর্ডার
+                        </div>
+
+                        @foreach($trackingOrders as $order)
+                            @php
+                                $isPathaoOrder = strtolower((string) $order->courier_service) === 'pathao'
+                                    || filled($order->pathao_consignment_id);
+
+                                $rawCourierStatus = $isPathaoOrder
+                                    ? $order->pathao_status
+                                    : $order->steadfast_status;
+
+                                $courierStatus = $rawCourierStatus
+                                    ? ucwords(str_replace('_', ' ', $rawCourierStatus))
+                                    : 'Not available yet';
+
+                                $courierStatusLabel = $isPathaoOrder
+                                    ? 'Pathao Status'
+                                    : 'SteadFast Status';
+
+                                $trackingCode = $isPathaoOrder
+                                    ? $order->pathao_consignment_id
+                                    : $order->steadfast_tracking_code;
+
+                                $localStatus = $orderTrackingStatusLabels[$order->order_status]
+                                    ?? ucwords(str_replace('_', ' ', (string) $order->order_status));
+                            @endphp
+
+                            <div class="order-tracking-card">
+                                <div class="d-flex justify-content-between align-items-start flex-wrap">
+                                    <div>
+                                        <div class="font-weight-bold text-dark">
+                                            Invoice: {{ $order->invoice_id }}
+                                        </div>
+                                        <div class="order-tracking-meta">
+                                            Order Date: {{ optional($order->local_created_at)->format('d M Y, h:i A') ?: '-' }}
+                                        </div>
+                                    </div>
+
+                                    <span class="order-tracking-status mt-2 mt-sm-0">{{ $localStatus }}</span>
+                                </div>
+
+                                <div class="row mt-3">
+                                    <div class="col-md-6 order-tracking-meta">
+                                        <strong>Courier:</strong> {{ $order->courier_name }}<br>
+                                        <strong>{{ $courierStatusLabel }}:</strong> {{ $courierStatus }}<br>
+                                        <strong>Tracking Code:</strong> {{ $trackingCode ?: '-' }}
+                                    </div>
+                                    <div class="col-md-6 order-tracking-meta mt-2 mt-md-0">
+                                        <strong>Amount:</strong> ৳{{ number_format((float) $order->total_amount, 2) }}<br>
+                                        <strong>Payment:</strong> {{ ucwords(str_replace('_', ' ', (string) $order->payment_status)) }}<br>
+                                        <strong>Items:</strong>
+                                        {{ $order->items->map(fn ($item) => $item->quantity . '× ' . $item->product_name)->implode(', ') ?: '-' }}
+                                    </div>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                @endif
+            @endif
+        </div>
     </div>
 </section>
 @endif

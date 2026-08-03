@@ -13,9 +13,14 @@ class Campaign extends Model implements HasMedia
     use SoftDeletes;
     use InteractsWithMedia;
 
+    public const ROUTE_STANDARD = 'standard';
+    public const ROUTE_CUSTOM = 'custom';
+
     protected $fillable = [
         'title',
         'slug',
+        'route_type',
+        'custom_route',
         'campaign_type',
         'short_description',
         'full_description',
@@ -44,6 +49,7 @@ class Campaign extends Model implements HasMedia
         'faq_section_status',
         'help_section_status',
         'order_section_status',
+        'order_tracking_section_status',
 
         'status',
         'is_default',
@@ -73,10 +79,47 @@ class Campaign extends Model implements HasMedia
         'faq_section_status'        => 'boolean',
         'help_section_status'       => 'boolean',
         'order_section_status'      => 'boolean',
+        'order_tracking_section_status' => 'boolean',
 
         'status'                    => 'boolean',
         'is_default'                => 'boolean',
     ];
+
+
+    public function usesCustomRoute(): bool
+    {
+        return $this->route_type === self::ROUTE_CUSTOM
+            && filled($this->custom_route);
+    }
+
+    public function getPublicUrlAttribute(): string
+    {
+        if ($this->usesCustomRoute()) {
+            return route('campaign.custom.show', [
+                'customRoute' => $this->custom_route,
+            ]);
+        }
+
+        return route('campaign.show', $this->slug);
+    }
+
+    public function getOrderSubmitUrlAttribute(): string
+    {
+        if ($this->usesCustomRoute()) {
+            return route('campaign.custom.order.store', [
+                'customRoute' => $this->custom_route,
+            ]);
+        }
+
+        return route('campaign.order.store', $this->slug);
+    }
+
+    public function getPublicPathAttribute(): string
+    {
+        return $this->usesCustomRoute()
+            ? '/' . ltrim((string) $this->custom_route, '/')
+            : '/campaign/' . ltrim((string) $this->slug, '/');
+    }
 
     public function registerMediaCollections(): void
     {

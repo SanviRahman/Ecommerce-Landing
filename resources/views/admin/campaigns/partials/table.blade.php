@@ -17,7 +17,7 @@
 
                 <th style="width: 70px;">SL</th>
                 <th>Landing Page Title</th>
-                <th>Slug</th>
+                <th>Public URL</th>
                 <th>Products</th>
                 <th style="width: 120px;">Default</th>
                 <th style="width: 110px;">Status</th>
@@ -45,9 +45,17 @@
                     </td>
 
                     <td>
-                        <span class="badge badge-light border">
-                            {{ $campaign->slug }}
-                        </span>
+                        <div class="mb-1">
+                            <span class="badge {{ $campaign->usesCustomRoute() ? 'badge-warning' : 'badge-info' }}">
+                                {{ $campaign->usesCustomRoute() ? 'Custom' : 'Standard' }}
+                            </span>
+                        </div>
+
+                        <a href="{{ $campaign->public_url }}"
+                           target="_blank"
+                           class="small font-weight-bold text-break">
+                            {{ $campaign->public_path }}
+                        </a>
                     </td>
 
                     <td>
@@ -93,7 +101,7 @@
 
                     <td>
                         @if (! $isTrash)
-                            <a href="{{ route('campaign.show', $campaign->slug) }}"
+                            <a href="{{ $campaign->public_url }}"
                                target="_blank"
                                class="btn btn-sm btn-primary"
                                title="View Landing Page">

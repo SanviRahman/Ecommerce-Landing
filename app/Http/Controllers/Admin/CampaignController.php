@@ -107,12 +107,45 @@ class CampaignController extends Controller
             ?: $request->input('landing_page_title')
             ?: $request->input('banner_title');
 
+        $routeType = in_array($request->input('route_type'), [
+            Campaign::ROUTE_STANDARD,
+            Campaign::ROUTE_CUSTOM,
+        ], true)
+            ? $request->input('route_type')
+            : Campaign::ROUTE_STANDARD;
+
         $request->merge([
-            'title'      => $title,
-            'categories' => $request->input('categories', $request->input('category_ids', [])),
-            'brands'     => $request->input('brands', $request->input('brand_ids', [])),
-            'products'   => $request->input('products', $request->input('product_ids', [])),
+            'title'        => $title,
+            'slug'         => $request->filled('slug')
+                ? Str::slug((string) $request->input('slug'))
+                : null,
+            'route_type'   => $routeType,
+            'custom_route' => $routeType === Campaign::ROUTE_CUSTOM
+                ? $this->normalizeCustomRoute($request->input('custom_route'))
+                : null,
+            'categories'   => $request->input('categories', $request->input('category_ids', [])),
+            'brands'       => $request->input('brands', $request->input('brand_ids', [])),
+            'products'     => $request->input('products', $request->input('product_ids', [])),
         ]);
+    }
+
+    private function normalizeCustomRoute(?string $value): ?string
+    {
+        $value = trim((string) $value);
+
+        if ($value === '') {
+            return null;
+        }
+
+        if (filter_var($value, FILTER_VALIDATE_URL)) {
+            $value = (string) parse_url($value, PHP_URL_PATH);
+        }
+
+        $value = trim($value, '/');
+        $value = preg_replace('/\s+/', '-', $value) ?: '';
+        $value = Str::lower($value);
+
+        return $value !== '' ? $value : null;
     }
 
     private function generateUniqueSlug(string $title, ?int $ignoreId = null): string
@@ -246,7 +279,8 @@ class CampaignController extends Controller
             'gallery_section_status'    => $request->has('gallery_section_status'),
             'faq_section_status'        => $request->has('faq_section_status'),
             'help_section_status'       => $request->has('help_section_status'),
-            'order_section_status'      => $request->has('order_section_status'),
+            'order_section_status'          => $request->has('order_section_status'),
+            'order_tracking_section_status' => $request->has('order_tracking_section_status'),
         ];
     }
 
@@ -259,7 +293,26 @@ class CampaignController extends Controller
                 'nullable',
                 'string',
                 'max:255',
+                'regex:/^[a-z0-9]+(?:-[a-z0-9]+)*$/',
                 Rule::unique('campaigns', 'slug')->ignore($campaign?->id),
+            ],
+
+            'route_type'                  => [
+                'required',
+                Rule::in([
+                    Campaign::ROUTE_STANDARD,
+                    Campaign::ROUTE_CUSTOM,
+                ]),
+            ],
+
+            'custom_route'                => [
+                'nullable',
+                'required_if:route_type,' . Campaign::ROUTE_CUSTOM,
+                'string',
+                'max:190',
+                'regex:/^' . config('campaign-routes.pattern', '[a-z0-9][a-z0-9_-]*') . '$/',
+                Rule::notIn(config('campaign-routes.reserved', [])),
+                Rule::unique('campaigns', 'custom_route')->ignore($campaign?->id),
             ],
 
             'categories'                  => ['nullable', 'array'],
@@ -351,9 +404,13 @@ class CampaignController extends Controller
         return [
             'title'               => $request->title,
 
-            'slug'                => $campaign
-                ? ($request->slug ? Str::slug($request->slug) : $this->generateUniqueSlug($request->title, $campaign->id))
-                : $this->generateUniqueSlug($request->title),
+            'slug'                => $request->slug
+                ?: $this->generateUniqueSlug($request->title, $campaign?->id),
+
+            'route_type'          => $request->route_type,
+            'custom_route'        => $request->route_type === Campaign::ROUTE_CUSTOM
+                ? $request->custom_route
+                : null,
 
             'campaign_type'       => count($productIds) > 1 ? 'multiple' : 'single',
 
@@ -391,6 +448,8 @@ class CampaignController extends Controller
             $query->where(function ($q) use ($search) {
                 $q->where('title', 'like', "%{$search}%")
                     ->orWhere('slug', 'like', "%{$search}%")
+                    ->orWhere('custom_route', 'like', "%{$search}%")
+                    ->orWhere('route_type', 'like', "%{$search}%")
                     ->orWhere('short_description', 'like', "%{$search}%")
                     ->orWhere('full_description', 'like', "%{$search}%");
             });
@@ -433,6 +492,41 @@ class CampaignController extends Controller
             'breadcrumb' => $breadcrumb,
             'isTrash'    => $isTrash,
         ]);
+    }
+
+    public function orderTrackingSettings()
+    {
+        $campaign = Campaign::resolveHomepageCampaign();
+
+        return view('admin.campaigns.order-tracking-settings', [
+            'campaign' => $campaign,
+            'title' => 'Order Tracking Settings',
+            'breadcrumb' => [
+                ['text' => 'Dashboard', 'url' => route('admin.dashboard')],
+                ['text' => 'Order Tracking Settings', 'url' => route('admin.order-tracking-settings.index')],
+            ],
+        ]);
+    }
+
+    public function updateOrderTrackingSettings(Request $request, Campaign $campaign)
+    {
+        $homepageCampaign = Campaign::resolveHomepageCampaign();
+
+        abort_unless($homepageCampaign && $homepageCampaign->is($campaign), 404);
+
+        $validated = $request->validate([
+            'order_tracking_section_status' => ['required', 'boolean'],
+        ]);
+
+        $campaign->forceFill([
+            'order_tracking_section_status' => (bool) $validated['order_tracking_section_status'],
+        ])->save();
+
+        return redirect()
+            ->route('admin.order-tracking-settings.index')
+            ->with('success', $campaign->order_tracking_section_status
+                ? 'Order Tracking section and header activated successfully.'
+                : 'Order Tracking section and header deactivated successfully.');
     }
 
     public function index(Request $request)

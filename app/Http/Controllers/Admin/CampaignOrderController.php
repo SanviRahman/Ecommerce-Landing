@@ -159,6 +159,41 @@ class CampaignOrderController extends Controller
         CustomerIdentityService $customerIdentityService,
         OrderBlockService $orderBlockService
     ) {
+        abort_if($campaign->usesCustomRoute(), 404);
+
+        return $this->storeCampaignOrder(
+            $request,
+            $campaign,
+            $customerIdentityService,
+            $orderBlockService
+        );
+    }
+
+    public function storeByCustomRoute(
+        Request $request,
+        string $customRoute,
+        CustomerIdentityService $customerIdentityService,
+        OrderBlockService $orderBlockService
+    ) {
+        $campaign = Campaign::query()
+            ->where('route_type', Campaign::ROUTE_CUSTOM)
+            ->where('custom_route', strtolower($customRoute))
+            ->firstOrFail();
+
+        return $this->storeCampaignOrder(
+            $request,
+            $campaign,
+            $customerIdentityService,
+            $orderBlockService
+        );
+    }
+
+    private function storeCampaignOrder(
+        Request $request,
+        Campaign $campaign,
+        CustomerIdentityService $customerIdentityService,
+        OrderBlockService $orderBlockService
+    ) {
         abort_if(! $campaign->status, 404);
 
         $request->merge([

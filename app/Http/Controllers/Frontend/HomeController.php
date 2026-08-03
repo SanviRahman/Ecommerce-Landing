@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Frontend;
 use App\Http\Controllers\Controller;
 use App\Models\Campaign;
 use App\Models\Faq;
+use App\Models\Order;
 use App\Models\Review;
 use App\Models\ShippingCharge;
 use App\Models\SiteSetting;
@@ -20,6 +21,8 @@ class HomeController extends Controller
             ->where('status', true)
             ->latest()
             ->first();
+
+        $trackingData = $this->resolveOrderTrackingData();
 
         /**
          * Homepage campaign resolving rule:
@@ -58,6 +61,7 @@ class HomeController extends Controller
                 'shippingCharges'           => collect(),
                 'courierServices'           => config('couriers.list', []),
                 'orderFormToken'            => null,
+                ...$trackingData,
                 'showFrontendHeader'        => true,
                 'showFrontendHeaderContent' => false,
             ]);
@@ -115,9 +119,40 @@ class HomeController extends Controller
             'shippingCharges'           => $shippingCharges,
             'courierServices'           => config('couriers.list', []),
             'orderFormToken'            => $orderFormToken,
+            ...$trackingData,
             'showFrontendHeader'        => true,
             'showFrontendHeaderContent' => true,
         ]);
+    }
+
+    private function resolveOrderTrackingData(): array
+    {
+        $searchedPhone = session('order_tracking_phone');
+
+        if (! is_string($searchedPhone) || $searchedPhone === '') {
+            return [
+                'trackingOrders' => null,
+                'trackingSearchedPhone' => null,
+            ];
+        }
+
+        $phoneVariants = collect([
+            $searchedPhone,
+            '880' . substr($searchedPhone, 1),
+            '+880' . substr($searchedPhone, 1),
+        ])->unique()->values()->all();
+
+        $orders = Order::query()
+            ->with(['items.product', 'courierAccount'])
+            ->whereIn('phone', $phoneVariants)
+            ->latest('id')
+            ->limit(20)
+            ->get();
+
+        return [
+            'trackingOrders' => $orders,
+            'trackingSearchedPhone' => $searchedPhone,
+        ];
     }
 
     /**

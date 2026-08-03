@@ -7,7 +7,7 @@
     <h1 class="m-0">{{ $title ?? 'Campaign Details' }}</h1>
 
     <div>
-        <a href="{{ route('campaign.show', $campaign->slug) }}" target="_blank"
+        <a href="{{ $campaign->public_url }}" target="_blank"
             class="btn btn-primary rounded-pill px-4">
             <i class="fas fa-eye mr-1"></i> View Landing Page
         </a>
@@ -53,10 +53,26 @@
                     </tr>
 
                     <tr>
+                        <th>Public URL Type</th>
+                        <td>
+                            <span class="badge {{ $campaign->usesCustomRoute() ? 'badge-warning' : 'badge-info' }}">
+                                {{ $campaign->usesCustomRoute() ? 'Custom Root URL' : 'Standard Campaign URL' }}
+                            </span>
+                        </td>
+                    </tr>
+
+                    @if($campaign->usesCustomRoute())
+                        <tr>
+                            <th>Custom Route</th>
+                            <td><code>/{{ $campaign->custom_route }}</code></td>
+                        </tr>
+                    @endif
+
+                    <tr>
                         <th>Public URL</th>
                         <td>
-                            <a href="{{ route('campaign.show', $campaign->slug) }}" target="_blank">
-                                {{ route('campaign.show', $campaign->slug) }}
+                            <a href="{{ $campaign->public_url }}" target="_blank">
+                                {{ $campaign->public_url }}
                             </a>
                         </td>
                     </tr>

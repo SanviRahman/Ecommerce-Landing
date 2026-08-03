@@ -430,6 +430,56 @@ class Order extends Model
         return $query->where('order_status', self::STATUS_DELIVERED);
     }
 
+    public function scopeCourierPending(Builder $query): Builder
+    {
+        return $query
+            ->where('order_status', '!=', self::STATUS_DELIVERED)
+            ->where(function (Builder $courierQuery) {
+                $courierQuery
+                    ->where(function (Builder $steadfastQuery) {
+                        $steadfastQuery
+                            ->where('courier_service', 'steadfast')
+                            ->whereIn(
+                                'steadfast_status',
+                                \App\Services\SteadfastStatusService::PENDING_STATUSES
+                            );
+                    })
+                    ->orWhere(function (Builder $pathaoQuery) {
+                        $pathaoQuery
+                            ->where('courier_service', 'pathao')
+                            ->whereIn(
+                                'pathao_status',
+                                \App\Services\PathaoStatusService::PENDING_STATUSES
+                            );
+                    });
+            });
+    }
+
+    public function scopeCourierCancelled(Builder $query): Builder
+    {
+        return $query
+            ->where('order_status', '!=', self::STATUS_DELIVERED)
+            ->where(function (Builder $courierQuery) {
+                $courierQuery
+                    ->where(function (Builder $steadfastQuery) {
+                        $steadfastQuery
+                            ->where('courier_service', 'steadfast')
+                            ->whereIn(
+                                'steadfast_status',
+                                \App\Services\SteadfastStatusService::CANCELLED_STATUSES
+                            );
+                    })
+                    ->orWhere(function (Builder $pathaoQuery) {
+                        $pathaoQuery
+                            ->where('courier_service', 'pathao')
+                            ->whereIn(
+                                'pathao_status',
+                                \App\Services\PathaoStatusService::CANCELLED_STATUSES
+                            );
+                    });
+            });
+    }
+
     public function scopeOrderListOne(Builder $query): Builder
     {
         return $query->where('custom_order_list', self::CUSTOM_LIST_ONE);

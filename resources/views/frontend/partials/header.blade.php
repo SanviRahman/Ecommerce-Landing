@@ -43,7 +43,7 @@
     $logoUrl = route('home');
 
     if ($campaign && ! empty($campaign->slug)) {
-        $logoUrl = route('campaign.show', $campaign->slug);
+        $logoUrl = $campaign->public_url;
     }
 
     $sectionStatus = function (string $field, bool $default = true) use ($campaign): bool {
@@ -104,6 +104,15 @@
 
     $headerOrderActive = $isOrderSectionActive
         ?? $sectionStatus('order_section_status');
+
+    $headerOrderTrackingActive = $isOrderTrackingSectionActive
+        ?? $sectionStatus('order_tracking_section_status');
+
+    $standaloneFrontendPage = request()->routeIs(
+        'order.success',
+        'order.track',
+        'order.track.search'
+    );
 @endphp
 
 @if($showFrontendHeader)
@@ -119,7 +128,7 @@
 
                 @if($headerOrderActive)
                     <div class="mobile-action d-lg-none ml-auto mr-2">
-                        <a href="{{ request()->routeIs('order.success') ? route('home') . '#order-section' : '#order-section' }}"
+                        <a href="{{ $standaloneFrontendPage ? route('home') . '#order-section' : '#order-section' }}"
                            class="btn btn-success btn-sm order-nav-btn">
                             <i class="fas fa-shopping-bag mr-1"></i>
                             অর্ডার করুন
@@ -143,7 +152,7 @@
                     <ul class="navbar-nav ml-auto align-items-lg-center">
                         @if($headerCategoryActive)
                             <li class="nav-item">
-                                <a class="nav-link" href="{{ request()->routeIs('order.success') ? route('home') . '#category-section' : '#category-section' }}">
+                                <a class="nav-link" href="{{ $standaloneFrontendPage ? route('home') . '#category-section' : '#category-section' }}">
                                     ক্যাটাগরি
                                 </a>
                             </li>
@@ -151,7 +160,7 @@
 
                         @if($headerBrandActive)
                             <li class="nav-item">
-                                <a class="nav-link" href="{{ request()->routeIs('order.success') ? route('home') . '#brand-section' : '#brand-section' }}">
+                                <a class="nav-link" href="{{ $standaloneFrontendPage ? route('home') . '#brand-section' : '#brand-section' }}">
                                     ব্র্যান্ড
                                 </a>
                             </li>
@@ -159,7 +168,7 @@
 
                         @if($headerProductActive)
                             <li class="nav-item">
-                                <a class="nav-link" href="{{ request()->routeIs('order.success') ? route('home') . '#products-section' : '#products-section' }}">
+                                <a class="nav-link" href="{{ $standaloneFrontendPage ? route('home') . '#products-section' : '#products-section' }}">
                                     প্রোডাক্ট
                                 </a>
                             </li>
@@ -167,7 +176,7 @@
 
                         @if($headerDifferenceActive)
                             <li class="nav-item">
-                                <a class="nav-link" href="{{ request()->routeIs('order.success') ? route('home') . '#difference-section' : '#difference-section' }}">
+                                <a class="nav-link" href="{{ $standaloneFrontendPage ? route('home') . '#difference-section' : '#difference-section' }}">
                                     পার্থক্য
                                 </a>
                             </li>
@@ -175,7 +184,7 @@
 
                         @if($headerServiceActive)
                             <li class="nav-item">
-                                <a class="nav-link" href="{{ request()->routeIs('order.success') ? route('home') . '#services-section' : '#services-section' }}">
+                                <a class="nav-link" href="{{ $standaloneFrontendPage ? route('home') . '#services-section' : '#services-section' }}">
                                     ফিচারস
                                 </a>
                             </li>
@@ -183,7 +192,7 @@
 
                         @if($headerReviewActive)
                             <li class="nav-item">
-                                <a class="nav-link" href="{{ request()->routeIs('order.success') ? route('home') . '#reviews-section' : '#reviews-section' }}">
+                                <a class="nav-link" href="{{ $standaloneFrontendPage ? route('home') . '#reviews-section' : '#reviews-section' }}">
                                     রিভিউ
                                 </a>
                             </li>
@@ -191,7 +200,7 @@
 
                         @if($headerGalleryActive)
                             <li class="nav-item">
-                                <a class="nav-link" href="{{ request()->routeIs('order.success') ? route('home') . '#gallery-section' : '#gallery-section' }}">
+                                <a class="nav-link" href="{{ $standaloneFrontendPage ? route('home') . '#gallery-section' : '#gallery-section' }}">
                                     গ্যালারি
                                 </a>
                             </li>
@@ -199,15 +208,23 @@
 
                         @if($headerHelpActive)
                             <li class="nav-item">
-                                <a class="nav-link" href="{{ request()->routeIs('order.success') ? route('home') . '#contact-section' : '#contact-section' }}">
+                                <a class="nav-link" href="{{ $standaloneFrontendPage ? route('home') . '#contact-section' : '#contact-section' }}">
                                     যোগাযোগ
+                                </a>
+                            </li>
+                        @endif
+
+                        @if($headerOrderTrackingActive)
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ $standaloneFrontendPage ? route('home') . '#order-track-section' : '#order-track-section' }}">
+                                    অর্ডার ট্র্যাক করুন
                                 </a>
                             </li>
                         @endif
 
                         @if($headerOrderActive)
                             <li class="nav-item ml-lg-3 d-none d-lg-block">
-                                <a href="{{ request()->routeIs('order.success') ? route('home') . '#order-section' : '#order-section' }}"
+                                <a href="{{ $standaloneFrontendPage ? route('home') . '#order-section' : '#order-section' }}"
                                    class="btn btn-success order-nav-btn">
                                     <i class="fas fa-shopping-bag mr-1"></i>
                                     অর্ডার করুন
