@@ -15,6 +15,11 @@ use Throwable;
 
 class PathaoWebhookController extends Controller
 {
+    private const NON_ORDER_EVENTS = [
+        'store.created',
+        'store.updated',
+    ];
+
     public function __invoke(
         Request $request,
         CourierAccount $courierAccount,
@@ -34,7 +39,7 @@ class PathaoWebhookController extends Controller
             );
         }
 
-        $providedSignature = trim((string) $request->header('X-PATHAO-Signature', ''));
+        $providedSignature = $this->resolveSignature($request);
 
         if (
             $secret === ''
@@ -44,6 +49,8 @@ class PathaoWebhookController extends Controller
             Log::warning('Pathao webhook signature verification failed.', [
                 'courier_account_id' => $courierAccount->id,
                 'signature_header_present' => $providedSignature !== '',
+                'expected_signature_fingerprint' => $this->fingerprint($secret),
+                'provided_signature_fingerprint' => $this->fingerprint($providedSignature),
                 'ip' => $request->ip(),
             ]);
 
@@ -62,6 +69,10 @@ class PathaoWebhookController extends Controller
 
         if ($event === 'webhook_integration') {
             return $this->accepted('Successfully accepted webhook integration.', $secret);
+        }
+
+        if (in_array($event, self::NON_ORDER_EVENTS, true)) {
+            return $this->accepted('Non-order Pathao event accepted and ignored.', $secret);
         }
 
         $payload = $this->normalizePayload($rawPayload, $statusService);
@@ -170,7 +181,7 @@ class PathaoWebhookController extends Controller
             ]);
 
             return $this->accepted(
-                'Webhook accepted; processing will be retried after the issue is resolved.',
+                'Webhook accepted; API fallback sync will reconcile the order.',
                 $secret
             );
         }
@@ -196,14 +207,19 @@ class PathaoWebhookController extends Controller
             'merchant_order_id' => $this->scalar(
                 data_get($payload, 'merchant_order_id')
                     ?: data_get($payload, 'data.merchant_order_id')
+                    ?: data_get($payload, 'order.merchant_order_id')
+                    ?: data_get($payload, 'data.order.merchant_order_id')
             ),
             'consignment_id' => $this->scalar(
                 data_get($payload, 'consignment_id')
                     ?: data_get($payload, 'data.consignment_id')
+                    ?: data_get($payload, 'order.consignment_id')
+                    ?: data_get($payload, 'data.order.consignment_id')
             ),
             'status' => $statusService->statusFromPayload($payload),
             'delivery_fee' => data_get($payload, 'delivery_fee')
-                ?? data_get($payload, 'data.delivery_fee'),
+                ?? data_get($payload, 'data.delivery_fee')
+                ?? data_get($payload, 'data.order.delivery_fee'),
             'updated_at' => $this->scalar(
                 data_get($payload, 'updated_at')
                     ?: data_get($payload, 'created_at')
@@ -263,6 +279,30 @@ class PathaoWebhookController extends Controller
         }
 
         return $response;
+    }
+
+    private function resolveSignature(Request $request): string
+    {
+        foreach ([
+            $request->header('X-PATHAO-Signature'),
+            $request->server('HTTP_X_PATHAO_SIGNATURE'),
+            $request->server('REDIRECT_HTTP_X_PATHAO_SIGNATURE'),
+        ] as $signature) {
+            if (is_scalar($signature) && trim((string) $signature) !== '') {
+                return trim((string) $signature);
+            }
+        }
+
+        return '';
+    }
+
+    private function fingerprint(string $value): ?string
+    {
+        if ($value === '') {
+            return null;
+        }
+
+        return substr(hash('sha256', $value), 0, 12);
     }
 
     private function eventKey(CourierAccount $courierAccount, array $payload): string

@@ -62,6 +62,8 @@ class SteadfastWebhookController extends Controller
                 'delivery_status',
                 'delivery_status_update',
                 'status_update',
+                'tracking_update',
+                'tracking_status_update',
             ], true)
         ) {
             Log::info('SteadFast webhook notification ignored.', [

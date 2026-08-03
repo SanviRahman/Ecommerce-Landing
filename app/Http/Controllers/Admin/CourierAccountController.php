@@ -378,7 +378,7 @@ class CourierAccountController extends Controller
                 && $request->boolean('webhook_enabled'),
             'auto_update_order_status' => ($isSteadfast || $isPathao)
                 && $request->boolean('auto_update_order_status'),
-            'status_sync_enabled' => $isSteadfast
+            'status_sync_enabled' => ($isSteadfast || $isPathao)
                 && $request->boolean('status_sync_enabled'),
             'status_sync_interval_minutes' => min(
                 max((int) ($request->status_sync_interval_minutes ?: 15), 5),

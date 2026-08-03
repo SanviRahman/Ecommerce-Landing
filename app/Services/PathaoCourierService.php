@@ -15,8 +15,9 @@ class PathaoCourierService
 {
     private int $timeout;
 
-    public function __construct()
-    {
+    public function __construct(
+        private readonly PathaoStatusService $statusService
+    ) {
         $this->timeout = (int) config('steadfast.timeout', 30);
     }
 
@@ -95,13 +96,95 @@ class PathaoCourierService
         $order->update([
             'pathao_consignment_id' => $consignmentId,
             'pathao_merchant_order_id' => $merchantOrderId,
-            'pathao_status' => app(PathaoStatusService::class)->normalize((string) $orderStatus),
+            'pathao_status' => $this->statusService->normalize((string) $orderStatus),
             'pathao_delivery_fee' => (float) $deliveryFee,
             'pathao_note' => data_get($data, 'message', 'Pathao order created successfully.'),
             'pathao_response' => $data,
             'pathao_sent_at' => now(),
             'pathao_synced_at' => now(),
         ]);
+
+        return $data;
+    }
+
+
+    public function syncStatus(Order $order): array
+    {
+        $order->loadMissing('courierAccount');
+
+        $courier = $this->resolveCourierAccount($order);
+
+        if (strtolower((string) $courier->code) !== 'pathao') {
+            throw new RuntimeException('Selected courier is not Pathao.');
+        }
+
+        $this->ensureAuthenticationConfigured($courier);
+
+        if (blank($order->pathao_consignment_id)) {
+            throw new RuntimeException('Pathao consignment ID is missing for this order.');
+        }
+
+        try {
+            $response = $this->sendStatusRequest($courier, (string) $order->pathao_consignment_id);
+
+            if ($response->status() === 401) {
+                $this->refreshToken($courier);
+                $response = $this->sendStatusRequest(
+                    $courier->fresh(),
+                    (string) $order->pathao_consignment_id
+                );
+            }
+        } catch (ConnectionException $exception) {
+            $message = 'Pathao status connection failed. Please check courier base URL. Current URL: '
+                . $this->baseUrl($courier);
+
+            $order->update([
+                'pathao_note' => $message,
+                'pathao_response' => [
+                    'error' => $exception->getMessage(),
+                    'base_url' => $this->baseUrl($courier),
+                ],
+                'pathao_synced_at' => now(),
+            ]);
+
+            throw new RuntimeException($message);
+        } catch (Throwable $exception) {
+            throw new RuntimeException($exception->getMessage());
+        }
+
+        $data = $this->decodeResponse($response);
+
+        if (! $response->successful()) {
+            $message = $this->responseMessage($data, 'Pathao status sync failed.');
+
+            $order->update([
+                'pathao_note' => $message,
+                'pathao_response' => $data,
+                'pathao_synced_at' => now(),
+            ]);
+
+            throw new RuntimeException($message);
+        }
+
+        $status = $this->statusService->statusFromPayload($data);
+
+        if ($status === '') {
+            $order->update([
+                'pathao_note' => 'Pathao status response did not contain an order status.',
+                'pathao_response' => $data,
+                'pathao_synced_at' => now(),
+            ]);
+
+            throw new RuntimeException('Pathao response did not contain an order status.');
+        }
+
+        $this->statusService->apply(
+            $order,
+            $courier,
+            $status,
+            $data,
+            'api'
+        );
 
         return $data;
     }
@@ -187,6 +270,26 @@ class PathaoCourierService
             ->withHeaders(['source' => 'laravel'])
             ->withToken($token)
             ->post($this->baseUrl($courier) . '/aladdin/api/v1/orders', $payload);
+    }
+
+
+    private function sendStatusRequest(
+        CourierAccount $courier,
+        string $consignmentId
+    ): Response {
+        $token = $this->accessToken($courier);
+
+        return Http::timeout($this->timeout)
+            ->acceptJson()
+            ->asJson()
+            ->withHeaders(['source' => 'laravel'])
+            ->withToken($token)
+            ->get(
+                $this->baseUrl($courier)
+                    . '/aladdin/api/v1/orders/'
+                    . urlencode($consignmentId)
+                    . '/info'
+            );
     }
 
     private function issueModernToken(CourierAccount $courier): Response

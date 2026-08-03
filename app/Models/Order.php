@@ -433,7 +433,11 @@ class Order extends Model
     public function scopeCourierPending(Builder $query): Builder
     {
         return $query
-            ->where('order_status', '!=', self::STATUS_DELIVERED)
+            ->whereNotIn('order_status', [
+                self::STATUS_DELIVERED,
+                self::STATUS_CANCELLED,
+                self::STATUS_CANCELED,
+            ])
             ->where(function (Builder $courierQuery) {
                 $courierQuery
                     ->where(function (Builder $steadfastQuery) {

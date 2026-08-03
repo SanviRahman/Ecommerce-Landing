@@ -921,6 +921,12 @@ return [
                     'can'  => 'admin-only',
                 ],
                 [
+                    'text' => 'Sync Pathao Status',
+                    'url'  => 'command/sync-pathao-statuses',
+                    'icon' => 'far fa-fw fa-circle',
+                    'can'  => 'admin-only',
+                ],
+                [
                     'text' => 'Fresh Migrate',
                     'url'  => 'command/migrate-fresh',
                     'icon' => 'far fa-fw fa-circle text-danger',

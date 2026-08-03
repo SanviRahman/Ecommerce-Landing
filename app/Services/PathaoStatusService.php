@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\CourierAccount;
 use App\Models\Order;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class PathaoStatusService
 {
@@ -34,6 +35,9 @@ class PathaoStatusService
         'pickup_cancelled',
         'return',
         'returned',
+        'return_id_created',
+        'return_in_transit',
+        'returned_to_merchant',
         'delivery_failed',
         'paid_return',
         'cancelled',
@@ -59,6 +63,7 @@ class PathaoStatusService
             'pickup_request' => 'pickup_requested',
             'pickup_requested' => 'pickup_requested',
             'assigned_for_pickup' => 'assigned_for_pickup',
+            'pickup' => 'picked',
             'picked_up' => 'picked',
             'picked' => 'picked',
             'pickup_failed' => 'pickup_failed',
@@ -74,6 +79,9 @@ class PathaoStatusService
             'partial_delivery' => 'partial_delivery',
             'returned' => 'returned',
             'return' => 'return',
+            'return_id_created' => 'return_id_created',
+            'return_in_transit' => 'return_in_transit',
+            'returned_to_merchant' => 'returned_to_merchant',
             'delivery_failed' => 'delivery_failed',
             'on_hold' => 'on_hold',
             'hold' => 'on_hold',
@@ -88,6 +96,25 @@ class PathaoStatusService
 
         if (isset($aliases[$normalized])) {
             return $aliases[$normalized];
+        }
+
+        if (str_contains($normalized, 'return') && str_contains($normalized, 'merchant')) {
+            return 'returned_to_merchant';
+        }
+
+        if (
+            str_contains($normalized, 'return')
+            && str_contains($normalized, 'transit')
+        ) {
+            return 'return_in_transit';
+        }
+
+        if (
+            str_contains($normalized, 'return')
+            && str_contains($normalized, 'id')
+            && str_contains($normalized, 'create')
+        ) {
+            return 'return_id_created';
         }
 
         if (str_contains($normalized, 'partial') && str_contains($normalized, 'deliver')) {
@@ -142,21 +169,28 @@ class PathaoStatusService
             'order.updated' => 'order_updated',
             'order.pickup-requested' => 'pickup_requested',
             'order.assigned-for-pickup' => 'assigned_for_pickup',
+            'order.pickup' => 'picked',
             'order.picked' => 'picked',
             'order.pickup-failed' => 'pickup_failed',
             'order.pickup-cancelled' => 'pickup_cancelled',
+            'order.pickup-canceled' => 'pickup_cancelled',
             'order.at-the-sorting-hub' => 'at_the_sorting_hub',
             'order.in-transit' => 'in_transit',
             'order.received-at-last-mile-hub' => 'received_at_last_mile_hub',
             'order.assigned-for-delivery' => 'assigned_for_delivery',
             'order.delivered' => 'delivered',
             'order.partial-delivery' => 'partial_delivery',
+            'order.return' => 'return',
             'order.returned' => 'returned',
+            'order.return-id-created' => 'return_id_created',
+            'order.return-in-transit' => 'return_in_transit',
+            'order.returned-to-merchant' => 'returned_to_merchant',
             'order.delivery-failed' => 'delivery_failed',
             'order.on-hold' => 'on_hold',
             'order.paid-return' => 'paid_return',
             'order.exchanged' => 'exchange',
             'order.paid' => 'payment_invoice',
+            'order.payment-invoice' => 'payment_invoice',
         ];
 
         return $map[$event] ?? $this->normalize($event);
@@ -164,15 +198,25 @@ class PathaoStatusService
 
     public function statusFromPayload(array $payload): string
     {
-        $status = data_get($payload, 'order_status')
-            ?: data_get($payload, 'status')
-            ?: data_get($payload, 'data.order_status')
-            ?: data_get($payload, 'data.status');
+        foreach ([
+            data_get($payload, 'data.order_status'),
+            data_get($payload, 'order_status'),
+            data_get($payload, 'data.order.status'),
+            data_get($payload, 'order.status'),
+            data_get($payload, 'data.delivery_status'),
+            data_get($payload, 'delivery_status'),
+            data_get($payload, 'data.status'),
+            data_get($payload, 'status'),
+        ] as $status) {
+            if (! is_string($status) || trim($status) === '') {
+                continue;
+            }
 
-        $normalized = $this->normalize(is_scalar($status) ? (string) $status : '');
+            $normalized = $this->normalize($status);
 
-        if ($normalized !== '') {
-            return $normalized;
+            if (! in_array($normalized, ['success', 'successful', 'ok'], true)) {
+                return $normalized;
+            }
         }
 
         return $this->fromEvent((string) (
@@ -196,6 +240,24 @@ class PathaoStatusService
         return 'pending';
     }
 
+    public function autoUpdateEnabled(CourierAccount $courierAccount): bool
+    {
+        return (bool) $courierAccount->setting('auto_update_order_status', true);
+    }
+
+    public function statusSyncEnabled(CourierAccount $courierAccount): bool
+    {
+        return (bool) $courierAccount->setting('status_sync_enabled', true);
+    }
+
+    public function syncIntervalMinutes(CourierAccount $courierAccount): int
+    {
+        return min(
+            max((int) $courierAccount->setting('status_sync_interval_minutes', 15), 5),
+            1440
+        );
+    }
+
     public function apply(
         Order $order,
         CourierAccount $courierAccount,
@@ -203,58 +265,96 @@ class PathaoStatusService
         array $payload,
         string $source = 'webhook'
     ): Order {
-        $status = $this->normalize($status);
-        $autoUpdate = (bool) data_get($courierAccount->settings ?? [], 'auto_update_order_status', true);
+        $normalizedStatus = $this->normalize($status);
+        $category = $this->category($normalizedStatus);
 
         return DB::transaction(function () use (
             $order,
             $courierAccount,
-            $status,
+            $normalizedStatus,
+            $category,
             $payload,
-            $source,
-            $autoUpdate
+            $source
         ): Order {
             $lockedOrder = Order::query()->lockForUpdate()->findOrFail($order->id);
 
             $updates = [
-                'courier_account_id' => $courierAccount->id,
+                'courier_account_id' => $lockedOrder->courier_account_id ?: $courierAccount->id,
                 'courier_service' => 'pathao',
-                'pathao_status' => $status,
+                'pathao_status' => $normalizedStatus ?: null,
                 'pathao_consignment_id' => $this->scalar(
                     data_get($payload, 'consignment_id')
                         ?: data_get($payload, 'data.consignment_id')
+                        ?: data_get($payload, 'data.order.consignment_id')
                         ?: $lockedOrder->pathao_consignment_id
                 ),
                 'pathao_merchant_order_id' => $this->scalar(
                     data_get($payload, 'merchant_order_id')
                         ?: data_get($payload, 'data.merchant_order_id')
+                        ?: data_get($payload, 'data.order.merchant_order_id')
                         ?: $lockedOrder->pathao_merchant_order_id
                         ?: $lockedOrder->invoice_id
                 ),
-                'pathao_note' => 'Pathao status updated from ' . $source . '.',
+                'pathao_note' => $this->statusNote($normalizedStatus, $source),
                 'pathao_response' => $payload,
+                'pathao_sent_at' => $lockedOrder->pathao_sent_at ?: now(),
                 'pathao_synced_at' => now(),
             ];
 
             $deliveryFee = data_get($payload, 'delivery_fee')
-                ?? data_get($payload, 'data.delivery_fee');
+                ?? data_get($payload, 'data.delivery_fee')
+                ?? data_get($payload, 'data.order.delivery_fee');
 
             if (is_numeric($deliveryFee)) {
                 $updates['pathao_delivery_fee'] = (float) $deliveryFee;
             }
 
-            if ($autoUpdate && $lockedOrder->order_status !== Order::STATUS_DELIVERED) {
-                if (in_array($status, self::DELIVERED_STATUSES, true)) {
+            if ($this->autoUpdateEnabled($courierAccount)) {
+                if ($category === 'delivered') {
                     $updates['order_status'] = Order::STATUS_DELIVERED;
-                } elseif (in_array($status, self::FINAL_CANCELLED_STATUSES, true)) {
+                    $updates['delivered_at'] = $lockedOrder->delivered_at ?: now();
+                    $updates['cancelled_at'] = null;
+                    $updates['custom_order_list'] = null;
+                    $updates['is_fake'] = false;
+                    $updates['marked_fake_at'] = null;
+
+                    if (Schema::hasColumn('orders', 'custom_order_list_moved_at')) {
+                        $updates['custom_order_list_moved_at'] = null;
+                    }
+                } elseif (
+                    $category === 'cancelled'
+                    && in_array($normalizedStatus, self::FINAL_CANCELLED_STATUSES, true)
+                    && $lockedOrder->order_status !== Order::STATUS_DELIVERED
+                ) {
                     $updates['order_status'] = Order::STATUS_CANCELLED;
+                    $updates['cancelled_at'] = $lockedOrder->cancelled_at ?: now();
+                    $updates['custom_order_list'] = null;
+                    $updates['is_fake'] = false;
+                    $updates['marked_fake_at'] = null;
+
+                    if (Schema::hasColumn('orders', 'custom_order_list_moved_at')) {
+                        $updates['custom_order_list_moved_at'] = null;
+                    }
                 }
             }
 
             $lockedOrder->update($updates);
 
-            return $lockedOrder->fresh(['items', 'courierAccount']);
+            return $lockedOrder->fresh([
+                'courierAccount',
+                'courier',
+                'items.product',
+            ]);
         });
+    }
+
+    private function statusNote(string $status, string $source): string
+    {
+        $label = $status !== ''
+            ? ucwords(str_replace('_', ' ', $status))
+            : 'Unknown';
+
+        return 'Pathao status synced from ' . $source . ': ' . $label . '.';
     }
 
     private function scalar(mixed $value): ?string

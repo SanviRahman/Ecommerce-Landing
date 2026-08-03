@@ -306,17 +306,33 @@
                         Pathao Merchant Panel-এর webhook setup-এ সেই URL এবং নিচের signature secret ব্যবহার করবেন।
                     </div>
 
-                    <div class="form-group">
-                        <label>Pathao Webhook Signature Secret</label>
-                        <div class="input-group">
-                            <input type="text"
-                                   name="pathao_webhook_secret"
-                                   class="form-control webhook-token-input"
-                                   value="{{ old('pathao_webhook_secret') }}"
-                                   placeholder="Use a long random secret"
-                                   autocomplete="off">
-                            <div class="input-group-append">
-                                <button type="button" class="btn btn-outline-secondary btn-generate-webhook-token">Generate</button>
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="form-group">
+                                <label>Pathao Webhook Signature Secret</label>
+                                <div class="input-group">
+                                    <input type="text"
+                                           name="pathao_webhook_secret"
+                                           class="form-control webhook-token-input"
+                                           value="{{ old('pathao_webhook_secret') }}"
+                                           placeholder="Use a long random secret"
+                                           autocomplete="off">
+                                    <div class="input-group-append">
+                                        <button type="button" class="btn btn-outline-secondary btn-generate-webhook-token">Generate</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label>Status Sync Interval (Minutes)</label>
+                                <input type="number"
+                                       min="5"
+                                       max="1440"
+                                       name="status_sync_interval_minutes"
+                                       class="form-control"
+                                       value="{{ old('status_sync_interval_minutes', 15) }}">
                             </div>
                         </div>
                     </div>
@@ -328,10 +344,16 @@
                             <label class="custom-control-label" for="pathao_webhook_enabled_new">Webhook Enabled</label>
                         </div>
 
-                        <div class="custom-control custom-switch d-inline-block">
+                        <div class="custom-control custom-switch d-inline-block mr-4">
                             <input type="hidden" name="auto_update_order_status" value="0">
                             <input type="checkbox" name="auto_update_order_status" value="1" class="custom-control-input" id="pathao_auto_update_order_status_new" @checked(old('auto_update_order_status', true))>
                             <label class="custom-control-label" for="pathao_auto_update_order_status_new">Auto Update Delivered/Cancelled</label>
+                        </div>
+
+                        <div class="custom-control custom-switch d-inline-block">
+                            <input type="hidden" name="status_sync_enabled" value="0">
+                            <input type="checkbox" name="status_sync_enabled" value="1" class="custom-control-input" id="pathao_status_sync_enabled_new" @checked(old('status_sync_enabled', true))>
+                            <label class="custom-control-label" for="pathao_status_sync_enabled_new">API Fallback Sync Enabled</label>
                         </div>
                     </div>
                 </div>
@@ -758,16 +780,32 @@
                                         <small class="text-muted">Pathao Merchant Panel webhook URL হিসেবে এটি ব্যবহার করুন।</small>
                                     </div>
 
-                                    <div class="form-group">
-                                        <label>Pathao Webhook Signature Secret</label>
-                                        <div class="input-group">
-                                            <input type="text"
-                                                   name="pathao_webhook_secret"
-                                                   class="form-control webhook-token-input"
-                                                   value="{{ old('pathao_webhook_secret', data_get($courier->settings, 'pathao_webhook_secret')) }}"
-                                                   autocomplete="off">
-                                            <div class="input-group-append">
-                                                <button type="button" class="btn btn-outline-secondary btn-generate-webhook-token">Generate</button>
+                                    <div class="row">
+                                        <div class="col-md-8">
+                                            <div class="form-group">
+                                                <label>Pathao Webhook Signature Secret</label>
+                                                <div class="input-group">
+                                                    <input type="text"
+                                                           name="pathao_webhook_secret"
+                                                           class="form-control webhook-token-input"
+                                                           value="{{ old('pathao_webhook_secret', data_get($courier->settings, 'pathao_webhook_secret')) }}"
+                                                           autocomplete="off">
+                                                    <div class="input-group-append">
+                                                        <button type="button" class="btn btn-outline-secondary btn-generate-webhook-token">Generate</button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="col-md-4">
+                                            <div class="form-group">
+                                                <label>Status Sync Interval (Minutes)</label>
+                                                <input type="number"
+                                                       min="5"
+                                                       max="1440"
+                                                       name="status_sync_interval_minutes"
+                                                       class="form-control"
+                                                       value="{{ old('status_sync_interval_minutes', data_get($courier->settings, 'status_sync_interval_minutes', 15)) }}">
                                             </div>
                                         </div>
                                     </div>
@@ -779,10 +817,16 @@
                                             <label class="custom-control-label" for="pathao_webhook_enabled_{{ $courier->id }}">Webhook Enabled</label>
                                         </div>
 
-                                        <div class="custom-control custom-switch d-inline-block">
+                                        <div class="custom-control custom-switch d-inline-block mr-4">
                                             <input type="hidden" name="auto_update_order_status" value="0">
                                             <input type="checkbox" name="auto_update_order_status" value="1" class="custom-control-input" id="pathao_auto_update_order_status_{{ $courier->id }}" @checked(old('auto_update_order_status', data_get($courier->settings, 'auto_update_order_status', true)))>
                                             <label class="custom-control-label" for="pathao_auto_update_order_status_{{ $courier->id }}">Auto Update Delivered/Cancelled</label>
+                                        </div>
+
+                                        <div class="custom-control custom-switch d-inline-block">
+                                            <input type="hidden" name="status_sync_enabled" value="0">
+                                            <input type="checkbox" name="status_sync_enabled" value="1" class="custom-control-input" id="pathao_status_sync_enabled_{{ $courier->id }}" @checked(old('status_sync_enabled', data_get($courier->settings, 'status_sync_enabled', true)))>
+                                            <label class="custom-control-label" for="pathao_status_sync_enabled_{{ $courier->id }}">API Fallback Sync Enabled</label>
                                         </div>
                                     </div>
                                 </div>

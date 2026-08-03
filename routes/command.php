@@ -153,6 +153,31 @@ Route::prefix('command')
             }
         })->name('sync-steadfast-statuses');
 
+        Route::get('/sync-pathao-statuses', function () use ($redirectWithToast) {
+            try {
+                Artisan::call('courier:sync-pathao-statuses', [
+                    '--limit' => 100,
+                    '--force' => true,
+                ]);
+
+                $output = trim(Artisan::output());
+                $lines = preg_split('/\r\n|\r|\n/', $output) ?: [];
+                $summary = trim((string) end($lines));
+
+                return $redirectWithToast(
+                    str_contains($summary, 'Failed: 0') ? 'success' : 'error',
+                    $summary ?: 'Pathao courier statuses synced.'
+                );
+            } catch (\Throwable $exception) {
+                report($exception);
+
+                return $redirectWithToast(
+                    'error',
+                    'Pathao status sync failed: ' . $exception->getMessage()
+                );
+            }
+        })->name('sync-pathao-statuses');
+
         Route::get('/media-storage-doctor', function () use ($redirectWithToast) {
             try {
                 Artisan::call('media:storage-doctor', [
