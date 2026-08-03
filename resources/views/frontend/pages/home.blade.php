@@ -1123,7 +1123,7 @@ body {
 
 .product-image {
     width: 100%;
-    height: 220px;
+    height: auto;
     object-fit: cover;
     background: var(--front-soft);
 }
@@ -2188,7 +2188,7 @@ body {
     .hero-video-box iframe,
     .hero-slider-box img,
     .hero-media-fallback-box img {
-        height: 325px;
+        height: auto;
     }
 
     .hero-title {
