@@ -156,7 +156,8 @@ Route::prefix('command')
         Route::get('/sync-pathao-statuses', function () use ($redirectWithToast) {
             try {
                 Artisan::call('courier:sync-pathao-statuses', [
-                    '--limit' => 100,
+                    '--limit' => 20,
+                    '--delay' => 1000,
                     '--force' => true,
                 ]);
 
@@ -164,8 +165,11 @@ Route::prefix('command')
                 $lines = preg_split('/\r\n|\r|\n/', $output) ?: [];
                 $summary = trim((string) end($lines));
 
+                $syncSucceeded = str_contains($summary, 'Failed: 0')
+                    && str_contains($summary, 'Rate limited accounts: 0');
+
                 return $redirectWithToast(
-                    str_contains($summary, 'Failed: 0') ? 'success' : 'error',
+                    $syncSucceeded ? 'success' : 'error',
                     $summary ?: 'Pathao courier statuses synced.'
                 );
             } catch (\Throwable $exception) {
@@ -177,6 +181,32 @@ Route::prefix('command')
                 );
             }
         })->name('sync-pathao-statuses');
+
+
+        Route::get('/separate-courier-cancelled-orders', function () use ($redirectWithToast) {
+            try {
+                Artisan::call('courier:separate-cancelled-orders', [
+                    '--apply' => true,
+                    '--limit' => 500,
+                ]);
+
+                $output = trim(Artisan::output());
+                $lines = preg_split('/\r\n|\r|\n/', $output) ?: [];
+                $summary = trim((string) end($lines));
+
+                return $redirectWithToast(
+                    str_contains($summary, 'Failed: 0') ? 'success' : 'error',
+                    $summary ?: 'Courier-cancelled orders separated successfully.'
+                );
+            } catch (\Throwable $exception) {
+                report($exception);
+
+                return $redirectWithToast(
+                    'error',
+                    'Courier cancel separation failed: ' . $exception->getMessage()
+                );
+            }
+        })->name('separate-courier-cancelled-orders');
 
         Route::get('/media-storage-doctor', function () use ($redirectWithToast) {
             try {

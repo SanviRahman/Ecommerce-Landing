@@ -321,21 +321,13 @@ class PathaoStatusService
                     if (Schema::hasColumn('orders', 'custom_order_list_moved_at')) {
                         $updates['custom_order_list_moved_at'] = null;
                     }
-                } elseif (
-                    $category === 'cancelled'
-                    && in_array($normalizedStatus, self::FINAL_CANCELLED_STATUSES, true)
-                    && $lockedOrder->order_status !== Order::STATUS_DELIVERED
-                ) {
-                    $updates['order_status'] = Order::STATUS_CANCELLED;
-                    $updates['cancelled_at'] = $lockedOrder->cancelled_at ?: now();
-                    $updates['custom_order_list'] = null;
-                    $updates['is_fake'] = false;
-                    $updates['marked_fake_at'] = null;
-
-                    if (Schema::hasColumn('orders', 'custom_order_list_moved_at')) {
-                        $updates['custom_order_list_moved_at'] = null;
-                    }
                 }
+
+                /*
+                 * Courier cancellation is stored only in pathao_status.
+                 * Local Cancelled Orders are reserved for explicit
+                 * Admin/Employee status changes.
+                 */
             }
 
             $lockedOrder->update($updates);

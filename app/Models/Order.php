@@ -422,7 +422,43 @@ class Order extends Model
 
     public function scopeShipped(Builder $query): Builder
     {
-        return $query->where('order_status', self::STATUS_SHIPPED);
+        /*
+         * Shipped is a cumulative dispatch lifecycle, not only the current
+         * local order_status. Once an order is marked Shipped or is accepted
+         * by SteadFast/Pathao, it remains in the Shipped list while the courier
+         * status progresses through pending, delivered or courier-cancelled.
+         */
+        return $query->where(function (Builder $shippedQuery) {
+            $shippedQuery
+                ->where('order_status', self::STATUS_SHIPPED)
+                ->orWhereNotNull('shipped_at')
+                ->orWhere(function (Builder $steadfastQuery) {
+                    $steadfastQuery
+                        ->where('courier_service', 'steadfast')
+                        ->where(function (Builder $dispatchQuery) {
+                            $dispatchQuery
+                                ->where(function (Builder $consignmentQuery) {
+                                    $consignmentQuery
+                                        ->whereNotNull('steadfast_consignment_id')
+                                        ->where('steadfast_consignment_id', '!=', '');
+                                })
+                                ->orWhereNotNull('steadfast_sent_at');
+                        });
+                })
+                ->orWhere(function (Builder $pathaoQuery) {
+                    $pathaoQuery
+                        ->where('courier_service', 'pathao')
+                        ->where(function (Builder $dispatchQuery) {
+                            $dispatchQuery
+                                ->where(function (Builder $consignmentQuery) {
+                                    $consignmentQuery
+                                        ->whereNotNull('pathao_consignment_id')
+                                        ->where('pathao_consignment_id', '!=', '');
+                                })
+                                ->orWhereNotNull('pathao_sent_at');
+                        });
+                });
+        });
     }
 
     public function scopeDelivered(Builder $query): Builder
@@ -462,7 +498,11 @@ class Order extends Model
     public function scopeCourierCancelled(Builder $query): Builder
     {
         return $query
-            ->where('order_status', '!=', self::STATUS_DELIVERED)
+            ->whereNotIn('order_status', [
+                self::STATUS_DELIVERED,
+                self::STATUS_CANCELLED,
+                self::STATUS_CANCELED,
+            ])
             ->where(function (Builder $courierQuery) {
                 $courierQuery
                     ->where(function (Builder $steadfastQuery) {

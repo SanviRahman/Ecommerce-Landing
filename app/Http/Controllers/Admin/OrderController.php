@@ -358,7 +358,7 @@ class OrderController extends Controller
             'new'              => (clone $workflowBaseQuery)->where('order_status', Order::STATUS_PROCESSING)->count(),
             'pending'          => (clone $workflowBaseQuery)->where('order_status', Order::STATUS_PENDING)->count(),
             'completed'        => (clone $workflowBaseQuery)->where('order_status', Order::STATUS_CONFIRMED)->count(),
-            'shipped'          => (clone $workflowBaseQuery)->where('order_status', Order::STATUS_SHIPPED)->count(),
+            'shipped'          => (clone $workflowBaseQuery)->shipped()->count(),
             'delivered'        => (clone $workflowBaseQuery)->where('order_status', Order::STATUS_DELIVERED)->count(),
             'cancelled'        => (clone $workflowBaseQuery)->where('order_status', Order::STATUS_CANCELLED)->count(),
             'courier_pending'  => (clone $workflowBaseQuery)->courierPending()->count(),

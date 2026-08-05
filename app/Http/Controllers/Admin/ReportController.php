@@ -716,7 +716,7 @@ class ReportController extends Controller
             'pending_orders'    => $statusCounts[Order::STATUS_PENDING] ?? 0,
             'confirmed_orders'  => $statusCounts[Order::STATUS_CONFIRMED] ?? 0,
             'processing_orders' => $statusCounts[Order::STATUS_PROCESSING] ?? 0,
-            'shipped_orders'    => $statusCounts[Order::STATUS_SHIPPED] ?? 0,
+            'shipped_orders'    => (clone $workflowQuery)->shipped()->count(),
             'delivered_orders'  => $statusCounts[Order::STATUS_DELIVERED] ?? 0,
             'cancelled_orders'  => $statusCounts[Order::STATUS_CANCELLED] ?? 0,
             'fake_orders'       => (clone $workflowQuery)

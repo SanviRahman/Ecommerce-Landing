@@ -12,6 +12,6 @@ Schedule::command('courier:sync-steadfast-statuses --limit=100')
     ->everyFiveMinutes()
     ->withoutOverlapping();
 
-Schedule::command('courier:sync-pathao-statuses --limit=100')
+Schedule::command('courier:sync-pathao-statuses --limit=20 --delay=1000')
     ->everyFiveMinutes()
     ->withoutOverlapping();

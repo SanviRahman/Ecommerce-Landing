@@ -14,11 +14,14 @@ final class TodayReportSummaryService
      *
      * Business rules:
      * - The report day follows Bangladesh local date, then converts to database UTC.
-     * - Checkout counts only orders created from frontend checkout in the selected day.
-     * - Manual orders are excluded from Checkout, shown in Manual Order card, and included in Total Orders/Product total.
-     * - Old orders moved today to Confirmed/Complete Invoice/Shipped/Delivered count in
-     *   those activity cards and in Total Orders, but not in Checkout.
-     * - Old orders cancelled today do not count in today's Cancelled card.
+     * - Every summary card is restricted to orders created inside the selected date window.
+     * - A later courier sync or status change on an older order must not make that old
+     *   order appear in today's Total Orders, Shipped, Delivered or other daily cards.
+     * - Checkout counts only frontend orders created in the selected day.
+     * - Manual orders are excluded from Checkout, shown in Manual Order, and included
+     *   in Total Orders.
+     * - Shipped uses the cumulative shipped/courier lifecycle, but only for orders
+     *   created inside the selected date window.
      */
     public function summary(array $filters = [], mixed $user = null): array
     {
@@ -33,17 +36,17 @@ final class TodayReportSummaryService
         $workflowCreatedOrders = (clone $workflowBaseQuery)
             ->whereBetween('orders.created_at', [$todayStart, $todayEnd]);
 
-        $totalOrdersQuery = $this->reportTotalOrdersQuery(
-            clone $baseQuery,
-            $todayStart,
-            $todayEnd
-        );
+        /*
+         * Today's report is a creation-date report. Old orders updated today by a
+         * webhook, courier sync, invoice action or manual status change are excluded.
+         */
+        $totalOrdersQuery = clone $createdOrders;
+        $totalWorkflowOrdersQuery = clone $workflowCreatedOrders;
 
-        $totalWorkflowOrdersQuery = $this->reportTotalOrdersQuery(
-            clone $workflowBaseQuery,
-            $todayStart,
-            $todayEnd
-        );
+        if (Schema::hasColumn('orders', 'order_status')) {
+            $totalOrdersQuery->where('orders.order_status', '!=', Order::STATUS_FAKE);
+            $totalWorkflowOrdersQuery->where('orders.order_status', '!=', Order::STATUS_FAKE);
+        }
 
         $newOrders = (clone $workflowCreatedOrders)
             ->where('orders.order_status', Order::STATUS_PROCESSING);
@@ -51,49 +54,20 @@ final class TodayReportSummaryService
         $pendingOrders = (clone $workflowCreatedOrders)
             ->where('orders.order_status', Order::STATUS_PENDING);
 
-        $confirmedOrders = $this->currentStatusActivityQuery(
-            clone $workflowBaseQuery,
-            [Order::STATUS_CONFIRMED],
-            $todayStart,
-            $todayEnd,
-            [
-                Order::STATUS_CONFIRMED => 'confirmed_at',
-            ]
-        );
+        $confirmedOrders = (clone $workflowCreatedOrders)
+            ->where('orders.order_status', Order::STATUS_CONFIRMED);
 
-        $completedInvoices = $this->currentStatusActivityQuery(
-            clone $workflowBaseQuery,
-            [$this->completeInvoiceStatus()],
-            $todayStart,
-            $todayEnd,
-            [
-                $this->completeInvoiceStatus() => 'invoice_printed_at',
-            ]
-        );
+        $completedInvoices = (clone $workflowCreatedOrders)
+            ->where('orders.order_status', $this->completeInvoiceStatus());
 
-        $shippedOrders = $this->currentStatusActivityQuery(
-            clone $workflowBaseQuery,
-            [Order::STATUS_SHIPPED],
-            $todayStart,
-            $todayEnd,
-            [
-                Order::STATUS_SHIPPED => 'shipped_at',
-            ]
-        );
+        $shippedOrders = (clone $workflowCreatedOrders)->shipped();
 
-        $deliveredOrders = $this->currentStatusActivityQuery(
-            clone $workflowBaseQuery,
-            [Order::STATUS_DELIVERED],
-            $todayStart,
-            $todayEnd,
-            [
-                Order::STATUS_DELIVERED => 'delivered_at',
-            ]
-        );
+        $deliveredOrders = (clone $workflowCreatedOrders)
+            ->where('orders.order_status', Order::STATUS_DELIVERED);
 
         /*
-         * Cancelled is intentionally created-date based. If yesterday's order is
-         * cancelled today, it must not increase today's Cancelled count.
+         * All status cards use the current status/lifecycle of orders created in
+         * the selected day. Status changes on older orders are intentionally ignored.
          */
         $cancelledOrders = (clone $workflowCreatedOrders)
             ->whereIn('orders.order_status', $this->cancelledStatuses());
@@ -101,16 +75,11 @@ final class TodayReportSummaryService
         $stockOutOrders = (clone $workflowCreatedOrders)
             ->where('orders.order_status', Order::STATUS_STOCK_OUT);
 
-        $deliveryActivity = $this->currentStatusActivityQuery(
-            clone $workflowBaseQuery,
-            [Order::STATUS_SHIPPED, Order::STATUS_DELIVERED],
-            $todayStart,
-            $todayEnd,
-            [
-                Order::STATUS_SHIPPED   => 'shipped_at',
-                Order::STATUS_DELIVERED => 'delivered_at',
-            ]
-        );
+        $deliveryActivity = (clone $workflowCreatedOrders)
+            ->whereIn('orders.order_status', [
+                Order::STATUS_SHIPPED,
+                Order::STATUS_DELIVERED,
+            ]);
 
         $incompletedOrderQuery = clone $totalWorkflowOrdersQuery;
         $incompletedOrderQuery->whereNotIn('orders.order_status', array_merge(
@@ -164,19 +133,23 @@ final class TodayReportSummaryService
             'pending_order' => $this->countDistinctOrders($pendingOrders),
             'stock_out_order' => $this->countDistinctOrders($stockOutOrders),
 
-            'order_list_1' => $this->orderListMovedCount(
-                clone $baseQuery,
-                Order::CUSTOM_LIST_ONE,
-                $todayStart,
-                $todayEnd
-            ),
+            'order_list_1' => Schema::hasColumn('orders', 'custom_order_list')
+                ? $this->countDistinctOrders(
+                    (clone $createdOrders)->where(
+                        'orders.custom_order_list',
+                        Order::CUSTOM_LIST_ONE
+                    )
+                )
+                : 0,
 
-            'order_list_2' => $this->orderListMovedCount(
-                clone $baseQuery,
-                Order::CUSTOM_LIST_TWO,
-                $todayStart,
-                $todayEnd
-            ),
+            'order_list_2' => Schema::hasColumn('orders', 'custom_order_list')
+                ? $this->countDistinctOrders(
+                    (clone $createdOrders)->where(
+                        'orders.custom_order_list',
+                        Order::CUSTOM_LIST_TWO
+                    )
+                )
+                : 0,
 
             'incompleted_invoice' => $this->countDistinctOrders($incompletedInvoiceQuery),
             'checkout' => $this->countDistinctOrders($checkoutOrders),

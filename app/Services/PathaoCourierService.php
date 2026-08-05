@@ -15,6 +15,7 @@ class PathaoCourierService
 {
     private int $timeout;
 
+
     public function __construct(
         private readonly PathaoStatusService $statusService
     ) {
@@ -153,6 +154,16 @@ class PathaoCourierService
         }
 
         $data = $this->decodeResponse($response);
+
+        if ($response->status() === 429) {
+            $retryAfter = max(1, (int) ($response->header('Retry-After') ?: 60));
+
+            throw new RuntimeException(
+                'Pathao API rate limit reached (HTTP 429). Retry after '
+                . $retryAfter
+                . ' seconds.'
+            );
+        }
 
         if (! $response->successful()) {
             $message = $this->responseMessage($data, 'Pathao status sync failed.');

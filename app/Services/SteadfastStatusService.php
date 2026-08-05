@@ -200,21 +200,13 @@ class SteadfastStatusService
                     if (Schema::hasColumn('orders', 'custom_order_list_moved_at')) {
                         $updateData['custom_order_list_moved_at'] = null;
                     }
-                } elseif (
-                    $category === 'cancelled'
-                    && in_array($normalizedStatus, self::FINAL_CANCELLED_STATUSES, true)
-                    && $order->order_status !== Order::STATUS_DELIVERED
-                ) {
-                    $updateData['order_status'] = Order::STATUS_CANCELLED;
-                    $updateData['cancelled_at'] = $order->cancelled_at ?: now();
-                    $updateData['custom_order_list'] = null;
-                    $updateData['is_fake'] = false;
-                    $updateData['marked_fake_at'] = null;
-
-                    if (Schema::hasColumn('orders', 'custom_order_list_moved_at')) {
-                        $updateData['custom_order_list_moved_at'] = null;
-                    }
                 }
+
+                /*
+                 * Courier cancellation is stored only in steadfast_status.
+                 * Local Cancelled Orders are reserved for explicit
+                 * Admin/Employee status changes.
+                 */
             }
 
             $order->update($updateData);

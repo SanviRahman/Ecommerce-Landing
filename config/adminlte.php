@@ -927,6 +927,12 @@ return [
                     'can'  => 'admin-only',
                 ],
                 [
+                    'text' => 'Separate Courier Cancel',
+                    'url'  => 'command/separate-courier-cancelled-orders',
+                    'icon' => 'far fa-fw fa-circle',
+                    'can'  => 'admin-only',
+                ],
+                [
                     'text' => 'Fresh Migrate',
                     'url'  => 'command/migrate-fresh',
                     'icon' => 'far fa-fw fa-circle text-danger',

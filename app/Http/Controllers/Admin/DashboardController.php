@@ -360,7 +360,7 @@ class DashboardController extends Controller
         $pendingOrders    = (clone $workflowOrderQuery)->where('order_status', 'pending')->count();
         $confirmedOrders  = (clone $workflowOrderQuery)->whereIn('order_status', ['confirmed', 'complete', 'completed'])->count();
         $processingOrders = (clone $workflowOrderQuery)->where('order_status', 'processing')->count();
-        $shippedOrders    = (clone $workflowOrderQuery)->where('order_status', 'shipped')->count();
+        $shippedOrders    = (clone $workflowOrderQuery)->shipped()->count();
         $deliveredOrders  = (clone $workflowOrderQuery)->where('order_status', 'delivered')->count();
         $cancelledOrders  = (clone $workflowOrderQuery)->whereIn('order_status', ['cancelled', 'canceled'])->count();
         $grossSales       = (clone $orderQuery)->sum('total_amount');

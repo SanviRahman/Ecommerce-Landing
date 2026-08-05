@@ -285,7 +285,7 @@
                         <div class="custom-control custom-switch d-inline-block mr-4">
                             <input type="hidden" name="auto_update_order_status" value="0">
                             <input type="checkbox" name="auto_update_order_status" value="1" class="custom-control-input" id="auto_update_order_status_new" @checked(old('auto_update_order_status', true))>
-                            <label class="custom-control-label" for="auto_update_order_status_new">Auto Update Delivered/Cancelled</label>
+                            <label class="custom-control-label" for="auto_update_order_status_new">Auto Update Delivered</label>
                         </div>
 
                         <div class="custom-control custom-switch d-inline-block">
@@ -347,7 +347,7 @@
                         <div class="custom-control custom-switch d-inline-block mr-4">
                             <input type="hidden" name="auto_update_order_status" value="0">
                             <input type="checkbox" name="auto_update_order_status" value="1" class="custom-control-input" id="pathao_auto_update_order_status_new" @checked(old('auto_update_order_status', true))>
-                            <label class="custom-control-label" for="pathao_auto_update_order_status_new">Auto Update Delivered/Cancelled</label>
+                            <label class="custom-control-label" for="pathao_auto_update_order_status_new">Auto Update Delivered</label>
                         </div>
 
                         <div class="custom-control custom-switch d-inline-block">
@@ -750,7 +750,7 @@
                                         <div class="custom-control custom-switch d-inline-block mr-4">
                                             <input type="hidden" name="auto_update_order_status" value="0">
                                             <input type="checkbox" name="auto_update_order_status" value="1" class="custom-control-input" id="auto_update_order_status_{{ $courier->id }}" @checked(old('auto_update_order_status', data_get($courier->settings, 'auto_update_order_status', true)))>
-                                            <label class="custom-control-label" for="auto_update_order_status_{{ $courier->id }}">Auto Update Delivered/Cancelled</label>
+                                            <label class="custom-control-label" for="auto_update_order_status_{{ $courier->id }}">Auto Update Delivered</label>
                                         </div>
 
                                         <div class="custom-control custom-switch d-inline-block">
@@ -820,7 +820,7 @@
                                         <div class="custom-control custom-switch d-inline-block mr-4">
                                             <input type="hidden" name="auto_update_order_status" value="0">
                                             <input type="checkbox" name="auto_update_order_status" value="1" class="custom-control-input" id="pathao_auto_update_order_status_{{ $courier->id }}" @checked(old('auto_update_order_status', data_get($courier->settings, 'auto_update_order_status', true)))>
-                                            <label class="custom-control-label" for="pathao_auto_update_order_status_{{ $courier->id }}">Auto Update Delivered/Cancelled</label>
+                                            <label class="custom-control-label" for="pathao_auto_update_order_status_{{ $courier->id }}">Auto Update Delivered</label>
                                         </div>
 
                                         <div class="custom-control custom-switch d-inline-block">
