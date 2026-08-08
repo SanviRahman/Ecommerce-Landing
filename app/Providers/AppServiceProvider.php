@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Models\Order;
+use App\Observers\OrderBidirectionalSyncObserver;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 
@@ -21,5 +23,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::define('admin-or-employee', function ($user) {
             return isset($user->role) && in_array($user->role, ['admin', 'employee'], true);
         });
+
+        Order::observe(OrderBidirectionalSyncObserver::class);
     }
 }

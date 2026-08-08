@@ -699,6 +699,12 @@ return [
                     'icon' => 'far fa-fw fa-circle',
                     'can'  => 'admin-only',
                 ],
+                [
+                    'text' => 'Website Order Sync',
+                    'url'  => 'admin/external-websites',
+                    'icon' => 'far fa-fw fa-circle',
+                    'can'  => 'admin-only',
+                ],
             ],
         ],
         [

@@ -1,0 +1,349 @@
+<?php
+
+namespace App\Http\Controllers\Admin;
+
+use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\StoreExternalWebsiteRequest;
+use App\Models\ExternalOrderSync;
+use App\Models\ExternalWebsite;
+use App\Services\ExternalOrderSyncService;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
+use Throwable;
+
+class ExternalWebsiteController extends Controller
+{
+    private function adminOnly(): void
+    {
+        if (! auth()->check() || ! auth()->user()->isAdmin()) {
+            abort(403, 'Unauthorized access.');
+        }
+    }
+
+    public function index()
+    {
+        $this->adminOnly();
+
+        return view('admin.external-websites.index', [
+            'title' => 'Website Order Sync',
+            'localWebsiteName' => config('app.name'),
+            'websites' => ExternalWebsite::query()
+                ->withCount([
+                    'orders',
+                    'outboundSyncs as sent_orders_count' => fn ($query) =>
+                        $query->where('status', ExternalOrderSync::STATUS_SENT),
+                    'outboundSyncs as failed_orders_count' => fn ($query) =>
+                        $query->where('status', ExternalOrderSync::STATUS_FAILED),
+                    'outboundSyncs as pending_orders_count' => fn ($query) =>
+                        $query->whereIn('status', [
+                            ExternalOrderSync::STATUS_PENDING,
+                            ExternalOrderSync::STATUS_SENDING,
+                        ]),
+                ])
+                ->latest()
+                ->paginate(20),
+            'breadcrumb' => [
+                ['text' => 'Dashboard', 'url' => route('admin.dashboard')],
+                ['text' => 'Website Order Sync', 'url' => route('admin.external-websites.index')],
+            ],
+        ]);
+    }
+
+    public function store(StoreExternalWebsiteRequest $request)
+    {
+        $this->adminOnly();
+
+        $validated = $request->validated();
+        $receiverToken = $this->resolveReceiverToken(
+            $validated['token_action'],
+            $validated['api_token'] ?? null
+        );
+
+        $website = ExternalWebsite::query()->create([
+            'name' => trim($validated['name']),
+            'slug' => $this->uniqueSlug($validated['name'], $validated['domain']),
+            'domain' => $validated['domain'],
+            'api_token' => $receiverToken,
+            'token_updated_at' => now(),
+            'status' => (bool) $validated['status'],
+            'receive_orders' => (bool) $validated['receive_orders'],
+            'send_orders' => (bool) $validated['send_orders'],
+            'auto_send_orders' => (bool) $validated['auto_send_orders'],
+            'remote_order_endpoint' => $validated['remote_order_endpoint'] ?? null,
+            'remote_health_endpoint' => $validated['remote_health_endpoint'] ?? null,
+            'remote_api_token' => $validated['remote_api_token'] ?: null,
+            'request_timeout' => (int) $validated['request_timeout'],
+            'notes' => $validated['notes'] ?? null,
+        ]);
+
+        return redirect()
+            ->route('admin.external-websites.index')
+            ->with('success', 'Bidirectional website integration created successfully.')
+            ->with('new_api_token', $receiverToken)
+            ->with('new_api_token_website_id', $website->id)
+            ->with('new_api_endpoint', $website->api_endpoint)
+            ->with('new_health_endpoint', $website->health_endpoint);
+    }
+
+    public function update(
+        StoreExternalWebsiteRequest $request,
+        ExternalWebsite $externalWebsite
+    ) {
+        $this->adminOnly();
+
+        $validated = $request->validated();
+        $newReceiverToken = null;
+
+        DB::transaction(function () use (
+            $validated,
+            $externalWebsite,
+            &$newReceiverToken
+        ): void {
+            $updates = [
+                'name' => trim($validated['name']),
+                'domain' => $validated['domain'],
+                'status' => (bool) $validated['status'],
+                'receive_orders' => (bool) $validated['receive_orders'],
+                'send_orders' => (bool) $validated['send_orders'],
+                'auto_send_orders' => (bool) $validated['auto_send_orders'],
+                'remote_order_endpoint' => $validated['remote_order_endpoint'] ?? null,
+                'remote_health_endpoint' => $validated['remote_health_endpoint'] ?? null,
+                'request_timeout' => (int) $validated['request_timeout'],
+                'notes' => $validated['notes'] ?? null,
+                'last_connection_tested_at' => null,
+                'last_connection_status' => null,
+                'last_connection_message' => null,
+            ];
+
+            if ($validated['token_action'] !== 'keep') {
+                $newReceiverToken = $this->resolveReceiverToken(
+                    $validated['token_action'],
+                    $validated['api_token'] ?? null
+                );
+
+                $updates['api_token'] = $newReceiverToken;
+                $updates['token_updated_at'] = now();
+                $updates['last_authenticated_at'] = null;
+                $updates['last_auth_failed_at'] = null;
+            }
+
+            if (trim((string) ($validated['remote_api_token'] ?? '')) !== '') {
+                $updates['remote_api_token'] = trim($validated['remote_api_token']);
+            }
+
+            $externalWebsite->update($updates);
+        });
+
+        $response = redirect()
+            ->route('admin.external-websites.index')
+            ->with('success', 'Bidirectional website integration updated successfully.');
+
+        if ($newReceiverToken !== null) {
+            $response
+                ->with('new_api_token', $newReceiverToken)
+                ->with('new_api_token_website_id', $externalWebsite->id)
+                ->with('new_api_endpoint', $externalWebsite->fresh()->api_endpoint)
+                ->with('new_health_endpoint', $externalWebsite->fresh()->health_endpoint);
+        }
+
+        return $response;
+    }
+
+    public function regenerateToken(ExternalWebsite $externalWebsite)
+    {
+        $this->adminOnly();
+
+        $token = Str::random(64);
+
+        $externalWebsite->update([
+            'api_token' => $token,
+            'token_updated_at' => now(),
+            'last_authenticated_at' => null,
+            'last_auth_failed_at' => null,
+        ]);
+
+        return redirect()
+            ->route('admin.external-websites.index')
+            ->with('success', 'A new receiver token was generated and saved in the database.')
+            ->with('new_api_token', $token)
+            ->with('new_api_token_website_id', $externalWebsite->id)
+            ->with('new_api_endpoint', $externalWebsite->api_endpoint)
+            ->with('new_health_endpoint', $externalWebsite->health_endpoint);
+    }
+
+    public function testConnection(ExternalWebsite $externalWebsite)
+    {
+        $this->adminOnly();
+
+        if (! $externalWebsite->canSendOrders()) {
+            return back()->with(
+                'error',
+                'Enable Send Orders and save the remote endpoint and remote token first.'
+            );
+        }
+
+        $healthEndpoint = $externalWebsite->resolved_remote_health_endpoint;
+
+        if (! $healthEndpoint) {
+            return back()->with('error', 'Remote health endpoint could not be resolved.');
+        }
+
+        try {
+            $response = Http::acceptJson()
+                ->withToken((string) $externalWebsite->remote_api_token)
+                ->timeout(max(3, (int) $externalWebsite->request_timeout))
+                ->get($healthEndpoint);
+
+            $responseData = $response->json();
+            $connected = $response->successful()
+                && (! is_array($responseData) || ($responseData['status'] ?? true) === true);
+            $message = is_array($responseData)
+                ? (string) ($responseData['message'] ?? '')
+                : '';
+
+            if ($message === '') {
+                $message = $connected
+                    ? 'Connection successful.'
+                    : 'Connection test failed with HTTP ' . $response->status() . '.';
+            }
+
+            $externalWebsite->forceFill([
+                'last_connection_tested_at' => now(),
+                'last_connection_status' => $connected ? 'connected' : 'failed',
+                'last_connection_message' => $this->limitText($message),
+            ])->saveQuietly();
+
+            return back()->with(
+                $connected ? 'success' : 'error',
+                $connected
+                    ? "Connected to {$externalWebsite->name} successfully."
+                    : "Could not connect to {$externalWebsite->name}: {$message}"
+            );
+        } catch (ConnectionException $exception) {
+            return $this->connectionFailed($externalWebsite, $exception->getMessage());
+        } catch (Throwable $exception) {
+            report($exception);
+
+            return $this->connectionFailed($externalWebsite, $exception->getMessage());
+        }
+    }
+
+    public function syncExistingOrders(
+        Request $request,
+        ExternalWebsite $externalWebsite,
+        ExternalOrderSyncService $syncService
+    ) {
+        $this->adminOnly();
+
+        $validated = $request->validate([
+            'limit' => ['nullable', 'integer', 'min:1', 'max:500'],
+        ]);
+
+        if (! $externalWebsite->canSendOrders()) {
+            return back()->with(
+                'error',
+                'Outgoing sync is disabled or the remote endpoint/token is missing.'
+            );
+        }
+
+        $result = $syncService->syncExistingOrders(
+            $externalWebsite,
+            (int) ($validated['limit'] ?? 100)
+        );
+
+        return back()->with(
+            'success',
+            "Existing order sync finished. Sent: {$result['sent']}, Failed: {$result['failed']}, Skipped: {$result['skipped']}."
+        );
+    }
+
+    public function retryFailedOrders(
+        Request $request,
+        ExternalWebsite $externalWebsite,
+        ExternalOrderSyncService $syncService
+    ) {
+        $this->adminOnly();
+
+        $validated = $request->validate([
+            'limit' => ['nullable', 'integer', 'min:1', 'max:500'],
+        ]);
+
+        $result = $syncService->retryFailedOrders(
+            $externalWebsite,
+            (int) ($validated['limit'] ?? 100)
+        );
+
+        return back()->with(
+            'success',
+            "Failed order retry finished. Sent: {$result['sent']}, Still failed: {$result['failed']}."
+        );
+    }
+
+    public function destroy(ExternalWebsite $externalWebsite)
+    {
+        $this->adminOnly();
+
+        $externalWebsite->delete();
+
+        return back()->with(
+            'success',
+            'Website integration deleted. Existing received orders remain unchanged.'
+        );
+    }
+
+    private function connectionFailed(
+        ExternalWebsite $externalWebsite,
+        string $message
+    ) {
+        $message = $this->limitText($message);
+
+        $externalWebsite->forceFill([
+            'last_connection_tested_at' => now(),
+            'last_connection_status' => 'failed',
+            'last_connection_message' => $message,
+        ])->saveQuietly();
+
+        return back()->with(
+            'error',
+            "Could not connect to {$externalWebsite->name}: {$message}"
+        );
+    }
+
+    private function resolveReceiverToken(string $tokenAction, ?string $manualToken): string
+    {
+        if ($tokenAction === 'manual') {
+            return trim((string) $manualToken);
+        }
+
+        return Str::random(64);
+    }
+
+    private function uniqueSlug(string $name, string $domain): string
+    {
+        $host = (string) (parse_url($domain, PHP_URL_HOST) ?: $name);
+        $baseSlug = Str::slug($name) ?: Str::slug($host) ?: 'website';
+        $slug = $baseSlug;
+        $counter = 2;
+
+        while (ExternalWebsite::withTrashed()->where('slug', $slug)->exists()) {
+            $slug = $baseSlug . '-' . $counter;
+            $counter++;
+        }
+
+        return $slug;
+    }
+
+    private function limitText(?string $value, int $limit = 2000): string
+    {
+        $value = trim((string) $value);
+
+        if ($value === '') {
+            return 'Unknown connection error.';
+        }
+
+        return mb_substr($value, 0, $limit);
+    }
+}

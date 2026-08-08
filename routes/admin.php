@@ -11,6 +11,7 @@ use App\Http\Controllers\Admin\CourierAccountController;
 use App\Http\Controllers\Admin\CourierController;
 use App\Http\Controllers\Admin\CreatePageController;
 use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\ExternalWebsiteController;
 use App\Http\Controllers\Admin\FaqController;
 use App\Http\Controllers\Admin\MediaManagementController;
 use App\Http\Controllers\Admin\OrderController;
@@ -106,6 +107,7 @@ Route::middleware(['auth'])->group(function () {
             Route::get('/shipped', [OrderController::class, 'shipped'])->name('shipped');
             Route::get('/courier-pending', [OrderController::class, 'courierPending'])->name('courier_pending');
             Route::get('/courier-cancelled', [OrderController::class, 'courierCancelled'])->name('courier_cancelled');
+            Route::get('/courier-delivered', [OrderController::class, 'courierDelivered'])->name('courier_delivered');
             Route::get('/delivered', [OrderController::class, 'delivered'])->name('delivered');
             Route::get('/cancelled', [OrderController::class, 'cancelled'])->name('cancelled');
             Route::get('/stock-out', [OrderController::class, 'stockOut'])->name('stock_out');
@@ -283,6 +285,35 @@ Route::middleware(['auth'])->group(function () {
         |--------------------------------------------------------------------------
         */
         Route::resource('couriers', CourierController::class)
+            ->only(['index', 'store', 'update', 'destroy']);
+
+        /*
+        |--------------------------------------------------------------------------
+        | External Website Order API
+        |--------------------------------------------------------------------------
+        */
+        Route::post(
+            'external-websites/{externalWebsite}/regenerate-token',
+            [ExternalWebsiteController::class, 'regenerateToken']
+        )->name('external-websites.regenerate-token');
+
+        Route::post(
+            'external-websites/{externalWebsite}/test-connection',
+            [ExternalWebsiteController::class, 'testConnection']
+        )->name('external-websites.test-connection');
+
+        Route::post(
+            'external-websites/{externalWebsite}/sync-existing-orders',
+            [ExternalWebsiteController::class, 'syncExistingOrders']
+        )->name('external-websites.sync-existing-orders');
+
+        Route::post(
+            'external-websites/{externalWebsite}/retry-failed-orders',
+            [ExternalWebsiteController::class, 'retryFailedOrders']
+        )->name('external-websites.retry-failed-orders');
+
+        Route::resource('external-websites', ExternalWebsiteController::class)
+            ->parameters(['external-websites' => 'externalWebsite'])
             ->only(['index', 'store', 'update', 'destroy']);
 
         /*

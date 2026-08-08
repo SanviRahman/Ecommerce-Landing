@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 
 class Order extends Model
 {
@@ -40,6 +41,7 @@ class Order extends Model
     public const CREATED_VIA_EMPLOYEE_MANUAL = 'employee_manual';
     public const CREATED_VIA_ADMIN_BULK      = 'admin_bulk';
     public const CREATED_VIA_EMPLOYEE_BULK   = 'employee_bulk';
+    public const CREATED_VIA_EXTERNAL_API    = 'external_api';
 
     protected $fillable = [
         'invoice_id',
@@ -50,6 +52,11 @@ class Order extends Model
         'assigned_employee_id',
         'created_via',
         'created_by_admin_id',
+        'external_website_id',
+        'external_order_id',
+        'external_payload',
+        'api_received_at',
+        'sync_uuid',
         'order_field_id',
         'invoice_printed_at',
         'invoice_print_count',
@@ -113,6 +120,10 @@ class Order extends Model
         'bulk_order_batch_id'       => 'integer',
         'assigned_employee_id'      => 'integer',
         'created_by_admin_id'       => 'integer',
+        'external_website_id'       => 'integer',
+        'external_payload'          => 'array',
+        'api_received_at'           => 'datetime',
+        'sync_uuid'                  => 'string',
         'order_field_id'            => 'integer',
         'invoice_printed_at'        => 'datetime',
         'invoice_print_count'       => 'integer',
@@ -157,6 +168,10 @@ class Order extends Model
 
             if (Schema::hasColumn('orders', 'created_via') && ! $order->created_via) {
                 $order->created_via = self::CREATED_VIA_FRONTEND;
+            }
+
+            if (Schema::hasColumn('orders', 'sync_uuid') && ! $order->sync_uuid) {
+                $order->sync_uuid = (string) Str::uuid();
             }
 
             static::applyWorkflowTimestamps($order);
@@ -267,6 +282,16 @@ class Order extends Model
     public function assignedEmployee(): BelongsTo
     {
         return $this->belongsTo(User::class, 'assigned_employee_id');
+    }
+
+    public function externalWebsite(): BelongsTo
+    {
+        return $this->belongsTo(ExternalWebsite::class)->withTrashed();
+    }
+
+    public function externalOrderSyncs(): HasMany
+    {
+        return $this->hasMany(ExternalOrderSync::class);
     }
 
     public function courierAccount(): BelongsTo
@@ -522,6 +547,29 @@ class Order extends Model
                             );
                     });
             });
+    }
+
+    public function scopeCourierDelivered(Builder $query): Builder
+    {
+        return $query->where(function (Builder $courierQuery) {
+            $courierQuery
+                ->where(function (Builder $steadfastQuery) {
+                    $steadfastQuery
+                        ->where('courier_service', 'steadfast')
+                        ->whereIn(
+                            'steadfast_status',
+                            \App\Services\SteadfastStatusService::DELIVERED_STATUSES
+                        );
+                })
+                ->orWhere(function (Builder $pathaoQuery) {
+                    $pathaoQuery
+                        ->where('courier_service', 'pathao')
+                        ->whereIn(
+                            'pathao_status',
+                            \App\Services\PathaoStatusService::DELIVERED_STATUSES
+                        );
+                });
+        });
     }
 
     public function scopeOrderListOne(Builder $query): Builder

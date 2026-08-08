@@ -4,6 +4,7 @@ $canDeleteOrders = auth()->check() && auth()->user()->isAdmin();
 $orderStatuses = $orderStatuses ?? [];
 $duplicateCustomerCounts = $duplicateCustomerCounts ?? [];
 $duplicateIpCounts = $duplicateIpCounts ?? [];
+$localWebsiteName = trim((string) ($localWebsiteName ?? config('app.name') ?? 'Local Website'));
 @endphp
 <div class="table-responsive">
     <table class="table table-hover align-middle mb-0 order-index-table">
@@ -23,6 +24,7 @@ $duplicateIpCounts = $duplicateIpCounts ?? [];
                 <th>Date</th>
                 <th>Status</th>
                 <th>Admin Note</th>
+                <th>Website</th>
                 <th width="130" class="text-center">Actions</th>
                 <th>Employee</th>
                 <th>Payment</th>
@@ -365,6 +367,39 @@ $duplicateIpCounts = $duplicateIpCounts ?? [];
                     @endif
                 </td>
 
+                {{-- Source Website --}}
+                <td style="min-width: 145px;">
+                    @if($order->external_website_id)
+                        <span class="badge badge-primary website-source-badge"
+                              title="{{ $order->externalWebsite->domain ?? 'External website' }}">
+                            <i class="fas fa-globe-americas mr-1"></i>
+                            {{ $order->externalWebsite->name ?? 'External Website' }}
+                        </span>
+
+                        @if($order->external_order_id)
+                            <small class="d-block text-muted mt-1">
+                                External: {{ $order->external_order_id }}
+                            </small>
+                        @endif
+                    @else
+                        <span class="badge badge-success website-source-badge">
+                            <i class="fas fa-home mr-1"></i>
+                            {{ $localWebsiteName }}
+                        </span>
+
+                        @if($order->relationLoaded('externalOrderSyncs') && $order->externalOrderSyncs->isNotEmpty())
+                            @foreach($order->externalOrderSyncs as $outboundSync)
+                                <small class="d-block mt-1 {{ $outboundSync->status === 'sent' ? 'text-success' : ($outboundSync->status === 'failed' ? 'text-danger' : 'text-muted') }}"
+                                       title="{{ $outboundSync->error_message }}">
+                                    <i class="fas {{ $outboundSync->status === 'sent' ? 'fa-check-circle' : ($outboundSync->status === 'failed' ? 'fa-exclamation-circle' : 'fa-clock') }} mr-1"></i>
+                                    {{ $outboundSync->externalWebsite->name ?? 'External Website' }}:
+                                    {{ ucfirst($outboundSync->status) }}
+                                </small>
+                            @endforeach
+                        @endif
+                    @endif
+                </td>
+
                 {{-- Actions --}}
                 <td class="text-center">
                     <div class="btn-group shadow-sm rounded border bg-white overflow-hidden">
@@ -466,7 +501,7 @@ $duplicateIpCounts = $duplicateIpCounts ?? [];
             </tr>
             @empty
             <tr>
-                <td colspan="{{ $canBulkManageOrders ? 12 : 11 }}" class="text-center text-muted py-5">
+                <td colspan="{{ $canBulkManageOrders ? 13 : 12 }}" class="text-center text-muted py-5">
                     <i class="fas fa-inbox fa-2x mb-2"></i>
                     <div>No orders found.</div>
                 </td>
@@ -579,6 +614,15 @@ $duplicateIpCounts = $duplicateIpCounts ?? [];
 .order-index-table th,
 .order-index-table td {
     vertical-align: middle !important;
+}
+
+.website-source-badge {
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: inline-block;
+    vertical-align: middle;
 }
 
 .order-first-product-img {

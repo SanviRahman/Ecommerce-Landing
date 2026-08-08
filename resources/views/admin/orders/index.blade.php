@@ -33,10 +33,16 @@
     $currentStatusView = $currentStatusView ?? 'new';
     $currentFieldId = $currentOrderField->id ?? null;
     $isInvoiceView = in_array($currentStatusView, ['pending-invoice', 'complete-invoice'], true);
-    $isCourierStatusView = in_array($currentStatusView, ['courier-pending', 'courier-cancelled'], true);
+    $isCourierStatusView = in_array($currentStatusView, ['courier-pending', 'courier-cancelled', 'courier-delivered'], true);
     $canBulkManageOrders = auth()->check() && (auth()->user()->isAdmin() || auth()->user()->isEmployee());
     $canCreateManualOrder = $canBulkManageOrders;
     $canDeleteOrders = auth()->check() && auth()->user()->isAdmin();
+    $selectedWebsiteFilter = (string) request('external_website_id', 'all');
+    $selectedExternalWebsite = ($externalWebsites ?? collect())
+        ->firstWhere('id', (int) $selectedWebsiteFilter);
+    $selectedWebsiteLabel = $selectedWebsiteFilter === 'local'
+        ? 'deshbajar.com'
+        : ($selectedExternalWebsite->name ?? 'All Websites');
 @endphp
 
 {{-- Top Small Stats --}}
@@ -85,6 +91,17 @@
                     <p>Courier Cancel</p>
                 </div>
                 <i class="fas fa-ban"></i>
+            </a>
+        </div>
+
+        <div class="col-lg-3 col-md-4 col-sm-6 mb-2">
+            <a href="{{ route('admin.orders.courier_delivered') }}"
+               class="order-stat-card text-decoration-none {{ $currentStatusView === 'courier-delivered' ? 'active' : '' }}">
+                <div>
+                    <h4 id="stat_courier_delivered">{{ $stats['courier_delivered'] ?? 0 }}</h4>
+                    <p>Courier Delivered</p>
+                </div>
+                <i class="fas fa-box-open"></i>
             </a>
         </div>
     </div>
@@ -263,6 +280,10 @@
               method="GET"
               action="{{ url()->current() }}">
             <input type="hidden" id="filter_per_page" name="per_page" value="{{ request('per_page', 20) }}">
+            <input type="hidden"
+                   id="filter_external_website_id"
+                   name="external_website_id"
+                   value="{{ $selectedWebsiteFilter }}">
             <div class="row">
                 <div class="col-md-2 col-sm-6 mb-2">
                     <label class="small font-weight-bold text-muted text-uppercase">Order Status</label>
@@ -382,7 +403,7 @@
                            name="search"
                            value="{{ request('search') }}"
                            class="form-control shadow-none"
-                           placeholder="Search invoice, customer, phone, address, product, courier, employee...">
+                           placeholder="Search invoice, external order, customer, phone, website, product, courier, employee...">
                 </div>
 
                 <div class="col-md-2 col-sm-4 mb-2 d-flex align-items-end">
@@ -601,6 +622,32 @@
                         </div>
 
                         @if($canDeleteOrders)
+                            <div class="dropdown d-inline-block mr-2 mb-1">
+                                <button class="btn btn-outline-warning btn-sm dropdown-toggle shadow-none"
+                                        type="button"
+                                        id="syncWebhookDropdown"
+                                        data-toggle="dropdown"
+                                        aria-haspopup="true"
+                                        aria-expanded="false">
+                                    <i class="fas fa-sync-alt mr-1"></i> Sync Webhook
+                                </button>
+
+                                <div class="dropdown-menu dropdown-menu-right" aria-labelledby="syncWebhookDropdown">
+                                    <a class="dropdown-item sync-webhook-action"
+                                       href="#"
+                                       data-name="SteadFast"
+                                       data-url="{{ route('command.sync-steadfast-statuses') }}">
+                                        <i class="fas fa-shipping-fast mr-1 text-primary"></i> Sync SteadFast
+                                    </a>
+                                    <a class="dropdown-item sync-webhook-action"
+                                       href="#"
+                                       data-name="Pathao"
+                                       data-url="{{ route('command.sync-pathao-statuses') }}">
+                                        <i class="fas fa-route mr-1 text-success"></i> Sync Pathao
+                                    </a>
+                                </div>
+                            </div>
+
                             <button class="btn btn-outline-danger btn-sm mr-2 mb-1 shadow-none" id="btnToggleTrash" type="button">
                                 @if(!empty($isTrash))
                                     <i class="fas fa-list mr-1"></i> Active List
@@ -616,6 +663,53 @@
                                 <i class="fas fa-broom mr-1"></i> Empty Trash
                             </button>
                         @endif
+
+                        <div class="dropdown d-inline-block mr-2 mb-1">
+                            <button class="btn btn-outline-primary btn-sm dropdown-toggle"
+                                    type="button"
+                                    id="websiteOrderFilterDropdown"
+                                    data-toggle="dropdown"
+                                    aria-haspopup="true"
+                                    aria-expanded="false">
+                                <i class="fas fa-globe mr-1"></i>
+                                <span id="websiteOrderFilterLabel">{{ $selectedWebsiteLabel }}</span>
+                            </button>
+
+                            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="websiteOrderFilterDropdown">
+                                <h6 class="dropdown-header">Order Source Website</h6>
+
+                                <a href="#"
+                                   class="dropdown-item website-order-filter-action {{ $selectedWebsiteFilter === 'all' ? 'active' : '' }}"
+                                   data-website-id="all"
+                                   data-label="All Websites">
+                                    <i class="fas fa-layer-group mr-1"></i> All Websites
+                                </a>
+
+                                <a href="#"
+                                   class="dropdown-item website-order-filter-action {{ $selectedWebsiteFilter === 'local' ? 'active' : '' }}"
+                                   data-website-id="local"
+                                   data-label="deshbajar.com">
+                                    <i class="fas fa-home mr-1 text-success"></i> deshbajar.com
+                                </a>
+
+                                @if(($externalWebsites ?? collect())->isNotEmpty())
+                                    <div class="dropdown-divider"></div>
+
+                                    @foreach($externalWebsites as $externalWebsite)
+                                        <a href="#"
+                                           class="dropdown-item website-order-filter-action {{ $selectedWebsiteFilter === (string) $externalWebsite->id ? 'active' : '' }}"
+                                           data-website-id="{{ $externalWebsite->id }}"
+                                           data-label="{{ $externalWebsite->name }}">
+                                            <i class="fas fa-globe-americas mr-1 text-primary"></i>
+                                            {{ $externalWebsite->name }}
+                                            @if(! $externalWebsite->status)
+                                                <span class="badge badge-secondary ml-1">Inactive</span>
+                                            @endif
+                                        </a>
+                                    @endforeach
+                                @endif
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -676,7 +770,7 @@
 <strong>
     © Copyright 2026 All rights reserved |
     This website developed by
-    <a href="https://sfashanto.netlify.app/" target="_blank">SFA Shanto</a>
+    <a href="https://deshbajar.com/" target="_blank">DESHBAJAR</a>
 </strong>
 @endsection
 
@@ -831,6 +925,20 @@ $(document).ready(function() {
         });
     }
 
+    const commandToastParams = new URLSearchParams(window.location.search);
+    const commandToastType = commandToastParams.get('toast_type');
+    const commandToastMessage = commandToastParams.get('toast_message');
+
+    if (commandToastType && commandToastMessage) {
+        showToast(commandToastType === 'error' ? 'error' : 'success', commandToastMessage);
+        commandToastParams.delete('toast_type');
+        commandToastParams.delete('toast_message');
+
+        const cleanedQuery = commandToastParams.toString();
+        const cleanedUrl = window.location.pathname + (cleanedQuery ? '?' + cleanedQuery : '');
+        window.history.replaceState({}, document.title, cleanedUrl);
+    }
+
     function htmlEscape(value) {
         if (value === null || value === undefined) return '';
         return String(value)
@@ -902,6 +1010,7 @@ $(document).ready(function() {
         $('#stat_shipped').text(stats.shipped ?? 0);
         $('#stat_courier_pending').text(stats.courier_pending ?? 0);
         $('#stat_courier_cancelled').text(stats.courier_cancelled ?? 0);
+        $('#stat_courier_delivered').text(stats.courier_delivered ?? 0);
         $('#stat_cancelled').text(stats.cancelled ?? 0);
         $('#stat_delivered').text(stats.delivered ?? 0);
         $('#stat_stock_out').text(stats.stock_out ?? 0);
@@ -1341,6 +1450,20 @@ $(document).ready(function() {
 
     $(document).on('change', '.row-checkbox', updateSelectedCount);
 
+    $(document).on('click', '.website-order-filter-action', function(e) {
+        e.preventDefault();
+
+        const websiteId = String($(this).data('website-id') ?? 'all');
+        const websiteLabel = String($(this).data('label') ?? 'All Websites');
+
+        $('#filter_external_website_id').val(websiteId);
+        $('#websiteOrderFilterLabel').text(websiteLabel);
+        $('.website-order-filter-action').removeClass('active');
+        $(this).addClass('active');
+
+        reloadTable(1);
+    });
+
     /*
     |--------------------------------------------------------------------------
     | Filter + Search
@@ -1384,6 +1507,32 @@ $(document).ready(function() {
             .get('page') || 1;
 
         reloadTable(page);
+    });
+
+    $(document).on('click', '.sync-webhook-action', function(e) {
+        e.preventDefault();
+
+        const syncName = String($(this).data('name') || 'Courier');
+        const syncUrl = String($(this).data('url') || '');
+
+        if (!syncUrl) {
+            showToast('error', 'Sync route পাওয়া যায়নি।');
+            return;
+        }
+
+        Swal.fire({
+            title: 'Sync ' + syncName + ' webhook/status?',
+            text: 'Latest courier statuses will be synchronized using the existing command route.',
+            icon: 'question',
+            type: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, Sync Now',
+            cancelButtonText: 'Cancel'
+        }).then(function(result) {
+            if (swalConfirmed(result)) {
+                window.location.href = syncUrl;
+            }
+        });
     });
 
     $(document).on('click', '#btnToggleTrash', function() {

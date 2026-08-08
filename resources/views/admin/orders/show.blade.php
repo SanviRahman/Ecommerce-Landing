@@ -424,6 +424,46 @@
 
             <div class="card-body">
                 <table class="table table-bordered mb-0 order-show-table">
+                    <tr>
+                        <th width="220">Order Source</th>
+                        <td>
+                            @if($order->external_website_id)
+                                <span class="badge badge-primary px-2 py-2">
+                                    <i class="fas fa-globe-americas mr-1"></i>
+                                    {{ $order->externalWebsite->name ?? 'External Website' }}
+                                </span>
+                            @else
+                                <span class="badge badge-success px-2 py-2">
+                                    <i class="fas fa-home mr-1"></i>
+                                    {{ request()->getHost() }}
+                                </span>
+                            @endif
+                        </td>
+                    </tr>
+                    <tr><th>Created Via</th><td>{{ ucwords(str_replace('_', ' ', $formatText($order->created_via))) }}</td></tr>
+                    <tr><th>External Order ID</th><td>{{ $formatText($order->external_order_id) }}</td></tr>
+                    <tr><th>API Received At</th><td>{{ $order->api_received_at?->timezone('Asia/Dhaka')->format('d M Y h:i A') ?: '-' }}</td></tr>
+                    <tr><th>Sync UUID</th><td class="text-break">{{ $formatText($order->sync_uuid) }}</td></tr>
+                    <tr>
+                        <th>Outgoing Website Sync</th>
+                        <td>
+                            @forelse($order->externalOrderSyncs as $outboundSync)
+                                <div class="mb-1">
+                                    <span class="badge {{ $outboundSync->status === 'sent' ? 'badge-success' : ($outboundSync->status === 'failed' ? 'badge-danger' : 'badge-secondary') }}">
+                                        {{ $outboundSync->externalWebsite->name ?? 'External Website' }}: {{ ucfirst($outboundSync->status) }}
+                                    </span>
+                                    @if($outboundSync->sent_at)
+                                        <small class="text-muted ml-1">{{ $outboundSync->sent_at->timezone('Asia/Dhaka')->format('d M Y h:i A') }}</small>
+                                    @endif
+                                    @if($outboundSync->error_message)
+                                        <small class="d-block text-danger">{{ $outboundSync->error_message }}</small>
+                                    @endif
+                                </div>
+                            @empty
+                                <span class="text-muted">No outgoing website sync record.</span>
+                            @endforelse
+                        </td>
+                    </tr>
                     <tr><th width="220">Source IP</th><td>{{ $formatText($order->source_ip) }}</td></tr>
                     <tr><th>Source URL</th><td class="text-break">{{ $formatText($order->source_url) }}</td></tr>
                     <tr><th>User Agent</th><td class="text-break">{{ $formatText($order->user_agent) }}</td></tr>

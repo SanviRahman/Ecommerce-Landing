@@ -5,6 +5,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Campaign;
 use App\Models\Courier;
 use App\Models\CourierAccount;
+use App\Models\ExternalWebsite;
 use App\Models\Order;
 use App\Models\OrderField;
 use App\Models\OrderItem;
@@ -139,6 +140,8 @@ class OrderController extends Controller
                 'courier',
                 'courierAccount',
                 'orderField',
+                'externalWebsite',
+                'externalOrderSyncs.externalWebsite',
             ])
             ->forLoggedInUser()
             ->latest();
@@ -363,6 +366,7 @@ class OrderController extends Controller
             'cancelled'        => (clone $workflowBaseQuery)->where('order_status', Order::STATUS_CANCELLED)->count(),
             'courier_pending'  => (clone $workflowBaseQuery)->courierPending()->count(),
             'courier_cancelled'=> (clone $workflowBaseQuery)->courierCancelled()->count(),
+            'courier_delivered'=> (clone $workflowBaseQuery)->courierDelivered()->count(),
             'stock_out'        => (clone $workflowBaseQuery)->where('order_status', Order::STATUS_STOCK_OUT)->count(),
 
             'order_list_1'     => (clone $baseQuery)
@@ -403,7 +407,12 @@ class OrderController extends Controller
                     ->orWhere('customer_name', 'like', "%{$search}%")
                     ->orWhere('phone', 'like', "%{$search}%")
                     ->orWhere('address', 'like', "%{$search}%")
+                    ->orWhere('external_order_id', 'like', "%{$search}%")
                     ->orWhere('courier_service', 'like', "%{$search}%")
+                    ->orWhereHas('externalWebsite', function ($websiteQuery) use ($search) {
+                        $websiteQuery->where('name', 'like', "%{$search}%")
+                            ->orWhere('domain', 'like', "%{$search}%");
+                    })
                     ->orWhereHas('assignedEmployee', function ($employeeQuery) use ($search) {
                         $employeeQuery->where('name', 'like', "%{$search}%")
                             ->orWhere('email', 'like', "%{$search}%");
@@ -453,6 +462,14 @@ class OrderController extends Controller
                 $query->whereNull('courier_id');
             } else {
                 $query->where('courier_id', $request->courier_id);
+            }
+        }
+
+        if ($request->filled('external_website_id') && $request->external_website_id !== 'all') {
+            if ($request->external_website_id === 'local') {
+                $query->whereNull('external_website_id');
+            } else {
+                $query->where('external_website_id', (int) $request->external_website_id);
             }
         }
 
@@ -708,6 +725,18 @@ class OrderController extends Controller
         $orderStatuses   = $this->getOrderStatuses();
         $paymentStatuses = $this->getPaymentStatuses();
         $courierServices = $this->getCourierServices();
+        $externalWebsites = ExternalWebsite::query()
+            ->orderBy('name')
+            ->get();
+
+        $localWebsiteName = trim((string) (
+            SiteSetting::query()
+                ->where('status', true)
+                ->latest()
+                ->value('website_name')
+                ?: config('app.name')
+                ?: request()->getHost()
+        ));
 
         if ($request->ajax()) {
             return response()->json([
@@ -723,6 +752,7 @@ class OrderController extends Controller
                     'orderStatuses'        => $orderStatuses,
                     'duplicateCustomerCounts' => $duplicateCustomerCounts,
                     'duplicateIpCounts'    => $duplicateIpCounts,
+                    'localWebsiteName'     => $localWebsiteName,
                 ])->render(),
             ]);
         }
@@ -734,6 +764,8 @@ class OrderController extends Controller
             'couriers'             => $couriers,
             'courierAccounts'      => collect(),
             'courierServices'      => $courierServices,
+            'externalWebsites'     => $externalWebsites,
+            'localWebsiteName'     => $localWebsiteName,
             'defaultCourier'       => $defaultCourier,
             'stats'                => $stats,
             'orderStatuses'        => $orderStatuses,
@@ -1781,6 +1813,19 @@ class OrderController extends Controller
         );
     }
 
+    public function courierDelivered(Request $request)
+    {
+        $this->adminOrEmployeeOnly();
+
+        return $this->listResponse(
+            $request,
+            $this->orderQuery()->courierDelivered(),
+            'Courier Delivered Orders',
+            false,
+            'courier-delivered'
+        );
+    }
+
     public function cancelled(Request $request)
     {
         $this->adminOrEmployeeOnly();
@@ -1895,6 +1940,8 @@ class OrderController extends Controller
             'courier',
             'courierAccount',
             'orderField',
+            'externalWebsite',
+            'externalOrderSyncs.externalWebsite',
         ]);
 
         $activeCustomerBlocks = $orderBlockService->findActiveBlocks(
