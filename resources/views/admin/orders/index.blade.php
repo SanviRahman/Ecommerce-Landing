@@ -41,8 +41,8 @@
     $selectedExternalWebsite = ($externalWebsites ?? collect())
         ->firstWhere('id', (int) $selectedWebsiteFilter);
     $selectedWebsiteLabel = $selectedWebsiteFilter === 'local'
-        ? 'deshbajar.com'
-        : ($selectedExternalWebsite->name ?? 'All Websites');
+        ? ($localWebsiteName ?? request()->getHost())
+        : ($selectedExternalWebsite->domain_host ?? 'All Websites');
 @endphp
 
 {{-- Top Small Stats --}}
@@ -647,15 +647,6 @@
                                     </a>
                                 </div>
                             </div>
-
-                            <button class="btn btn-outline-danger btn-sm mr-2 mb-1 shadow-none" id="btnToggleTrash" type="button">
-                                @if(!empty($isTrash))
-                                    <i class="fas fa-list mr-1"></i> Active List
-                                @else
-                                    <i class="fas fa-trash-alt mr-1"></i> Trash Bin
-                                @endif
-                            </button>
-
                             <button class="btn btn-danger btn-sm mr-2 mb-1 shadow-none"
                                     id="btnEmptyTrash"
                                     type="button"
@@ -663,7 +654,6 @@
                                 <i class="fas fa-broom mr-1"></i> Empty Trash
                             </button>
                         @endif
-
                         <div class="dropdown d-inline-block mr-2 mb-1">
                             <button class="btn btn-outline-primary btn-sm dropdown-toggle"
                                     type="button"
@@ -688,8 +678,8 @@
                                 <a href="#"
                                    class="dropdown-item website-order-filter-action {{ $selectedWebsiteFilter === 'local' ? 'active' : '' }}"
                                    data-website-id="local"
-                                   data-label="deshbajar.com">
-                                    <i class="fas fa-home mr-1 text-success"></i> deshbajar.com
+                                   data-label="{{ $localWebsiteName ?? request()->getHost() }}">
+                                    <i class="fas fa-home mr-1 text-success"></i> {{ $localWebsiteName ?? request()->getHost() }}
                                 </a>
 
                                 @if(($externalWebsites ?? collect())->isNotEmpty())
@@ -699,9 +689,9 @@
                                         <a href="#"
                                            class="dropdown-item website-order-filter-action {{ $selectedWebsiteFilter === (string) $externalWebsite->id ? 'active' : '' }}"
                                            data-website-id="{{ $externalWebsite->id }}"
-                                           data-label="{{ $externalWebsite->name }}">
+                                           data-label="{{ $externalWebsite->domain_host }}">
                                             <i class="fas fa-globe-americas mr-1 text-primary"></i>
-                                            {{ $externalWebsite->name }}
+                                            {{ $externalWebsite->domain_host }}
                                             @if(! $externalWebsite->status)
                                                 <span class="badge badge-secondary ml-1">Inactive</span>
                                             @endif
@@ -710,6 +700,15 @@
                                 @endif
                             </div>
                         </div>
+                        @if($canDeleteOrders)
+                            <button class="btn btn-outline-danger btn-sm mr-2 mb-1 shadow-none" id="btnToggleTrash" type="button">
+                                @if(!empty($isTrash))
+                                    <i class="fas fa-list mr-1"></i> Active List
+                                @else
+                                    <i class="fas fa-trash-alt mr-1"></i> Trash Bin
+                                @endif
+                            </button>
+                        @endif
                     </div>
                 </div>
             </div>

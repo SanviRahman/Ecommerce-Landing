@@ -4,7 +4,7 @@ $canDeleteOrders = auth()->check() && auth()->user()->isAdmin();
 $orderStatuses = $orderStatuses ?? [];
 $duplicateCustomerCounts = $duplicateCustomerCounts ?? [];
 $duplicateIpCounts = $duplicateIpCounts ?? [];
-$localWebsiteName = trim((string) ($localWebsiteName ?? config('app.name') ?? 'Local Website'));
+$localWebsiteName = trim((string) ($localWebsiteName ?? request()->getHost() ?? 'Local Website'));
 @endphp
 <div class="table-responsive">
     <table class="table table-hover align-middle mb-0 order-index-table">
@@ -373,7 +373,7 @@ $localWebsiteName = trim((string) ($localWebsiteName ?? config('app.name') ?? 'L
                         <span class="badge badge-primary website-source-badge"
                               title="{{ $order->externalWebsite->domain ?? 'External website' }}">
                             <i class="fas fa-globe-americas mr-1"></i>
-                            {{ $order->externalWebsite->name ?? 'External Website' }}
+                            {{ $order->externalWebsite->domain_host ?? 'External Website' }}
                         </span>
 
                         @if($order->external_order_id)

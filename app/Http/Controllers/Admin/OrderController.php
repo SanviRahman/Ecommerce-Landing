@@ -729,14 +729,11 @@ class OrderController extends Controller
             ->orderBy('name')
             ->get();
 
-        $localWebsiteName = trim((string) (
-            SiteSetting::query()
-                ->where('status', true)
-                ->latest()
-                ->value('website_name')
-                ?: config('app.name')
-                ?: request()->getHost()
-        ));
+        $localWebsiteName = preg_replace(
+            '/^www\./i',
+            '',
+            trim((string) request()->getHost())
+        ) ?: 'Local Website';
 
         if ($request->ajax()) {
             return response()->json([
@@ -1785,6 +1782,19 @@ class OrderController extends Controller
         $this->adminOrEmployeeOnly();
 
         return $this->listResponse($request, $this->orderQuery()->delivered(), 'Delivered Orders', false, 'delivered');
+    }
+
+    public function apiOrders(Request $request)
+    {
+        $this->adminOrEmployeeOnly();
+
+        return $this->listResponse(
+            $request,
+            $this->orderQuery()->whereNotNull('external_website_id'),
+            'API Orders',
+            false,
+            'api-orders'
+        );
     }
 
     public function courierPending(Request $request)

@@ -109,6 +109,7 @@ Route::middleware(['auth'])->group(function () {
             Route::get('/courier-cancelled', [OrderController::class, 'courierCancelled'])->name('courier_cancelled');
             Route::get('/courier-delivered', [OrderController::class, 'courierDelivered'])->name('courier_delivered');
             Route::get('/delivered', [OrderController::class, 'delivered'])->name('delivered');
+            Route::get('/api-orders', [OrderController::class, 'apiOrders'])->name('api_orders');
             Route::get('/cancelled', [OrderController::class, 'cancelled'])->name('cancelled');
             Route::get('/stock-out', [OrderController::class, 'stockOut'])->name('stock_out');
             Route::get('/fake', [OrderController::class, 'fake'])->name('fake');

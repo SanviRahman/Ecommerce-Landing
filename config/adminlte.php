@@ -472,6 +472,13 @@ return [
             'can'    => 'admin-or-employee',
             'active' => ['admin/orders/delivered*'],
         ],
+        [
+            'text'   => 'API Orders',
+            'url'    => 'admin/orders/api-orders',
+            'icon'   => 'fas fa-cloud-download-alt',
+            'can'    => 'admin-or-employee',
+            'active' => ['admin/orders/api-orders*'],
+        ],
         /*
     |--------------------------------------------------------------------------
     | Product Management
