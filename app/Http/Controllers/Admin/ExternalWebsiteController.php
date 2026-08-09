@@ -309,14 +309,37 @@ class ExternalWebsiteController extends Controller
     {
         $this->adminOnly();
 
-        if (! $externalWebsite->canSendOrders()) {
+        if (! $externalWebsite->status) {
             return back()->with(
                 'error',
-                'Enable Send Orders and save the remote endpoint and remote token before sending a connection request.'
+                'Activate this website integration before sending a connection request.'
             );
         }
 
-        $requestEndpoint = rtrim((string) $externalWebsite->remote_order_endpoint, '/')
+        $remoteEndpoint = trim((string) $externalWebsite->remote_order_endpoint);
+
+        try {
+            $remoteToken = trim((string) $externalWebsite->remote_api_token);
+        } catch (Throwable) {
+            $remoteToken = '';
+        }
+
+        if ($remoteEndpoint === '' || $remoteToken === '') {
+            return back()->with(
+                'error',
+                'Save the remote receiver endpoint and external receiver token before sending a connection request.'
+            );
+        }
+
+        $sendingWasDisabled = ! $externalWebsite->send_orders;
+
+        if ($sendingWasDisabled) {
+            $externalWebsite->forceFill([
+                'send_orders' => true,
+            ])->saveQuietly();
+        }
+
+        $requestEndpoint = rtrim($remoteEndpoint, '/')
             . '/connection-request';
 
         try {
@@ -351,11 +374,17 @@ class ExternalWebsiteController extends Controller
                     ? "Connected to {$externalWebsite->name} successfully."
                     : "Connection request sent to {$externalWebsite->name} successfully. Approve it from the receiver admin panel, then run Test Connection.";
 
+                if ($sendingWasDisabled) {
+                    $successMessage = 'Send Orders was enabled automatically. ' . $successMessage;
+                }
+
                 $redirect = back()
                     ->with('success', $successMessage)
                     ->with('connection_swal', [
                         'icon' => 'success',
-                        'title' => $alreadyApproved ? 'Connection Already Approved' : 'Request Sent Successfully',
+                        'title' => $alreadyApproved
+                            ? 'Connection Already Approved'
+                            : ($sendingWasDisabled ? 'Sending Enabled & Request Sent' : 'Request Sent Successfully'),
                         'text' => $successMessage,
                     ]);
 

@@ -551,6 +551,8 @@
                                 } catch (\Throwable) {
                                     $hasSavedRemoteToken = false;
                                 }
+
+                                $hasCompleteRemoteCredentials = $hasSavedRemoteEndpoint && $hasSavedRemoteToken;
                             @endphp
 
                             @if($hasSavedRemoteEndpoint || $hasSavedRemoteToken)
@@ -625,6 +627,9 @@
                                 <small class="d-block text-muted">Send connection</small>
                                 @if($website->outbound_connection_status === 'connected')
                                     <span class="badge badge-success">Connected</span>
+                                @elseif($website->last_connection_status === 'pending_approval')
+                                    <span class="badge badge-warning">Waiting Receiver Approval</span>
+                                    <small class="d-block text-muted mt-1">After the receiver accepts, click Verify Connection.</small>
                                 @elseif($website->outbound_connection_status === 'failed')
                                     <span class="badge badge-danger" title="{{ $website->last_connection_message }}">Failed</span>
                                 @elseif($website->outbound_connection_status === 'inactive')
@@ -678,27 +683,40 @@
                                 </div>
                             @endif
 
-                            @if($website->canSendOrders())
+                            @if($website->status && $hasCompleteRemoteCredentials)
                                 <form action="{{ route('admin.external-websites.send-connection-request', $website) }}"
                                       method="POST"
                                       class="mb-2 form-send-connection-request">
                                     @csrf
                                     <button type="submit"
                                             class="btn btn-sm btn-primary"
-                                            title="Send connection request to {{ $website->name }}">
-                                        <i class="fas fa-paper-plane mr-1"></i>
-                                        {{ $website->last_connection_status === 'pending_approval' ? 'Resend Request' : 'Send Request' }}
+                                            data-mode="{{ $website->last_connection_status === 'pending_approval' ? 'verify' : 'send' }}"
+                                            data-auto-enable-send="{{ $website->send_orders ? '0' : '1' }}"
+                                            title="{{ $website->last_connection_status === 'pending_approval'
+                                                ? 'Verify receiver approval and complete the connection'
+                                                : ($website->send_orders
+                                                    ? 'Send connection request to ' . $website->name
+                                                    : 'Enable Send Orders and send the connection request to ' . $website->name) }}">
+                                        <i class="fas {{ $website->last_connection_status === 'pending_approval' ? 'fa-check-circle' : 'fa-paper-plane' }} mr-1"></i>
+                                        {{ $website->last_connection_status === 'pending_approval' ? 'Verify Connection' : 'Send Request' }}
                                     </button>
                                 </form>
+
+                                @if(! $website->send_orders)
+                                    <small class="d-block text-info mb-2">
+                                        <i class="fas fa-info-circle mr-1"></i>
+                                        Endpoint and token are saved. Clicking Send Request will enable Send Orders automatically.
+                                    </small>
+                                @endif
                             @else
                                 <button type="button"
                                         class="btn btn-sm btn-outline-secondary mb-2"
                                         disabled
-                                        title="{{ ! $website->send_orders ? 'Enable Send Orders first' : 'Save the remote endpoint and external receiver token first' }}">
+                                        title="{{ ! $website->status ? 'Activate this integration first' : 'Save the remote endpoint and external receiver token first' }}">
                                     <i class="fas fa-paper-plane mr-1"></i> Send Request
                                 </button>
                                 <small class="d-block text-muted mb-2">
-                                    {{ ! $website->send_orders ? 'Enable Send Orders to activate this button.' : 'Save the remote endpoint and external receiver token to activate this button.' }}
+                                    {{ ! $website->status ? 'Activate this integration to send a request.' : 'Save the remote endpoint and external receiver token to activate this button.' }}
                                 </small>
                             @endif
 
@@ -746,30 +764,63 @@
                             </div>
 
                             <div class="d-flex justify-content-center flex-wrap">
-                                <form action="{{ route('admin.external-websites.sync-existing-orders', $website) }}"
-                                      method="POST"
-                                      class="mr-1 mb-1 form-sync-existing"
-                                      data-website-id="{{ $website->id }}"
-                                      data-website-name="{{ $website->name }}">
-                                    @csrf
-                                    <input type="hidden" name="limit" value="20">
-                                    <button type="submit"
-                                            class="btn btn-xs btn-outline-info"
-                                            @disabled(! $website->send_orders || $website->outbound_connection_status !== 'connected')>
-                                        Sync All Existing
+                                <div class="dropdown d-inline-block mb-1">
+                                    <button type="button"
+                                            class="btn btn-xs btn-outline-warning dropdown-toggle shadow-none"
+                                            id="syncOrdersDropdown{{ $website->id }}"
+                                            data-toggle="dropdown"
+                                            aria-haspopup="true"
+                                            aria-expanded="false"
+                                            @disabled(! $website->send_orders || $website->outbound_connection_status !== 'connected')
+                                            title="Sync missing or failed orders to {{ $website->name }}">
+                                        <i class="fas fa-sync-alt mr-1"></i> Sync Orders
                                     </button>
-                                </form>
 
-                                @if($website->failed_orders_count > 0)
-                                    <form action="{{ route('admin.external-websites.retry-failed-orders', $website) }}"
-                                          method="POST"
-                                          class="mb-1">
-                                        @csrf
-                                        <input type="hidden" name="limit" value="100">
-                                        <button type="submit" class="btn btn-xs btn-outline-danger">
-                                            Retry Failed
-                                        </button>
-                                    </form>
+                                    <div class="dropdown-menu dropdown-menu-right"
+                                         aria-labelledby="syncOrdersDropdown{{ $website->id }}">
+                                        <h6 class="dropdown-header">Manual Order Sync</h6>
+
+                                        <form action="{{ route('admin.external-websites.sync-existing-orders', $website) }}"
+                                              method="POST"
+                                              class="form-sync-existing"
+                                              data-website-id="{{ $website->id }}"
+                                              data-website-name="{{ $website->name }}">
+                                            @csrf
+                                            <input type="hidden" name="limit" value="20">
+                                            <button type="submit" class="dropdown-item">
+                                                <i class="fas fa-cloud-upload-alt text-info mr-1"></i>
+                                                Sync Missing Orders
+                                            </button>
+                                        </form>
+
+                                        <div class="dropdown-divider"></div>
+
+                                        <form action="{{ route('admin.external-websites.retry-failed-orders', $website) }}"
+                                              method="POST"
+                                              class="form-retry-failed-orders"
+                                              data-website-name="{{ $website->name }}">
+                                            @csrf
+                                            <input type="hidden" name="limit" value="100">
+                                            <button type="submit"
+                                                    class="dropdown-item {{ $website->failed_orders_count > 0 ? 'text-danger' : 'text-muted' }}"
+                                                    @disabled($website->failed_orders_count <= 0)>
+                                                <i class="fas fa-redo-alt mr-1"></i>
+                                                Retry Failed Orders
+                                                <span class="badge badge-danger ml-1">{{ $website->failed_orders_count }}</span>
+                                            </button>
+                                        </form>
+
+                                        <div class="dropdown-divider"></div>
+                                        <span class="dropdown-item-text small text-muted">
+                                            Use this if automatic order sync did not deliver all orders.
+                                        </span>
+                                    </div>
+                                </div>
+
+                                @if(! $website->send_orders || $website->outbound_connection_status !== 'connected')
+                                    <small class="d-block w-100 text-muted mt-1">
+                                        Connect the Send connection first to enable manual order sync.
+                                    </small>
                                 @endif
                             </div>
                         </td>
@@ -1239,13 +1290,21 @@ $(document).ready(function() {
     $(document).on('submit', '.form-send-connection-request', function(event) {
         event.preventDefault();
         const form = this;
+        const submitButton = $(form).find('button[type="submit"]');
+        const mode = submitButton.data('mode') || 'send';
+        const isVerify = mode === 'verify';
+        const autoEnableSend = String(submitButton.data('auto-enable-send') || '0') === '1';
 
         Swal.fire({
-            title: 'Send connection request?',
-            text: 'The receiver website will show this request for admin approval.',
+            title: isVerify ? 'Verify connection?' : 'Send connection request?',
+            text: isVerify
+                ? 'Use this after the receiver has accepted the request. The sender will verify approval and mark the send connection as connected.'
+                : (autoEnableSend
+                    ? 'Remote endpoint and token are saved. Send Orders will be enabled automatically and the connection request will be sent.'
+                    : 'The receiver website will show this request for admin approval.'),
             icon: 'question',
             showCancelButton: true,
-            confirmButtonText: 'Yes, Send Request'
+            confirmButtonText: isVerify ? 'Yes, Verify Connection' : 'Yes, Send Request'
         }).then(function(result) {
             if (result.isConfirmed || result.value) {
                 form.submit();
@@ -1423,6 +1482,24 @@ $(document).ready(function() {
         }).then(function(result) {
             if (result.isConfirmed || result.value) {
                 syncAllExistingOrders(form, false);
+            }
+        });
+    });
+
+    $(document).on('submit', '.form-retry-failed-orders', function(event) {
+        event.preventDefault();
+        const form = this;
+        const websiteName = String($(form).data('website-name') || 'this website');
+
+        Swal.fire({
+            title: 'Retry failed orders?',
+            text: 'Failed order sync attempts will be retried for ' + websiteName + '.',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, Retry Failed'
+        }).then(function(result) {
+            if (result.isConfirmed || result.value) {
+                form.submit();
             }
         });
     });
