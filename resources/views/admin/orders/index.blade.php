@@ -105,6 +105,19 @@
             </a>
         </div>
     </div>
+@elseif($currentStatusView === 'api-orders')
+    <div class="row mb-3" id="orderStatsCards">
+        <div class="col-lg-3 col-md-4 col-sm-6 mb-2">
+            <a href="{{ route('admin.orders.api_orders') }}"
+               class="order-stat-card text-decoration-none active">
+                <div>
+                    <h4 id="stat_all">{{ $stats['all'] ?? 0 }}</h4>
+                    <p>Total API Orders</p>
+                </div>
+                <i class="fas fa-cloud-download-alt"></i>
+            </a>
+        </div>
+    </div>
 @else
     <div class="row mb-3" id="orderStatsCards">
         <div class="col-xl col-lg-3 col-md-4 col-sm-6 mb-2">

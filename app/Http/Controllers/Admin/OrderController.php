@@ -335,9 +335,13 @@ class OrderController extends Controller
         return null;
     }
 
-    private function getStats(): array
+    private function getStats(bool $apiOnly = false): array
     {
         $baseQuery = Order::query()->forLoggedInUser();
+
+        if ($apiOnly) {
+            $baseQuery->whereNotNull('external_website_id');
+        }
 
         /*
          * Static Order List 1/2 are exclusive workflow buckets.
@@ -698,7 +702,8 @@ class OrderController extends Controller
         string $title,
         bool $isTrash = false,
         string $currentStatusView = 'active',
-        ?OrderField $currentOrderField = null
+        ?OrderField $currentOrderField = null,
+        bool $apiOnlyStats = false
     ) {
         $query          = $this->applyFilters($query, $request);
         $perPageOptions = [15, 20, 50, 100, 150, 200, 250, 300, 350, 400, 450, 500];
@@ -721,7 +726,7 @@ class OrderController extends Controller
         $couriers        = $this->getActiveCouriers();
         $orderFields     = $this->getActiveOrderFields();
         $defaultCourier  = CourierAccount::defaultActive();
-        $stats           = $this->getStats();
+        $stats           = $this->getStats($apiOnlyStats);
         $orderStatuses   = $this->getOrderStatuses();
         $paymentStatuses = $this->getPaymentStatuses();
         $courierServices = $this->getCourierServices();
@@ -1793,7 +1798,9 @@ class OrderController extends Controller
             $this->orderQuery()->whereNotNull('external_website_id'),
             'API Orders',
             false,
-            'api-orders'
+            'api-orders',
+            null,
+            true
         );
     }
 

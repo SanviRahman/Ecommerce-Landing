@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\ExternalOrderSync;
 use App\Models\ExternalWebsite;
 use App\Models\Order;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
@@ -46,23 +47,18 @@ class ExternalOrderSyncService
 
     public function syncExistingOrders(
         ExternalWebsite $externalWebsite,
-        int $limit = 100
+        int $limit = 20
     ): array {
-        $limit = max(1, min($limit, 500));
+        $limit = max(1, min($limit, 100));
         $sent = 0;
         $failed = 0;
         $skipped = 0;
 
-        Order::query()
-            ->where(function ($query): void {
-                $query
-                    ->whereNull('created_via')
-                    ->orWhere('created_via', '!=', Order::CREATED_VIA_EXTERNAL_API);
-            })
+        $this->localOrdersQuery()
             ->whereDoesntHave('externalOrderSyncs', function ($query) use ($externalWebsite): void {
                 $query->where('external_website_id', $externalWebsite->id);
             })
-            ->latest('id')
+            ->oldest('id')
             ->limit($limit)
             ->get()
             ->each(function (Order $order) use ($externalWebsite, &$sent, &$failed, &$skipped): void {
@@ -75,7 +71,46 @@ class ExternalOrderSyncService
                 };
             });
 
-        return compact('sent', 'failed', 'skipped');
+        return [
+            'sent' => $sent,
+            'failed' => $failed,
+            'skipped' => $skipped,
+            ...$this->syncProgress($externalWebsite),
+        ];
+    }
+
+    public function syncProgress(ExternalWebsite $externalWebsite): array
+    {
+        $totalEligible = (clone $this->localOrdersQuery())->count();
+
+        $remaining = (clone $this->localOrdersQuery())
+            ->whereDoesntHave('externalOrderSyncs', function ($query) use ($externalWebsite): void {
+                $query->where('external_website_id', $externalWebsite->id);
+            })
+            ->count();
+
+        $sentTotal = ExternalOrderSync::query()
+            ->where('external_website_id', $externalWebsite->id)
+            ->where('status', ExternalOrderSync::STATUS_SENT)
+            ->whereHas('order', function ($query): void {
+                $this->applyLocalOrderConstraint($query);
+            })
+            ->count();
+
+        $failedTotal = ExternalOrderSync::query()
+            ->where('external_website_id', $externalWebsite->id)
+            ->where('status', ExternalOrderSync::STATUS_FAILED)
+            ->whereHas('order', function ($query): void {
+                $this->applyLocalOrderConstraint($query);
+            })
+            ->count();
+
+        return [
+            'total_eligible' => $totalEligible,
+            'remaining' => $remaining,
+            'sent_total' => $sentTotal,
+            'failed_total' => $failedTotal,
+        ];
     }
 
     public function retryFailedOrders(
@@ -108,6 +143,27 @@ class ExternalOrderSyncService
                 }
             });
 
-        return compact('sent', 'failed');
+        return [
+            'sent' => $sent,
+            'failed' => $failed,
+            ...$this->syncProgress($externalWebsite),
+        ];
+    }
+
+    private function localOrdersQuery(): Builder
+    {
+        $query = Order::query();
+        $this->applyLocalOrderConstraint($query);
+
+        return $query;
+    }
+
+    private function applyLocalOrderConstraint(Builder $query): void
+    {
+        $query->where(function (Builder $createdViaQuery): void {
+            $createdViaQuery
+                ->whereNull('created_via')
+                ->orWhere('created_via', '!=', Order::CREATED_VIA_EXTERNAL_API);
+        });
     }
 }

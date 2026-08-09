@@ -238,12 +238,18 @@ class ExternalWebsiteController extends Controller
                 'last_connection_message' => $this->limitText($message),
             ])->saveQuietly();
 
-            return back()->with(
+            $redirect = back()->with(
                 $connected ? 'success' : 'error',
                 $connected
                     ? "Connected to {$externalWebsite->name} successfully."
                     : "Could not connect to {$externalWebsite->name}: {$message}"
             );
+
+            if ($connected && $externalWebsite->auto_send_orders) {
+                $redirect->with('auto_sync_existing_website_id', $externalWebsite->id);
+            }
+
+            return $redirect;
         } catch (ConnectionException $exception) {
             return $this->connectionFailed($externalWebsite, $exception->getMessage());
         } catch (Throwable $exception) {
@@ -345,13 +351,19 @@ class ExternalWebsiteController extends Controller
                     ? "Connected to {$externalWebsite->name} successfully."
                     : "Connection request sent to {$externalWebsite->name} successfully. Approve it from the receiver admin panel, then run Test Connection.";
 
-                return back()
+                $redirect = back()
                     ->with('success', $successMessage)
                     ->with('connection_swal', [
                         'icon' => 'success',
                         'title' => $alreadyApproved ? 'Connection Already Approved' : 'Request Sent Successfully',
                         'text' => $successMessage,
                     ]);
+
+                if ($alreadyApproved && $externalWebsite->auto_send_orders) {
+                    $redirect->with('auto_sync_existing_website_id', $externalWebsite->id);
+                }
+
+                return $redirect;
             }
 
             return $this->connectionFailed(
@@ -375,25 +387,41 @@ class ExternalWebsiteController extends Controller
         $this->adminOnly();
 
         $validated = $request->validate([
-            'limit' => ['nullable', 'integer', 'min:1', 'max:500'],
+            'limit' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
 
         if (! $externalWebsite->canSendOrders()) {
-            return back()->with(
-                'error',
-                'Outgoing sync is disabled or the remote endpoint/token is missing.'
-            );
+            $message = 'Outgoing sync is disabled or the remote endpoint/token is missing.';
+
+            return $request->expectsJson()
+                ? response()->json(['status' => false, 'message' => $message], 422)
+                : back()->with('error', $message);
+        }
+
+        if ($externalWebsite->last_connection_status !== 'connected') {
+            $message = 'Test the connection successfully before syncing existing orders.';
+
+            return $request->expectsJson()
+                ? response()->json(['status' => false, 'message' => $message], 409)
+                : back()->with('error', $message);
         }
 
         $result = $syncService->syncExistingOrders(
             $externalWebsite,
-            (int) ($validated['limit'] ?? 100)
+            (int) ($validated['limit'] ?? 20)
         );
 
-        return back()->with(
-            'success',
-            "Existing order sync finished. Sent: {$result['sent']}, Failed: {$result['failed']}, Skipped: {$result['skipped']}."
-        );
+        $message = "Existing order sync batch finished. Sent: {$result['sent']}, Failed: {$result['failed']}, Remaining: {$result['remaining']}.";
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'status' => true,
+                'message' => $message,
+                'data' => $result,
+            ]);
+        }
+
+        return back()->with('success', $message);
     }
 
     public function retryFailedOrders(

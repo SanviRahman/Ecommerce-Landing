@@ -748,13 +748,15 @@
                             <div class="d-flex justify-content-center flex-wrap">
                                 <form action="{{ route('admin.external-websites.sync-existing-orders', $website) }}"
                                       method="POST"
-                                      class="mr-1 mb-1 form-sync-existing">
+                                      class="mr-1 mb-1 form-sync-existing"
+                                      data-website-id="{{ $website->id }}"
+                                      data-website-name="{{ $website->name }}">
                                     @csrf
-                                    <input type="hidden" name="limit" value="100">
+                                    <input type="hidden" name="limit" value="20">
                                     <button type="submit"
                                             class="btn btn-xs btn-outline-info"
-                                            @disabled(! $website->send_orders)>
-                                        Sync 100 Existing
+                                            @disabled(! $website->send_orders || $website->outbound_connection_status !== 'connected')>
+                                        Sync All Existing
                                     </button>
                                 </form>
 
@@ -1120,9 +1122,8 @@
 @section('js')
 <script>
 $(document).ready(function() {
-    @if(session('connection_swal'))
-        Swal.fire(@json(session('connection_swal')));
-    @endif
+    const connectionSwal = @json(session('connection_swal'));
+    const autoSyncExistingWebsiteId = @json(session('auto_sync_existing_website_id'));
 
     function generateToken() {
         const bytes = new Uint8Array(32);
@@ -1305,19 +1306,123 @@ $(document).ready(function() {
         });
     });
 
+    function syncAllExistingOrders(form, automatic = false) {
+        const $form = $(form);
+        const websiteName = String($form.data('website-name') || 'website');
+        const action = String($form.attr('action') || '');
+        const csrfToken = String($form.find('input[name="_token"]').val() || '');
+        const batchSize = Number($form.find('input[name="limit"]').val() || 20);
+        let totalSentThisRun = 0;
+        let totalFailedThisRun = 0;
+        let totalSkippedThisRun = 0;
+        let iterations = 0;
+
+        if (! action) {
+            Swal.fire('Sync Failed', 'Existing order sync route is missing.', 'error');
+            return;
+        }
+
+        Swal.fire({
+            title: automatic ? 'Syncing Existing Orders Automatically' : 'Syncing All Existing Orders',
+            html: 'Preparing existing local orders for <strong>' + websiteName + '</strong>...',
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            showConfirmButton: false,
+            didOpen: function() {
+                Swal.showLoading();
+            }
+        });
+
+        function runBatch() {
+            iterations++;
+
+            if (iterations > 1000) {
+                Swal.fire('Sync Stopped', 'Safety limit reached. Please run Sync All Existing again.', 'warning');
+                return;
+            }
+
+            $.ajax({
+                url: action,
+                type: 'POST',
+                dataType: 'json',
+                headers: {
+                    'Accept': 'application/json'
+                },
+                data: {
+                    _token: csrfToken,
+                    limit: batchSize
+                },
+                success: function(response) {
+                    const data = response.data || {};
+                    totalSentThisRun += Number(data.sent || 0);
+                    totalFailedThisRun += Number(data.failed || 0);
+                    totalSkippedThisRun += Number(data.skipped || 0);
+
+                    const remaining = Number(data.remaining || 0);
+                    const totalEligible = Number(data.total_eligible || 0);
+                    const sentTotal = Number(data.sent_total || 0);
+                    const failedTotal = Number(data.failed_total || 0);
+                    const processed = Math.max(0, totalEligible - remaining);
+
+                    Swal.update({
+                        title: automatic ? 'Auto Sync in Progress' : 'Sync in Progress',
+                        html:
+                            '<strong>' + websiteName + '</strong><br>' +
+                            'Processed: ' + processed + ' / ' + totalEligible + '<br>' +
+                            'Successfully sent: ' + sentTotal + '<br>' +
+                            'Remaining: ' + remaining +
+                            (failedTotal > 0 ? '<br><span class="text-danger">Failed: ' + failedTotal + '</span>' : '')
+                    });
+                    Swal.showLoading();
+
+                    if (remaining > 0) {
+                        window.setTimeout(runBatch, 120);
+                        return;
+                    }
+
+                    const icon = failedTotal > 0 ? 'warning' : 'success';
+                    const title = failedTotal > 0
+                        ? 'Existing Orders Synced with Some Failures'
+                        : 'All Existing Orders Synced';
+
+                    Swal.fire({
+                        icon: icon,
+                        title: title,
+                        html:
+                            'Website: <strong>' + websiteName + '</strong><br>' +
+                            'Sent this run: ' + totalSentThisRun + '<br>' +
+                            'Skipped this run: ' + totalSkippedThisRun + '<br>' +
+                            'Failed this run: ' + totalFailedThisRun + '<br>' +
+                            'Remaining unsynced: 0',
+                        confirmButtonText: 'Done'
+                    }).then(function() {
+                        window.location.reload();
+                    });
+                },
+                error: function(xhr) {
+                    const message = xhr.responseJSON?.message || 'Existing order sync failed. Please try again.';
+                    Swal.fire('Sync Failed', message, 'error');
+                }
+            });
+        }
+
+        runBatch();
+    }
+
     $(document).on('submit', '.form-sync-existing', function(event) {
         event.preventDefault();
         const form = this;
+        const websiteName = String($(form).data('website-name') || 'this website');
 
         Swal.fire({
-            title: 'Sync existing local orders?',
-            text: 'Up to 100 unsynced local orders will be sent to this website. Imported orders will be skipped.',
+            title: 'Sync all existing local orders?',
+            text: 'All unsynced local orders will be sent to ' + websiteName + ' in safe batches. Imported API orders will never be sent again.',
             icon: 'question',
             showCancelButton: true,
-            confirmButtonText: 'Start Sync'
+            confirmButtonText: 'Start Sync All'
         }).then(function(result) {
             if (result.isConfirmed || result.value) {
-                form.submit();
+                syncAllExistingOrders(form, false);
             }
         });
     });
@@ -1339,6 +1444,26 @@ $(document).ready(function() {
             }
         });
     });
+
+    function startPendingAutomaticExistingSync() {
+        if (! autoSyncExistingWebsiteId) {
+            return;
+        }
+
+        const form = $('.form-sync-existing[data-website-id="' + autoSyncExistingWebsiteId + '"]').get(0);
+
+        if (form) {
+            syncAllExistingOrders(form, true);
+        }
+    }
+
+    if (connectionSwal) {
+        Swal.fire(connectionSwal).then(function() {
+            startPendingAutomaticExistingSync();
+        });
+    } else {
+        startPendingAutomaticExistingSync();
+    }
 });
 </script>
 @endsection
