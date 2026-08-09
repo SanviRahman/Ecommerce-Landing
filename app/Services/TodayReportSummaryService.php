@@ -30,11 +30,17 @@ final class TodayReportSummaryService
         $baseQuery = $this->baseOrderQuery($filters, $user);
         $workflowBaseQuery = $this->outsideStaticOrderLists(clone $baseQuery);
 
-        $createdOrders = (clone $baseQuery)
-            ->whereBetween('orders.created_at', [$todayStart, $todayEnd]);
+        $createdOrders = $this->businessCreatedInWindow(
+            clone $baseQuery,
+            $todayStart,
+            $todayEnd
+        );
 
-        $workflowCreatedOrders = (clone $workflowBaseQuery)
-            ->whereBetween('orders.created_at', [$todayStart, $todayEnd]);
+        $workflowCreatedOrders = $this->businessCreatedInWindow(
+            clone $workflowBaseQuery,
+            $todayStart,
+            $todayEnd
+        );
 
         /*
          * Today's report is a creation-date report. Old orders updated today by a
@@ -215,6 +221,42 @@ final class TodayReportSummaryService
         }
 
         return $query;
+    }
+
+    /**
+     * Daily reporting must use the source business order time for imported API
+     * orders. Local orders continue to use created_at.
+     *
+     * Fail-safe rule: when an imported order has no verified source_ordered_at,
+     * it is excluded from daily counters instead of being counted on the API
+     * receive date. The order still remains visible in All Orders / API Orders.
+     */
+    private function businessCreatedInWindow(
+        Builder $query,
+        mixed $start,
+        mixed $end
+    ): Builder {
+        if (
+            ! Schema::hasColumn('orders', 'source_ordered_at')
+            || ! Schema::hasColumn('orders', 'external_website_id')
+        ) {
+            return $query->whereBetween('orders.created_at', [$start, $end]);
+        }
+
+        return $query->where(function (Builder $dateQuery) use ($start, $end): void {
+            $dateQuery
+                ->where(function (Builder $localQuery) use ($start, $end): void {
+                    $localQuery
+                        ->whereNull('orders.external_website_id')
+                        ->whereBetween('orders.created_at', [$start, $end]);
+                })
+                ->orWhere(function (Builder $externalQuery) use ($start, $end): void {
+                    $externalQuery
+                        ->whereNotNull('orders.external_website_id')
+                        ->whereNotNull('orders.source_ordered_at')
+                        ->whereBetween('orders.source_ordered_at', [$start, $end]);
+                });
+        });
     }
 
     private function databaseWindow(array $filters): array

@@ -8,6 +8,7 @@ use App\Models\OrderItem;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use RuntimeException;
 
@@ -158,6 +159,10 @@ class ExternalOrderImportService
                     'invoice_printed_at' => $timeline['invoice_printed_at'],
                     'invoice_print_count' => $timeline['invoice_print_count'],
                 ]);
+
+                if (Schema::hasColumn('orders', 'source_ordered_at')) {
+                    $order->source_ordered_at = $timeline['created_at'];
+                }
 
                 $order->created_at = $timeline['created_at'];
                 $order->updated_at = $timeline['updated_at'];
@@ -378,6 +383,10 @@ class ExternalOrderImportService
             'invoice_printed_at' => $timeline['invoice_printed_at'],
             'invoice_print_count' => $timeline['invoice_print_count'],
         ]);
+
+        if (Schema::hasColumn('orders', 'source_ordered_at')) {
+            $order->source_ordered_at = $timeline['created_at'];
+        }
 
         $order->created_at = $timeline['created_at'];
         $order->updated_at = $timeline['updated_at'];
