@@ -304,6 +304,16 @@ Route::middleware(['auth'])->group(function () {
         )->name('external-websites.test-connection');
 
         Route::post(
+            'external-websites/{externalWebsite}/approve-inbound-connection',
+            [ExternalWebsiteController::class, 'approveInboundConnection']
+        )->name('external-websites.approve-inbound-connection');
+
+        Route::post(
+            'external-websites/{externalWebsite}/reject-inbound-connection',
+            [ExternalWebsiteController::class, 'rejectInboundConnection']
+        )->name('external-websites.reject-inbound-connection');
+
+        Route::post(
             'external-websites/{externalWebsite}/sync-existing-orders',
             [ExternalWebsiteController::class, 'syncExistingOrders']
         )->name('external-websites.sync-existing-orders');

@@ -77,6 +77,7 @@ class ExternalWebsiteController extends Controller
             'remote_api_token' => $validated['remote_api_token'] ?: null,
             'request_timeout' => (int) $validated['request_timeout'],
             'notes' => $validated['notes'] ?? null,
+            'inbound_approval_status' => ExternalWebsite::INBOUND_APPROVAL_AWAITING_REQUEST,
         ]);
 
         return redirect()
@@ -128,6 +129,12 @@ class ExternalWebsiteController extends Controller
                 $updates['token_updated_at'] = now();
                 $updates['last_authenticated_at'] = null;
                 $updates['last_auth_failed_at'] = null;
+                $updates['inbound_approval_status'] = ExternalWebsite::INBOUND_APPROVAL_AWAITING_REQUEST;
+                $updates['inbound_request_received_at'] = null;
+                $updates['inbound_request_ip'] = null;
+                $updates['inbound_request_meta'] = null;
+                $updates['inbound_approved_at'] = null;
+                $updates['inbound_rejected_at'] = null;
             }
 
             if (trim((string) ($validated['remote_api_token'] ?? '')) !== '') {
@@ -163,6 +170,12 @@ class ExternalWebsiteController extends Controller
             'token_updated_at' => now(),
             'last_authenticated_at' => null,
             'last_auth_failed_at' => null,
+            'inbound_approval_status' => ExternalWebsite::INBOUND_APPROVAL_AWAITING_REQUEST,
+            'inbound_request_received_at' => null,
+            'inbound_request_ip' => null,
+            'inbound_request_meta' => null,
+            'inbound_approved_at' => null,
+            'inbound_rejected_at' => null,
         ]);
 
         return redirect()
@@ -198,6 +211,15 @@ class ExternalWebsiteController extends Controller
                 ->get($healthEndpoint);
 
             $responseData = $response->json();
+
+            if (
+                $response->status() === 403
+                && is_array($responseData)
+                && ($responseData['code'] ?? null) === 'approval_required'
+            ) {
+                return $this->sendConnectionRequest($externalWebsite);
+            }
+
             $connected = $response->successful()
                 && (! is_array($responseData) || ($responseData['status'] ?? true) === true);
             $message = is_array($responseData)
@@ -221,6 +243,93 @@ class ExternalWebsiteController extends Controller
                 $connected
                     ? "Connected to {$externalWebsite->name} successfully."
                     : "Could not connect to {$externalWebsite->name}: {$message}"
+            );
+        } catch (ConnectionException $exception) {
+            return $this->connectionFailed($externalWebsite, $exception->getMessage());
+        } catch (Throwable $exception) {
+            report($exception);
+
+            return $this->connectionFailed($externalWebsite, $exception->getMessage());
+        }
+    }
+
+    public function approveInboundConnection(ExternalWebsite $externalWebsite)
+    {
+        $this->adminOnly();
+
+        if (! $externalWebsite->status || ! $externalWebsite->receive_orders) {
+            return back()->with('error', 'Enable this integration and Receive Orders before approving the connection.');
+        }
+
+        $externalWebsite->forceFill([
+            'inbound_approval_status' => ExternalWebsite::INBOUND_APPROVAL_APPROVED,
+            'inbound_approved_at' => now(),
+            'inbound_rejected_at' => null,
+        ])->saveQuietly();
+
+        return back()->with(
+            'success',
+            "Connection from {$externalWebsite->name} approved. Ask the sender to run Test Connection again; orders can then be received automatically."
+        );
+    }
+
+    public function rejectInboundConnection(ExternalWebsite $externalWebsite)
+    {
+        $this->adminOnly();
+
+        $externalWebsite->forceFill([
+            'inbound_approval_status' => ExternalWebsite::INBOUND_APPROVAL_REJECTED,
+            'inbound_rejected_at' => now(),
+            'inbound_approved_at' => null,
+        ])->saveQuietly();
+
+        return back()->with('success', "Connection request from {$externalWebsite->name} rejected.");
+    }
+
+    private function sendConnectionRequest(ExternalWebsite $externalWebsite)
+    {
+        $requestEndpoint = rtrim((string) $externalWebsite->remote_order_endpoint, '/')
+            . '/connection-request';
+
+        try {
+            $response = Http::acceptJson()
+                ->asJson()
+                ->withToken((string) $externalWebsite->remote_api_token)
+                ->timeout(max(3, (int) $externalWebsite->request_timeout))
+                ->post($requestEndpoint, [
+                    'source_website_name' => (string) config('app.name'),
+                    'source_website_domain' => rtrim((string) config('app.url'), '/'),
+                ]);
+
+            $data = $response->json();
+            $message = is_array($data)
+                ? (string) ($data['message'] ?? '')
+                : '';
+
+            if ($response->successful()) {
+                $alreadyApproved = is_array($data) && ($data['approved'] ?? false) === true;
+
+                $externalWebsite->forceFill([
+                    'last_connection_tested_at' => now(),
+                    'last_connection_status' => $alreadyApproved ? 'connected' : 'pending_approval',
+                    'last_connection_message' => $this->limitText(
+                        $message ?: ($alreadyApproved
+                            ? 'Connection is already approved.'
+                            : 'Connection request sent. Waiting for receiver admin approval.')
+                    ),
+                ])->saveQuietly();
+
+                return back()->with(
+                    'success',
+                    $alreadyApproved
+                        ? "Connected to {$externalWebsite->name} successfully."
+                        : "Connection request sent to {$externalWebsite->name}. Approve it from the receiver admin panel, then run Test Connection again."
+                );
+            }
+
+            return $this->connectionFailed(
+                $externalWebsite,
+                $message ?: 'Connection request failed with HTTP ' . $response->status() . '.'
             );
         } catch (ConnectionException $exception) {
             return $this->connectionFailed($externalWebsite, $exception->getMessage());

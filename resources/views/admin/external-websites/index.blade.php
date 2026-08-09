@@ -259,6 +259,9 @@
                                         </div>
                                     </div>
                                     <small class="form-text text-muted token-help-text"></small>
+                                    <small class="form-text text-info">
+                                        This is this website's own receiver token. If this website is sending to another website, do not paste the other website's token here.
+                                    </small>
                                     @error('api_token')
                                         <div class="text-danger small mt-1">{{ $message }}</div>
                                     @enderror
@@ -333,6 +336,9 @@
                                             </button>
                                         </div>
                                     </div>
+                                    <small class="form-text text-primary">
+                                        Paste the Receiver Token generated on the external receiver website here (example: Akhomeo receiver token when DeshBajar sends orders to Akhomeo).
+                                    </small>
                                     @error('remote_api_token')
                                         <div class="text-danger small mt-1">{{ $message }}</div>
                                     @enderror
@@ -432,8 +438,8 @@
                 <div class="setup-step">
                     <span>4</span>
                     <div>
-                        <strong>Test both connections</strong>
-                        <small>Run Test Send Connection on both websites.</small>
+                        <strong>Request, approve & test</strong>
+                        <small>Sender runs Test Connection, receiver accepts the pending request, then sender tests again.</small>
                     </div>
                 </div>
 
@@ -536,8 +542,24 @@
                         </td>
 
                         <td style="min-width: 285px;">
-                            @if($website->send_orders)
-                                <label class="small mb-1">Remote Endpoint</label>
+                            @php
+                                $hasSavedRemoteEndpoint = trim((string) $website->remote_order_endpoint) !== '';
+                                $hasSavedRemoteToken = false;
+
+                                try {
+                                    $hasSavedRemoteToken = trim((string) $website->remote_api_token) !== '';
+                                } catch (\Throwable) {
+                                    $hasSavedRemoteToken = false;
+                                }
+                            @endphp
+
+                            @if($hasSavedRemoteEndpoint || $hasSavedRemoteToken)
+                                <div class="d-flex align-items-center justify-content-between mb-1">
+                                    <label class="small mb-0">Remote Endpoint</label>
+                                    @if(! $website->send_orders)
+                                        <span class="badge badge-secondary">Sending disabled</span>
+                                    @endif
+                                </div>
                                 <div class="input-group input-group-sm mb-2">
                                     <input type="text"
                                            class="form-control integration-copy-value"
@@ -550,23 +572,29 @@
                                     </div>
                                 </div>
 
-                                <label class="small mb-1">Remote Token</label>
+                                <label class="small mb-1">External Receiver Token</label>
                                 <div class="input-group input-group-sm">
                                     <input type="password"
                                            class="form-control token-display-input integration-copy-value"
                                            value="{{ $website->remote_api_token }}"
                                            readonly>
                                     <div class="input-group-append">
-                                        <button type="button" class="btn btn-outline-secondary btn-toggle-token">
+                                        <button type="button" class="btn btn-outline-secondary btn-toggle-token" title="Show / hide saved external receiver token">
                                             <i class="fas fa-eye"></i>
                                         </button>
-                                        <button type="button" class="btn btn-outline-secondary btn-copy-value">
+                                        <button type="button" class="btn btn-outline-secondary btn-copy-value" title="Copy saved external receiver token">
                                             <i class="far fa-copy"></i>
                                         </button>
                                     </div>
                                 </div>
+                                <small class="d-block text-muted mt-1">
+                                    This must match the receiver token generated on {{ $website->domain_host }}.
+                                </small>
                             @else
-                                <span class="text-muted">Outgoing sync disabled</span>
+                                <span class="text-muted">No remote endpoint/token saved yet.</span>
+                                @if(! $website->send_orders)
+                                    <small class="d-block text-muted">Outgoing sync disabled</small>
+                                @endif
                             @endif
                         </td>
 
@@ -575,6 +603,15 @@
                                 <small class="d-block text-muted">Receive connection</small>
                                 @if($website->inbound_connection_status === 'connected')
                                     <span class="badge badge-success">Connected</span>
+                                @elseif($website->inbound_connection_status === 'pending_approval')
+                                    <span class="badge badge-warning">Pending Approval</span>
+                                    @if($website->inbound_request_received_at)
+                                        <small class="d-block text-muted mt-1">
+                                            Requested: {{ $website->inbound_request_received_at->format('d M, h:i A') }}
+                                        </small>
+                                    @endif
+                                @elseif($website->inbound_connection_status === 'rejected')
+                                    <span class="badge badge-danger">Rejected</span>
                                 @elseif($website->inbound_connection_status === 'authentication_failed')
                                     <span class="badge badge-danger">Token Failed</span>
                                 @elseif($website->inbound_connection_status === 'inactive')
@@ -615,6 +652,32 @@
                         </td>
 
                         <td class="text-center">
+                            @if($website->inbound_connection_status === 'pending_approval')
+                                <div class="mb-2">
+                                    <form action="{{ route('admin.external-websites.approve-inbound-connection', $website) }}"
+                                          method="POST"
+                                          class="d-inline form-approve-connection">
+                                        @csrf
+                                        <button type="submit"
+                                                class="btn btn-sm btn-success mb-1"
+                                                title="Accept incoming connection request">
+                                            <i class="fas fa-check-circle mr-1"></i> Accept
+                                        </button>
+                                    </form>
+
+                                    <form action="{{ route('admin.external-websites.reject-inbound-connection', $website) }}"
+                                          method="POST"
+                                          class="d-inline form-reject-connection">
+                                        @csrf
+                                        <button type="submit"
+                                                class="btn btn-sm btn-outline-danger mb-1"
+                                                title="Reject incoming connection request">
+                                            <i class="fas fa-times-circle mr-1"></i> Reject
+                                        </button>
+                                    </form>
+                                </div>
+                            @endif
+
                             <div class="btn-group btn-group-sm mb-2">
                                 <button type="button"
                                         class="btn btn-outline-primary"
@@ -630,7 +693,7 @@
                                     @csrf
                                     <button type="submit"
                                             class="btn btn-outline-success"
-                                            title="Test outgoing connection"
+                                            title="Test / request outgoing connection"
                                             @disabled(! $website->send_orders)>
                                         <i class="fas fa-plug"></i>
                                     </button>
@@ -847,19 +910,23 @@
 
                                     <div class="col-md-4">
                                         <div class="form-group">
-                                            <label>Replacement Remote Token</label>
+                                            <label>External Receiver Token</label>
                                             <div class="input-group">
                                                 <input type="password"
                                                        name="remote_api_token"
+                                                       value="{{ $website->remote_api_token }}"
                                                        class="form-control remote-token-input"
-                                                       placeholder="Leave blank to keep current remote token"
-                                                       autocomplete="new-password">
+                                                       placeholder="Paste the receiver token generated on the external website"
+                                                       autocomplete="off">
                                                 <div class="input-group-append">
                                                     <button type="button" class="btn btn-outline-secondary btn-toggle-field-token">
                                                         <i class="fas fa-eye"></i>
                                                     </button>
                                                 </div>
                                             </div>
+                                            <small class="form-text text-primary">
+                                                Current saved token is loaded here. Use the eye button to verify it matches {{ $website->domain_host }}'s Receiver Token.
+                                            </small>
                                         </div>
                                     </div>
 

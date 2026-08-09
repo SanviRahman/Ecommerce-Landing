@@ -50,6 +50,16 @@ class AuthenticateExternalWebsiteToken
             ], 401);
         }
 
+        $isConnectionRequest = $request->routeIs('api.external-orders.connection-request');
+
+        if (! $isConnectionRequest && ! $externalWebsite->isInboundApproved()) {
+            return new JsonResponse([
+                'status' => false,
+                'code' => 'approval_required',
+                'message' => 'Connection approval is required on the receiver website before orders can be received.',
+            ], 403);
+        }
+
         $externalWebsite->forceFill([
             'last_authenticated_at' => now(),
         ])->saveQuietly();

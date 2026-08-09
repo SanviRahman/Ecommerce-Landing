@@ -12,6 +12,11 @@ class ExternalWebsite extends Model
 {
     use SoftDeletes;
 
+    public const INBOUND_APPROVAL_AWAITING_REQUEST = 'awaiting_request';
+    public const INBOUND_APPROVAL_PENDING = 'pending';
+    public const INBOUND_APPROVAL_APPROVED = 'approved';
+    public const INBOUND_APPROVAL_REJECTED = 'rejected';
+
     protected $fillable = [
         'name',
         'slug',
@@ -30,6 +35,12 @@ class ExternalWebsite extends Model
         'last_order_received_at',
         'last_authenticated_at',
         'last_auth_failed_at',
+        'inbound_approval_status',
+        'inbound_request_received_at',
+        'inbound_request_ip',
+        'inbound_request_meta',
+        'inbound_approved_at',
+        'inbound_rejected_at',
         'last_connection_tested_at',
         'last_connection_status',
         'last_connection_message',
@@ -55,6 +66,10 @@ class ExternalWebsite extends Model
         'last_order_received_at' => 'datetime',
         'last_authenticated_at' => 'datetime',
         'last_auth_failed_at' => 'datetime',
+        'inbound_request_received_at' => 'datetime',
+        'inbound_request_meta' => 'array',
+        'inbound_approved_at' => 'datetime',
+        'inbound_rejected_at' => 'datetime',
         'last_connection_tested_at' => 'datetime',
         'last_order_sent_at' => 'datetime',
         'last_send_failed_at' => 'datetime',
@@ -109,7 +124,14 @@ class ExternalWebsite extends Model
 
     public function canReceiveOrders(): bool
     {
-        return $this->status && $this->receive_orders;
+        return $this->status
+            && $this->receive_orders
+            && $this->isInboundApproved();
+    }
+
+    public function isInboundApproved(): bool
+    {
+        return $this->inbound_approval_status === self::INBOUND_APPROVAL_APPROVED;
     }
 
     public function canSendOrders(): bool
@@ -170,7 +192,15 @@ class ExternalWebsite extends Model
             return 'inactive';
         }
 
-        if ($this->last_authenticated_at) {
+        if ($this->inbound_approval_status === self::INBOUND_APPROVAL_PENDING) {
+            return 'pending_approval';
+        }
+
+        if ($this->inbound_approval_status === self::INBOUND_APPROVAL_REJECTED) {
+            return 'rejected';
+        }
+
+        if ($this->isInboundApproved() && $this->last_authenticated_at) {
             return 'connected';
         }
 

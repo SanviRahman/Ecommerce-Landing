@@ -10,6 +10,9 @@ Route::prefix('external-orders/{externalWebsite:slug}')
         AuthenticateExternalWebsiteToken::class,
     ])
     ->group(function (): void {
+        Route::post('/connection-request', [ExternalOrderController::class, 'connectionRequest'])
+            ->name('api.external-orders.connection-request');
+
         Route::get('/status', [ExternalOrderController::class, 'status'])
             ->name('api.external-orders.status');
 
