@@ -376,11 +376,6 @@ $localWebsiteName = trim((string) ($localWebsiteName ?? request()->getHost() ?? 
                             {{ $order->externalWebsite->domain_host ?? 'External Website' }}
                         </span>
 
-                        @if($order->external_order_id)
-                            <small class="d-block text-muted mt-1">
-                                External: {{ $order->external_order_id }}
-                            </small>
-                        @endif
                     @else
                         <span class="badge badge-success website-source-badge">
                             <i class="fas fa-home mr-1"></i>

@@ -293,6 +293,7 @@
               method="GET"
               action="{{ url()->current() }}">
             <input type="hidden" id="filter_per_page" name="per_page" value="{{ request('per_page', 20) }}">
+            <input type="hidden" id="filter_external_website_id" name="external_website_id" value="{{ request('external_website_id', 'all') }}">
             <div class="row">
                 <div class="col-md-2 col-sm-6 mb-2">
                     <label class="small font-weight-bold text-muted text-uppercase">Order Status</label>

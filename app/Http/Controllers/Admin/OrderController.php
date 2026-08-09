@@ -335,12 +335,22 @@ class OrderController extends Controller
         return null;
     }
 
-    private function getStats(bool $apiOnly = false): array
-    {
+    private function getStats(
+        bool $apiOnly = false,
+        ?string $externalWebsiteFilter = null
+    ): array {
         $baseQuery = Order::query()->forLoggedInUser();
 
         if ($apiOnly) {
             $baseQuery->whereNotNull('external_website_id');
+        }
+
+        if ($externalWebsiteFilter && $externalWebsiteFilter !== 'all') {
+            if ($externalWebsiteFilter === 'local') {
+                $baseQuery->whereNull('external_website_id');
+            } elseif (ctype_digit($externalWebsiteFilter) && (int) $externalWebsiteFilter > 0) {
+                $baseQuery->where('external_website_id', (int) $externalWebsiteFilter);
+            }
         }
 
         /*
@@ -726,7 +736,10 @@ class OrderController extends Controller
         $couriers        = $this->getActiveCouriers();
         $orderFields     = $this->getActiveOrderFields();
         $defaultCourier  = CourierAccount::defaultActive();
-        $stats           = $this->getStats($apiOnlyStats);
+        $stats           = $this->getStats(
+            $apiOnlyStats,
+            (string) $request->input('external_website_id', 'all')
+        );
         $orderStatuses   = $this->getOrderStatuses();
         $paymentStatuses = $this->getPaymentStatuses();
         $courierServices = $this->getCourierServices();

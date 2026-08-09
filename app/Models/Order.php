@@ -484,6 +484,17 @@ class Order extends Model
                                 })
                                 ->orWhereNotNull('pathao_sent_at');
                         });
+                })
+                ->orWhere(function (Builder $externalSourceQuery) {
+                    /*
+                     * External API orders preserve the source website's shipped
+                     * lifecycle in external_payload.was_shipped. This is a safe
+                     * fallback if a legacy/imported row does not yet have its
+                     * local shipped_at timestamp populated.
+                     */
+                    $externalSourceQuery
+                        ->whereNotNull('external_website_id')
+                        ->where('external_payload->was_shipped', true);
                 });
         });
     }
