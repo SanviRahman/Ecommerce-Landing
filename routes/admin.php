@@ -304,6 +304,11 @@ Route::middleware(['auth'])->group(function () {
         )->name('external-websites.test-connection');
 
         Route::post(
+            'external-websites/{externalWebsite}/send-connection-request',
+            [ExternalWebsiteController::class, 'sendConnectionRequest']
+        )->name('external-websites.send-connection-request');
+
+        Route::post(
             'external-websites/{externalWebsite}/approve-inbound-connection',
             [ExternalWebsiteController::class, 'approveInboundConnection']
         )->name('external-websites.approve-inbound-connection');

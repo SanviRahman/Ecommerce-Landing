@@ -604,7 +604,7 @@
                                 @if($website->inbound_connection_status === 'connected')
                                     <span class="badge badge-success">Connected</span>
                                 @elseif($website->inbound_connection_status === 'pending_approval')
-                                    <span class="badge badge-warning">Pending Approval</span>
+                                    <span class="badge badge-info">Request Received</span>
                                     @if($website->inbound_request_received_at)
                                         <small class="d-block text-muted mt-1">
                                             Requested: {{ $website->inbound_request_received_at->format('d M, h:i A') }}
@@ -661,7 +661,7 @@
                                         <button type="submit"
                                                 class="btn btn-sm btn-success mb-1"
                                                 title="Accept incoming connection request">
-                                            <i class="fas fa-check-circle mr-1"></i> Accept
+                                            <i class="fas fa-check-circle mr-1"></i> Accept Request
                                         </button>
                                     </form>
 
@@ -676,6 +676,30 @@
                                         </button>
                                     </form>
                                 </div>
+                            @endif
+
+                            @if($website->canSendOrders())
+                                <form action="{{ route('admin.external-websites.send-connection-request', $website) }}"
+                                      method="POST"
+                                      class="mb-2 form-send-connection-request">
+                                    @csrf
+                                    <button type="submit"
+                                            class="btn btn-sm btn-primary"
+                                            title="Send connection request to {{ $website->name }}">
+                                        <i class="fas fa-paper-plane mr-1"></i>
+                                        {{ $website->last_connection_status === 'pending_approval' ? 'Resend Request' : 'Send Request' }}
+                                    </button>
+                                </form>
+                            @else
+                                <button type="button"
+                                        class="btn btn-sm btn-outline-secondary mb-2"
+                                        disabled
+                                        title="{{ ! $website->send_orders ? 'Enable Send Orders first' : 'Save the remote endpoint and external receiver token first' }}">
+                                    <i class="fas fa-paper-plane mr-1"></i> Send Request
+                                </button>
+                                <small class="d-block text-muted mb-2">
+                                    {{ ! $website->send_orders ? 'Enable Send Orders to activate this button.' : 'Save the remote endpoint and external receiver token to activate this button.' }}
+                                </small>
                             @endif
 
                             <div class="btn-group btn-group-sm mb-2">
@@ -1096,6 +1120,10 @@
 @section('js')
 <script>
 $(document).ready(function() {
+    @if(session('connection_swal'))
+        Swal.fire(@json(session('connection_swal')));
+    @endif
+
     function generateToken() {
         const bytes = new Uint8Array(32);
         window.crypto.getRandomValues(bytes);
@@ -1205,6 +1233,59 @@ $(document).ready(function() {
 
         input.attr('type', show ? 'text' : 'password');
         icon.toggleClass('fa-eye', ! show).toggleClass('fa-eye-slash', show);
+    });
+
+    $(document).on('submit', '.form-send-connection-request', function(event) {
+        event.preventDefault();
+        const form = this;
+
+        Swal.fire({
+            title: 'Send connection request?',
+            text: 'The receiver website will show this request for admin approval.',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, Send Request'
+        }).then(function(result) {
+            if (result.isConfirmed || result.value) {
+                form.submit();
+            }
+        });
+    });
+
+    $(document).on('submit', '.form-approve-connection', function(event) {
+        event.preventDefault();
+        const form = this;
+
+        Swal.fire({
+            title: 'Accept connection request?',
+            text: 'After approval, this website will be allowed to send authenticated API orders.',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, Accept Request',
+            confirmButtonColor: '#28a745'
+        }).then(function(result) {
+            if (result.isConfirmed || result.value) {
+                form.submit();
+            }
+        });
+    });
+
+    $(document).on('submit', '.form-reject-connection', function(event) {
+        event.preventDefault();
+        const form = this;
+
+        Swal.fire({
+            title: 'Reject connection request?',
+            text: 'The sender will not be allowed to push orders until a new request is approved.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, Reject',
+            confirmButtonColor: '#dc3545'
+        }).then(function(result) {
+            if (result.isConfirmed || result.value) {
+                form.submit();
+            }
+        });
     });
 
     $(document).on('submit', '.form-regenerate-token', function(event) {

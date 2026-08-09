@@ -267,10 +267,15 @@ class ExternalWebsiteController extends Controller
             'inbound_rejected_at' => null,
         ])->saveQuietly();
 
-        return back()->with(
-            'success',
-            "Connection from {$externalWebsite->name} approved. Ask the sender to run Test Connection again; orders can then be received automatically."
-        );
+        $successMessage = "Connection request from {$externalWebsite->name} accepted successfully. The receive connection is now connected; ask the sender to run Test Connection once to mark its send connection as connected.";
+
+        return back()
+            ->with('success', $successMessage)
+            ->with('connection_swal', [
+                'icon' => 'success',
+                'title' => 'Request Accepted Successfully',
+                'text' => $successMessage,
+            ]);
     }
 
     public function rejectInboundConnection(ExternalWebsite $externalWebsite)
@@ -283,11 +288,28 @@ class ExternalWebsiteController extends Controller
             'inbound_approved_at' => null,
         ])->saveQuietly();
 
-        return back()->with('success', "Connection request from {$externalWebsite->name} rejected.");
+        $successMessage = "Connection request from {$externalWebsite->name} rejected.";
+
+        return back()
+            ->with('success', $successMessage)
+            ->with('connection_swal', [
+                'icon' => 'success',
+                'title' => 'Request Rejected',
+                'text' => $successMessage,
+            ]);
     }
 
-    private function sendConnectionRequest(ExternalWebsite $externalWebsite)
+    public function sendConnectionRequest(ExternalWebsite $externalWebsite)
     {
+        $this->adminOnly();
+
+        if (! $externalWebsite->canSendOrders()) {
+            return back()->with(
+                'error',
+                'Enable Send Orders and save the remote endpoint and remote token before sending a connection request.'
+            );
+        }
+
         $requestEndpoint = rtrim((string) $externalWebsite->remote_order_endpoint, '/')
             . '/connection-request';
 
@@ -319,12 +341,17 @@ class ExternalWebsiteController extends Controller
                     ),
                 ])->saveQuietly();
 
-                return back()->with(
-                    'success',
-                    $alreadyApproved
-                        ? "Connected to {$externalWebsite->name} successfully."
-                        : "Connection request sent to {$externalWebsite->name}. Approve it from the receiver admin panel, then run Test Connection again."
-                );
+                $successMessage = $alreadyApproved
+                    ? "Connected to {$externalWebsite->name} successfully."
+                    : "Connection request sent to {$externalWebsite->name} successfully. Approve it from the receiver admin panel, then run Test Connection.";
+
+                return back()
+                    ->with('success', $successMessage)
+                    ->with('connection_swal', [
+                        'icon' => 'success',
+                        'title' => $alreadyApproved ? 'Connection Already Approved' : 'Request Sent Successfully',
+                        'text' => $successMessage,
+                    ]);
             }
 
             return $this->connectionFailed(
