@@ -6,8 +6,10 @@ use App\Models\ExternalWebsite;
 use App\Models\Order;
 use App\Models\OrderItem;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use RuntimeException;
 
 class ExternalOrderImportService
 {
@@ -21,6 +23,12 @@ class ExternalOrderImportService
         $externalOrderId = trim((string) $payload['external_order_id']);
         $incomingSyncUuid = $this->resolveIncomingSyncUuid($payload, $externalOrderId);
 
+        /*
+         * Resolve and validate the source business timeline before touching the
+         * database. The receiver must never use API receive time as order time.
+         */
+        $timeline = $this->sourceTimeline($payload);
+
         $existingOrder = $this->findExistingOrder(
             $externalWebsite,
             $externalOrderId,
@@ -28,8 +36,19 @@ class ExternalOrderImportService
         );
 
         if ($existingOrder) {
+            $this->refreshExistingOrderMetadata(
+                $existingOrder,
+                $payload,
+                $requestIp,
+                $timeline
+            );
+
             return [
-                'order' => $existingOrder,
+                'order' => $existingOrder->fresh([
+                    'externalWebsite',
+                    'assignedEmployee',
+                    'items',
+                ]),
                 'created' => false,
             ];
         }
@@ -40,7 +59,8 @@ class ExternalOrderImportService
                 $payload,
                 $requestIp,
                 $externalOrderId,
-                $incomingSyncUuid
+                $incomingSyncUuid,
+                $timeline
             ) {
                 $customer = $this->customerIdentityService->resolveOrCreate(
                     $payload['customer_name'],
@@ -71,7 +91,9 @@ class ExternalOrderImportService
                     ? $sourceNote . ' ' . $incomingAdminNote
                     : $sourceNote;
 
-                $order = Order::query()->create([
+                $order = new Order();
+
+                $order->forceFill([
                     'invoice_id' => $this->generateInvoiceId(),
                     'success_token' => Str::random(40),
                     'external_website_id' => $externalWebsite->id,
@@ -79,10 +101,11 @@ class ExternalOrderImportService
                     'external_payload' => [
                         ...$payload,
                         '_integration' => [
-                            'received_at' => now()->toIso8601String(),
+                            'received_at' => now()->utc()->toIso8601String(),
                             'request_ip' => $requestIp,
                             'source_website_id' => $externalWebsite->id,
                             'source_website_slug' => $externalWebsite->slug,
+                            'source_timeline_verified' => true,
                         ],
                     ],
                     'api_received_at' => now(),
@@ -122,7 +145,23 @@ class ExternalOrderImportService
                     'source_ip' => $payload['source_ip'] ?? null,
                     'user_agent' => $payload['user_agent'] ?? null,
                     'source_url' => $payload['source_url'] ?? $externalWebsite->domain,
+
+                    /*
+                     * Set source lifecycle values before the model creating event.
+                     * This prevents workflow hooks from stamping historical API
+                     * orders with the receiver's current time.
+                     */
+                    'confirmed_at' => $timeline['confirmed_at'],
+                    'shipped_at' => $timeline['shipped_at'],
+                    'delivered_at' => $timeline['delivered_at'],
+                    'cancelled_at' => $timeline['cancelled_at'],
+                    'invoice_printed_at' => $timeline['invoice_printed_at'],
+                    'invoice_print_count' => $timeline['invoice_print_count'],
                 ]);
+
+                $order->created_at = $timeline['created_at'];
+                $order->updated_at = $timeline['updated_at'];
+                $order->save();
 
                 foreach ($normalizedItems as $item) {
                     OrderItem::query()->create([
@@ -135,6 +174,12 @@ class ExternalOrderImportService
                         'total_price' => $item['total_price'],
                     ]);
                 }
+
+                /*
+                 * Re-apply after create as a final guard in case a model hook
+                 * touched any workflow timestamp while the row was being saved.
+                 */
+                $this->applySourceTimeline($order, $timeline);
 
                 $externalWebsite->forceFill([
                     'last_order_received_at' => now(),
@@ -157,8 +202,19 @@ class ExternalOrderImportService
             );
 
             if ($existingOrder) {
+                $this->refreshExistingOrderMetadata(
+                    $existingOrder,
+                    $payload,
+                    $requestIp,
+                    $timeline
+                );
+
                 return [
-                    'order' => $existingOrder,
+                    'order' => $existingOrder->fresh([
+                        'externalWebsite',
+                        'assignedEmployee',
+                        'items',
+                    ]),
                     'created' => false,
                 ];
             }
@@ -194,6 +250,153 @@ class ExternalOrderImportService
         return Str::isUuid($candidate)
             ? $candidate
             : (string) Str::uuid();
+    }
+
+    private function refreshExistingOrderMetadata(
+        Order $order,
+        array $payload,
+        string $requestIp,
+        array $timeline
+    ): void {
+        $existingPayload = is_array($order->external_payload)
+            ? $order->external_payload
+            : [];
+
+        $integration = is_array($existingPayload['_integration'] ?? null)
+            ? $existingPayload['_integration']
+            : [];
+
+        $integration['refreshed_at'] = now()->utc()->toIso8601String();
+        $integration['last_request_ip'] = $requestIp;
+        $integration['source_timeline_verified'] = true;
+
+        $updates = [
+            'external_payload' => [
+                ...$payload,
+                '_integration' => $integration,
+            ],
+        ];
+
+        if (array_key_exists('order_status', $payload)) {
+            $updates['order_status'] = $this->normalizeOrderStatus($payload['order_status']);
+        }
+
+        if (array_key_exists('payment_status', $payload)) {
+            $updates['payment_status'] = $this->normalizePaymentStatus($payload['payment_status']);
+        }
+
+        if (array_key_exists('payment_method', $payload)) {
+            $updates['payment_method'] = $this->normalizePaymentMethod($payload['payment_method']);
+        }
+
+        $order->forceFill($updates)->saveQuietly();
+        $this->applySourceTimeline($order, $timeline);
+    }
+
+    private function sourceTimeline(array $payload): array
+    {
+        $orderedAt = $this->parseDate($payload['ordered_at'] ?? null);
+
+        if (! $orderedAt) {
+            throw new RuntimeException(
+                'External order rejected because ordered_at is missing or invalid.'
+            );
+        }
+
+        $sourceUpdatedAt = $this->parseDate($payload['source_updated_at'] ?? null)
+            ?? $orderedAt->copy();
+
+        if ($sourceUpdatedAt->lessThan($orderedAt)) {
+            throw new RuntimeException(
+                'External order rejected because source_updated_at is earlier than ordered_at.'
+            );
+        }
+
+        $status = $this->normalizeOrderStatus(
+            $payload['order_status'] ?? Order::STATUS_PROCESSING
+        );
+
+        $confirmedAt = $this->parseDate($payload['confirmed_at'] ?? null);
+        $shippedAt = $this->parseDate($payload['shipped_at'] ?? null);
+        $deliveredAt = $this->parseDate($payload['delivered_at'] ?? null);
+        $cancelledAt = $this->parseDate($payload['cancelled_at'] ?? null);
+        $invoicePrintedAt = $this->parseDate($payload['invoice_printed_at'] ?? null);
+        $invoicePrintCount = max(0, (int) ($payload['invoice_print_count'] ?? 0));
+
+        $wasShipped = filter_var(
+            $payload['was_shipped'] ?? false,
+            FILTER_VALIDATE_BOOL
+        );
+
+        /*
+         * When an older source row does not contain a dedicated lifecycle
+         * timestamp, use source_updated_at/ordered_at — never receiver now().
+         */
+        if ($status === Order::STATUS_CONFIRMED && ! $confirmedAt) {
+            $confirmedAt = $sourceUpdatedAt->copy();
+        }
+
+        if ($wasShipped && ! $shippedAt) {
+            $shippedAt = $sourceUpdatedAt->copy();
+        }
+
+        if ($status === Order::STATUS_DELIVERED && ! $deliveredAt) {
+            $deliveredAt = $sourceUpdatedAt->copy();
+        }
+
+        if (
+            in_array($status, [Order::STATUS_CANCELLED, Order::STATUS_CANCELED], true)
+            && ! $cancelledAt
+        ) {
+            $cancelledAt = $sourceUpdatedAt->copy();
+        }
+
+        if ($status === Order::STATUS_COMPLETE_INVOICE && ! $invoicePrintedAt) {
+            $invoicePrintedAt = $sourceUpdatedAt->copy();
+            $invoicePrintCount = max(1, $invoicePrintCount);
+        }
+
+        return [
+            'created_at' => $orderedAt,
+            'updated_at' => $sourceUpdatedAt,
+            'confirmed_at' => $confirmedAt,
+            'shipped_at' => $wasShipped ? $shippedAt : null,
+            'delivered_at' => $deliveredAt,
+            'cancelled_at' => $cancelledAt,
+            'invoice_printed_at' => $invoicePrintedAt,
+            'invoice_print_count' => $invoicePrintCount,
+        ];
+    }
+
+    private function applySourceTimeline(Order $order, array $timeline): void
+    {
+        $order->forceFill([
+            'confirmed_at' => $timeline['confirmed_at'],
+            'shipped_at' => $timeline['shipped_at'],
+            'delivered_at' => $timeline['delivered_at'],
+            'cancelled_at' => $timeline['cancelled_at'],
+            'invoice_printed_at' => $timeline['invoice_printed_at'],
+            'invoice_print_count' => $timeline['invoice_print_count'],
+        ]);
+
+        $order->created_at = $timeline['created_at'];
+        $order->updated_at = $timeline['updated_at'];
+        $order->saveQuietly();
+    }
+
+    private function parseDate(mixed $value): ?Carbon
+    {
+        $value = trim((string) $value);
+
+        if ($value === '') {
+            return null;
+        }
+
+        try {
+            return Carbon::parse($value)->utc();
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     private function normalizeItems(array $items): array

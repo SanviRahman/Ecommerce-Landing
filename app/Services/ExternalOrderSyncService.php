@@ -113,6 +113,61 @@ class ExternalOrderSyncService
         ];
     }
 
+    public function refreshSyncedOrders(
+        ExternalWebsite $externalWebsite,
+        int $limit = 20,
+        int $afterId = 0
+    ): array {
+        $limit = max(1, min($limit, 100));
+        $afterId = max(0, $afterId);
+        $refreshed = 0;
+        $failed = 0;
+        $lastProcessedId = $afterId;
+
+        $baseQuery = $this->localOrdersQuery()
+            ->whereHas('externalOrderSyncs', function ($query) use ($externalWebsite): void {
+                $query
+                    ->where('external_website_id', $externalWebsite->id)
+                    ->where('status', ExternalOrderSync::STATUS_SENT);
+            });
+
+        $totalEligible = (clone $baseQuery)->count();
+
+        $orders = (clone $baseQuery)
+            ->where('id', '>', $afterId)
+            ->orderBy('id')
+            ->limit($limit)
+            ->get();
+
+        $orders->each(function (Order $order) use (
+            $externalWebsite,
+            &$refreshed,
+            &$failed,
+            &$lastProcessedId
+        ): void {
+            $lastProcessedId = max($lastProcessedId, (int) $order->id);
+            $sync = $this->senderService->send($order, $externalWebsite, true);
+
+            if ($sync->status === ExternalOrderSync::STATUS_SENT) {
+                $refreshed++;
+            } else {
+                $failed++;
+            }
+        });
+
+        $remaining = (clone $baseQuery)
+            ->where('id', '>', $lastProcessedId)
+            ->count();
+
+        return [
+            'refreshed' => $refreshed,
+            'failed' => $failed,
+            'total_eligible' => $totalEligible,
+            'remaining' => $remaining,
+            'next_cursor' => $lastProcessedId,
+        ];
+    }
+
     public function retryFailedOrders(
         ExternalWebsite $externalWebsite,
         int $limit = 100

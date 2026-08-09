@@ -324,6 +324,11 @@ Route::middleware(['auth'])->group(function () {
         )->name('external-websites.sync-existing-orders');
 
         Route::post(
+            'external-websites/{externalWebsite}/refresh-synced-orders',
+            [ExternalWebsiteController::class, 'refreshSyncedOrders']
+        )->name('external-websites.refresh-synced-orders');
+
+        Route::post(
             'external-websites/{externalWebsite}/retry-failed-orders',
             [ExternalWebsiteController::class, 'retryFailedOrders']
         )->name('external-websites.retry-failed-orders');

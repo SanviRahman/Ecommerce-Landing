@@ -793,6 +793,19 @@
                                             </button>
                                         </form>
 
+                                        <form action="{{ route('admin.external-websites.refresh-synced-orders', $website) }}"
+                                              method="POST"
+                                              class="form-refresh-synced-orders"
+                                              data-website-name="{{ $website->name }}">
+                                            @csrf
+                                            <input type="hidden" name="limit" value="20">
+                                            <input type="hidden" name="cursor" value="0">
+                                            <button type="submit" class="dropdown-item">
+                                                <i class="fas fa-history text-primary mr-1"></i>
+                                                Refresh Synced Order Data
+                                            </button>
+                                        </form>
+
                                         <div class="dropdown-divider"></div>
 
                                         <form action="{{ route('admin.external-websites.retry-failed-orders', $website) }}"
@@ -812,7 +825,7 @@
 
                                         <div class="dropdown-divider"></div>
                                         <span class="dropdown-item-text small text-muted">
-                                            Use this if automatic order sync did not deliver all orders.
+                                            Missing orders: Sync Missing. Wrong old dates/shipped counts: Refresh Synced Order Data.
                                         </span>
                                     </div>
                                 </div>
@@ -1482,6 +1495,117 @@ $(document).ready(function() {
         }).then(function(result) {
             if (result.isConfirmed || result.value) {
                 syncAllExistingOrders(form, false);
+            }
+        });
+    });
+
+    function refreshAllSyncedOrderData(form) {
+        const $form = $(form);
+        const websiteName = String($form.data('website-name') || 'website');
+        const action = String($form.attr('action') || '');
+        const csrfToken = String($form.find('input[name="_token"]').val() || '');
+        const batchSize = Number($form.find('input[name="limit"]').val() || 20);
+        let cursor = 0;
+        let refreshedThisRun = 0;
+        let failedThisRun = 0;
+        let iterations = 0;
+
+        Swal.fire({
+            title: 'Refreshing Synced Order Data',
+            html: 'Refreshing original dates and shipped lifecycle from <strong>' + websiteName + '</strong>...',
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            showConfirmButton: false,
+            didOpen: function() {
+                Swal.showLoading();
+            }
+        });
+
+        function runBatch() {
+            iterations++;
+
+            if (iterations > 1000) {
+                Swal.fire('Refresh Stopped', 'Safety limit reached. Please run Refresh Synced Order Data again.', 'warning');
+                return;
+            }
+
+            $.ajax({
+                url: action,
+                type: 'POST',
+                dataType: 'json',
+                headers: {
+                    'Accept': 'application/json'
+                },
+                data: {
+                    _token: csrfToken,
+                    limit: batchSize,
+                    cursor: cursor
+                },
+                success: function(response) {
+                    const data = response.data || {};
+                    refreshedThisRun += Number(data.refreshed || 0);
+                    failedThisRun += Number(data.failed || 0);
+                    cursor = Number(data.next_cursor || cursor);
+
+                    const totalEligible = Number(data.total_eligible || 0);
+                    const remaining = Number(data.remaining || 0);
+                    const processed = Math.max(0, totalEligible - remaining);
+
+                    Swal.update({
+                        title: 'Refreshing Synced Order Data',
+                        html:
+                            '<strong>' + websiteName + '</strong><br>' +
+                            'Processed: ' + processed + ' / ' + totalEligible + '<br>' +
+                            'Refreshed this run: ' + refreshedThisRun + '<br>' +
+                            'Remaining: ' + remaining +
+                            (failedThisRun > 0 ? '<br><span class="text-danger">Failed: ' + failedThisRun + '</span>' : '')
+                    });
+                    Swal.showLoading();
+
+                    if (remaining > 0) {
+                        window.setTimeout(runBatch, 120);
+                        return;
+                    }
+
+                    Swal.fire({
+                        icon: failedThisRun > 0 ? 'warning' : 'success',
+                        title: failedThisRun > 0
+                            ? 'Order Data Refreshed with Some Failures'
+                            : 'Synced Order Data Refreshed',
+                        html:
+                            'Website: <strong>' + websiteName + '</strong><br>' +
+                            'Refreshed: ' + refreshedThisRun + '<br>' +
+                            'Failed: ' + failedThisRun + '<br><br>' +
+                            'Original order dates, invoice timeline and cumulative shipped lifecycle are now refreshed on the receiver.',
+                        confirmButtonText: 'Done'
+                    }).then(function() {
+                        window.location.reload();
+                    });
+                },
+                error: function(xhr) {
+                    const message = xhr.responseJSON?.message || 'Synced order data refresh failed. Please try again.';
+                    Swal.fire('Refresh Failed', message, 'error');
+                }
+            });
+        }
+
+        runBatch();
+    }
+
+    $(document).on('submit', '.form-refresh-synced-orders', function(event) {
+        event.preventDefault();
+        const form = this;
+        const websiteName = String($(form).data('website-name') || 'this website');
+
+        Swal.fire({
+            title: 'Refresh already synced orders?',
+            text: 'Use this after this update to repair historical order dates and cumulative shipped counts on ' + websiteName + '. No duplicate order will be created.',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, Refresh Synced Data'
+        }).then(function(result) {
+            if (result.isConfirmed || result.value) {
+                refreshAllSyncedOrderData(form);
             }
         });
     });

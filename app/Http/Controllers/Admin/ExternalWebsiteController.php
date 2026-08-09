@@ -453,6 +453,51 @@ class ExternalWebsiteController extends Controller
         return back()->with('success', $message);
     }
 
+    public function refreshSyncedOrders(
+        Request $request,
+        ExternalWebsite $externalWebsite,
+        ExternalOrderSyncService $syncService
+    ) {
+        $this->adminOnly();
+
+        $validated = $request->validate([
+            'limit' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'cursor' => ['nullable', 'integer', 'min:0'],
+        ]);
+
+        if (! $externalWebsite->canSendOrders()) {
+            $message = 'Outgoing sync is disabled or the remote endpoint/token is missing.';
+
+            return $request->expectsJson()
+                ? response()->json(['status' => false, 'message' => $message], 422)
+                : back()->with('error', $message);
+        }
+
+        if ($externalWebsite->last_connection_status !== 'connected') {
+            $message = 'Test the connection successfully before refreshing synced orders.';
+
+            return $request->expectsJson()
+                ? response()->json(['status' => false, 'message' => $message], 409)
+                : back()->with('error', $message);
+        }
+
+        $result = $syncService->refreshSyncedOrders(
+            $externalWebsite,
+            (int) ($validated['limit'] ?? 20),
+            (int) ($validated['cursor'] ?? 0)
+        );
+
+        $message = "Synced order metadata refresh batch finished. Refreshed: {$result['refreshed']}, Failed: {$result['failed']}, Remaining: {$result['remaining']}.";
+
+        return $request->expectsJson()
+            ? response()->json([
+                'status' => true,
+                'message' => $message,
+                'data' => $result,
+            ])
+            : back()->with('success', $message);
+    }
+
     public function retryFailedOrders(
         Request $request,
         ExternalWebsite $externalWebsite,

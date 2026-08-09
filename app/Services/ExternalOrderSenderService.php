@@ -16,7 +16,7 @@ class ExternalOrderSenderService
     ) {
     }
 
-    public function send(Order $order, ExternalWebsite $externalWebsite): ExternalOrderSync
+    public function send(Order $order, ExternalWebsite $externalWebsite, bool $force = false): ExternalOrderSync
     {
         $sync = ExternalOrderSync::query()->firstOrCreate(
             [
@@ -29,7 +29,7 @@ class ExternalOrderSenderService
             ]
         );
 
-        if ($sync->status === ExternalOrderSync::STATUS_SENT) {
+        if ($sync->status === ExternalOrderSync::STATUS_SENT && ! $force) {
             return $sync;
         }
 
