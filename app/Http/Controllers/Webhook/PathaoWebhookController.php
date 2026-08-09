@@ -234,30 +234,38 @@ class PathaoWebhookController extends Controller
         ?string $consignmentId,
         ?string $merchantOrderId
     ): ?Order {
-        return Order::query()
-            ->where(function ($query) use ($consignmentId, $merchantOrderId) {
-                if (filled($consignmentId)) {
-                    $query->where('pathao_consignment_id', $consignmentId);
-                }
-
-                if (filled($merchantOrderId)) {
-                    $method = filled($consignmentId) ? 'orWhere' : 'where';
-                    $query->{$method}(function ($referenceQuery) use ($merchantOrderId) {
-                        $referenceQuery
-                            ->where('pathao_merchant_order_id', $merchantOrderId)
-                            ->orWhere('invoice_id', $merchantOrderId);
-                    });
-                }
-            })
+        $baseQuery = Order::query()
             ->where(function ($query) use ($courierAccount) {
                 $query->where('courier_account_id', $courierAccount->id)
                     ->orWhere(function ($fallback) {
                         $fallback->whereNull('courier_account_id')
                             ->where('courier_service', 'pathao');
                     });
-            })
-            ->latest('id')
-            ->first();
+            });
+
+        if (filled($consignmentId)) {
+            $byConsignment = (clone $baseQuery)
+                ->where('pathao_consignment_id', $consignmentId)
+                ->latest('id')
+                ->first();
+
+            if ($byConsignment) {
+                return $byConsignment;
+            }
+        }
+
+        if (filled($merchantOrderId)) {
+            return (clone $baseQuery)
+                ->where(function ($referenceQuery) use ($merchantOrderId) {
+                    $referenceQuery
+                        ->where('pathao_merchant_order_id', $merchantOrderId)
+                        ->orWhere('invoice_id', $merchantOrderId);
+                })
+                ->latest('id')
+                ->first();
+        }
+
+        return null;
     }
 
     private function accepted(

@@ -18,17 +18,17 @@ class CourierWebhookLogger
             return null;
         }
 
+        $lookup = $this->filter([
+            'provider' => $data['provider'] ?? null,
+            'courier_account_id' => $data['courier_account_id'] ?? null,
+            'event_key' => $data['event_key'] ?? null,
+        ]);
+
+        if (! isset($lookup['event_key'])) {
+            return null;
+        }
+
         try {
-            $lookup = $this->filter([
-                'provider' => $data['provider'] ?? null,
-                'courier_account_id' => $data['courier_account_id'] ?? null,
-                'event_key' => $data['event_key'] ?? null,
-            ]);
-
-            if (! isset($lookup['event_key'])) {
-                return null;
-            }
-
             $attributes = $this->filter($data);
             $attributes['result'] = $attributes['result'] ?? 'received';
             $attributes['received_at'] = $attributes['received_at'] ?? now();
@@ -42,6 +42,32 @@ class CourierWebhookLogger
 
             return $log;
         } catch (Throwable $exception) {
+            /*
+             * Two identical callbacks can arrive at the same millisecond.
+             * If both pass firstOrCreate's initial lookup, the database unique
+             * key allows only one insert. Recover that winning row so duplicate
+             * protection still works instead of processing the callback unlogged.
+             */
+            try {
+                $existing = CourierWebhookLog::query()->where($lookup)->first();
+
+                if ($existing) {
+                    if ($this->hasColumn('attempts')) {
+                        $existing->increment('attempts');
+                        $existing->refresh();
+                    }
+
+                    return $existing;
+                }
+            } catch (Throwable $lookupException) {
+                Log::warning('Existing courier webhook log could not be recovered.', [
+                    'provider' => $data['provider'] ?? null,
+                    'courier_account_id' => $data['courier_account_id'] ?? null,
+                    'event_key' => $data['event_key'] ?? null,
+                    'message' => $lookupException->getMessage(),
+                ]);
+            }
+
             Log::warning('Courier webhook log could not be created.', [
                 'provider' => $data['provider'] ?? null,
                 'courier_account_id' => $data['courier_account_id'] ?? null,

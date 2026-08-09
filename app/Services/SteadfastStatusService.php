@@ -166,7 +166,7 @@ class SteadfastStatusService
             $payload,
             $source
         ) {
-            $order->refresh();
+            $lockedOrder = Order::query()->lockForUpdate()->findOrFail($order->id);
 
             $payloadConsignmentId = data_get($payload, 'consignment_id')
                 ?: data_get($payload, 'consignment.consignment_id')
@@ -177,21 +177,21 @@ class SteadfastStatusService
                 ?: data_get($payload, 'data.tracking_code');
 
             $updateData = [
-                'courier_account_id' => $order->courier_account_id ?: $courierAccount->id,
+                'courier_account_id' => $lockedOrder->courier_account_id ?: $courierAccount->id,
                 'courier_service' => 'steadfast',
-                'steadfast_consignment_id' => $order->steadfast_consignment_id ?: $payloadConsignmentId,
-                'steadfast_tracking_code' => $order->steadfast_tracking_code ?: $payloadTrackingCode,
+                'steadfast_consignment_id' => $lockedOrder->steadfast_consignment_id ?: $payloadConsignmentId,
+                'steadfast_tracking_code' => $lockedOrder->steadfast_tracking_code ?: $payloadTrackingCode,
                 'steadfast_status' => $normalizedStatus ?: null,
                 'steadfast_response' => $payload,
                 'steadfast_note' => $this->statusNote($normalizedStatus, $source),
-                'steadfast_sent_at' => $order->steadfast_sent_at ?: now(),
+                'steadfast_sent_at' => $lockedOrder->steadfast_sent_at ?: now(),
                 'steadfast_synced_at' => now(),
             ];
 
             if ($this->autoUpdateEnabled($courierAccount)) {
                 if ($category === 'delivered') {
                     $updateData['order_status'] = Order::STATUS_DELIVERED;
-                    $updateData['delivered_at'] = $order->delivered_at ?: now();
+                    $updateData['delivered_at'] = $lockedOrder->delivered_at ?: now();
                     $updateData['cancelled_at'] = null;
                     $updateData['custom_order_list'] = null;
                     $updateData['is_fake'] = false;
@@ -209,9 +209,9 @@ class SteadfastStatusService
                  */
             }
 
-            $order->update($updateData);
+            $lockedOrder->update($updateData);
 
-            return $order->fresh([
+            return $lockedOrder->fresh([
                 'courierAccount',
                 'courier',
                 'items.product',

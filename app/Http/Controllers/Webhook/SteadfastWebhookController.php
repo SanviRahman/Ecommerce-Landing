@@ -16,6 +16,7 @@ use Throwable;
 
 class SteadfastWebhookController extends Controller
 {
+
     public function __invoke(
         Request $request,
         CourierAccount $courierAccount,
@@ -205,18 +206,26 @@ class SteadfastWebhookController extends Controller
         string $consignmentId,
         string $invoice
     ): ?Order {
-        return Order::query()
-            ->where(function ($query) use ($consignmentId, $invoice) {
-                $query->where('steadfast_consignment_id', $consignmentId)
-                    ->orWhere('invoice_id', $invoice);
-            })
+        $baseQuery = Order::query()
             ->where(function ($query) use ($courierAccount) {
                 $query->where('courier_account_id', $courierAccount->id)
                     ->orWhere(function ($fallback) {
                         $fallback->whereNull('courier_account_id')
                             ->where('courier_service', 'steadfast');
                     });
-            })
+            });
+
+        $byConsignment = (clone $baseQuery)
+            ->where('steadfast_consignment_id', $consignmentId)
+            ->latest('id')
+            ->first();
+
+        if ($byConsignment) {
+            return $byConsignment;
+        }
+
+        return (clone $baseQuery)
+            ->where('invoice_id', $invoice)
             ->latest('id')
             ->first();
     }

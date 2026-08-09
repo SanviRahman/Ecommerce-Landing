@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -146,6 +147,61 @@ class CampaignController extends Controller
         $value = Str::lower($value);
 
         return $value !== '' ? $value : null;
+    }
+
+    private function customRouteAlreadyExists(?string $value): bool
+    {
+        $customRoute = $this->normalizeCustomRoute($value);
+
+        if (! $customRoute) {
+            return false;
+        }
+
+        $reservedRoutes = collect(config('campaign-routes.reserved', []))
+            ->map(fn ($route) => Str::lower(trim((string) $route, '/')))
+            ->filter();
+
+        if ($reservedRoutes->contains($customRoute)) {
+            return true;
+        }
+
+        if (file_exists(public_path($customRoute))) {
+            return true;
+        }
+
+        foreach (Route::getRoutes() as $route) {
+            if (in_array($route->getName(), [
+                'campaign.custom.show',
+                'campaign.custom.order.store',
+            ], true)) {
+                continue;
+            }
+
+            $uri = trim((string) $route->uri(), '/');
+
+            if ($uri === '') {
+                continue;
+            }
+
+            $firstSegment = Str::before($uri, '/');
+
+            if ($firstSegment === '' || str_contains($firstSegment, '{')) {
+                continue;
+            }
+
+            if (Str::lower($firstSegment) === $customRoute) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function campaignValidationMessages(): array
+    {
+        return [
+            'custom_route.unique' => 'Route already exists. Please choose a different custom route.',
+        ];
     }
 
     private function generateUniqueSlug(string $title, ?int $ignoreId = null): string
@@ -306,12 +362,17 @@ class CampaignController extends Controller
             ],
 
             'custom_route'                => [
+                'bail',
                 'nullable',
                 'required_if:route_type,' . Campaign::ROUTE_CUSTOM,
                 'string',
                 'max:190',
                 'regex:/^' . config('campaign-routes.pattern', '[a-z0-9][a-z0-9_-]*') . '$/',
-                Rule::notIn(config('campaign-routes.reserved', [])),
+                function ($attribute, $value, $fail): void {
+                    if ($this->customRouteAlreadyExists((string) $value)) {
+                        $fail('Route already exists. Please choose a different custom route.');
+                    }
+                },
                 Rule::unique('campaigns', 'custom_route')->ignore($campaign?->id),
             ],
 
@@ -567,7 +628,10 @@ class CampaignController extends Controller
         $this->adminOnly();
         $this->prepareRequest($request);
 
-        $request->validate($this->campaignValidationRules());
+        $request->validate(
+            $this->campaignValidationRules(),
+            $this->campaignValidationMessages()
+        );
 
         return DB::transaction(function () use ($request) {
             $categoryIds = collect($request->categories)->filter()->unique()->values()->toArray();
@@ -663,7 +727,10 @@ class CampaignController extends Controller
         $this->adminOnly();
         $this->prepareRequest($request);
 
-        $request->validate($this->campaignValidationRules($campaign));
+        $request->validate(
+            $this->campaignValidationRules($campaign),
+            $this->campaignValidationMessages()
+        );
 
         return DB::transaction(function () use ($request, $campaign) {
             $categoryIds = collect($request->categories)->filter()->unique()->values()->toArray();
