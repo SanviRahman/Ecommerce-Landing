@@ -180,14 +180,13 @@ Route::middleware(['auth'])->group(function () {
                 Route::delete('/empty-trash', [OrderController::class, 'emptyTrash'])->name('empty_trash');
 
                 Route::post('/assign-employee-bulk', [OrderController::class, 'bulkAssignEmployee'])->name('assign_employee_bulk');
+                Route::post('/assign-unassigned', [OrderController::class, 'assignUnassignedOrders'])->name('assign_unassigned');
                 Route::post('/bulk-delete-limit', [OrderController::class, 'bulkDeleteLimit'])->name('bulk_delete_limit');
 
                 /*
-                 * Removed duplicate top buttons:
-                 * - assign-unassigned
-                 * - steadfast balance
-                 *
-                 * Sync Order button এখন employee dropdown হিসেবে কাজ করবে।
+                 * Manual Auto Employee Sync is available inside the Employees Sync dropdown.
+                 * It assigns only local, currently unassigned orders using the existing
+                 * round-robin OrderAssignmentService.
                  */
             });
 

@@ -21,4 +21,37 @@ class OrderBidirectionalSyncObserver implements ShouldHandleEventsAfterCommit
             report($exception);
         }
     }
+
+    public function updated(Order $order): void
+    {
+        if ($order->created_via === Order::CREATED_VIA_EXTERNAL_API) {
+            return;
+        }
+
+        if (! $order->wasChanged([
+            'order_status',
+            'payment_status',
+            'customer_name',
+            'phone',
+            'address',
+            'delivery_area',
+            'sub_total',
+            'shipping_charge',
+            'cod_charge',
+            'total_amount',
+            'customer_note',
+            'admin_note',
+            'shipped_at',
+            'delivered_at',
+            'cancelled_at',
+        ])) {
+            return;
+        }
+
+        try {
+            app(ExternalOrderSyncService::class)->syncUpdatedOrder($order);
+        } catch (Throwable $exception) {
+            report($exception);
+        }
+    }
 }

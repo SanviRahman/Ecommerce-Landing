@@ -202,11 +202,27 @@ class SteadfastStatusService
                     }
                 }
 
-                /*
-                 * Courier cancellation is stored only in steadfast_status.
-                 * Local Cancelled Orders are reserved for explicit
-                 * Admin/Employee status changes.
-                 */
+                if (
+                    $category === 'cancelled'
+                    && ! in_array($lockedOrder->order_status, [
+                        Order::STATUS_DELIVERED,
+                        Order::STATUS_CANCELLED,
+                        Order::STATUS_CANCELED,
+                    ], true)
+                ) {
+                    $updateData['order_status'] = Order::STATUS_COURIER_CANCELLED;
+                }
+
+                if (
+                    $category === 'pending'
+                    && ! in_array($lockedOrder->order_status, [
+                        Order::STATUS_DELIVERED,
+                        Order::STATUS_CANCELLED,
+                        Order::STATUS_CANCELED,
+                    ], true)
+                ) {
+                    $updateData['order_status'] = Order::STATUS_COURIER_PENDING;
+                }
             }
 
             $lockedOrder->update($updateData);

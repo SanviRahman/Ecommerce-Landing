@@ -34,6 +34,8 @@
             'shipped' => 'badge-info',
             'delivered' => 'badge-success',
             'cancelled' => 'badge-danger',
+            'courier_pending' => 'badge-warning',
+            'courier_cancelled' => 'badge-danger',
             'fake' => 'badge-dark',
             default => 'badge-light border',
         };

@@ -3161,12 +3161,13 @@ body {
             <h2 class="section-title">অর্ডার ট্র্যাক করুন</h2>
             <p class="order-tracking-subtitle">অর্ডারে ব্যবহার করা ১১ সংখ্যার ফোন নম্বরটি লিখুন।</p>
 
-            <form action="{{ route('order.track.search') }}" method="POST">
+            <form action="{{ route('order.track.search') }}" method="POST" id="orderTrackingForm">
                 @csrf
 
                 <div class="d-flex order-tracking-form-row">
                     <input type="tel"
                            name="tracking_phone"
+                           id="trackingPhone"
                            value="{{ old('tracking_phone', $trackingSearchedPhone) }}"
                            class="form-control order-tracking-input mr-sm-2 @error('tracking_phone') is-invalid @enderror"
                            placeholder="01XXXXXXXXX"
@@ -3176,84 +3177,27 @@ body {
                            autocomplete="tel"
                            required>
 
-                    <button type="submit" class="btn btn-success order-tracking-button">
-                        <i class="fas fa-search mr-1"></i> Track Order
+                    <button type="submit"
+                            class="btn btn-success order-tracking-button"
+                            id="orderTrackingSubmit">
+                        <i class="fas fa-search mr-1"></i>
+                        <span>Track Order</span>
                     </button>
                 </div>
 
-                @error('tracking_phone')
-                    <div class="text-danger small mt-2">{{ $message }}</div>
-                @enderror
+                <div id="orderTrackingError" class="text-danger small mt-2 @unless($errors->has('tracking_phone')) d-none @endunless">
+                    @error('tracking_phone')
+                        {{ $message }}
+                    @enderror
+                </div>
             </form>
 
-            @if($trackingOrders !== null)
-                @if($trackingOrders->isEmpty())
-                    <div class="alert alert-warning mt-4 mb-0">
-                        এই ফোন নম্বরে কোনো অর্ডার পাওয়া যায়নি।
-                    </div>
-                @else
-                    <div class="mt-4">
-                        <div class="font-weight-bold text-muted">
-                            সর্বশেষ {{ $trackingOrders->count() }}টি অর্ডার
-                        </div>
-
-                        @foreach($trackingOrders as $order)
-                            @php
-                                $isPathaoOrder = strtolower((string) $order->courier_service) === 'pathao'
-                                    || filled($order->pathao_consignment_id);
-
-                                $rawCourierStatus = $isPathaoOrder
-                                    ? $order->pathao_status
-                                    : $order->steadfast_status;
-
-                                $courierStatus = $rawCourierStatus
-                                    ? ucwords(str_replace('_', ' ', $rawCourierStatus))
-                                    : 'Not available yet';
-
-                                $courierStatusLabel = $isPathaoOrder
-                                    ? 'Pathao Status'
-                                    : 'SteadFast Status';
-
-                                $trackingCode = $isPathaoOrder
-                                    ? $order->pathao_consignment_id
-                                    : $order->steadfast_tracking_code;
-
-                                $localStatus = $orderTrackingStatusLabels[$order->order_status]
-                                    ?? ucwords(str_replace('_', ' ', (string) $order->order_status));
-                            @endphp
-
-                            <div class="order-tracking-card">
-                                <div class="d-flex justify-content-between align-items-start flex-wrap">
-                                    <div>
-                                        <div class="font-weight-bold text-dark">
-                                            Invoice: {{ $order->invoice_id }}
-                                        </div>
-                                        <div class="order-tracking-meta">
-                                            Order Date: {{ optional($order->local_created_at)->format('d M Y, h:i A') ?: '-' }}
-                                        </div>
-                                    </div>
-
-                                    <span class="order-tracking-status mt-2 mt-sm-0">{{ $localStatus }}</span>
-                                </div>
-
-                                <div class="row mt-3">
-                                    <div class="col-md-6 order-tracking-meta">
-                                        <strong>Courier:</strong> {{ $order->courier_name }}<br>
-                                        <strong>{{ $courierStatusLabel }}:</strong> {{ $courierStatus }}<br>
-                                        <strong>Tracking Code:</strong> {{ $trackingCode ?: '-' }}
-                                    </div>
-                                    <div class="col-md-6 order-tracking-meta mt-2 mt-md-0">
-                                        <strong>Amount:</strong> ৳{{ number_format((float) $order->total_amount, 2) }}<br>
-                                        <strong>Payment:</strong> {{ ucwords(str_replace('_', ' ', (string) $order->payment_status)) }}<br>
-                                        <strong>Items:</strong>
-                                        {{ $order->items->map(fn ($item) => $item->quantity . '× ' . $item->product_name)->implode(', ') ?: '-' }}
-                                    </div>
-                                </div>
-                            </div>
-                        @endforeach
-                    </div>
-                @endif
-            @endif
+            <div id="orderTrackingResults">
+                @include('frontend.partials.order-tracking-results', [
+                    'trackingOrders' => $trackingOrders,
+                    'trackingSearchedPhone' => $trackingSearchedPhone,
+                ])
+            </div>
         </div>
     </div>
 </section>
@@ -3295,6 +3239,79 @@ body {
 <script>
 $(document).ready(function() {
     const noImage = @json($noImage);
+
+    function normalizeTrackingPhone(value) {
+        return String(value || '').replace(/\D/g, '').slice(0, 11);
+    }
+
+    function setOrderTrackingError(message) {
+        const box = $('#orderTrackingError');
+        const input = $('#trackingPhone');
+
+        if (message) {
+            box.text(message).removeClass('d-none');
+            input.addClass('is-invalid');
+            return;
+        }
+
+        box.text('').addClass('d-none');
+        input.removeClass('is-invalid');
+    }
+
+    $(document).on('input', '#trackingPhone', function() {
+        $(this).val(normalizeTrackingPhone($(this).val()));
+
+        if ($(this).val().length === 11) {
+            setOrderTrackingError('');
+        }
+    });
+
+    $(document).on('submit', '#orderTrackingForm', function(event) {
+        event.preventDefault();
+
+        const form = $(this);
+        const input = $('#trackingPhone');
+        const submitButton = $('#orderTrackingSubmit');
+        const phone = normalizeTrackingPhone(input.val());
+
+        input.val(phone);
+        setOrderTrackingError('');
+
+        if (!/^01[0-9]{9}$/.test(phone)) {
+            setOrderTrackingError('সঠিক ১১ সংখ্যার বাংলাদেশি ফোন নম্বর দিন।');
+            input.trigger('focus');
+            return;
+        }
+
+        submitButton.prop('disabled', true);
+        submitButton.find('span').text('Tracking...');
+
+        $.ajax({
+            url: form.attr('action'),
+            method: 'POST',
+            data: form.serialize(),
+            dataType: 'json',
+            headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            success: function(response) {
+                $('#orderTrackingResults').html(response.html || '');
+            },
+            error: function(xhr) {
+                const validationMessage = xhr.responseJSON?.errors?.tracking_phone?.[0];
+                const message = validationMessage
+                    || xhr.responseJSON?.message
+                    || 'Order tracking details load করা যায়নি। আবার চেষ্টা করুন।';
+
+                setOrderTrackingError(message);
+            },
+            complete: function() {
+                submitButton.prop('disabled', false);
+                submitButton.find('span').text('Track Order');
+            }
+        });
+    });
 
     const deliveryCharges = @json($shippingCharges->mapWithKeys(function ($charge) {
         return [(string) $charge->id => (int) $charge->delivery_charge];

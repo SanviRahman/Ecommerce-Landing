@@ -32,6 +32,22 @@ class ExternalOrderSyncService
             );
     }
 
+    public function syncUpdatedOrder(Order $order): Collection
+    {
+        if ($order->created_via === Order::CREATED_VIA_EXTERNAL_API) {
+            return collect();
+        }
+
+        return ExternalWebsite::query()
+            ->active()
+            ->autoSending()
+            ->orderBy('id')
+            ->get()
+            ->map(fn (ExternalWebsite $website): ExternalOrderSync =>
+                $this->senderService->send($order, $website, true)
+            );
+    }
+
     public function syncOrderToWebsite(
         Order $order,
         ExternalWebsite $externalWebsite

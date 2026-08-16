@@ -57,10 +57,13 @@ class ExternalWebsiteController extends Controller
         $this->adminOnly();
 
         $validated = $request->validated();
-        $receiverToken = $this->resolveReceiverToken(
-            $validated['token_action'],
-            $validated['api_token'] ?? null
-        );
+        $receiveOrders = (bool) $validated['receive_orders'];
+        $receiverToken = $receiveOrders
+            ? $this->resolveReceiverToken(
+                $validated['token_action'] ?? 'generate',
+                $validated['api_token'] ?? null
+            )
+            : Str::random(64);
 
         $website = ExternalWebsite::query()->create([
             'name' => trim($validated['name']),
@@ -80,13 +83,24 @@ class ExternalWebsiteController extends Controller
             'inbound_approval_status' => ExternalWebsite::INBOUND_APPROVAL_AWAITING_REQUEST,
         ]);
 
-        return redirect()
+        $mode = $this->integrationModeLabel(
+            (bool) $validated['receive_orders'],
+            (bool) $validated['send_orders']
+        );
+
+        $response = redirect()
             ->route('admin.external-websites.index')
-            ->with('success', 'Bidirectional website integration created successfully.')
-            ->with('new_api_token', $receiverToken)
-            ->with('new_api_token_website_id', $website->id)
-            ->with('new_api_endpoint', $website->api_endpoint)
-            ->with('new_health_endpoint', $website->health_endpoint);
+            ->with('success', $mode . ' website integration created successfully.');
+
+        if ($receiveOrders) {
+            $response
+                ->with('new_api_token', $receiverToken)
+                ->with('new_api_token_website_id', $website->id)
+                ->with('new_api_endpoint', $website->api_endpoint)
+                ->with('new_health_endpoint', $website->health_endpoint);
+        }
+
+        return $response;
     }
 
     public function update(
@@ -119,9 +133,12 @@ class ExternalWebsiteController extends Controller
                 'last_connection_message' => null,
             ];
 
-            if ($validated['token_action'] !== 'keep') {
+            $receiveOrders = (bool) $validated['receive_orders'];
+            $tokenAction = $validated['token_action'] ?? 'keep';
+
+            if ($receiveOrders && $tokenAction !== 'keep') {
                 $newReceiverToken = $this->resolveReceiverToken(
-                    $validated['token_action'],
+                    $tokenAction,
                     $validated['api_token'] ?? null
                 );
 
@@ -144,9 +161,14 @@ class ExternalWebsiteController extends Controller
             $externalWebsite->update($updates);
         });
 
+        $mode = $this->integrationModeLabel(
+            (bool) $validated['receive_orders'],
+            (bool) $validated['send_orders']
+        );
+
         $response = redirect()
             ->route('admin.external-websites.index')
-            ->with('success', 'Bidirectional website integration updated successfully.');
+            ->with('success', $mode . ' website integration updated successfully.');
 
         if ($newReceiverToken !== null) {
             $response
@@ -514,10 +536,15 @@ class ExternalWebsiteController extends Controller
             (int) ($validated['limit'] ?? 100)
         );
 
-        return back()->with(
-            'success',
-            "Failed order retry finished. Sent: {$result['sent']}, Still failed: {$result['failed']}."
-        );
+        $message = "Failed order retry finished. Sent: {$result['sent']}, Still failed: {$result['failed']}.";
+
+        return $request->expectsJson()
+            ? response()->json([
+                'status' => true,
+                'message' => $message,
+                'data' => $result,
+            ])
+            : back()->with('success', $message);
     }
 
     public function destroy(ExternalWebsite $externalWebsite)
@@ -548,6 +575,23 @@ class ExternalWebsiteController extends Controller
             'error',
             "Could not connect to {$externalWebsite->name}: {$message}"
         );
+    }
+
+    private function integrationModeLabel(bool $receiveOrders, bool $sendOrders): string
+    {
+        if ($receiveOrders && $sendOrders) {
+            return 'Bidirectional';
+        }
+
+        if ($receiveOrders) {
+            return 'Receive-only';
+        }
+
+        if ($sendOrders) {
+            return 'Send-only';
+        }
+
+        return 'Inactive-direction';
     }
 
     private function resolveReceiverToken(string $tokenAction, ?string $manualToken): string

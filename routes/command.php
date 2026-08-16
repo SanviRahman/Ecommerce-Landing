@@ -7,10 +7,49 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
 
 $redirectWithToast = function (string $type, string $message) {
-    $previousUrl = url()->previous() ?: route('admin.dashboard');
-    $separator = str_contains($previousUrl, '?') ? '&' : '?';
+    $source = trim((string) request()->query('source', ''));
+    $returnTo = trim((string) request()->query('return_to', ''));
 
-    return redirect()->to($previousUrl . $separator . http_build_query([
+    $fallbackUrl = match ($source) {
+        'api-orders' => route('admin.orders.api_orders'),
+        'orders'     => route('admin.orders.all'),
+        default      => url()->previous() ?: route('admin.dashboard'),
+    };
+
+    $targetUrl = $fallbackUrl;
+
+    /*
+     * Orders pages are explicit redirect targets. A return_to value is only
+     * accepted for those sources when it points back to that same orders
+     * page. This keeps API Orders on API Orders while still preserving its
+     * current query string/filter state.
+     */
+    $validRelativeReturn = $returnTo !== ''
+        && str_starts_with($returnTo, '/')
+        && ! str_starts_with($returnTo, '//');
+
+    if ($validRelativeReturn) {
+        if (in_array($source, ['api-orders', 'orders'], true)) {
+            $expectedPath = parse_url(
+                $source === 'api-orders'
+                    ? route('admin.orders.api_orders')
+                    : route('admin.orders.all'),
+                PHP_URL_PATH
+            );
+
+            $returnPath = parse_url($returnTo, PHP_URL_PATH);
+
+            if ($returnPath === $expectedPath) {
+                $targetUrl = url($returnTo);
+            }
+        } else {
+            $targetUrl = url($returnTo);
+        }
+    }
+
+    $separator = str_contains($targetUrl, '?') ? '&' : '?';
+
+    return redirect()->to($targetUrl . $separator . http_build_query([
         'toast_type'    => $type,
         'toast_message' => $message,
     ]));

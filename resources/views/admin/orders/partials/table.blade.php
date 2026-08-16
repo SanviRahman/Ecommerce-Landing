@@ -24,8 +24,8 @@ $localWebsiteName = trim((string) ($localWebsiteName ?? request()->getHost() ?? 
                 <th>Date</th>
                 <th>Status</th>
                 <th>Admin Note</th>
-                <th>Website</th>
                 <th width="130" class="text-center">Actions</th>
+                <th>Website</th>
                 <th>Employee</th>
                 <th>Payment</th>
             </tr>
@@ -314,8 +314,15 @@ $localWebsiteName = trim((string) ($localWebsiteName ?? request()->getHost() ?? 
                         data-url="{{ route('admin.orders.update_status', $order->id) }}"
                         data-original="{{ $order->order_status }}">
                         @foreach($orderStatuses as $status)
+                        @php
+                            $statusLabel = match ($status) {
+                                \App\Models\Order::STATUS_COURIER_PENDING => 'Courier Pending',
+                                \App\Models\Order::STATUS_COURIER_CANCELLED => 'Courier Cancel',
+                                default => ucwords(str_replace('_', ' ', $status)),
+                            };
+                        @endphp
                         <option value="{{ $status }}" @selected($order->order_status === $status)>
-                            {{ ucwords(str_replace('_', ' ', $status)) }}
+                            {{ $statusLabel }}
                         </option>
                         @endforeach
                     </select>
@@ -332,6 +339,10 @@ $localWebsiteName = trim((string) ($localWebsiteName ?? request()->getHost() ?? 
                     <span class="badge badge-success">Delivered</span>
                     @elseif($order->order_status === 'cancelled')
                     <span class="badge badge-danger">Cancelled</span>
+                    @elseif($order->order_status === 'courier_pending')
+                    <span class="badge badge-warning">Courier Pending</span>
+                    @elseif($order->order_status === 'courier_cancelled')
+                    <span class="badge badge-danger">Courier Cancel</span>
                     @elseif($order->order_status === 'fake')
                     <span class="badge badge-dark">Fake</span>
                     @elseif($order->order_status === 'stock_out')
@@ -364,34 +375,6 @@ $localWebsiteName = trim((string) ($localWebsiteName ?? request()->getHost() ?? 
                     </div>
                     @else
                     <span class="small text-muted">{{ $order->admin_note ?: '-' }}</span>
-                    @endif
-                </td>
-
-                {{-- Source Website --}}
-                <td style="min-width: 145px;">
-                    @if($order->external_website_id)
-                        <span class="badge badge-primary website-source-badge"
-                              title="{{ $order->externalWebsite->domain ?? 'External website' }}">
-                            <i class="fas fa-globe-americas mr-1"></i>
-                            {{ $order->externalWebsite->domain_host ?? 'External Website' }}
-                        </span>
-
-                    @else
-                        <span class="badge badge-success website-source-badge">
-                            <i class="fas fa-home mr-1"></i>
-                            {{ $localWebsiteName }}
-                        </span>
-
-                        @if($order->relationLoaded('externalOrderSyncs') && $order->externalOrderSyncs->isNotEmpty())
-                            @foreach($order->externalOrderSyncs as $outboundSync)
-                                <small class="d-block mt-1 {{ $outboundSync->status === 'sent' ? 'text-success' : ($outboundSync->status === 'failed' ? 'text-danger' : 'text-muted') }}"
-                                       title="{{ $outboundSync->error_message }}">
-                                    <i class="fas {{ $outboundSync->status === 'sent' ? 'fa-check-circle' : ($outboundSync->status === 'failed' ? 'fa-exclamation-circle' : 'fa-clock') }} mr-1"></i>
-                                    {{ $outboundSync->externalWebsite->name ?? 'External Website' }}:
-                                    {{ ucfirst($outboundSync->status) }}
-                                </small>
-                            @endforeach
-                        @endif
                     @endif
                 </td>
 
@@ -465,6 +448,34 @@ $localWebsiteName = trim((string) ($localWebsiteName ?? request()->getHost() ?? 
                         @endif
                         @endif
                     </div>
+                </td>
+
+                {{-- Source Website --}}
+                <td style="min-width: 145px;">
+                    @if($order->external_website_id)
+                        <span class="badge badge-primary website-source-badge"
+                              title="{{ $order->externalWebsite->domain ?? 'External website' }}">
+                            <i class="fas fa-globe-americas mr-1"></i>
+                            {{ $order->externalWebsite->domain_host ?? 'External Website' }}
+                        </span>
+
+                    @else
+                        <span class="badge badge-success website-source-badge">
+                            <i class="fas fa-home mr-1"></i>
+                            {{ $localWebsiteName }}
+                        </span>
+
+                        @if($order->relationLoaded('externalOrderSyncs') && $order->externalOrderSyncs->isNotEmpty())
+                            @foreach($order->externalOrderSyncs as $outboundSync)
+                                <small class="d-block mt-1 {{ $outboundSync->status === 'sent' ? 'text-success' : ($outboundSync->status === 'failed' ? 'text-danger' : 'text-muted') }}"
+                                       title="{{ $outboundSync->error_message }}">
+                                    <i class="fas {{ $outboundSync->status === 'sent' ? 'fa-check-circle' : ($outboundSync->status === 'failed' ? 'fa-exclamation-circle' : 'fa-clock') }} mr-1"></i>
+                                    {{ $outboundSync->externalWebsite->name ?? 'External Website' }}:
+                                    {{ ucfirst($outboundSync->status) }}
+                                </small>
+                            @endforeach
+                        @endif
+                    @endif
                 </td>
 
                 {{-- Employee --}}
@@ -782,6 +793,16 @@ $localWebsiteName = trim((string) ($localWebsiteName ?? request()->getHost() ?? 
 .order-status-select-delivered {
     color: #ffffff;
     background-color: #28a745;
+}
+
+.order-status-select-courier_pending {
+    color: #111827;
+    background-color: #fbbf24;
+}
+
+.order-status-select-courier_cancelled {
+    color: #ffffff;
+    background-color: #dc3545;
 }
 
 .order-status-select-cancelled,

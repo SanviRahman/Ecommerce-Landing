@@ -46,9 +46,10 @@
         </div>
         <div class="card-body">
             <div class="alert alert-warning mb-3">
-                Copy these receiver credentials to the connected website's
-                <strong>Send Orders</strong> section. Integration endpoint and token values are stored in the database;
-                no integration-specific <code>.env</code> value is required.
+                Receiver setup is complete on this website. Copy these credentials once to the sender website's
+                <strong>Send Orders</strong> section. On the sender website, turn <strong>Receive Enabled OFF</strong>;
+                no second local receiver endpoint/token setup is required. Integration values stay in the database,
+                so no integration-specific <code>.env</code> value is required.
             </div>
 
             <div class="row">
@@ -214,7 +215,7 @@
                                     <input type="checkbox"
                                            name="receive_orders"
                                            value="1"
-                                           class="custom-control-input"
+                                           class="custom-control-input receive-orders-toggle"
                                            id="new_receive_orders"
                                            @checked((bool) old('receive_orders', true))>
                                     <label class="custom-control-label" for="new_receive_orders">Receive Enabled</label>
@@ -222,13 +223,12 @@
                             </div>
                         </div>
 
-                        <div class="row">
+                        <div class="row receiver-token-config">
                             <div class="col-md-4">
                                 <div class="form-group mb-md-0">
                                     <label>Receiver Token Setup <span class="text-danger">*</span></label>
                                     <select name="token_action"
-                                            class="form-control token-action-select @error('token_action') is-invalid @enderror"
-                                            required>
+                                            class="form-control token-action-select @error('token_action') is-invalid @enderror">
                                         <option value="generate" @selected(old('token_action', 'generate') === 'generate')>
                                             Generate token automatically
                                         </option>
@@ -268,6 +268,9 @@
                                 </div>
                             </div>
                         </div>
+                        <small class="d-block text-success mt-2">
+                            One-way receive setup: keep Receive Enabled ON and Send Enabled OFF. Save once to generate this website's receiver endpoint and token.
+                        </small>
                     </div>
 
                     <div class="direction-panel direction-send">
@@ -278,6 +281,7 @@
                                     Send Local Orders To This Website
                                 </h5>
                                 <small class="text-muted">Paste the endpoint and token generated inside the external website.</small>
+                                <small class="d-block text-primary mt-1">For a send-only website, turn Receive Enabled OFF. No local receiver endpoint/token setup is required on this website.</small>
                             </div>
 
                             <div class="d-flex align-items-center flex-wrap">
@@ -511,34 +515,39 @@
                         </td>
 
                         <td style="min-width: 285px;">
-                            <label class="small mb-1">Endpoint</label>
-                            <div class="input-group input-group-sm mb-2">
-                                <input type="text"
-                                       class="form-control integration-copy-value"
-                                       value="{{ $website->api_endpoint }}"
-                                       readonly>
-                                <div class="input-group-append">
-                                    <button type="button" class="btn btn-outline-secondary btn-copy-value">
-                                        <i class="far fa-copy"></i>
-                                    </button>
+                            @if($website->receive_orders)
+                                <label class="small mb-1">Endpoint</label>
+                                <div class="input-group input-group-sm mb-2">
+                                    <input type="text"
+                                           class="form-control integration-copy-value"
+                                           value="{{ $website->api_endpoint }}"
+                                           readonly>
+                                    <div class="input-group-append">
+                                        <button type="button" class="btn btn-outline-secondary btn-copy-value">
+                                            <i class="far fa-copy"></i>
+                                        </button>
+                                    </div>
                                 </div>
-                            </div>
 
-                            <label class="small mb-1">Receiver Token</label>
-                            <div class="input-group input-group-sm">
-                                <input type="password"
-                                       class="form-control token-display-input integration-copy-value"
-                                       value="{{ $website->api_token }}"
-                                       readonly>
-                                <div class="input-group-append">
-                                    <button type="button" class="btn btn-outline-secondary btn-toggle-token">
-                                        <i class="fas fa-eye"></i>
-                                    </button>
-                                    <button type="button" class="btn btn-outline-secondary btn-copy-value">
-                                        <i class="far fa-copy"></i>
-                                    </button>
+                                <label class="small mb-1">Receiver Token</label>
+                                <div class="input-group input-group-sm">
+                                    <input type="password"
+                                           class="form-control token-display-input integration-copy-value"
+                                           value="{{ $website->api_token }}"
+                                           readonly>
+                                    <div class="input-group-append">
+                                        <button type="button" class="btn btn-outline-secondary btn-toggle-token">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-outline-secondary btn-copy-value">
+                                            <i class="far fa-copy"></i>
+                                        </button>
+                                    </div>
                                 </div>
-                            </div>
+                            @else
+                                <span class="badge badge-primary mb-2">Send-only integration</span>
+                                <small class="d-block text-muted">Local receiver credentials are not required. Use only the remote receiver endpoint/token generated by the destination website.</small>
+                            @endif
                         </td>
 
                         <td style="min-width: 285px;">
@@ -741,16 +750,18 @@
                                     </button>
                                 </form>
 
-                                <form action="{{ route('admin.external-websites.regenerate-token', $website) }}"
-                                      method="POST"
-                                      class="d-inline form-regenerate-token">
-                                    @csrf
-                                    <button type="submit"
-                                            class="btn btn-outline-warning"
-                                            title="Regenerate local receiver token">
-                                        <i class="fas fa-key"></i>
-                                    </button>
-                                </form>
+                                @if($website->receive_orders)
+                                    <form action="{{ route('admin.external-websites.regenerate-token', $website) }}"
+                                          method="POST"
+                                          class="d-inline form-regenerate-token">
+                                        @csrf
+                                        <button type="submit"
+                                                class="btn btn-outline-warning"
+                                                title="Regenerate local receiver token">
+                                            <i class="fas fa-key"></i>
+                                        </button>
+                                    </form>
+                                @endif
 
                                 <form action="{{ route('admin.external-websites.destroy', $website) }}"
                                       method="POST"
@@ -763,78 +774,21 @@
                                 </form>
                             </div>
 
-                            <div class="d-flex justify-content-center flex-wrap">
-                                <div class="dropdown d-inline-block mb-1">
-                                    <button type="button"
-                                            class="btn btn-xs btn-outline-warning dropdown-toggle shadow-none"
-                                            id="syncOrdersDropdown{{ $website->id }}"
-                                            data-toggle="dropdown"
-                                            aria-haspopup="true"
-                                            aria-expanded="false"
-                                            @disabled(! $website->send_orders || $website->outbound_connection_status !== 'connected')
-                                            title="Sync missing or failed orders to {{ $website->name }}">
-                                        <i class="fas fa-sync-alt mr-1"></i> Sync Orders
-                                    </button>
-
-                                    <div class="dropdown-menu dropdown-menu-right"
-                                         aria-labelledby="syncOrdersDropdown{{ $website->id }}">
-                                        <h6 class="dropdown-header">Manual Order Sync</h6>
-
-                                        <form action="{{ route('admin.external-websites.sync-existing-orders', $website) }}"
-                                              method="POST"
-                                              class="form-sync-existing"
-                                              data-website-id="{{ $website->id }}"
-                                              data-website-name="{{ $website->name }}">
-                                            @csrf
-                                            <input type="hidden" name="limit" value="20">
-                                            <button type="submit" class="dropdown-item">
-                                                <i class="fas fa-cloud-upload-alt text-info mr-1"></i>
-                                                Sync Missing Orders
-                                            </button>
-                                        </form>
-
-                                        <form action="{{ route('admin.external-websites.refresh-synced-orders', $website) }}"
-                                              method="POST"
-                                              class="form-refresh-synced-orders"
-                                              data-website-name="{{ $website->name }}">
-                                            @csrf
-                                            <input type="hidden" name="limit" value="20">
-                                            <input type="hidden" name="cursor" value="0">
-                                            <button type="submit" class="dropdown-item">
-                                                <i class="fas fa-history text-primary mr-1"></i>
-                                                Refresh Synced Order Data
-                                            </button>
-                                        </form>
-
-                                        <div class="dropdown-divider"></div>
-
-                                        <form action="{{ route('admin.external-websites.retry-failed-orders', $website) }}"
-                                              method="POST"
-                                              class="form-retry-failed-orders"
-                                              data-website-name="{{ $website->name }}">
-                                            @csrf
-                                            <input type="hidden" name="limit" value="100">
-                                            <button type="submit"
-                                                    class="dropdown-item {{ $website->failed_orders_count > 0 ? 'text-danger' : 'text-muted' }}"
-                                                    @disabled($website->failed_orders_count <= 0)>
-                                                <i class="fas fa-redo-alt mr-1"></i>
-                                                Retry Failed Orders
-                                                <span class="badge badge-danger ml-1">{{ $website->failed_orders_count }}</span>
-                                            </button>
-                                        </form>
-
-                                        <div class="dropdown-divider"></div>
-                                        <span class="dropdown-item-text small text-muted">
-                                            Missing orders: Sync Missing. Wrong old dates/shipped counts: Refresh Synced Order Data.
-                                        </span>
-                                    </div>
-                                </div>
-
-                                @if(! $website->send_orders || $website->outbound_connection_status !== 'connected')
-                                    <small class="d-block w-100 text-muted mt-1">
-                                        Connect the Send connection first to enable manual order sync.
-                                    </small>
-                                @endif
+                            {{--
+                                Manual Website Order Sync was moved to API Orders.
+                                Keep this hidden form because the existing connection workflow
+                                uses it to auto-sync old local orders immediately after a new
+                                outgoing connection is approved/tested.
+                            --}}
+                            <div class="d-none" aria-hidden="true">
+                                <form action="{{ route('admin.external-websites.sync-existing-orders', $website) }}"
+                                      method="POST"
+                                      class="form-sync-existing"
+                                      data-website-id="{{ $website->id }}"
+                                      data-website-name="{{ $website->name }}">
+                                    @csrf
+                                    <input type="hidden" name="limit" value="20">
+                                </form>
                             </div>
                         </td>
                     </tr>
@@ -887,17 +841,17 @@
                                             <input type="checkbox"
                                                    name="receive_orders"
                                                    value="1"
-                                                   class="custom-control-input"
+                                                   class="custom-control-input receive-orders-toggle"
                                                    id="receive_orders_{{ $website->id }}"
                                                    @checked($website->receive_orders)>
                                             <label class="custom-control-label" for="receive_orders_{{ $website->id }}">Enabled</label>
                                         </div>
                                     </div>
 
-                                    <div class="col-md-4">
+                                    <div class="col-md-4 receiver-token-config">
                                         <div class="form-group">
                                             <label>Receiver Token Action</label>
-                                            <select name="token_action" class="form-control token-action-select" required>
+                                            <select name="token_action" class="form-control token-action-select">
                                                 <option value="keep">Keep current receiver token</option>
                                                 <option value="generate">Generate a new receiver token</option>
                                                 <option value="manual">Paste replacement receiver token</option>
@@ -905,7 +859,7 @@
                                         </div>
                                     </div>
 
-                                    <div class="col-md-6">
+                                    <div class="col-md-6 receiver-token-config">
                                         <div class="form-group">
                                             <label>Replacement Receiver Token</label>
                                             <div class="input-group">
@@ -1196,10 +1150,18 @@ $(document).ready(function() {
     }
 
     function refreshTokenForm(form) {
+        const receiveEnabled = form.find('.receive-orders-toggle').is(':checked');
         const action = form.find('.token-action-select').val();
         const tokenInput = form.find('.api-token-input');
         const generateButton = form.find('.btn-generate-token');
         const helpText = form.find('.token-help-text');
+
+        if (! receiveEnabled) {
+            tokenInput.val('').prop('disabled', true);
+            generateButton.prop('disabled', true);
+            helpText.text('Receive Orders is disabled. Local receiver credentials are not required for this send-only integration.');
+            return;
+        }
 
         if (action === 'keep') {
             tokenInput.val('').prop('disabled', true);
@@ -1218,6 +1180,14 @@ $(document).ready(function() {
         tokenInput.prop('disabled', false);
         generateButton.prop('disabled', false);
         helpText.text('Paste the exact token that the sending website will use.');
+    }
+
+    function refreshReceiverFields(form) {
+        const receiveEnabled = form.find('.receive-orders-toggle').is(':checked');
+        form.find('.receiver-token-config .token-action-select').prop('disabled', ! receiveEnabled);
+        form.find('.receiver-token-config .api-token-input').prop('disabled', ! receiveEnabled);
+        form.find('.receiver-token-config .btn-generate-token').prop('disabled', ! receiveEnabled);
+        refreshTokenForm(form);
     }
 
     function refreshOutboundFields(form) {
@@ -1250,12 +1220,16 @@ $(document).ready(function() {
     }
 
     $('.token-settings-form').each(function() {
-        refreshTokenForm($(this));
+        refreshReceiverFields($(this));
         refreshOutboundFields($(this));
     });
 
     $(document).on('change', '.token-action-select', function() {
         refreshTokenForm($(this).closest('.token-settings-form'));
+    });
+
+    $(document).on('change', '.receive-orders-toggle', function() {
+        refreshReceiverFields($(this).closest('.token-settings-form'));
     });
 
     $(document).on('change', '.send-orders-toggle', function() {

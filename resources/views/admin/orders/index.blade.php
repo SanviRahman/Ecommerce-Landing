@@ -37,12 +37,30 @@
     $canBulkManageOrders = auth()->check() && (auth()->user()->isAdmin() || auth()->user()->isEmployee());
     $canCreateManualOrder = $canBulkManageOrders;
     $canDeleteOrders = auth()->check() && auth()->user()->isAdmin();
-    $selectedWebsiteFilter = (string) request('external_website_id', 'all');
-    $selectedExternalWebsite = ($externalWebsites ?? collect())
-        ->firstWhere('id', (int) $selectedWebsiteFilter);
-    $selectedWebsiteLabel = $selectedWebsiteFilter === 'local'
-        ? ($localWebsiteName ?? request()->getHost())
-        : ($selectedExternalWebsite->domain_host ?? 'All Websites');
+    $isApiOrdersView = $currentStatusView === 'api-orders';
+    $selectedWebsiteFilters = collect($selectedWebsiteFilters ?? explode(',', (string) request('external_website_ids', request('external_website_id', 'all'))))
+        ->map(fn($value) => trim((string) $value))
+        ->filter()
+        ->unique()
+        ->values();
+
+    if ($selectedWebsiteFilters->isEmpty() || $selectedWebsiteFilters->contains('all')) {
+        $selectedWebsiteFilters = collect(['all']);
+    }
+
+    $selectedWebsiteLabel = 'All Websites';
+
+    if (! $selectedWebsiteFilters->contains('all')) {
+        if ($selectedWebsiteFilters->count() === 1 && $selectedWebsiteFilters->first() === 'local') {
+            $selectedWebsiteLabel = $localWebsiteName ?? request()->getHost();
+        } elseif ($selectedWebsiteFilters->count() === 1) {
+            $selectedExternalWebsite = ($externalWebsites ?? collect())
+                ->firstWhere('id', (int) $selectedWebsiteFilters->first());
+            $selectedWebsiteLabel = $selectedExternalWebsite->domain_host ?? 'Selected Website';
+        } else {
+            $selectedWebsiteLabel = $selectedWebsiteFilters->count() . ' Websites';
+        }
+    }
 @endphp
 
 {{-- Top Small Stats --}}
@@ -106,17 +124,49 @@
         </div>
     </div>
 @elseif($currentStatusView === 'api-orders')
+    @php
+        $currentApiCard = (string) request('api_card', 'all');
+        $apiCards = [
+            ['key' => 'all', 'label' => 'Total API Orders', 'icon' => 'fas fa-cloud-download-alt'],
+            ['key' => 'new', 'label' => 'New Orders', 'icon' => 'fas fa-shopping-cart'],
+            ['key' => 'pending', 'label' => 'Pending Orders', 'icon' => 'fas fa-shopping-cart'],
+            ['key' => 'completed', 'label' => 'Complete Orders', 'icon' => 'fas fa-shopping-cart'],
+            ['key' => 'shipped', 'label' => 'Shipped', 'icon' => 'fas fa-truck-loading'],
+            ['key' => 'order_list_1', 'label' => 'Order List 1', 'icon' => 'fas fa-list-ol'],
+            ['key' => 'order_list_2', 'label' => 'Order List 2', 'icon' => 'fas fa-list-ol'],
+            ['key' => 'cancelled', 'label' => 'Cancelled Orders', 'icon' => 'fas fa-shopping-cart'],
+            ['key' => 'delivered', 'label' => 'Delivered', 'icon' => 'fas fa-truck'],
+            ['key' => 'stock_out', 'label' => 'Stock Out', 'icon' => 'fas fa-box-open'],
+        ];
+    @endphp
+
     <div class="row mb-3" id="orderStatsCards">
-        <div class="col-lg-3 col-md-4 col-sm-6 mb-2">
-            <a href="{{ route('admin.orders.api_orders') }}"
-               class="order-stat-card text-decoration-none active">
-                <div>
-                    <h4 id="stat_all">{{ $stats['all'] ?? 0 }}</h4>
-                    <p>Total API Orders</p>
-                </div>
-                <i class="fas fa-cloud-download-alt"></i>
-            </a>
-        </div>
+        @foreach($apiCards as $apiCard)
+            @php
+                $cardKey = $apiCard['key'];
+                $apiCardQuery = [];
+
+                if ($cardKey !== 'all') {
+                    $apiCardQuery['api_card'] = $cardKey;
+                }
+
+                if (! $selectedWebsiteFilters->contains('all')) {
+                    $apiCardQuery['external_website_ids'] = $selectedWebsiteFilters->implode(',');
+                }
+
+                $cardUrl = route('admin.orders.api_orders', $apiCardQuery);
+            @endphp
+            <div class="col-xl col-lg-3 col-md-4 col-sm-6 mb-2">
+                <a href="{{ $cardUrl }}"
+                   class="order-stat-card text-decoration-none {{ $currentApiCard === $cardKey ? 'active' : '' }}">
+                    <div>
+                        <h4 id="stat_{{ $cardKey }}">{{ $stats[$cardKey] ?? 0 }}</h4>
+                        <p>{{ $apiCard['label'] }}</p>
+                    </div>
+                    <i class="{{ $apiCard['icon'] }}"></i>
+                </a>
+            </div>
+        @endforeach
     </div>
 @else
     <div class="row mb-3" id="orderStatsCards">
@@ -293,7 +343,10 @@
               method="GET"
               action="{{ url()->current() }}">
             <input type="hidden" id="filter_per_page" name="per_page" value="{{ request('per_page', 20) }}">
-            <input type="hidden" id="filter_external_website_id" name="external_website_id" value="{{ request('external_website_id', 'all') }}">
+            <input type="hidden" id="filter_external_website_ids" name="external_website_ids" value="{{ $selectedWebsiteFilters->implode(',') }}">
+            @if($isApiOrdersView && request()->filled('api_card'))
+                <input type="hidden" name="api_card" value="{{ request('api_card') }}">
+            @endif
             <div class="row">
                 <div class="col-md-2 col-sm-6 mb-2">
                     <label class="small font-weight-bold text-muted text-uppercase">Order Status</label>
@@ -302,8 +355,15 @@
                             class="form-control border-0 bg-light shadow-none">
                         <option value="all" @selected(request('order_status', 'all') === 'all')>All Status</option>
                         @foreach($orderStatuses ?? [] as $status)
+                            @php
+                                $statusLabel = match ($status) {
+                                    \App\Models\Order::STATUS_COURIER_PENDING => 'Courier Pending',
+                                    \App\Models\Order::STATUS_COURIER_CANCELLED => 'Courier Cancel',
+                                    default => ucwords(str_replace('_', ' ', $status)),
+                                };
+                            @endphp
                             <option value="{{ $status }}" @selected(request('order_status') === $status)>
-                                {{ ucfirst(str_replace('_', ' ', $status)) }}
+                                {{ $statusLabel }}
                             </option>
                         @endforeach
                     </select>
@@ -437,7 +497,7 @@
                                 <h6 class="dropdown-header">Select Orders</h6>
                                 @foreach([50,100,150,200,250,300,350,400,450,500] as $selectLimit)
                                     <a href="#" class="dropdown-item bulk-select-limit-action" data-limit="{{ $selectLimit }}">
-                                        <i class="fas fa-check-square text-primary mr-1"></i> Select {{ $selectLimit }} Orders
+                                        <i class="far fa-square text-muted mr-1 bulk-select-limit-icon"></i> Select {{ $selectLimit }} Orders
                                     </a>
                                 @endforeach
                             </div>
@@ -542,6 +602,12 @@
                                 <a class="dropdown-item bulk-status-action" href="#" data-action="status_shipped">
                                     <i class="fas fa-truck mr-1"></i> Shipped
                                 </a>
+                                <a class="dropdown-item bulk-status-action text-warning" href="#" data-action="status_courier_pending">
+                                    <i class="fas fa-hourglass-half mr-1"></i> Courier Pending
+                                </a>
+                                <a class="dropdown-item bulk-status-action text-danger" href="#" data-action="status_courier_cancelled">
+                                    <i class="fas fa-ban mr-1"></i> Courier Cancel
+                                </a>
                                 <a class="dropdown-item bulk-status-action" href="#" data-action="status_delivered">
                                     <i class="fas fa-check-double mr-1"></i> Delivered
                                 </a>
@@ -586,21 +652,103 @@
                         @if($canDeleteOrders)
                             <div class="dropdown d-inline-block mr-2 mb-1">
                                 <button class="btn btn-warning btn-sm dropdown-toggle" type="button" id="syncOrderDropdown" data-toggle="dropdown">
-                                <i class="fas fa-sync-alt mr-1"></i> Sync Order
-                            </button>
-                            <div class="dropdown-menu" aria-labelledby="syncOrderDropdown">
-                                <h6 class="dropdown-header">Assign Employee</h6>
-                                @forelse($employees ?? collect() as $employee)
-                                    <a class="dropdown-item bulk-assign-employee-action" href="#" data-employee-id="{{ $employee->id }}" data-name="{{ $employee->name }}">
-                                        <i class="fas fa-user-check mr-1 text-primary"></i> {{ $employee->name }}
-                                    </a>
-                                @empty
-                                    <span class="dropdown-item text-muted">No employee found</span>
-                                @endforelse
-                                <div class="dropdown-divider"></div>
-                                <a class="dropdown-item bulk-assign-employee-action text-danger" href="#" data-employee-id="" data-name="Unassigned">
-                                    <i class="fas fa-user-times mr-1"></i> Remove Employee
-                                </a>
+                                    <i class="fas fa-sync-alt mr-1"></i>
+                                    {{ $isApiOrdersView ? 'Website Orders Sync' : 'Employees Sync' }}
+                                </button>
+                                <div class="dropdown-menu" aria-labelledby="syncOrderDropdown">
+                                    @if($isApiOrdersView)
+                                        <h6 class="dropdown-header">Website Orders Sync</h6>
+
+                                        @forelse($externalWebsites ?? collect() as $externalWebsite)
+                                            @php
+                                                $websiteSyncReady = $externalWebsite->canSendOrders()
+                                                    && $externalWebsite->outbound_connection_status === 'connected';
+                                            @endphp
+
+                                            <div class="dropdown-item-text small d-flex justify-content-between align-items-center font-weight-bold">
+                                                <span>{{ $externalWebsite->domain_host }}</span>
+                                                <span class="badge {{ $websiteSyncReady ? 'badge-success' : 'badge-secondary' }}">
+                                                    {{ $websiteSyncReady ? 'Connected' : 'Not Connected' }}
+                                                </span>
+                                            </div>
+
+                                            @if($websiteSyncReady)
+                                                <form action="{{ route('admin.external-websites.sync-existing-orders', $externalWebsite) }}"
+                                                      method="POST"
+                                                      class="api-form-sync-existing"
+                                                      data-website-name="{{ $externalWebsite->name }}">
+                                                    @csrf
+                                                    <input type="hidden" name="limit" value="20">
+                                                    <button type="submit" class="dropdown-item">
+                                                        <i class="fas fa-cloud-upload-alt text-info mr-1"></i>
+                                                        Sync Missing Orders
+                                                    </button>
+                                                </form>
+
+                                                <form action="{{ route('admin.external-websites.refresh-synced-orders', $externalWebsite) }}"
+                                                      method="POST"
+                                                      class="api-form-refresh-synced-orders"
+                                                      data-website-name="{{ $externalWebsite->name }}">
+                                                    @csrf
+                                                    <input type="hidden" name="limit" value="20">
+                                                    <input type="hidden" name="cursor" value="0">
+                                                    <button type="submit" class="dropdown-item">
+                                                        <i class="fas fa-history text-primary mr-1"></i>
+                                                        Refresh Synced Order Data
+                                                    </button>
+                                                </form>
+
+                                                <form action="{{ route('admin.external-websites.retry-failed-orders', $externalWebsite) }}"
+                                                      method="POST"
+                                                      class="api-form-retry-failed-orders"
+                                                      data-website-name="{{ $externalWebsite->name }}">
+                                                    @csrf
+                                                    <input type="hidden" name="limit" value="100">
+                                                    <button type="submit" class="dropdown-item">
+                                                        <i class="fas fa-redo-alt text-danger mr-1"></i>
+                                                        Retry Failed Orders
+                                                    </button>
+                                                </form>
+                                            @else
+                                                <span class="dropdown-item-text small text-muted">
+                                                    Enable Send Orders, save the receiver endpoint/token, then connect this website first.
+                                                </span>
+                                            @endif
+
+                                            @unless($loop->last)
+                                                <div class="dropdown-divider"></div>
+                                            @endunless
+                                        @empty
+                                            <span class="dropdown-item text-muted">No website integration found</span>
+                                        @endforelse
+
+                                        <div class="dropdown-divider"></div>
+                                        <a class="dropdown-item" href="{{ route('admin.external-websites.index') }}">
+                                            <i class="fas fa-cog mr-1 text-secondary"></i> Manage Website Connections
+                                        </a>
+                                    @else
+                                        <h6 class="dropdown-header">Employees Sync</h6>
+                                        <a class="dropdown-item manual-auto-employee-sync text-success"
+                                           href="#"
+                                           data-url="{{ route('admin.orders.assign_unassigned') }}">
+                                            <i class="fas fa-magic mr-1"></i> Run Auto Employee Sync
+                                        </a>
+                                        <span class="dropdown-item-text small text-muted">
+                                            Assigns local unassigned orders automatically.
+                                        </span>
+                                        <div class="dropdown-divider"></div>
+                                        @forelse($employees ?? collect() as $employee)
+                                            <a class="dropdown-item bulk-assign-employee-action" href="#" data-employee-id="{{ $employee->id }}" data-name="{{ $employee->name }}">
+                                                <i class="fas fa-user-check mr-1 text-primary"></i> {{ $employee->name }}
+                                            </a>
+                                        @empty
+                                            <span class="dropdown-item text-muted">No employee found</span>
+                                        @endforelse
+                                        <div class="dropdown-divider"></div>
+                                        <a class="dropdown-item bulk-assign-employee-action text-danger" href="#" data-employee-id="" data-name="Unassigned">
+                                            <i class="fas fa-user-times mr-1"></i> Remove Employee
+                                        </a>
+                                    @endif
                                 </div>
                             </div>
                         @endif
@@ -643,16 +791,28 @@
                                 </button>
 
                                 <div class="dropdown-menu dropdown-menu-right" aria-labelledby="syncWebhookDropdown">
+                                    @php
+                                        $webhookReturnTo = request()->getRequestUri();
+                                        $webhookSource = $isApiOrdersView ? 'api-orders' : 'orders';
+                                        $steadfastWebhookUrl = route('command.sync-steadfast-statuses', [
+                                            'source' => $webhookSource,
+                                            'return_to' => $webhookReturnTo,
+                                        ]);
+                                        $pathaoWebhookUrl = route('command.sync-pathao-statuses', [
+                                            'source' => $webhookSource,
+                                            'return_to' => $webhookReturnTo,
+                                        ]);
+                                    @endphp
                                     <a class="dropdown-item sync-webhook-action"
-                                       href="#"
+                                       href="{{ $steadfastWebhookUrl }}"
                                        data-name="SteadFast"
-                                       data-url="{{ route('command.sync-steadfast-statuses') }}">
+                                       data-url="{{ $steadfastWebhookUrl }}">
                                         <i class="fas fa-shipping-fast mr-1 text-primary"></i> Sync SteadFast
                                     </a>
                                     <a class="dropdown-item sync-webhook-action"
-                                       href="#"
+                                       href="{{ $pathaoWebhookUrl }}"
                                        data-name="Pathao"
-                                       data-url="{{ route('command.sync-pathao-statuses') }}">
+                                       data-url="{{ $pathaoWebhookUrl }}">
                                         <i class="fas fa-route mr-1 text-success"></i> Sync Pathao
                                     </a>
                                 </div>
@@ -675,39 +835,59 @@
                                 <span id="websiteOrderFilterLabel">{{ $selectedWebsiteLabel }}</span>
                             </button>
 
-                            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="websiteOrderFilterDropdown">
-                                <h6 class="dropdown-header">Order Source Website</h6>
+                            <div class="dropdown-menu dropdown-menu-right website-filter-menu p-2"
+                                 aria-labelledby="websiteOrderFilterDropdown"
+                                 style="min-width: 250px; max-height: 330px; overflow-y: auto;">
+                                <h6 class="dropdown-header px-2">Order Source Website</h6>
 
-                                <a href="#"
-                                   class="dropdown-item website-order-filter-action {{ $selectedWebsiteFilter === 'all' ? 'active' : '' }}"
-                                   data-website-id="all"
-                                   data-label="All Websites">
-                                    <i class="fas fa-layer-group mr-1"></i> All Websites
-                                </a>
+                                <div class="custom-control custom-checkbox mb-2">
+                                    <input type="checkbox"
+                                           class="custom-control-input"
+                                           id="websiteFilterAll"
+                                           value="all"
+                                           @checked($selectedWebsiteFilters->contains('all'))>
+                                    <label class="custom-control-label font-weight-bold" for="websiteFilterAll">
+                                        All Websites
+                                    </label>
+                                </div>
 
-                                <a href="#"
-                                   class="dropdown-item website-order-filter-action {{ $selectedWebsiteFilter === 'local' ? 'active' : '' }}"
-                                   data-website-id="local"
-                                   data-label="{{ $localWebsiteName ?? request()->getHost() }}">
-                                    <i class="fas fa-home mr-1 text-success"></i> {{ $localWebsiteName ?? request()->getHost() }}
-                                </a>
+                                @unless($isApiOrdersView)
+                                    <div class="custom-control custom-checkbox mb-2">
+                                        <input type="checkbox"
+                                               class="custom-control-input website-filter-checkbox"
+                                               id="websiteFilterLocal"
+                                               value="local"
+                                               data-label="{{ $localWebsiteName ?? request()->getHost() }}"
+                                               @checked($selectedWebsiteFilters->contains('local'))>
+                                        <label class="custom-control-label" for="websiteFilterLocal">
+                                            <i class="fas fa-home mr-1 text-success"></i>
+                                            {{ $localWebsiteName ?? request()->getHost() }}
+                                        </label>
+                                    </div>
+                                @endunless
 
-                                @if(($externalWebsites ?? collect())->isNotEmpty())
-                                    <div class="dropdown-divider"></div>
-
-                                    @foreach($externalWebsites as $externalWebsite)
-                                        <a href="#"
-                                           class="dropdown-item website-order-filter-action {{ $selectedWebsiteFilter === (string) $externalWebsite->id ? 'active' : '' }}"
-                                           data-website-id="{{ $externalWebsite->id }}"
-                                           data-label="{{ $externalWebsite->domain_host }}">
+                                @foreach($externalWebsites ?? collect() as $externalWebsite)
+                                    <div class="custom-control custom-checkbox mb-2">
+                                        <input type="checkbox"
+                                               class="custom-control-input website-filter-checkbox"
+                                               id="websiteFilter{{ $externalWebsite->id }}"
+                                               value="{{ $externalWebsite->id }}"
+                                               data-label="{{ $externalWebsite->domain_host }}"
+                                               @checked($selectedWebsiteFilters->contains((string) $externalWebsite->id))>
+                                        <label class="custom-control-label" for="websiteFilter{{ $externalWebsite->id }}">
                                             <i class="fas fa-globe-americas mr-1 text-primary"></i>
                                             {{ $externalWebsite->domain_host }}
                                             @if(! $externalWebsite->status)
                                                 <span class="badge badge-secondary ml-1">Inactive</span>
                                             @endif
-                                        </a>
-                                    @endforeach
-                                @endif
+                                        </label>
+                                    </div>
+                                @endforeach
+
+                                <div class="dropdown-divider"></div>
+                                <button type="button" class="btn btn-primary btn-sm btn-block" id="btnApplyWebsiteFilter">
+                                    <i class="fas fa-filter mr-1"></i> Apply Website Filter
+                                </button>
                             </div>
                         </div>
                         @if($canDeleteOrders)
@@ -1040,7 +1220,19 @@ $(document).ready(function() {
     }
 
     function updateSelectedCount() {
-        $('#selectedCount').text(selectedIds().length);
+        const selectedCount = selectedIds().length;
+        $('#selectedCount').text(selectedCount);
+
+        $('.bulk-select-limit-action').each(function() {
+            const $action = $(this);
+            const limit = Number($action.data('limit') || 0);
+            const $icon = $action.find('.bulk-select-limit-icon');
+            const isExactSelection = selectedCount > 0 && selectedCount === limit;
+
+            $icon
+                .toggleClass('far fa-square text-muted', !isExactSelection)
+                .toggleClass('fas fa-check-square text-primary', isExactSelection);
+        });
     }
 
     function selectFirstVisibleOrders(limit) {
@@ -1459,17 +1651,54 @@ $(document).ready(function() {
 
     $(document).on('change', '.row-checkbox', updateSelectedCount);
 
-    $(document).on('click', '.website-order-filter-action', function(e) {
+    $(document).on('click', '.website-filter-menu', function(e) {
+        e.stopPropagation();
+    });
+
+    $(document).on('change', '#websiteFilterAll', function() {
+        if ($(this).is(':checked')) {
+            $('.website-filter-checkbox').prop('checked', false);
+        }
+    });
+
+    $(document).on('change', '.website-filter-checkbox', function() {
+        if ($(this).is(':checked')) {
+            $('#websiteFilterAll').prop('checked', false);
+        }
+
+        if (! $('.website-filter-checkbox:checked').length) {
+            $('#websiteFilterAll').prop('checked', true);
+        }
+    });
+
+    $(document).on('click', '#btnApplyWebsiteFilter', function(e) {
         e.preventDefault();
 
-        const websiteId = String($(this).data('website-id') ?? 'all');
-        const websiteLabel = String($(this).data('label') ?? 'All Websites');
+        let values = [];
+        let labels = [];
 
-        $('#filter_external_website_id').val(websiteId);
-        $('#websiteOrderFilterLabel').text(websiteLabel);
-        $('.website-order-filter-action').removeClass('active');
-        $(this).addClass('active');
+        if ($('#websiteFilterAll').is(':checked')) {
+            values = ['all'];
+        } else {
+            $('.website-filter-checkbox:checked').each(function() {
+                values.push(String($(this).val()));
+                labels.push(String($(this).data('label') || 'Website'));
+            });
+        }
 
+        if (! values.length) {
+            values = ['all'];
+        }
+
+        $('#filter_external_website_ids').val(values.join(','));
+
+        let label = 'All Websites';
+        if (values[0] !== 'all') {
+            label = labels.length === 1 ? labels[0] : labels.length + ' Websites';
+        }
+
+        $('#websiteOrderFilterLabel').text(label);
+        $('#websiteOrderFilterDropdown').dropdown('hide');
         reloadTable(1);
     });
 
@@ -1518,6 +1747,271 @@ $(document).ready(function() {
         reloadTable(page);
     });
 
+    function apiOrdersReloadAfterWebsiteSync() {
+        window.location.href = window.location.pathname + window.location.search;
+    }
+
+    function runApiWebsiteMissingSync(form) {
+        const $form = $(form);
+        const websiteName = String($form.data('website-name') || 'website');
+        const action = String($form.attr('action') || '');
+        const batchSize = Number($form.find('input[name="limit"]').val() || 20);
+        let totalSent = 0;
+        let totalFailed = 0;
+        let totalSkipped = 0;
+        let iterations = 0;
+
+        Swal.fire({
+            title: 'Syncing Website Orders',
+            html: 'Syncing missing local orders to <strong>' + htmlEscape(websiteName) + '</strong>...',
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            showConfirmButton: false,
+            didOpen: function() {
+                Swal.showLoading();
+            }
+        });
+
+        function runBatch() {
+            iterations++;
+
+            if (iterations > 1000) {
+                Swal.fire('Sync Stopped', 'Safety limit reached. Please run Website Orders Sync again.', 'warning')
+                    .then(apiOrdersReloadAfterWebsiteSync);
+                return;
+            }
+
+            $.ajax({
+                url: action,
+                type: 'POST',
+                dataType: 'json',
+                headers: { 'Accept': 'application/json' },
+                data: {
+                    _token: csrfToken,
+                    limit: batchSize
+                },
+                success: function(response) {
+                    const data = response.data || {};
+                    totalSent += Number(data.sent || 0);
+                    totalFailed += Number(data.failed || 0);
+                    totalSkipped += Number(data.skipped || 0);
+                    const remaining = Number(data.remaining || 0);
+
+                    if (remaining > 0) {
+                        Swal.update({
+                            html:
+                                'Website: <strong>' + htmlEscape(websiteName) + '</strong><br>' +
+                                'Sent: ' + totalSent + '<br>' +
+                                'Failed: ' + totalFailed + '<br>' +
+                                'Skipped: ' + totalSkipped + '<br>' +
+                                'Remaining: ' + remaining
+                        });
+                        runBatch();
+                        return;
+                    }
+
+                    Swal.fire({
+                        icon: totalFailed > 0 ? 'warning' : 'success',
+                        title: totalFailed > 0 ? 'Website Sync Completed With Errors' : 'Website Sync Completed',
+                        html:
+                            'Website: <strong>' + htmlEscape(websiteName) + '</strong><br>' +
+                            'Sent: ' + totalSent + '<br>' +
+                            'Failed: ' + totalFailed + '<br>' +
+                            'Skipped: ' + totalSkipped,
+                        confirmButtonText: 'Back to API Orders'
+                    }).then(apiOrdersReloadAfterWebsiteSync);
+                },
+                error: function(xhr) {
+                    Swal.fire(
+                        'Sync Failed',
+                        xhr.responseJSON?.message || 'Website order sync failed. Please try again.',
+                        'error'
+                    ).then(apiOrdersReloadAfterWebsiteSync);
+                }
+            });
+        }
+
+        runBatch();
+    }
+
+    $(document).on('submit', '.api-form-sync-existing', function(event) {
+        event.preventDefault();
+        const form = this;
+        const websiteName = String($(form).data('website-name') || 'this website');
+
+        Swal.fire({
+            title: 'Sync missing orders?',
+            text: 'All unsynced local orders will be sent to ' + websiteName + ' in safe batches. Imported API orders will not be sent again.',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, Sync Orders'
+        }).then(function(result) {
+            if (swalConfirmed(result)) {
+                runApiWebsiteMissingSync(form);
+            }
+        });
+    });
+
+    function runApiWebsiteRefresh(form) {
+        const $form = $(form);
+        const websiteName = String($form.data('website-name') || 'website');
+        const action = String($form.attr('action') || '');
+        const batchSize = Number($form.find('input[name="limit"]').val() || 20);
+        let cursor = Number($form.find('input[name="cursor"]').val() || 0);
+        let refreshed = 0;
+        let failed = 0;
+        let iterations = 0;
+
+        Swal.fire({
+            title: 'Refreshing Synced Orders',
+            html: 'Refreshing already synced order data for <strong>' + htmlEscape(websiteName) + '</strong>...',
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            showConfirmButton: false,
+            didOpen: function() {
+                Swal.showLoading();
+            }
+        });
+
+        function runBatch() {
+            iterations++;
+
+            if (iterations > 1000) {
+                Swal.fire('Refresh Stopped', 'Safety limit reached. Please run refresh again.', 'warning')
+                    .then(apiOrdersReloadAfterWebsiteSync);
+                return;
+            }
+
+            $.ajax({
+                url: action,
+                type: 'POST',
+                dataType: 'json',
+                headers: { 'Accept': 'application/json' },
+                data: {
+                    _token: csrfToken,
+                    limit: batchSize,
+                    cursor: cursor
+                },
+                success: function(response) {
+                    const data = response.data || {};
+                    refreshed += Number(data.refreshed || 0);
+                    failed += Number(data.failed || 0);
+                    cursor = Number(data.next_cursor || cursor);
+                    const remaining = Number(data.remaining || 0);
+
+                    if (remaining > 0) {
+                        Swal.update({
+                            html:
+                                'Website: <strong>' + htmlEscape(websiteName) + '</strong><br>' +
+                                'Refreshed: ' + refreshed + '<br>' +
+                                'Failed: ' + failed + '<br>' +
+                                'Remaining: ' + remaining
+                        });
+                        runBatch();
+                        return;
+                    }
+
+                    Swal.fire({
+                        icon: failed > 0 ? 'warning' : 'success',
+                        title: failed > 0 ? 'Refresh Completed With Errors' : 'Synced Orders Refreshed',
+                        html:
+                            'Website: <strong>' + htmlEscape(websiteName) + '</strong><br>' +
+                            'Refreshed: ' + refreshed + '<br>' +
+                            'Failed: ' + failed,
+                        confirmButtonText: 'Back to API Orders'
+                    }).then(apiOrdersReloadAfterWebsiteSync);
+                },
+                error: function(xhr) {
+                    Swal.fire(
+                        'Refresh Failed',
+                        xhr.responseJSON?.message || 'Synced order refresh failed. Please try again.',
+                        'error'
+                    ).then(apiOrdersReloadAfterWebsiteSync);
+                }
+            });
+        }
+
+        runBatch();
+    }
+
+    $(document).on('submit', '.api-form-refresh-synced-orders', function(event) {
+        event.preventDefault();
+        const form = this;
+        const websiteName = String($(form).data('website-name') || 'this website');
+
+        Swal.fire({
+            title: 'Refresh already synced orders?',
+            text: 'Existing synced orders will be refreshed for ' + websiteName + ' without creating duplicates.',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, Refresh'
+        }).then(function(result) {
+            if (swalConfirmed(result)) {
+                runApiWebsiteRefresh(form);
+            }
+        });
+    });
+
+    $(document).on('submit', '.api-form-retry-failed-orders', function(event) {
+        event.preventDefault();
+        const $form = $(this);
+        const websiteName = String($form.data('website-name') || 'this website');
+        const action = String($form.attr('action') || '');
+        const limit = Number($form.find('input[name="limit"]').val() || 100);
+
+        Swal.fire({
+            title: 'Retry failed orders?',
+            text: 'Failed website-order sync attempts will be retried for ' + websiteName + '.',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, Retry'
+        }).then(function(result) {
+            if (! swalConfirmed(result)) {
+                return;
+            }
+
+            Swal.fire({
+                title: 'Retrying Failed Orders',
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                showConfirmButton: false,
+                didOpen: function() {
+                    Swal.showLoading();
+                }
+            });
+
+            $.ajax({
+                url: action,
+                type: 'POST',
+                dataType: 'json',
+                headers: { 'Accept': 'application/json' },
+                data: {
+                    _token: csrfToken,
+                    limit: limit
+                },
+                success: function(response) {
+                    const data = response.data || {};
+                    Swal.fire({
+                        icon: Number(data.failed || 0) > 0 ? 'warning' : 'success',
+                        title: 'Retry Finished',
+                        html:
+                            'Website: <strong>' + htmlEscape(websiteName) + '</strong><br>' +
+                            'Sent: ' + Number(data.sent || 0) + '<br>' +
+                            'Still failed: ' + Number(data.failed || 0),
+                        confirmButtonText: 'Back to API Orders'
+                    }).then(apiOrdersReloadAfterWebsiteSync);
+                },
+                error: function(xhr) {
+                    Swal.fire(
+                        'Retry Failed',
+                        xhr.responseJSON?.message || 'Failed-order retry could not be completed.',
+                        'error'
+                    ).then(apiOrdersReloadAfterWebsiteSync);
+                }
+            });
+        });
+    });
+
     $(document).on('click', '.sync-webhook-action', function(e) {
         e.preventDefault();
 
@@ -1539,7 +2033,12 @@ $(document).ready(function() {
             cancelButtonText: 'Cancel'
         }).then(function(result) {
             if (swalConfirmed(result)) {
-                window.location.href = syncUrl;
+                const targetUrl = new URL(syncUrl, window.location.origin);
+                targetUrl.searchParams.set(
+                    'return_to',
+                    window.location.pathname + window.location.search
+                );
+                window.location.href = targetUrl.toString();
             }
         });
     });
@@ -1611,6 +2110,52 @@ $(document).ready(function() {
         assignCourierToSelected($(this).data('courier-id'), $(this).data('name') || 'Courier');
     });
 
+
+    $(document).on('click', '.manual-auto-employee-sync', function(e) {
+        e.preventDefault();
+
+        if (!isAdminUser) {
+            Swal.fire('Permission denied', 'Only admin can run Auto Employee Sync.', 'warning');
+            return;
+        }
+
+        const syncUrl = String($(this).data('url') || '');
+
+        if (!syncUrl) {
+            showToast('error', 'Auto Employee Sync route was not found.');
+            return;
+        }
+
+        Swal.fire({
+            title: 'Run Auto Employee Sync?',
+            text: 'All local unassigned active orders will be assigned automatically using the existing round-robin employee sequence.',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, Sync Now',
+            cancelButtonText: 'Cancel'
+        }).then(function(result) {
+            if (!swalConfirmed(result)) {
+                return;
+            }
+
+            $.ajax({
+                url: syncUrl,
+                type: 'POST',
+                data: { _token: csrfToken },
+                beforeSend: function() {
+                    $('#content-wrapper').css('opacity', '0.6');
+                },
+                success: function(res) {
+                    showToast(res.status ? 'success' : 'error', res.message || 'Auto Employee Sync completed.');
+                    reloadTable();
+                },
+                error: function(xhr) {
+                    $('#content-wrapper').css('opacity', '1');
+                    showToast('error', xhr.responseJSON?.message || 'Auto Employee Sync failed.');
+                }
+            });
+        });
+    });
 
     $(document).on('click', '.bulk-assign-employee-action', function(e) {
         e.preventDefault();

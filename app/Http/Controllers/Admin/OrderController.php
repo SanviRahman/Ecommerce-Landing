@@ -157,6 +157,8 @@ class OrderController extends Controller
             Order::STATUS_SHIPPED,
             Order::STATUS_DELIVERED,
             Order::STATUS_CANCELLED,
+            Order::STATUS_COURIER_PENDING,
+            Order::STATUS_COURIER_CANCELLED,
             Order::STATUS_FAKE,
             Order::STATUS_STOCK_OUT,
         ];
@@ -335,30 +337,95 @@ class OrderController extends Controller
         return null;
     }
 
+    private function websiteFilters(Request $request): array
+    {
+        $raw = $request->input('external_website_ids');
+
+        if ($raw === null || $raw === '') {
+            $raw = $request->input('external_website_id', 'all');
+        }
+
+        $values = is_array($raw)
+            ? $raw
+            : preg_split('/\s*,\s*/', (string) $raw, -1, PREG_SPLIT_NO_EMPTY);
+
+        $filters = collect($values ?: ['all'])
+            ->map(fn ($value) => trim((string) $value))
+            ->filter(fn ($value) => $value === 'all' || $value === 'local' || (ctype_digit($value) && (int) $value > 0))
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($filters) || in_array('all', $filters, true)) {
+            return ['all'];
+        }
+
+        return $filters;
+    }
+
+    private function applyWebsiteFilters(Builder $query, array $filters): Builder
+    {
+        if (empty($filters) || in_array('all', $filters, true)) {
+            return $query;
+        }
+
+        $includeLocal = in_array('local', $filters, true);
+        $websiteIds = collect($filters)
+            ->filter(fn ($value) => ctype_digit((string) $value) && (int) $value > 0)
+            ->map(fn ($value) => (int) $value)
+            ->unique()
+            ->values()
+            ->all();
+
+        if (! $includeLocal && empty($websiteIds)) {
+            return $query;
+        }
+
+        return $query->where(function (Builder $sourceQuery) use ($includeLocal, $websiteIds): void {
+            if ($includeLocal) {
+                $sourceQuery->whereNull('external_website_id');
+            }
+
+            if (! empty($websiteIds)) {
+                $method = $includeLocal ? 'orWhereIn' : 'whereIn';
+                $sourceQuery->{$method}('external_website_id', $websiteIds);
+            }
+        });
+    }
+
     private function getStats(
         bool $apiOnly = false,
-        ?string $externalWebsiteFilter = null
+        array $websiteFilters = ['all'],
+        bool $localOnlyByDefault = false
     ): array {
-        $baseQuery = Order::query()->forLoggedInUser();
+        /*
+         * The first card is intentionally page-specific:
+         * - regular Orders pages => local website total only
+         * - API Orders page      => received external/API total only
+         *
+         * Every other workflow card uses one shared Local + API query so the
+         * New/Pending/Complete/Shipped/List/Cancelled/Delivered/Stock Out
+         * counters remain identical on both All Orders and API Orders pages.
+         */
+        $totalQuery = Order::query()->forLoggedInUser();
 
         if ($apiOnly) {
-            $baseQuery->whereNotNull('external_website_id');
+            $totalQuery->whereNotNull('external_website_id');
+        } elseif ($localOnlyByDefault) {
+            $totalQuery->whereNull('external_website_id');
         }
 
-        if ($externalWebsiteFilter && $externalWebsiteFilter !== 'all') {
-            if ($externalWebsiteFilter === 'local') {
-                $baseQuery->whereNull('external_website_id');
-            } elseif (ctype_digit($externalWebsiteFilter) && (int) $externalWebsiteFilter > 0) {
-                $baseQuery->where('external_website_id', (int) $externalWebsiteFilter);
-            }
-        }
+        // Website filtering affects the table only. Dashboard/order cards stay as
+        // absolute totals so All Orders and API Orders always show the same
+        // merged Local + API workflow counters requested by the admin.
+        $sharedBaseQuery = Order::query()->forLoggedInUser();
 
         /*
          * Static Order List 1/2 are exclusive workflow buckets.
-         * An order placed in a static list must not remain counted inside
-         * Pending, Complete, Shipped, Delivered or another status card.
+         * Orders inside a static list are excluded from normal workflow cards.
+         * Courier lifecycle counters intentionally remain independent.
          */
-        $workflowBaseQuery = (clone $baseQuery)->whereNull('custom_order_list');
+        $workflowBaseQuery = (clone $sharedBaseQuery)->whereNull('custom_order_list');
 
         $fields = $this->getActiveOrderFields()
             ->map(fn(OrderField $field) => [
@@ -366,48 +433,48 @@ class OrderController extends Controller
                 'name'  => $field->name,
                 'slug'  => $field->slug,
                 'color' => $field->color ?: '#2563eb',
-                'count' => (int) $field->orders_count,
+                'count' => (clone $sharedBaseQuery)->where('order_field_id', $field->id)->count(),
             ])
             ->values();
 
         return [
-            'all'              => (clone $baseQuery)->count(),
-            'new'              => (clone $workflowBaseQuery)->where('order_status', Order::STATUS_PROCESSING)->count(),
-            'pending'          => (clone $workflowBaseQuery)->where('order_status', Order::STATUS_PENDING)->count(),
-            'completed'        => (clone $workflowBaseQuery)->where('order_status', Order::STATUS_CONFIRMED)->count(),
-            'shipped'          => (clone $workflowBaseQuery)->shipped()->count(),
-            'delivered'        => (clone $workflowBaseQuery)->where('order_status', Order::STATUS_DELIVERED)->count(),
-            'cancelled'        => (clone $workflowBaseQuery)->where('order_status', Order::STATUS_CANCELLED)->count(),
-            'courier_pending'  => (clone $workflowBaseQuery)->courierPending()->count(),
-            'courier_cancelled'=> (clone $workflowBaseQuery)->courierCancelled()->count(),
-            'courier_delivered'=> (clone $workflowBaseQuery)->courierDelivered()->count(),
-            'stock_out'        => (clone $workflowBaseQuery)->where('order_status', Order::STATUS_STOCK_OUT)->count(),
+            'all'               => (clone $totalQuery)->count(),
+            'new'               => (clone $workflowBaseQuery)->where('order_status', Order::STATUS_PROCESSING)->count(),
+            'pending'           => (clone $workflowBaseQuery)->where('order_status', Order::STATUS_PENDING)->count(),
+            'completed'         => (clone $workflowBaseQuery)->where('order_status', Order::STATUS_CONFIRMED)->count(),
+            'shipped'           => (clone $workflowBaseQuery)->shipped()->count(),
+            'delivered'         => (clone $workflowBaseQuery)->where('order_status', Order::STATUS_DELIVERED)->count(),
+            'cancelled'         => (clone $workflowBaseQuery)->whereIn('order_status', [Order::STATUS_CANCELLED, Order::STATUS_CANCELED])->count(),
+            'courier_pending'   => (clone $sharedBaseQuery)->courierPending()->count(),
+            'courier_cancelled' => (clone $sharedBaseQuery)->courierCancelled()->count(),
+            'courier_delivered' => (clone $sharedBaseQuery)->courierDelivered()->count(),
+            'stock_out'         => (clone $workflowBaseQuery)->where('order_status', Order::STATUS_STOCK_OUT)->count(),
 
-            'order_list_1'     => (clone $baseQuery)
+            'order_list_1'      => (clone $sharedBaseQuery)
                 ->where('custom_order_list', Order::CUSTOM_LIST_ONE)
                 ->count(),
 
-            'order_list_2'     => (clone $baseQuery)
+            'order_list_2'      => (clone $sharedBaseQuery)
                 ->where('custom_order_list', Order::CUSTOM_LIST_TWO)
                 ->count(),
 
-            'invoice_pending'  => (clone $workflowBaseQuery)
+            'invoice_pending'   => (clone $workflowBaseQuery)
                 ->where('order_status', Order::STATUS_CONFIRMED)
                 ->whereNull('invoice_printed_at')
                 ->count(),
 
-            'invoice_complete' => (clone $workflowBaseQuery)
+            'invoice_complete'  => (clone $workflowBaseQuery)
                 ->where('order_status', Order::STATUS_COMPLETE_INVOICE)
                 ->count(),
 
-            'fake'             => (clone $workflowBaseQuery)
+            'fake'              => (clone $workflowBaseQuery)
                 ->where(function ($query) {
                     $query->where('is_fake', true)
                         ->orWhere('order_status', Order::STATUS_FAKE);
                 })
                 ->count(),
 
-            'fields'           => $fields,
+            'fields'            => $fields,
         ];
     }
 
@@ -479,13 +546,7 @@ class OrderController extends Controller
             }
         }
 
-        if ($request->filled('external_website_id') && $request->external_website_id !== 'all') {
-            if ($request->external_website_id === 'local') {
-                $query->whereNull('external_website_id');
-            } else {
-                $query->where('external_website_id', (int) $request->external_website_id);
-            }
-        }
+        $this->applyWebsiteFilters($query, $this->websiteFilters($request));
 
         if ($request->filled('order_field_id') && $request->order_field_id !== 'all') {
             if ($request->order_field_id === 'none') {
@@ -736,9 +797,11 @@ class OrderController extends Controller
         $couriers        = $this->getActiveCouriers();
         $orderFields     = $this->getActiveOrderFields();
         $defaultCourier  = CourierAccount::defaultActive();
+        $websiteFilters  = $this->websiteFilters($request);
         $stats           = $this->getStats(
             $apiOnlyStats,
-            (string) $request->input('external_website_id', 'all')
+            $websiteFilters,
+            ! $apiOnlyStats
         );
         $orderStatuses   = $this->getOrderStatuses();
         $paymentStatuses = $this->getPaymentStatuses();
@@ -780,6 +843,7 @@ class OrderController extends Controller
             'courierAccounts'      => collect(),
             'courierServices'      => $courierServices,
             'externalWebsites'     => $externalWebsites,
+            'selectedWebsiteFilters' => $websiteFilters,
             'localWebsiteName'     => $localWebsiteName,
             'defaultCourier'       => $defaultCourier,
             'stats'                => $stats,
@@ -1753,7 +1817,13 @@ class OrderController extends Controller
     {
         $this->adminOrEmployeeOnly();
 
-        return $this->listResponse($request, $this->orderQuery(), 'All Orders', false, 'all');
+        return $this->listResponse(
+            $request,
+            $this->orderQuery()->whereNull('external_website_id'),
+            'All Orders',
+            false,
+            'all'
+        );
     }
 
     public function new (Request $request)
@@ -1773,14 +1843,26 @@ class OrderController extends Controller
     {
         $this->adminOrEmployeeOnly();
 
-        return $this->listResponse($request, $this->orderQuery()->pending(), 'Pending Orders', false, 'pending');
+        return $this->listResponse(
+            $request,
+            $this->orderQuery()->whereNull('custom_order_list')->pending(),
+            'Pending Orders',
+            false,
+            'pending'
+        );
     }
 
     public function confirmed(Request $request)
     {
         $this->adminOrEmployeeOnly();
 
-        return $this->listResponse($request, $this->orderQuery()->confirmed(), 'Complete Orders', false, 'completed');
+        return $this->listResponse(
+            $request,
+            $this->orderQuery()->whereNull('custom_order_list')->confirmed(),
+            'Complete Orders',
+            false,
+            'completed'
+        );
     }
 
     public function processing(Request $request)
@@ -1792,23 +1874,68 @@ class OrderController extends Controller
     {
         $this->adminOrEmployeeOnly();
 
-        return $this->listResponse($request, $this->orderQuery()->shipped(), 'Shipped Orders', false, 'shipped');
+        return $this->listResponse(
+            $request,
+            $this->orderQuery()->whereNull('custom_order_list')->shipped(),
+            'Shipped Orders',
+            false,
+            'shipped'
+        );
     }
 
     public function delivered(Request $request)
     {
         $this->adminOrEmployeeOnly();
 
-        return $this->listResponse($request, $this->orderQuery()->delivered(), 'Delivered Orders', false, 'delivered');
+        return $this->listResponse(
+            $request,
+            $this->orderQuery()->whereNull('custom_order_list')->delivered(),
+            'Delivered Orders',
+            false,
+            'delivered'
+        );
+    }
+
+    private function applyApiCardScope(Builder $query, ?string $card): Builder
+    {
+        $workflowCards = [
+            'new',
+            'pending',
+            'completed',
+            'shipped',
+            'delivered',
+            'cancelled',
+            'stock_out',
+        ];
+
+        if (in_array($card, $workflowCards, true)) {
+            $query->whereNull('custom_order_list');
+        }
+
+        return match ($card) {
+            'new'          => $query->where('order_status', Order::STATUS_PROCESSING),
+            'pending'      => $query->pending(),
+            'completed'    => $query->confirmed(),
+            'shipped'      => $query->shipped(),
+            'delivered'    => $query->delivered(),
+            'cancelled'    => $query->cancelled(),
+            'stock_out'    => $query->stockOut(),
+            'order_list_1' => $query->orderListOne(),
+            'order_list_2' => $query->orderListTwo(),
+            default        => $query,
+        };
     }
 
     public function apiOrders(Request $request)
     {
         $this->adminOrEmployeeOnly();
 
+        $query = $this->orderQuery()->whereNotNull('external_website_id');
+        $this->applyApiCardScope($query, (string) $request->input('api_card'));
+
         return $this->listResponse(
             $request,
-            $this->orderQuery()->whereNotNull('external_website_id'),
+            $query,
             'API Orders',
             false,
             'api-orders',
@@ -1860,7 +1987,13 @@ class OrderController extends Controller
     {
         $this->adminOrEmployeeOnly();
 
-        return $this->listResponse($request, $this->orderQuery()->cancelled(), 'Cancelled Orders', false, 'cancelled');
+        return $this->listResponse(
+            $request,
+            $this->orderQuery()->whereNull('custom_order_list')->cancelled(),
+            'Cancelled Orders',
+            false,
+            'cancelled'
+        );
     }
 
     public function fake(Request $request)
@@ -1874,7 +2007,13 @@ class OrderController extends Controller
     {
         $this->adminOrEmployeeOnly();
 
-        return $this->listResponse($request, $this->orderQuery()->stockOut(), 'Stock Out Orders', false, 'stock-out');
+        return $this->listResponse(
+            $request,
+            $this->orderQuery()->whereNull('custom_order_list')->stockOut(),
+            'Stock Out Orders',
+            false,
+            'stock-out'
+        );
     }
 
     public function pendingInvoices(Request $request)
@@ -2545,11 +2684,11 @@ class OrderController extends Controller
     {
         $this->adminOnly();
 
-        $count = app(OrderAssignmentService::class)->assignUnassigned();
+        $count = app(OrderAssignmentService::class)->assignUnassigned(true);
 
         return response()->json([
             'status'  => true,
-            'message' => "{$count} orders assigned successfully.",
+            'message' => "{$count} local unassigned orders auto-assigned successfully.",
         ]);
     }
 

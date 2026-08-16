@@ -446,6 +446,8 @@ class ExternalOrderImportService
             'shipped', 'dispatched' => Order::STATUS_SHIPPED,
             'delivered' => Order::STATUS_DELIVERED,
             'cancelled', 'canceled' => Order::STATUS_CANCELLED,
+            'courier_pending' => Order::STATUS_COURIER_PENDING,
+            'courier_cancelled', 'courier_canceled' => Order::STATUS_COURIER_CANCELLED,
             'fake' => Order::STATUS_FAKE,
             'stock_out', 'stockout' => Order::STATUS_STOCK_OUT,
             default => Order::STATUS_PROCESSING,

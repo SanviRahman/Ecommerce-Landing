@@ -35,6 +35,7 @@ class OrderAssignmentService
             if (in_array($lockedOrder->order_status, [
                 Order::STATUS_DELIVERED,
                 Order::STATUS_CANCELLED,
+                Order::STATUS_COURIER_CANCELLED,
                 Order::STATUS_FAKE,
             ], true)) {
                 return null;
@@ -61,17 +62,24 @@ class OrderAssignmentService
     /**
      * Assign all unassigned active orders using the same round-robin sequence.
      */
-    public function assignUnassigned(): int
+    public function assignUnassigned(bool $localOnly = false): int
     {
         $assignedCount = 0;
 
-        $orders = Order::query()
+        $ordersQuery = Order::query()
             ->whereNull('assigned_employee_id')
             ->whereNotIn('order_status', [
                 Order::STATUS_DELIVERED,
                 Order::STATUS_CANCELLED,
+                Order::STATUS_COURIER_CANCELLED,
                 Order::STATUS_FAKE,
-            ])
+            ]);
+
+        if ($localOnly) {
+            $ordersQuery->whereNull('external_website_id');
+        }
+
+        $orders = $ordersQuery
             ->oldest('id')
             ->get();
 
