@@ -188,41 +188,39 @@ class SteadfastStatusService
                 'steadfast_synced_at' => now(),
             ];
 
-            if ($this->autoUpdateEnabled($courierAccount)) {
-                if ($category === 'delivered') {
-                    $updateData['order_status'] = Order::STATUS_DELIVERED;
-                    $updateData['delivered_at'] = $lockedOrder->delivered_at ?: now();
-                    $updateData['cancelled_at'] = null;
-                    $updateData['custom_order_list'] = null;
-                    $updateData['is_fake'] = false;
-                    $updateData['marked_fake_at'] = null;
+            if ($this->autoUpdateEnabled($courierAccount) && $category === 'delivered') {
+                $updateData['order_status'] = Order::STATUS_DELIVERED;
+                $updateData['delivered_at'] = $lockedOrder->delivered_at ?: now();
+                $updateData['cancelled_at'] = null;
+                $updateData['custom_order_list'] = null;
+                $updateData['is_fake'] = false;
+                $updateData['marked_fake_at'] = null;
 
-                    if (Schema::hasColumn('orders', 'custom_order_list_moved_at')) {
-                        $updateData['custom_order_list_moved_at'] = null;
-                    }
+                if (Schema::hasColumn('orders', 'custom_order_list_moved_at')) {
+                    $updateData['custom_order_list_moved_at'] = null;
                 }
+            }
 
-                if (
-                    $category === 'cancelled'
-                    && ! in_array($lockedOrder->order_status, [
-                        Order::STATUS_DELIVERED,
-                        Order::STATUS_CANCELLED,
-                        Order::STATUS_CANCELED,
-                    ], true)
-                ) {
-                    $updateData['order_status'] = Order::STATUS_COURIER_CANCELLED;
-                }
+            if (
+                $category === 'cancelled'
+                && ! in_array($lockedOrder->order_status, [
+                    Order::STATUS_DELIVERED,
+                    Order::STATUS_CANCELLED,
+                    Order::STATUS_CANCELED,
+                ], true)
+            ) {
+                $updateData['order_status'] = Order::STATUS_COURIER_CANCELLED;
+            }
 
-                if (
-                    $category === 'pending'
-                    && ! in_array($lockedOrder->order_status, [
-                        Order::STATUS_DELIVERED,
-                        Order::STATUS_CANCELLED,
-                        Order::STATUS_CANCELED,
-                    ], true)
-                ) {
-                    $updateData['order_status'] = Order::STATUS_COURIER_PENDING;
-                }
+            if (
+                $category === 'pending'
+                && ! in_array($lockedOrder->order_status, [
+                    Order::STATUS_DELIVERED,
+                    Order::STATUS_CANCELLED,
+                    Order::STATUS_CANCELED,
+                ], true)
+            ) {
+                $updateData['order_status'] = Order::STATUS_COURIER_PENDING;
             }
 
             $lockedOrder->update($updateData);

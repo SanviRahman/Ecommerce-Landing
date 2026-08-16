@@ -508,73 +508,12 @@ class Order extends Model
 
     public function scopeCourierPending(Builder $query): Builder
     {
-        return $query->where(function (Builder $statusQuery) {
-            $statusQuery
-                ->where('order_status', self::STATUS_COURIER_PENDING)
-                ->orWhere(function (Builder $courierQuery) {
-                    $courierQuery
-                        ->whereNotIn('order_status', [
-                            self::STATUS_DELIVERED,
-                            self::STATUS_CANCELLED,
-                            self::STATUS_CANCELED,
-                            self::STATUS_COURIER_CANCELLED,
-                        ])
-                        ->where(function (Builder $providerQuery) {
-                            $providerQuery
-                                ->where(function (Builder $steadfastQuery) {
-                                    $steadfastQuery
-                                        ->where('courier_service', 'steadfast')
-                                        ->whereIn(
-                                            'steadfast_status',
-                                            \App\Services\SteadfastStatusService::PENDING_STATUSES
-                                        );
-                                })
-                                ->orWhere(function (Builder $pathaoQuery) {
-                                    $pathaoQuery
-                                        ->where('courier_service', 'pathao')
-                                        ->whereIn(
-                                            'pathao_status',
-                                            \App\Services\PathaoStatusService::PENDING_STATUSES
-                                        );
-                                });
-                        });
-                });
-        });
+        return $query->where('order_status', self::STATUS_COURIER_PENDING);
     }
 
     public function scopeCourierCancelled(Builder $query): Builder
     {
-        return $query->where(function (Builder $statusQuery) {
-            $statusQuery
-                ->where('order_status', self::STATUS_COURIER_CANCELLED)
-                ->orWhere(function (Builder $courierQuery) {
-                    $courierQuery
-                        ->whereNotIn('order_status', [
-                            self::STATUS_DELIVERED,
-                            self::STATUS_CANCELLED,
-                            self::STATUS_CANCELED,
-                        ])
-                        ->where(function (Builder $providerQuery) {
-                            $providerQuery
-                                ->where(function (Builder $steadfastQuery) {
-                                    $steadfastQuery
-                                        ->where('courier_service', 'steadfast')
-                                        ->whereIn(
-                                            'steadfast_status',
-                                            \App\Services\SteadfastStatusService::CANCELLED_STATUSES
-                                        );
-                                })
-                                ->orWhere(function (Builder $pathaoQuery) {
-                                    $pathaoQuery
-                                        ->where('courier_service', 'pathao')
-                                        ->whereIn(
-                                            'pathao_status',
-                                            \App\Services\PathaoStatusService::CANCELLED_STATUSES
-                                        );
-                                });
-                        });
-                });
-        });
+        return $query->where('order_status', self::STATUS_COURIER_CANCELLED);
     }
 
     public function scopeCourierDelivered(Builder $query): Builder
