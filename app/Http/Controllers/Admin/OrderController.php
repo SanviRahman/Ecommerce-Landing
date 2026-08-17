@@ -17,6 +17,7 @@ use App\Models\User;
 use App\Services\BdCourierFraudCheckerService;
 use App\Services\CampaignAutoSelectionService;
 use App\Services\CustomerIdentityService;
+use App\Services\ExternalOrderSyncService;
 use App\Services\OrderAssignmentService;
 use App\Services\OrderBlockService;
 use App\Services\PathaoCourierService;
@@ -810,6 +811,25 @@ class OrderController extends Controller
             ->orderBy('name')
             ->get();
 
+        // API Orders shows sender-side recovery counters beside each website.
+        // Counts are calculated from the same sync service used by the actual
+        // manual actions, so the UI never invents a separate definition of
+        // "missing" or "failed".
+        $websiteSyncProgress = [];
+
+        if ($apiOnlyStats && auth()->check() && auth()->user()->isAdmin()) {
+            $externalOrderSyncService = app(ExternalOrderSyncService::class);
+
+            foreach ($externalWebsites as $externalWebsite) {
+                if (! $externalWebsite->canSendOrders()) {
+                    continue;
+                }
+
+                $websiteSyncProgress[(int) $externalWebsite->id] =
+                    $externalOrderSyncService->syncProgress($externalWebsite);
+            }
+        }
+
         $localWebsiteName = preg_replace(
             '/^www\./i',
             '',
@@ -843,6 +863,7 @@ class OrderController extends Controller
             'courierAccounts'      => collect(),
             'courierServices'      => $courierServices,
             'externalWebsites'     => $externalWebsites,
+            'websiteSyncProgress'  => $websiteSyncProgress,
             'selectedWebsiteFilters' => $websiteFilters,
             'localWebsiteName'     => $localWebsiteName,
             'defaultCourier'       => $defaultCourier,

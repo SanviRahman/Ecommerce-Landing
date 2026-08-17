@@ -318,6 +318,11 @@ Route::middleware(['auth'])->group(function () {
         )->name('external-websites.reject-inbound-connection');
 
         Route::post(
+            'external-websites/{externalWebsite}/manual-receive-sync',
+            [ExternalWebsiteController::class, 'manualReceiveSync']
+        )->name('external-websites.manual-receive-sync');
+
+        Route::post(
             'external-websites/{externalWebsite}/sync-existing-orders',
             [ExternalWebsiteController::class, 'syncExistingOrders']
         )->name('external-websites.sync-existing-orders');

@@ -430,6 +430,111 @@ class ExternalWebsiteController extends Controller
         }
     }
 
+    /**
+     * Receiver-side manual recovery. This does not duplicate import logic.
+     * It securely asks the source website to resend missing/failed orders
+     * using the receiver token that both sides already share.
+     */
+    public function manualReceiveSync(
+        Request $request,
+        ExternalWebsite $externalWebsite
+    ) {
+        $this->adminOnly();
+
+        $validated = $request->validate([
+            'action' => ['required', 'string', 'in:progress,sync_missing,retry_failed'],
+            'limit' => ['nullable', 'integer', 'min:1', 'max:500'],
+        ]);
+
+        if (! $externalWebsite->status || ! $externalWebsite->receive_orders) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Receiving orders is disabled for this website connection.',
+            ], 422);
+        }
+
+        if (! $externalWebsite->isInboundApproved()) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Approve the receive connection before running manual sync.',
+            ], 409);
+        }
+
+        try {
+            $receiverToken = trim((string) $externalWebsite->api_token);
+        } catch (Throwable) {
+            $receiverToken = '';
+        }
+
+        if ($receiverToken === '') {
+            return response()->json([
+                'status' => false,
+                'message' => 'Local receiver token could not be loaded.',
+            ], 422);
+        }
+
+        $sourceBaseUrl = rtrim(trim((string) $externalWebsite->domain), '/');
+
+        if (! preg_match('#^https?://#i', $sourceBaseUrl)) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Source website domain must use http:// or https://.',
+            ], 422);
+        }
+
+        // Use the actual admin request host instead of APP_URL so cloned
+        // installations (Akhomeo/Deshbajar) cannot mismatch because of a
+        // stale environment value. The sender compares the host only.
+        $receiverDomain = $request->getSchemeAndHttpHost();
+
+        $remoteEndpoint = $sourceBaseUrl . '/api/external-order-sync/manual';
+        $action = (string) $validated['action'];
+        $limit = (int) ($validated['limit'] ?? ($action === 'retry_failed' ? 100 : 20));
+
+        try {
+            $response = Http::acceptJson()
+                ->asJson()
+                ->withToken($receiverToken)
+                ->timeout(max(30, min(120, (int) $externalWebsite->request_timeout * 4)))
+                ->post($remoteEndpoint, [
+                    'action' => $action,
+                    'limit' => $limit,
+                    'receiver_domain' => $receiverDomain,
+                ]);
+
+            $responseData = $response->json();
+
+            if (! $response->successful() || ! is_array($responseData) || ($responseData['status'] ?? false) !== true) {
+                $message = is_array($responseData)
+                    ? (string) ($responseData['message'] ?? 'Remote manual sync request failed.')
+                    : 'Remote manual sync request failed with HTTP ' . $response->status() . '.';
+
+                return response()->json([
+                    'status' => false,
+                    'message' => $message,
+                ], $response->status() >= 400 && $response->status() < 500 ? $response->status() : 502);
+            }
+
+            return response()->json([
+                'status' => true,
+                'message' => (string) ($responseData['message'] ?? 'Manual receive sync completed.'),
+                'data' => is_array($responseData['data'] ?? null) ? $responseData['data'] : [],
+            ]);
+        } catch (ConnectionException $exception) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Could not reach the source website: ' . $this->limitText($exception->getMessage()),
+            ], 502);
+        } catch (Throwable $exception) {
+            report($exception);
+
+            return response()->json([
+                'status' => false,
+                'message' => 'Manual receive sync failed. Please check the server log.',
+            ], 500);
+        }
+    }
+
     public function syncExistingOrders(
         Request $request,
         ExternalWebsite $externalWebsite,

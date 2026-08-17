@@ -670,6 +670,9 @@
                                                     && $externalWebsite->outbound_connection_status === 'connected';
                                                 $websiteConnectionReady = $websiteReceiveConnected || $websiteSendConnected;
                                                 $websiteSyncReady = $websiteSendConnected;
+                                                $syncProgress = $websiteSyncProgress[$externalWebsite->id] ?? [];
+                                                $syncMissingCount = (int) ($syncProgress['remaining'] ?? 0);
+                                                $syncFailedCount = (int) ($syncProgress['failed_total'] ?? 0);
                                             @endphp
 
                                             <div class="dropdown-item-text small d-flex justify-content-between align-items-center font-weight-bold">
@@ -680,6 +683,31 @@
                                             </div>
 
                                             @if($websiteSyncReady)
+                                                <div class="dropdown-item-text small pt-0 pb-1">
+                                                    <span class="badge badge-warning mr-1">
+                                                        Missing: {{ $syncMissingCount }}
+                                                    </span>
+                                                    <span class="badge badge-danger">
+                                                        Failed: {{ $syncFailedCount }}
+                                                    </span>
+                                                </div>
+                                            @endif
+
+                                            @if($websiteReceiveConnected)
+                                                <button type="button"
+                                                        class="dropdown-item api-manual-receive-sync"
+                                                        data-url="{{ route('admin.external-websites.manual-receive-sync', $externalWebsite) }}"
+                                                        data-website-name="{{ $externalWebsite->name }}"
+                                                        data-domain="{{ $externalWebsite->domain_host }}">
+                                                    <i class="fas fa-cloud-download-alt text-success mr-1"></i>
+                                                    Manual Receive Sync
+                                                </button>
+                                                <span class="dropdown-item-text small text-muted pt-0">
+                                                    Recover missing/failed orders from {{ $externalWebsite->domain_host }}.
+                                                </span>
+                                            @endif
+
+                                            @if($websiteSyncReady)
                                                 <form action="{{ route('admin.external-websites.sync-existing-orders', $externalWebsite) }}"
                                                       method="POST"
                                                       class="api-form-sync-existing"
@@ -688,7 +716,7 @@
                                                     <input type="hidden" name="limit" value="20">
                                                     <button type="submit" class="dropdown-item">
                                                         <i class="fas fa-cloud-upload-alt text-info mr-1"></i>
-                                                        Sync Missing Orders
+                                                        Sync Missing Orders ({{ $syncMissingCount }})
                                                     </button>
                                                 </form>
 
@@ -713,13 +741,13 @@
                                                     <input type="hidden" name="limit" value="100">
                                                     <button type="submit" class="dropdown-item">
                                                         <i class="fas fa-redo-alt text-danger mr-1"></i>
-                                                        Retry Failed Orders
+                                                        Retry Failed Orders ({{ $syncFailedCount }})
                                                     </button>
                                                 </form>
                                             @else
                                                 <span class="dropdown-item-text small text-muted">
                                                     @if($websiteReceiveConnected)
-                                                        Receive connection is active. Outgoing sync actions stay disabled until Send Orders is configured and connected.
+                                                        Receive connection is active. Use Manual Receive Sync above to recover orders; outgoing send actions remain disabled until Send Orders is configured.
                                                     @else
                                                         Enable Send Orders, save the receiver endpoint/token, then connect this website first.
                                                     @endif
@@ -1764,6 +1792,183 @@ $(document).ready(function() {
     function apiOrdersReloadAfterWebsiteSync() {
         window.location.href = window.location.pathname + window.location.search;
     }
+
+    function runManualReceiveSync(button) {
+        const $button = $(button);
+        const websiteName = String($button.data('website-name') || 'website');
+        const sourceDomain = String($button.data('domain') || websiteName);
+        const actionUrl = String($button.data('url') || '');
+        const batchSize = 20;
+        let initialMissing = 0;
+        let initialFailed = 0;
+        let remainingMissing = 0;
+        let remainingFailed = 0;
+        let sentNow = 0;
+        let failedDuringMissingSync = 0;
+        let retriedSent = 0;
+        let iterations = 0;
+
+        if (! actionUrl) {
+            showToast('error', 'Manual receive sync route was not found.');
+            return;
+        }
+
+        Swal.fire({
+            title: 'Manual Receive Sync',
+            html: 'Checking missing/failed orders from <strong>' + htmlEscape(sourceDomain) + '</strong>...',
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            showConfirmButton: false,
+            didOpen: function() {
+                Swal.showLoading();
+            }
+        });
+
+        function requestRemote(action, limit) {
+            return $.ajax({
+                url: actionUrl,
+                type: 'POST',
+                dataType: 'json',
+                headers: { 'Accept': 'application/json' },
+                data: {
+                    _token: csrfToken,
+                    action: action,
+                    limit: limit || batchSize
+                }
+            });
+        }
+
+        function finishSync() {
+            const stillHasProblems = remainingMissing > 0 || remainingFailed > 0;
+
+            Swal.fire({
+                icon: stillHasProblems ? 'warning' : 'success',
+                title: stillHasProblems ? 'Manual Sync Completed With Pending Issues' : 'Manual Receive Sync Completed',
+                html:
+                    'Website: <strong>' + htmlEscape(websiteName) + '</strong><br>' +
+                    'Missing before: <strong>' + numberText(initialMissing) + '</strong><br>' +
+                    'Failed before: <strong>' + numberText(initialFailed) + '</strong><br>' +
+                    'Sent now: <strong class="text-success">' + numberText(sentNow + retriedSent) + '</strong><br>' +
+                    'Still missing: <strong class="text-warning">' + numberText(remainingMissing) + '</strong><br>' +
+                    'Still failed: <strong class="text-danger">' + numberText(remainingFailed) + '</strong>',
+                confirmButtonText: 'Back to API Orders'
+            }).then(apiOrdersReloadAfterWebsiteSync);
+        }
+
+        function retryFailedOnce() {
+            if (remainingFailed <= 0) {
+                finishSync();
+                return;
+            }
+
+            Swal.update({
+                html:
+                    'Website: <strong>' + htmlEscape(sourceDomain) + '</strong><br>' +
+                    'Missing remaining: ' + numberText(remainingMissing) + '<br>' +
+                    'Retrying failed orders: ' + numberText(remainingFailed)
+            });
+
+            requestRemote('retry_failed', Math.min(Math.max(remainingFailed, 1), 500))
+                .done(function(response) {
+                    const data = response.data || {};
+                    retriedSent += Number(data.sent || 0);
+                    remainingMissing = Number(data.remaining || remainingMissing || 0);
+                    remainingFailed = Number(data.failed_total ?? data.failed ?? remainingFailed ?? 0);
+                    finishSync();
+                })
+                .fail(function(xhr) {
+                    Swal.fire(
+                        'Failed Order Retry Error',
+                        xhr.responseJSON?.message || 'Missing orders were checked, but failed-order retry could not be completed.',
+                        'error'
+                    ).then(apiOrdersReloadAfterWebsiteSync);
+                });
+        }
+
+        function syncMissingBatches() {
+            if (remainingMissing <= 0) {
+                retryFailedOnce();
+                return;
+            }
+
+            iterations++;
+
+            if (iterations > 1000) {
+                Swal.fire(
+                    'Manual Sync Stopped',
+                    'Safety limit reached. Please run Manual Receive Sync again.',
+                    'warning'
+                ).then(apiOrdersReloadAfterWebsiteSync);
+                return;
+            }
+
+            Swal.update({
+                html:
+                    'Website: <strong>' + htmlEscape(sourceDomain) + '</strong><br>' +
+                    'Recovering missing orders...<br>' +
+                    'Remaining: ' + numberText(remainingMissing) + '<br>' +
+                    'Failed: ' + numberText(remainingFailed)
+            });
+
+            requestRemote('sync_missing', batchSize)
+                .done(function(response) {
+                    const data = response.data || {};
+                    sentNow += Number(data.sent || 0);
+                    failedDuringMissingSync += Number(data.failed || 0);
+                    remainingMissing = Number(data.remaining || 0);
+                    remainingFailed = Number(data.failed_total || 0);
+                    syncMissingBatches();
+                })
+                .fail(function(xhr) {
+                    Swal.fire(
+                        'Manual Receive Sync Failed',
+                        xhr.responseJSON?.message || 'Could not recover missing orders from the source website.',
+                        'error'
+                    ).then(apiOrdersReloadAfterWebsiteSync);
+                });
+        }
+
+        requestRemote('progress', 1)
+            .done(function(response) {
+                const data = response.data || {};
+                initialMissing = Number(data.remaining || 0);
+                initialFailed = Number(data.failed_total || 0);
+                remainingMissing = initialMissing;
+                remainingFailed = initialFailed;
+
+                if (initialMissing <= 0 && initialFailed <= 0) {
+                    finishSync();
+                    return;
+                }
+
+                syncMissingBatches();
+            })
+            .fail(function(xhr) {
+                Swal.fire(
+                    'Manual Receive Sync Failed',
+                    xhr.responseJSON?.message || 'Could not connect to the source website for manual sync.',
+                    'error'
+                );
+            });
+    }
+
+    $(document).on('click', '.api-manual-receive-sync', function(event) {
+        event.preventDefault();
+        const button = this;
+        const websiteName = String($(button).data('website-name') || 'this website');
+
+        Swal.fire({
+            title: 'Recover missing orders?',
+            text: 'The source website will resend orders that are missing or previously failed for ' + websiteName + '. Existing imported orders will not be duplicated.',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, Manual Sync'
+        }).then(function(result) {
+            if (swalConfirmed(result)) {
+                runManualReceiveSync(button);
+            }
+        });
+    });
 
     function runApiWebsiteMissingSync(form) {
         const $form = $(form);
