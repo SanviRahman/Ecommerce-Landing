@@ -435,7 +435,7 @@
 
             <span>
                 Developed By
-                <a href="https://sfashanto.netlify.app/" target="_blank">SFA Shanto</a>
+                <a href="https://deshbajar.com/" target="_blank">Deshbajar</a>
             </span>
         </div>
     </div>
