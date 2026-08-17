@@ -1819,7 +1819,7 @@ class OrderController extends Controller
 
         return $this->listResponse(
             $request,
-            $this->orderQuery()->whereNull('external_website_id'),
+            $this->orderQuery(),
             'All Orders',
             false,
             'all'
@@ -1930,7 +1930,14 @@ class OrderController extends Controller
     {
         $this->adminOrEmployeeOnly();
 
-        $query = $this->orderQuery()->whereNotNull('external_website_id');
+        /*
+         * API Orders keeps its API-specific summary card, but the table source
+         * selector is shared with the regular Orders area. Therefore:
+         * - All Websites = local + all external websites
+         * - Local only    = local orders
+         * - One/multiple external websites = only those selected sources
+         */
+        $query = $this->orderQuery();
         $this->applyApiCardScope($query, (string) $request->input('api_card'));
 
         return $this->listResponse(

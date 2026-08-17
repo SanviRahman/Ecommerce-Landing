@@ -518,25 +518,13 @@ class Order extends Model
 
     public function scopeCourierDelivered(Builder $query): Builder
     {
-        return $query->where(function (Builder $courierQuery) {
-            $courierQuery
-                ->where(function (Builder $steadfastQuery) {
-                    $steadfastQuery
-                        ->where('courier_service', 'steadfast')
-                        ->whereIn(
-                            'steadfast_status',
-                            \App\Services\SteadfastStatusService::DELIVERED_STATUSES
-                        );
-                })
-                ->orWhere(function (Builder $pathaoQuery) {
-                    $pathaoQuery
-                        ->where('courier_service', 'pathao')
-                        ->whereIn(
-                            'pathao_status',
-                            \App\Services\PathaoStatusService::DELIVERED_STATUSES
-                        );
-                });
-        });
+        /*
+         * Courier lifecycle pages use the same canonical local workflow status
+         * as the Delivered Orders page. This keeps Local + External/API order
+         * totals consistent even when an imported order does not contain the
+         * original courier provider's raw delivered status.
+         */
+        return $query->where('order_status', self::STATUS_DELIVERED);
     }
 
     public function scopeOrderListOne(Builder $query): Builder

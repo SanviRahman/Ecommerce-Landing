@@ -661,14 +661,21 @@
 
                                         @forelse($externalWebsites ?? collect() as $externalWebsite)
                                             @php
-                                                $websiteSyncReady = $externalWebsite->canSendOrders()
+                                                // A receive-only integration is still a valid connected website.
+                                                // Outgoing sync actions, however, require the send direction itself
+                                                // to be configured and connected. Keep these two concepts separate.
+                                                $websiteReceiveConnected = $externalWebsite->receive_orders
+                                                    && $externalWebsite->inbound_connection_status === 'connected';
+                                                $websiteSendConnected = $externalWebsite->canSendOrders()
                                                     && $externalWebsite->outbound_connection_status === 'connected';
+                                                $websiteConnectionReady = $websiteReceiveConnected || $websiteSendConnected;
+                                                $websiteSyncReady = $websiteSendConnected;
                                             @endphp
 
                                             <div class="dropdown-item-text small d-flex justify-content-between align-items-center font-weight-bold">
                                                 <span>{{ $externalWebsite->domain_host }}</span>
-                                                <span class="badge {{ $websiteSyncReady ? 'badge-success' : 'badge-secondary' }}">
-                                                    {{ $websiteSyncReady ? 'Connected' : 'Not Connected' }}
+                                                <span class="badge {{ $websiteConnectionReady ? 'badge-success' : 'badge-secondary' }}">
+                                                    {{ $websiteConnectionReady ? 'Connected' : 'Not Connected' }}
                                                 </span>
                                             </div>
 
@@ -711,7 +718,11 @@
                                                 </form>
                                             @else
                                                 <span class="dropdown-item-text small text-muted">
-                                                    Enable Send Orders, save the receiver endpoint/token, then connect this website first.
+                                                    @if($websiteReceiveConnected)
+                                                        Receive connection is active. Outgoing sync actions stay disabled until Send Orders is configured and connected.
+                                                    @else
+                                                        Enable Send Orders, save the receiver endpoint/token, then connect this website first.
+                                                    @endif
                                                 </span>
                                             @endif
 
@@ -851,20 +862,18 @@
                                     </label>
                                 </div>
 
-                                @unless($isApiOrdersView)
-                                    <div class="custom-control custom-checkbox mb-2">
-                                        <input type="checkbox"
-                                               class="custom-control-input website-filter-checkbox"
-                                               id="websiteFilterLocal"
-                                               value="local"
-                                               data-label="{{ $localWebsiteName ?? request()->getHost() }}"
-                                               @checked($selectedWebsiteFilters->contains('local'))>
-                                        <label class="custom-control-label" for="websiteFilterLocal">
-                                            <i class="fas fa-home mr-1 text-success"></i>
-                                            {{ $localWebsiteName ?? request()->getHost() }}
-                                        </label>
-                                    </div>
-                                @endunless
+                                <div class="custom-control custom-checkbox mb-2">
+                                    <input type="checkbox"
+                                           class="custom-control-input website-filter-checkbox"
+                                           id="websiteFilterLocal"
+                                           value="local"
+                                           data-label="{{ $localWebsiteName ?? request()->getHost() }}"
+                                           @checked($selectedWebsiteFilters->contains('all') || $selectedWebsiteFilters->contains('local'))>
+                                    <label class="custom-control-label" for="websiteFilterLocal">
+                                        <i class="fas fa-home mr-1 text-success"></i>
+                                        {{ $localWebsiteName ?? request()->getHost() }}
+                                    </label>
+                                </div>
 
                                 @foreach($externalWebsites ?? collect() as $externalWebsite)
                                     <div class="custom-control custom-checkbox mb-2">
@@ -873,7 +882,7 @@
                                                id="websiteFilter{{ $externalWebsite->id }}"
                                                value="{{ $externalWebsite->id }}"
                                                data-label="{{ $externalWebsite->domain_host }}"
-                                               @checked($selectedWebsiteFilters->contains((string) $externalWebsite->id))>
+                                               @checked($selectedWebsiteFilters->contains('all') || $selectedWebsiteFilters->contains((string) $externalWebsite->id))>
                                         <label class="custom-control-label" for="websiteFilter{{ $externalWebsite->id }}">
                                             <i class="fas fa-globe-americas mr-1 text-primary"></i>
                                             {{ $externalWebsite->domain_host }}
@@ -1656,19 +1665,24 @@ $(document).ready(function() {
     });
 
     $(document).on('change', '#websiteFilterAll', function() {
-        if ($(this).is(':checked')) {
-            $('.website-filter-checkbox').prop('checked', false);
-        }
+        const selectAll = $(this).is(':checked');
+
+        // "All Websites" is a visual select-all control. Keep every source
+        // checkbox in sync so the admin can immediately see what is selected.
+        $('.website-filter-checkbox').prop('checked', selectAll);
     });
 
     $(document).on('change', '.website-filter-checkbox', function() {
-        if ($(this).is(':checked')) {
-            $('#websiteFilterAll').prop('checked', false);
-        }
+        const $websiteCheckboxes = $('.website-filter-checkbox');
+        const totalWebsites = $websiteCheckboxes.length;
+        const selectedWebsites = $websiteCheckboxes.filter(':checked').length;
 
-        if (! $('.website-filter-checkbox:checked').length) {
-            $('#websiteFilterAll').prop('checked', true);
-        }
+        // If every source is selected, reflect that state on "All Websites".
+        // Unchecking any one source automatically clears the All checkbox.
+        $('#websiteFilterAll').prop(
+            'checked',
+            totalWebsites === 0 || selectedWebsites === totalWebsites
+        );
     });
 
     $(document).on('click', '#btnApplyWebsiteFilter', function(e) {
