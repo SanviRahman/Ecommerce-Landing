@@ -117,7 +117,7 @@
                class="order-stat-card text-decoration-none {{ $currentStatusView === 'courier-delivered' ? 'active' : '' }}">
                 <div>
                     <h4 id="stat_courier_delivered">{{ $stats['courier_delivered'] ?? 0 }}</h4>
-                    <p>Courier Delivered</p>
+                    <p>Delivered</p>
                 </div>
                 <i class="fas fa-box-open"></i>
             </a>
