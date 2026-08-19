@@ -2,10 +2,13 @@
 
 namespace App\Services;
 
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use RuntimeException;
+use Throwable;
 
 class BdCourierFraudCheckerService
 {
@@ -17,26 +20,27 @@ class BdCourierFraudCheckerService
             throw new RuntimeException('Valid customer phone number not found.');
         }
 
-        $baseUrl = rtrim((string) config('services.bdcourier.url'), '/');
-        $endpoint = '/' . ltrim((string) config('services.bdcourier.check_endpoint'), '/');
+        $baseUrl = rtrim(trim((string) config('services.bdcourier.url')), '/');
+        $endpoint = '/' . ltrim(trim((string) config('services.bdcourier.check_endpoint')), '/');
         $url = $baseUrl . $endpoint;
+        $token = trim((string) config('services.bdcourier.token'));
+        $method = strtolower(trim((string) config('services.bdcourier.method', 'post')));
 
-        $token = (string) config('services.bdcourier.token');
-        $method = strtolower((string) config('services.bdcourier.method', 'POST'));
-
-        if (! $token) {
-            throw new RuntimeException('BD Courier API token is missing. Please set BDCOURIER_API_TOKEN in .env.');
+        if ($baseUrl === '' || filter_var($baseUrl, FILTER_VALIDATE_URL) === false) {
+            throw new RuntimeException(
+                'BD Courier API URL is missing or invalid. Check BDCOURIER_API_URL and clear config cache.'
+            );
         }
 
-        $client = Http::timeout((int) config('services.bdcourier.timeout', 15))
-            ->acceptJson()
-            ->asJson()
-            ->withToken($token)
-            ->withHeaders([
-                'Content-Type' => 'application/json',
-                'Authorization' => 'Bearer ' . $token,
-                'api_key' => $token,
-            ]);
+        if ($token === '') {
+            throw new RuntimeException(
+                'BD Courier API token is missing. Check BDCOURIER_API_TOKEN and clear config cache.'
+            );
+        }
+
+        if (! in_array($method, ['get', 'post'], true)) {
+            throw new RuntimeException('BDCOURIER_METHOD must be GET or POST.');
+        }
 
         $payload = [
             'phone' => $phone,
@@ -45,21 +49,66 @@ class BdCourierFraudCheckerService
             'customer_phone' => $phone,
         ];
 
-        $response = $method === 'get'
-            ? $client->get($url, ['phone' => $phone, 'phone_number' => $phone])
-            : $client->post($url, $payload);
+        try {
+            $client = $this->client($token);
+
+            $response = $method === 'get'
+                ? $client->get($url, [
+                    'phone' => $phone,
+                    'phone_number' => $phone,
+                ])
+                : $client->post($url, $payload);
+        } catch (ConnectionException $exception) {
+            Log::error('BD Courier fraud check connection failed', [
+                'url' => $url,
+                'host' => parse_url($url, PHP_URL_HOST),
+                'phone' => $this->maskPhone($phone),
+                'message' => $exception->getMessage(),
+                'curl_loaded' => extension_loaded('curl'),
+                'openssl_loaded' => extension_loaded('openssl'),
+                'force_ipv4' => (bool) config('services.bdcourier.force_ipv4', true),
+                'verify_ssl' => (bool) config('services.bdcourier.verify_ssl', true),
+            ]);
+
+            throw new RuntimeException(
+                'BD Courier API connection failed from this server.',
+                0,
+                $exception
+            );
+        } catch (Throwable $exception) {
+            Log::error('BD Courier fraud check request failed', [
+                'url' => $url,
+                'host' => parse_url($url, PHP_URL_HOST),
+                'phone' => $this->maskPhone($phone),
+                'exception' => $exception::class,
+                'message' => $exception->getMessage(),
+            ]);
+
+            throw new RuntimeException(
+                'BD Courier API request failed from this server.',
+                0,
+                $exception
+            );
+        }
 
         Log::info('BD Courier fraud check response', [
             'url' => $url,
-            'phone' => $phone,
+            'phone' => $this->maskPhone($phone),
             'status' => $response->status(),
             'content_type' => $response->header('Content-Type'),
             'body' => Str::limit($response->body(), 1000),
         ]);
 
         if (! $response->successful()) {
+            Log::warning('BD Courier fraud check returned non-success HTTP status', [
+                'url' => $url,
+                'phone' => $this->maskPhone($phone),
+                'status' => $response->status(),
+                'body' => Str::limit($response->body(), 1000),
+            ]);
+
             throw new RuntimeException(
-                'BD Courier API error HTTP ' . $response->status() . ': ' . Str::limit($response->body(), 300)
+                'BD Courier API returned HTTP ' . $response->status() . '.'
             );
         }
 
@@ -67,11 +116,60 @@ class BdCourierFraudCheckerService
 
         if (! is_array($raw)) {
             throw new RuntimeException(
-                'Invalid JSON response from BD Courier API. Check API URL/endpoint. Response: ' . Str::limit($response->body(), 300)
+                'BD Courier API returned an invalid JSON response.'
             );
         }
 
+        $apiStatus = strtolower((string) data_get($raw, 'status', ''));
+
+        if (in_array($apiStatus, ['error', 'failed', 'failure', 'false'], true)) {
+            $apiMessage = (string) (
+                data_get($raw, 'message')
+                ?? data_get($raw, 'error')
+                ?? 'BD Courier API reported a failed response.'
+            );
+
+            Log::warning('BD Courier fraud check API-level failure', [
+                'phone' => $this->maskPhone($phone),
+                'status' => $apiStatus,
+                'message' => Str::limit($apiMessage, 500),
+            ]);
+
+            throw new RuntimeException('BD Courier API reported a failed response.');
+        }
+
         return $this->formatResponse($phone, $raw);
+    }
+
+    private function client(string $token): PendingRequest
+    {
+        $options = [];
+
+        if (! (bool) config('services.bdcourier.verify_ssl', true)) {
+            $options['verify'] = false;
+        }
+
+        if (
+            (bool) config('services.bdcourier.force_ipv4', true)
+            && extension_loaded('curl')
+            && defined('CURLOPT_IPRESOLVE')
+            && defined('CURL_IPRESOLVE_V4')
+        ) {
+            $options['curl'] = [
+                constant('CURLOPT_IPRESOLVE') => constant('CURL_IPRESOLVE_V4'),
+            ];
+        }
+
+        return Http::withOptions($options)
+            ->connectTimeout(max(3, (int) config('services.bdcourier.connect_timeout', 10)))
+            ->timeout(max(5, (int) config('services.bdcourier.timeout', 30)))
+            ->acceptJson()
+            ->asJson()
+            ->withToken($token)
+            ->withHeaders([
+                'api_key' => $token,
+                'User-Agent' => 'UpayBazar-Fraud-Checker/1.0',
+            ]);
     }
 
     private function normalizePhone(?string $phone): ?string
@@ -79,18 +177,23 @@ class BdCourierFraudCheckerService
         $phone = preg_replace('/[^0-9]/', '', (string) $phone);
 
         if (Str::startsWith($phone, '8801') && strlen($phone) === 13) {
-            return '0' . substr($phone, 3);
+            $phone = '0' . substr($phone, 3);
+        } elseif (Str::startsWith($phone, '1') && strlen($phone) === 10) {
+            $phone = '0' . $phone;
         }
 
-        if (Str::startsWith($phone, '1') && strlen($phone) === 10) {
-            return '0' . $phone;
+        return Str::startsWith($phone, '01') && strlen($phone) === 11
+            ? $phone
+            : null;
+    }
+
+    private function maskPhone(string $phone): string
+    {
+        if (strlen($phone) < 7) {
+            return '***';
         }
 
-        if (Str::startsWith($phone, '01') && strlen($phone) === 11) {
-            return $phone;
-        }
-
-        return $phone ?: null;
+        return substr($phone, 0, 4) . '***' . substr($phone, -4);
     }
 
     private function formatResponse(string $phone, array $raw): array

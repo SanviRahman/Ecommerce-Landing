@@ -36,11 +36,14 @@ return [
     ],
 
     'bdcourier' => [
-        'url'            => env('BDCOURIER_API_URL', 'https://app.bdcourier.com/api'),
-        'token'          => env('BDCOURIER_API_TOKEN'),
-        'check_endpoint' => env('BDCOURIER_CHECK_ENDPOINT', '/courier-check'),
-        'method'         => env('BDCOURIER_METHOD', 'POST'),
-        'timeout'        => env('BDCOURIER_TIMEOUT', 15),
+        'url'             => env('BDCOURIER_API_URL', 'https://api.bdcourier.com'),
+        'token'           => env('BDCOURIER_API_TOKEN'),
+        'check_endpoint'  => env('BDCOURIER_CHECK_ENDPOINT', '/courier-check'),
+        'method'          => env('BDCOURIER_METHOD', 'POST'),
+        'timeout'         => (int) env('BDCOURIER_TIMEOUT', 30),
+        'connect_timeout' => (int) env('BDCOURIER_CONNECT_TIMEOUT', 10),
+        'force_ipv4'      => filter_var(env('BDCOURIER_FORCE_IPV4', true), FILTER_VALIDATE_BOOL),
+        'verify_ssl'      => filter_var(env('BDCOURIER_VERIFY_SSL', true), FILTER_VALIDATE_BOOL),
     ],
 
 ];

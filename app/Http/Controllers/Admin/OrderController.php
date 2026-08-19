@@ -3390,30 +3390,70 @@ class OrderController extends Controller
 
         try {
             $data = $bdCourierFraudCheckerService->check($order->phone);
+        } catch (Throwable $exception) {
+            report($exception);
 
-            $order->forceFill([
-                'fraud_check_success' => max(0, (int) ($data['success'] ?? 0)),
-                'fraud_check_cancel'  => max(0, (int) ($data['cancel'] ?? 0)),
-                'fraud_checked_at'    => now(),
-            ])->save();
+            $message = str_contains(
+                strtolower($exception->getMessage()),
+                'phone number'
+            )
+                ? 'Valid customer phone number not found.'
+                : 'Fraud checker could not fetch BD Courier data from this server. Check production API configuration/connectivity.';
+
+            $statusCode = $message === 'Valid customer phone number not found.'
+                ? 422
+                : 502;
 
             return response()->json([
-                'status'  => true,
-                'message' => 'Fraud checker data fetched successfully.',
-                'order'   => [
-                    'id'            => $order->id,
-                    'invoice_id'    => $order->invoice_id,
-                    'customer_name' => $order->customer_name,
-                    'phone'         => $order->phone,
-                ],
-                'data'    => $data,
-            ]);
-        } catch (Throwable $e) {
-            return response()->json([
-                'status'  => false,
-                'message' => 'Fraud Check Failed. Please try again later.',
-            ], 422);
+                'status' => false,
+                'message' => $message,
+            ], $statusCode);
         }
+
+        $summarySaved = false;
+
+        try {
+            $summaryColumnsExist =
+                Schema::hasColumn('orders', 'fraud_check_success')
+                && Schema::hasColumn('orders', 'fraud_check_cancel')
+                && Schema::hasColumn('orders', 'fraud_checked_at');
+
+            if ($summaryColumnsExist) {
+                $order->forceFill([
+                    'fraud_check_success' => max(0, (int) ($data['success'] ?? 0)),
+                    'fraud_check_cancel' => max(0, (int) ($data['cancel'] ?? 0)),
+                    'fraud_checked_at' => now(),
+                ])->save();
+
+                $summarySaved = true;
+            } else {
+                logger()->warning('Fraud check summary columns are missing on orders table.', [
+                    'order_id' => $order->id,
+                    'required_columns' => [
+                        'fraud_check_success',
+                        'fraud_check_cancel',
+                        'fraud_checked_at',
+                    ],
+                ]);
+            }
+        } catch (Throwable $exception) {
+            report($exception);
+        }
+
+        return response()->json([
+            'status' => true,
+            'message' => $summarySaved
+                ? 'Fraud checker data fetched successfully.'
+                : 'Fraud checker data fetched successfully. Run the pending database migration to persist the summary.',
+            'order' => [
+                'id' => $order->id,
+                'invoice_id' => $order->invoice_id,
+                'customer_name' => $order->customer_name,
+                'phone' => $order->phone,
+            ],
+            'data' => $data,
+            'summary_saved' => $summarySaved,
+        ]);
     }
 
     public function storeOrderField(Request $request)
