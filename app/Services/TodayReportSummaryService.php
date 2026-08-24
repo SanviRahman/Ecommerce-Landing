@@ -20,8 +20,8 @@ final class TodayReportSummaryService
      * - Checkout counts only frontend orders created in the selected day.
      * - Manual orders are excluded from Checkout, shown in Manual Order, and included
      *   in Total Orders.
-     * - Shipped uses the cumulative shipped/courier lifecycle, but only for orders
-     *   created inside the selected date window.
+     * - Shipped counts only orders whose current local order_status is shipped.
+     *   Courier acceptance, consignment ID or tracking alone does not count as shipped.
      */
     public function summary(array $filters = [], mixed $user = null): array
     {
@@ -66,13 +66,14 @@ final class TodayReportSummaryService
         $completedInvoices = (clone $workflowCreatedOrders)
             ->where('orders.order_status', $this->completeInvoiceStatus());
 
-        $shippedOrders = (clone $workflowCreatedOrders)->shipped();
+        $shippedOrders = (clone $workflowCreatedOrders)
+            ->where('orders.order_status', Order::STATUS_SHIPPED);
 
         $deliveredOrders = (clone $workflowCreatedOrders)
             ->where('orders.order_status', Order::STATUS_DELIVERED);
 
         /*
-         * All status cards use the current status/lifecycle of orders created in
+         * All status cards use the current local order status of orders created in
          * the selected day. Status changes on older orders are intentionally ignored.
          */
         $cancelledOrders = (clone $workflowCreatedOrders)

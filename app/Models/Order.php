@@ -452,10 +452,19 @@ class Order extends Model
     public function scopeShipped(Builder $query): Builder
     {
         /*
-         * Shipped is a cumulative dispatch lifecycle, not only the current
-         * local order_status. Once an order is marked Shipped or is accepted
-         * by SteadFast/Pathao, it remains in the Shipped list while the courier
-         * status progresses through pending, delivered or courier-cancelled.
+         * Order-management workflow cards/lists are current-state buckets.
+         * Sending an order to SteadFast/Pathao does not mean the local order
+         * has been manually moved to the Shipped status.
+         */
+        return $query->where('order_status', self::STATUS_SHIPPED);
+    }
+
+    public function scopeShippedLifecycle(Builder $query): Builder
+    {
+        /*
+         * Historical/reporting lifecycle helper. Once an order is marked
+         * Shipped or accepted by SteadFast/Pathao, it remains part of the
+         * shipped lifecycle even if its later courier status changes.
          */
         return $query->where(function (Builder $shippedQuery) {
             $shippedQuery
@@ -488,12 +497,6 @@ class Order extends Model
                         });
                 })
                 ->orWhere(function (Builder $externalSourceQuery) {
-                    /*
-                     * External API orders preserve the source website's shipped
-                     * lifecycle in external_payload.was_shipped. This is a safe
-                     * fallback if a legacy/imported row does not yet have its
-                     * local shipped_at timestamp populated.
-                     */
                     $externalSourceQuery
                         ->whereNotNull('external_website_id')
                         ->where('external_payload->was_shipped', true);
