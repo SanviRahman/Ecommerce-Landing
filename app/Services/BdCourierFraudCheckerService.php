@@ -49,15 +49,34 @@ class BdCourierFraudCheckerService
             'customer_phone' => $phone,
         ];
 
-        try {
-            $client = $this->client($token);
+        $transport = 'laravel-http';
 
-            $response = $method === 'get'
-                ? $client->get($url, [
-                    'phone' => $phone,
-                    'phone_number' => $phone,
-                ])
-                : $client->post($url, $payload);
+        try {
+            if ($this->laravelHttpTransportAvailable()) {
+                $result = $this->requestUsingLaravelHttp(
+                    $method,
+                    $url,
+                    $token,
+                    $payload
+                );
+            } else {
+                $transport = 'tls-socket-fallback';
+
+                Log::warning('BD Courier Laravel HTTP transport unavailable; using TLS socket fallback.', [
+                    'host' => parse_url($url, PHP_URL_HOST),
+                    'phone' => $this->maskPhone($phone),
+                    'curl_loaded' => extension_loaded('curl'),
+                    'allow_url_fopen' => $this->allowUrlFopenEnabled(),
+                    'openssl_loaded' => extension_loaded('openssl'),
+                ]);
+
+                $result = $this->requestUsingTlsSocket(
+                    $method,
+                    $url,
+                    $token,
+                    $payload
+                );
+            }
         } catch (ConnectionException $exception) {
             Log::error('BD Courier fraud check connection failed', [
                 'url' => $url,
@@ -65,6 +84,7 @@ class BdCourierFraudCheckerService
                 'phone' => $this->maskPhone($phone),
                 'message' => $exception->getMessage(),
                 'curl_loaded' => extension_loaded('curl'),
+                'allow_url_fopen' => $this->allowUrlFopenEnabled(),
                 'openssl_loaded' => extension_loaded('openssl'),
                 'force_ipv4' => (bool) config('services.bdcourier.force_ipv4', true),
                 'verify_ssl' => (bool) config('services.bdcourier.verify_ssl', true),
@@ -76,43 +96,79 @@ class BdCourierFraudCheckerService
                 $exception
             );
         } catch (Throwable $exception) {
-            Log::error('BD Courier fraud check request failed', [
-                'url' => $url,
-                'host' => parse_url($url, PHP_URL_HOST),
-                'phone' => $this->maskPhone($phone),
-                'exception' => $exception::class,
-                'message' => $exception->getMessage(),
-            ]);
+            if (
+                $transport === 'laravel-http'
+                && $this->isMissingGuzzleHandlerException($exception)
+            ) {
+                try {
+                    $transport = 'tls-socket-fallback';
 
-            throw new RuntimeException(
-                'BD Courier API request failed from this server.',
-                0,
-                $exception
-            );
+                    Log::warning('BD Courier Guzzle handler unavailable; retrying with TLS socket fallback.', [
+                        'host' => parse_url($url, PHP_URL_HOST),
+                        'phone' => $this->maskPhone($phone),
+                        'message' => $exception->getMessage(),
+                    ]);
+
+                    $result = $this->requestUsingTlsSocket(
+                        $method,
+                        $url,
+                        $token,
+                        $payload
+                    );
+                } catch (Throwable $fallbackException) {
+                    $this->logRequestFailure(
+                        $url,
+                        $phone,
+                        $fallbackException,
+                        'tls-socket-fallback'
+                    );
+
+                    throw new RuntimeException(
+                        'BD Courier API request failed from this server. Enable PHP cURL in cPanel if the fallback transport is blocked.',
+                        0,
+                        $fallbackException
+                    );
+                }
+            } else {
+                $this->logRequestFailure(
+                    $url,
+                    $phone,
+                    $exception,
+                    $transport
+                );
+
+                throw new RuntimeException(
+                    'BD Courier API request failed from this server.',
+                    0,
+                    $exception
+                );
+            }
         }
 
         Log::info('BD Courier fraud check response', [
             'url' => $url,
             'phone' => $this->maskPhone($phone),
-            'status' => $response->status(),
-            'content_type' => $response->header('Content-Type'),
-            'body' => Str::limit($response->body(), 1000),
+            'transport' => $transport,
+            'status' => $result['status'],
+            'content_type' => $result['content_type'],
+            'body' => Str::limit($result['body'], 1000),
         ]);
 
-        if (! $response->successful()) {
+        if ($result['status'] < 200 || $result['status'] >= 300) {
             Log::warning('BD Courier fraud check returned non-success HTTP status', [
                 'url' => $url,
                 'phone' => $this->maskPhone($phone),
-                'status' => $response->status(),
-                'body' => Str::limit($response->body(), 1000),
+                'transport' => $transport,
+                'status' => $result['status'],
+                'body' => Str::limit($result['body'], 1000),
             ]);
 
             throw new RuntimeException(
-                'BD Courier API returned HTTP ' . $response->status() . '.'
+                'BD Courier API returned HTTP ' . $result['status'] . '.'
             );
         }
 
-        $raw = $response->json();
+        $raw = json_decode($result['body'], true);
 
         if (! is_array($raw)) {
             throw new RuntimeException(
@@ -139,6 +195,28 @@ class BdCourierFraudCheckerService
         }
 
         return $this->formatResponse($phone, $raw);
+    }
+
+    private function requestUsingLaravelHttp(
+        string $method,
+        string $url,
+        string $token,
+        array $payload
+    ): array {
+        $client = $this->client($token);
+
+        $response = $method === 'get'
+            ? $client->get($url, [
+                'phone' => $payload['phone'],
+                'phone_number' => $payload['phone_number'],
+            ])
+            : $client->post($url, $payload);
+
+        return [
+            'status' => $response->status(),
+            'content_type' => (string) $response->header('Content-Type'),
+            'body' => $response->body(),
+        ];
     }
 
     private function client(string $token): PendingRequest
@@ -170,6 +248,304 @@ class BdCourierFraudCheckerService
                 'api_key' => $token,
                 'User-Agent' => 'UpayBazar-Fraud-Checker/1.0',
             ]);
+    }
+
+    private function requestUsingTlsSocket(
+        string $method,
+        string $url,
+        string $token,
+        array $payload
+    ): array {
+        if (! function_exists('stream_socket_client')) {
+            throw new RuntimeException(
+                'stream_socket_client is unavailable. Enable PHP cURL in cPanel.'
+            );
+        }
+
+        if (! extension_loaded('openssl')) {
+            throw new RuntimeException(
+                'PHP OpenSSL extension is required for the HTTPS fallback transport.'
+            );
+        }
+
+        $parts = parse_url($url);
+
+        if (
+            ! is_array($parts)
+            || strtolower((string) ($parts['scheme'] ?? '')) !== 'https'
+            || empty($parts['host'])
+        ) {
+            throw new RuntimeException(
+                'TLS socket fallback requires a valid HTTPS URL.'
+            );
+        }
+
+        $host = (string) $parts['host'];
+        $port = (int) ($parts['port'] ?? 443);
+        $path = (string) ($parts['path'] ?? '/');
+
+        if ($path === '') {
+            $path = '/';
+        }
+
+        $query = (string) ($parts['query'] ?? '');
+
+        if ($method === 'get') {
+            $requestQuery = http_build_query([
+                'phone' => $payload['phone'],
+                'phone_number' => $payload['phone_number'],
+            ]);
+
+            $query = $query !== ''
+                ? $query . '&' . $requestQuery
+                : $requestQuery;
+        }
+
+        if ($query !== '') {
+            $path .= '?' . $query;
+        }
+
+        $verifySsl = (bool) config('services.bdcourier.verify_ssl', true);
+
+        $context = stream_context_create([
+            'ssl' => [
+                'verify_peer' => $verifySsl,
+                'verify_peer_name' => $verifySsl,
+                'allow_self_signed' => ! $verifySsl,
+                'peer_name' => $host,
+                'SNI_enabled' => true,
+            ],
+        ]);
+
+        $connectHost = $host;
+
+        if ((bool) config('services.bdcourier.force_ipv4', true)) {
+            $ipv4 = gethostbyname($host);
+
+            if (filter_var($ipv4, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+                $connectHost = $ipv4;
+            }
+        }
+
+        $timeout = max(5, (int) config('services.bdcourier.timeout', 30));
+        $connectTimeout = max(3, (int) config('services.bdcourier.connect_timeout', 10));
+        $errno = 0;
+        $error = '';
+
+        $socket = @stream_socket_client(
+            'tls://' . $connectHost . ':' . $port,
+            $errno,
+            $error,
+            $connectTimeout,
+            STREAM_CLIENT_CONNECT,
+            $context
+        );
+
+        if (! is_resource($socket)) {
+            throw new RuntimeException(
+                'TLS socket connection failed: ' . ($error !== '' ? $error : 'unknown error') . " ({$errno})"
+            );
+        }
+
+        try {
+            stream_set_timeout($socket, $timeout);
+
+            $body = $method === 'post'
+                ? json_encode($payload, JSON_UNESCAPED_SLASHES)
+                : '';
+
+            if ($body === false) {
+                throw new RuntimeException(
+                    'Unable to encode BD Courier request payload.'
+                );
+            }
+
+            $headers = [
+                strtoupper($method) . ' ' . $path . ' HTTP/1.1',
+                'Host: ' . $host,
+                'Accept: application/json',
+                'Accept-Encoding: identity',
+                'Authorization: Bearer ' . $token,
+                'api_key: ' . $token,
+                'User-Agent: UpayBazar-Fraud-Checker/1.0',
+                'Connection: close',
+            ];
+
+            if ($method === 'post') {
+                $headers[] = 'Content-Type: application/json';
+                $headers[] = 'Content-Length: ' . strlen($body);
+            }
+
+            $request = implode("\r\n", $headers) . "\r\n\r\n" . $body;
+
+            $offset = 0;
+            $requestLength = strlen($request);
+
+            while ($offset < $requestLength) {
+                $written = fwrite($socket, substr($request, $offset));
+
+                if ($written === false || $written === 0) {
+                    throw new RuntimeException(
+                        'Unable to write the BD Courier request to the TLS socket.'
+                    );
+                }
+
+                $offset += $written;
+            }
+
+            $rawResponse = '';
+
+            while (! feof($socket)) {
+                $chunk = fread($socket, 8192);
+
+                if ($chunk === false) {
+                    throw new RuntimeException(
+                        'Unable to read the BD Courier response from the TLS socket.'
+                    );
+                }
+
+                $rawResponse .= $chunk;
+
+                $meta = stream_get_meta_data($socket);
+
+                if (($meta['timed_out'] ?? false) === true) {
+                    throw new RuntimeException(
+                        'BD Courier TLS socket request timed out.'
+                    );
+                }
+            }
+        } finally {
+            fclose($socket);
+        }
+
+        return $this->parseRawHttpResponse($rawResponse);
+    }
+
+    private function parseRawHttpResponse(string $rawResponse): array
+    {
+        $headerEnd = strpos($rawResponse, "\r\n\r\n");
+
+        if ($headerEnd === false) {
+            throw new RuntimeException(
+                'BD Courier returned an invalid HTTP response.'
+            );
+        }
+
+        $rawHeaders = substr($rawResponse, 0, $headerEnd);
+        $body = substr($rawResponse, $headerEnd + 4);
+        $headerLines = explode("\r\n", $rawHeaders);
+        $statusLine = array_shift($headerLines);
+
+        if (! preg_match('/^HTTP\/\S+\s+(\d{3})/', (string) $statusLine, $matches)) {
+            throw new RuntimeException(
+                'BD Courier returned an invalid HTTP status line.'
+            );
+        }
+
+        $status = (int) $matches[1];
+        $headers = [];
+
+        foreach ($headerLines as $line) {
+            if (! str_contains($line, ':')) {
+                continue;
+            }
+
+            [$name, $value] = explode(':', $line, 2);
+            $headers[strtolower(trim($name))] = trim($value);
+        }
+
+        if (
+            str_contains(
+                strtolower((string) ($headers['transfer-encoding'] ?? '')),
+                'chunked'
+            )
+        ) {
+            $body = $this->decodeChunkedBody($body);
+        }
+
+        return [
+            'status' => $status,
+            'content_type' => (string) ($headers['content-type'] ?? ''),
+            'body' => $body,
+        ];
+    }
+
+    private function decodeChunkedBody(string $body): string
+    {
+        $decoded = '';
+        $offset = 0;
+        $length = strlen($body);
+
+        while ($offset < $length) {
+            $lineEnd = strpos($body, "\r\n", $offset);
+
+            if ($lineEnd === false) {
+                throw new RuntimeException(
+                    'Invalid chunked response from BD Courier.'
+                );
+            }
+
+            $sizeLine = trim(substr($body, $offset, $lineEnd - $offset));
+            $sizeToken = explode(';', $sizeLine, 2)[0];
+            $chunkSize = hexdec($sizeToken);
+            $offset = $lineEnd + 2;
+
+            if ($chunkSize === 0) {
+                break;
+            }
+
+            if ($offset + $chunkSize > $length) {
+                throw new RuntimeException(
+                    'Incomplete chunked response from BD Courier.'
+                );
+            }
+
+            $decoded .= substr($body, $offset, $chunkSize);
+            $offset += $chunkSize + 2;
+        }
+
+        return $decoded;
+    }
+
+    private function laravelHttpTransportAvailable(): bool
+    {
+        return extension_loaded('curl') || $this->allowUrlFopenEnabled();
+    }
+
+    private function allowUrlFopenEnabled(): bool
+    {
+        return filter_var(
+            ini_get('allow_url_fopen'),
+            FILTER_VALIDATE_BOOL
+        );
+    }
+
+    private function isMissingGuzzleHandlerException(Throwable $exception): bool
+    {
+        $message = strtolower($exception->getMessage());
+
+        return str_contains($message, 'guzzlehttp requires curl')
+            || str_contains($message, 'allow_url_fopen ini setting')
+            || str_contains($message, 'custom http handler');
+    }
+
+    private function logRequestFailure(
+        string $url,
+        string $phone,
+        Throwable $exception,
+        string $transport
+    ): void {
+        Log::error('BD Courier fraud check request failed', [
+            'url' => $url,
+            'host' => parse_url($url, PHP_URL_HOST),
+            'phone' => $this->maskPhone($phone),
+            'transport' => $transport,
+            'exception' => $exception::class,
+            'message' => $exception->getMessage(),
+            'curl_loaded' => extension_loaded('curl'),
+            'allow_url_fopen' => $this->allowUrlFopenEnabled(),
+            'openssl_loaded' => extension_loaded('openssl'),
+        ]);
     }
 
     private function normalizePhone(?string $phone): ?string
