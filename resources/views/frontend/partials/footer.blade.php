@@ -9,7 +9,11 @@
         ->latest()
         ->get();
 
-    $websiteName = $siteSetting->website_name ?? config('app.name', 'EcoEats');
+    $footerSectionActive = (bool) ($campaign?->footer_section_status ?? true);
+    $socialMediaSectionActive = (bool) ($campaign?->social_media_section_status ?? true);
+    $footerColumnClass = $socialMediaSectionActive ? 'col-lg-4' : 'col-lg-6';
+
+    $websiteName = $siteSetting?->website_name ?? config('app.name', 'EcoEats');
 
     $whiteLogo = null;
 
@@ -22,17 +26,17 @@
         $whiteLogo = null;
     }
 
-    $footerPhone = $siteSetting->phone
-        ?? $siteSetting->hotline
-        ?? $siteSetting->mobile
-        ?? $siteSetting->contact_number
+    $footerPhone = $siteSetting?->phone
+        ?? $siteSetting?->hotline
+        ?? $siteSetting?->mobile
+        ?? $siteSetting?->contact_number
         ?? null;
 
     $footerPhoneUrl = $footerPhone
         ? 'tel:' . preg_replace('/[^\d+]/', '', $footerPhone)
         : null;
 
-    $footerEmail = $siteSetting->email ?? null;
+    $footerEmail = $siteSetting?->email ?? null;
 
     $footerEmailUrl = $footerEmail
         ? 'mailto:' . $footerEmail
@@ -319,10 +323,11 @@
 </style>
 @endpush
 
+@if($footerSectionActive)
 <footer class="front-footer" id="contact-section">
     <div class="container">
         <div class="row">
-            <div class="col-lg-4 mb-4">
+            <div class="{{ $footerColumnClass }} mb-4">
                 <div class="footer-card">
                     <div class="footer-brand">
                         @if($whiteLogo)
@@ -334,12 +339,12 @@
                     </div>
 
                     <p class="footer-text">
-                        {{ $siteSetting->business_short_description ?? 'আমাদের কাছ থেকে পছন্দের পণ্য অর্ডার করুন সহজে, নিরাপদে এবং দ্রুত ডেলিভারিতে।' }}
+                        {{ $siteSetting?->business_short_description ?? 'আমাদের কাছ থেকে পছন্দের পণ্য অর্ডার করুন সহজে, নিরাপদে এবং দ্রুত ডেলিভারিতে।' }}
                     </p>
                 </div>
             </div>
 
-            <div class="col-lg-4 mb-4">
+            <div class="{{ $footerColumnClass }} mb-4">
                 <div class="footer-card">
                     <h5 class="footer-title">আমাদের ঠিকানা</h5>
 
@@ -396,6 +401,7 @@
                 </div>
             </div>
 
+            @if($socialMediaSectionActive)
             <div class="col-lg-4 mb-4">
                 <div class="footer-card">
                     <h5 class="footer-title">সোশ্যাল মিডিয়া</h5>
@@ -426,6 +432,7 @@
                     </p>
                 </div>
             </div>
+            @endif
         </div>
 
         <div class="footer-bottom">
@@ -435,8 +442,9 @@
 
             <span>
                 Developed By
-                <a href="https://deshbajar.com/" target="_blank">Deshbajar</a>
+                <a href="https://digitalvai.com/" target="_blank">DESHBAJAR</a>
             </span>
         </div>
     </div>
 </footer>
+@endif

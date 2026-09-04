@@ -384,6 +384,9 @@
         ? ($campaign->image_three_url ?: ($campaign->banner_image_url ?: $noImage))
         : $noImage;
 
+    $heroVideoAutoplay = (bool) ($campaign?->hero_video_autoplay ?? false);
+    $heroVideoMuted = (bool) ($campaign?->hero_video_muted ?? false);
+
     /*
      |--------------------------------------------------------------------------
      | Hero Media Priority
@@ -427,7 +430,7 @@
     $videoEmbedUrl = null;
     $videoFileUrl = null;
 
-    $youtubeEmbedFromUrl = function (?string $url): ?string {
+    $youtubeEmbedFromUrl = function (?string $url) use ($heroVideoAutoplay, $heroVideoMuted): ?string {
         if (! $url) {
             return null;
         }
@@ -487,7 +490,8 @@
 
         $params = [
             'rel' => 0,
-            'autoplay' => 0,
+            'autoplay' => $heroVideoAutoplay ? 1 : 0,
+            'mute' => $heroVideoMuted ? 1 : 0,
             'modestbranding' => 1,
             'playsinline' => 1,
         ];
@@ -529,6 +533,20 @@
 
             $videoFileUrl = $fallbackVideoFileUrl;
         }
+    }
+
+    $videoFileMimeType = 'video/mp4';
+
+    if ($videoFileUrl) {
+        $videoPath = (string) (parse_url($videoFileUrl, PHP_URL_PATH) ?: $videoFileUrl);
+        $videoExtension = strtolower((string) pathinfo($videoPath, PATHINFO_EXTENSION));
+
+        $videoFileMimeType = match ($videoExtension) {
+            'webm' => 'video/webm',
+            'ogg', 'ogv' => 'video/ogg',
+            'm4v' => 'video/x-m4v',
+            default => 'video/mp4',
+        };
     }
 
     $heroTitle = $campaign?->title ?: 'খুলনার বিখ্যাত চুইঝাল!';
@@ -1406,25 +1424,44 @@ body {
     bottom: 0;
     left: 0;
     display: flex;
+    align-items: center;
     justify-content: center;
-    gap: 12px;
+    gap: 8px;
     padding-left: 0;
     margin: 0;
     list-style: none;
 }
 
+/* Reset Bootstrap carousel indicator sizing and keep review dots compact. */
+.review-indicators.carousel-indicators li,
 .review-indicators li {
-    width: 10px;
-    height: 10px;
+    flex: 0 0 auto;
+    box-sizing: border-box;
+    width: 8px;
+    height: 8px;
+    margin: 0;
+    text-indent: 0;
+    border: 0;
+    border-top: 0;
+    border-bottom: 0;
     border-radius: 999px;
-    background: #cbd5e1;
+    background-color: #cbd5e1;
+    background-clip: border-box;
+    opacity: 1;
     cursor: pointer;
-    transition: 0.2s ease;
+    transition: width 0.22s ease, background-color 0.22s ease;
 }
 
+.review-indicators.carousel-indicators li:hover,
+.review-indicators li:hover {
+    background-color: #94a3b8;
+}
+
+.review-indicators.carousel-indicators li.active,
 .review-indicators li.active {
-    width: 28px;
-    background: var(--front-green);
+    width: 22px;
+    height: 8px;
+    background-color: var(--front-green);
 }
 
 .faq-wrapper {
@@ -2536,8 +2573,17 @@ body {
                                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture">
                             </iframe>
                         @elseif($videoFileUrl)
-                            <video controls preload="metadata" poster="{{ $heroVideoPoster }}">
-                                <source src="{{ $videoFileUrl }}" type="video/mp4">
+                            <video id="campaignHeroVideo"
+                                   controls
+                                   playsinline
+                                   preload="{{ $heroVideoAutoplay ? 'auto' : 'metadata' }}"
+                                   poster="{{ $heroVideoPoster }}"
+                                   data-autoplay="{{ $heroVideoAutoplay ? '1' : '0' }}"
+                                   data-admin-muted="{{ $heroVideoMuted ? '1' : '0' }}"
+                                   @if($heroVideoAutoplay) autoplay @endif
+                                   @if($heroVideoMuted) muted @endif>
+                                <source src="{{ $videoFileUrl }}" type="{{ $videoFileMimeType }}">
+                                Your browser does not support HTML5 video playback.
                             </video>
                         @endif
                     </div>
@@ -2919,7 +2965,7 @@ body {
                 <i class="fas fa-chevron-right"></i>
             </a>
 
-            <ol class="review-indicators">
+            <ol class="carousel-indicators review-indicators">
                 @foreach($reviewItems as $review)
                 <li data-target="#customerReviewCarousel" data-slide-to="{{ $loop->index }}"
                     class="{{ $loop->first ? 'active' : '' }}"></li>
@@ -3239,6 +3285,151 @@ body {
 <script>
 $(document).ready(function() {
     const noImage = @json($noImage);
+    const heroVideoAutoplayEnabled = @json($heroVideoAutoplay);
+    const heroVideoMutedEnabled = @json($heroVideoMuted);
+
+    /*
+     * Respect the Campaign "Video Muted" switch exactly.
+     * - Muted ON  => frontend video stays muted.
+     * - Muted OFF => frontend video starts/stays unmuted.
+     *
+     * Browsers can block autoplay with sound. When autoplay is enabled and the
+     * admin keeps Muted OFF, we first request normal unmuted autoplay. If the
+     * browser blocks it, playback is retried on the visitor's first interaction
+     * without changing the admin-selected mute state.
+     */
+    function initializeHeroVideoAutoplay() {
+        const video = document.getElementById('campaignHeroVideo');
+
+        if (!video) {
+            return;
+        }
+
+        const shouldAutoplay = Boolean(heroVideoAutoplayEnabled);
+        const shouldMute = Boolean(heroVideoMutedEnabled);
+
+        video.playsInline = true;
+        video.autoplay = shouldAutoplay;
+        video.muted = shouldMute;
+        video.defaultMuted = shouldMute;
+
+        if (!shouldAutoplay) {
+            return;
+        }
+
+        let waitingForUserGesture = false;
+
+        const removeGestureFallback = function() {
+            document.removeEventListener('pointerdown', retryOnUserGesture, true);
+            document.removeEventListener('touchstart', retryOnUserGesture, true);
+            document.removeEventListener('keydown', retryOnUserGesture, true);
+        };
+
+        const retryOnUserGesture = function() {
+            if (!waitingForUserGesture) {
+                return;
+            }
+
+            waitingForUserGesture = false;
+            removeGestureFallback();
+
+            // Never override the mute value selected by the admin.
+            video.muted = shouldMute;
+            video.defaultMuted = shouldMute;
+
+            const retryPromise = video.play();
+
+            if (retryPromise && typeof retryPromise.catch === 'function') {
+                retryPromise.catch(function() {
+                    // Native controls remain available if playback is still blocked.
+                });
+            }
+        };
+
+        const enableGestureFallback = function() {
+            if (waitingForUserGesture) {
+                return;
+            }
+
+            waitingForUserGesture = true;
+            document.addEventListener('pointerdown', retryOnUserGesture, true);
+            document.addEventListener('touchstart', retryOnUserGesture, true);
+            document.addEventListener('keydown', retryOnUserGesture, true);
+        };
+
+        const attemptAutoplay = function() {
+            // Keep the admin-selected mute state on every autoplay attempt.
+            video.muted = shouldMute;
+            video.defaultMuted = shouldMute;
+
+            const playPromise = video.play();
+
+            if (playPromise && typeof playPromise.then === 'function') {
+                playPromise
+                    .then(function() {
+                        waitingForUserGesture = false;
+                        removeGestureFallback();
+                    })
+                    .catch(function() {
+                        // Unmuted autoplay is commonly blocked by browser policy.
+                        enableGestureFallback();
+                    });
+            }
+        };
+
+        if (video.readyState >= 2) {
+            attemptAutoplay();
+        } else {
+            video.addEventListener('canplay', attemptAutoplay, { once: true });
+        }
+
+        window.setTimeout(function() {
+            if (video.paused) {
+                attemptAutoplay();
+            }
+        }, 120);
+    }
+
+    /*
+     * Bootstrap updates only elements inside .carousel-indicators automatically.
+     * Keep a small event fallback too so the custom review dots always follow
+     * auto-scroll as well as Previous/Next/manual indicator navigation.
+     */
+    function initializeReviewCarouselIndicators() {
+        const carousel = $('#customerReviewCarousel');
+
+        if (!carousel.length) {
+            return;
+        }
+
+        const indicators = carousel.find('.review-indicators li');
+
+        if (!indicators.length) {
+            return;
+        }
+
+        const setActiveIndicator = function(index) {
+            const safeIndex = Math.max(0, Math.min(Number(index) || 0, indicators.length - 1));
+
+            indicators.removeClass('active').attr('aria-current', 'false');
+            indicators.eq(safeIndex).addClass('active').attr('aria-current', 'true');
+        };
+
+        carousel.on('slide.bs.carousel', function(event) {
+            if (typeof event.to === 'number') {
+                setActiveIndicator(event.to);
+            }
+        });
+
+        const initialIndex = carousel.find('.carousel-item').index(
+            carousel.find('.carousel-item.active').first()
+        );
+
+        setActiveIndicator(initialIndex >= 0 ? initialIndex : 0);
+    }
+
+    initializeHeroVideoAutoplay();
+    initializeReviewCarouselIndicators();
 
     function normalizeTrackingPhone(value) {
         return String(value || '').replace(/\D/g, '').slice(0, 11);

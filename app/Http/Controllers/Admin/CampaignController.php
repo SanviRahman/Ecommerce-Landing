@@ -10,6 +10,9 @@ use App\Models\Category;
 use App\Models\Product;
 use App\Models\Review;
 use App\Models\ShippingCharge;
+use App\Models\SiteSetting;
+use App\Models\SocialMedia;
+use App\Rules\SocialLink;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -337,6 +340,8 @@ class CampaignController extends Controller
             'help_section_status'       => $request->has('help_section_status'),
             'order_section_status'          => $request->has('order_section_status'),
             'order_tracking_section_status' => $request->has('order_tracking_section_status'),
+            'footer_section_status'         => $request->has('footer_section_status'),
+            'social_media_section_status'   => $request->has('social_media_section_status'),
         ];
     }
 
@@ -424,7 +429,15 @@ class CampaignController extends Controller
             'image_two'                   => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
             'image_three'                 => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
             'review_image'                => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
-            'campaign_video'              => ['nullable', 'file', 'mimes:mp4,webm,ogg', 'max:51200'],
+            'campaign_video'              => [
+                'nullable',
+                'file',
+                'extensions:mp4,webm,ogg,m4v',
+                'mimetypes:video/mp4,video/x-mp4,application/mp4,video/webm,video/ogg,video/m4v,video/x-m4v,application/octet-stream',
+                'max:102400',
+            ],
+            'hero_video_autoplay'        => ['nullable', 'boolean'],
+            'hero_video_muted'           => ['nullable', 'boolean'],
             'hero_whatsapp'               => ['nullable', 'string', 'max:255'],
             'hero_phone'                  => ['nullable', 'string', 'max:255'],
             'campaign_product_gallery'    => ['nullable', 'array'],
@@ -457,6 +470,31 @@ class CampaignController extends Controller
             'campaign_reviews.*.status'           => ['nullable', 'boolean'],
             'campaign_reviews.*.remove_image'     => ['nullable', 'boolean'],
             'campaign_reviews.*.customer_image'   => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+
+            'site_settings'                         => ['nullable', 'array'],
+            'site_settings.website_name'            => ['nullable', 'string', 'max:255'],
+            'site_settings.phone'                   => ['nullable', 'string', 'max:30'],
+            'site_settings.hotline'                 => ['nullable', 'string', 'max:30'],
+            'site_settings.whatsapp_number'         => ['nullable', 'string', 'max:30'],
+            'site_settings.messenger_link'          => ['nullable', 'string', 'max:255'],
+            'site_settings.email'                   => ['nullable', 'email', 'max:255'],
+            'site_settings.address'                 => ['nullable', 'string'],
+            'site_settings.top_headline'            => ['nullable', 'string'],
+            'site_settings.footer_text'             => ['nullable', 'string'],
+            'site_settings.business_short_description' => ['nullable', 'string'],
+            'site_settings.working_hours'           => ['nullable', 'string', 'max:255'],
+            'site_settings.status'                  => ['nullable', 'boolean'],
+            'site_settings.site_logo'               => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,svg', 'max:4096'],
+            'site_settings.site_white_logo'         => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,svg', 'max:4096'],
+            'site_settings.site_favicon'            => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,ico,svg', 'max:2048'],
+
+            'campaign_social_media'                 => ['nullable', 'array'],
+            'campaign_social_media.*.id'            => ['nullable', 'integer', 'exists:social_media,id'],
+            'campaign_social_media.*.platform_name' => ['nullable', 'string', 'max:255'],
+            'campaign_social_media.*.link'          => ['nullable', 'string', 'max:255', new SocialLink()],
+            'campaign_social_media.*.icon_class'    => ['nullable', 'string', 'max:255'],
+            'campaign_social_media.*.status'        => ['nullable', 'boolean'],
+            'campaign_social_media.*.delete'        => ['nullable', 'boolean'],
         ];
     }
 
@@ -492,6 +530,8 @@ class CampaignController extends Controller
             'enable_bulk_order'   => $request->boolean('enable_bulk_order'),
             'hero_whatsapp'       => $request->hero_whatsapp,
             'hero_phone'          => $request->hero_phone,
+            'hero_video_autoplay' => $request->boolean('hero_video_autoplay'),
+            'hero_video_muted'    => $request->boolean('hero_video_muted'),
 
             ...$this->sectionStatusData($request),
 
@@ -499,6 +539,106 @@ class CampaignController extends Controller
             'meta_title'          => $request->meta_title,
             'meta_description'    => $request->meta_description,
         ];
+    }
+
+    private function syncCampaignSiteSetting(Request $request): void
+    {
+        $input = (array) $request->input('site_settings', []);
+        $siteSetting = SiteSetting::query()->latest()->first();
+        $hasUploadedMedia = collect([
+            'site_logo',
+            'site_white_logo',
+            'site_favicon',
+        ])->contains(fn (string $field) => $request->hasFile("site_settings.{$field}"));
+
+        $hasSettingData = collect($input)
+            ->except(['status'])
+            ->contains(fn ($value) => filled($value));
+
+        if (! $request->has('site_settings') && ! $hasUploadedMedia) {
+            return;
+        }
+
+        if (! $siteSetting && ! $hasSettingData && ! $hasUploadedMedia) {
+            return;
+        }
+
+        $payload = [
+            'website_name' => trim((string) ($input['website_name'] ?? $siteSetting?->website_name ?? config('app.name'))),
+            'phone' => trim((string) ($input['phone'] ?? '')) ?: null,
+            'hotline' => trim((string) ($input['hotline'] ?? '')) ?: null,
+            'whatsapp_number' => trim((string) ($input['whatsapp_number'] ?? '')) ?: null,
+            'messenger_link' => trim((string) ($input['messenger_link'] ?? '')) ?: null,
+            'email' => trim((string) ($input['email'] ?? '')) ?: null,
+            'address' => trim((string) ($input['address'] ?? '')) ?: null,
+            'top_headline' => trim((string) ($input['top_headline'] ?? '')) ?: null,
+            'footer_text' => trim((string) ($input['footer_text'] ?? '')) ?: null,
+            'business_short_description' => trim((string) ($input['business_short_description'] ?? '')) ?: null,
+            'working_hours' => trim((string) ($input['working_hours'] ?? '')) ?: null,
+            'status' => filter_var($input['status'] ?? false, FILTER_VALIDATE_BOOLEAN),
+        ];
+
+        if ($payload['website_name'] === '') {
+            $payload['website_name'] = config('app.name', 'Website');
+        }
+
+        if ($siteSetting) {
+            $siteSetting->update($payload);
+        } else {
+            $siteSetting = SiteSetting::create($payload);
+        }
+
+        foreach (['site_logo', 'site_white_logo', 'site_favicon'] as $field) {
+            $file = $request->file("site_settings.{$field}");
+
+            if (! $file instanceof UploadedFile || ! $file->isValid()) {
+                continue;
+            }
+
+            $siteSetting->clearMediaCollection($field);
+            $siteSetting->addMedia($file)->toMediaCollection($field, 'public');
+        }
+    }
+
+    private function syncCampaignSocialMedia(Request $request): void
+    {
+        $rows = collect($request->input('campaign_social_media', []));
+
+        foreach ($rows as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+
+            $id = (int) ($row['id'] ?? 0);
+            $delete = filter_var($row['delete'] ?? false, FILTER_VALIDATE_BOOLEAN);
+
+            if ($id > 0 && $delete) {
+                SocialMedia::query()->whereKey($id)->delete();
+                continue;
+            }
+
+            $platformName = trim((string) ($row['platform_name'] ?? ''));
+            $link = trim((string) ($row['link'] ?? ''));
+            $iconClass = trim((string) ($row['icon_class'] ?? ''));
+
+            if ($platformName === '' || $link === '') {
+                continue;
+            }
+
+            $payload = [
+                'platform_name' => $platformName,
+                'link' => $link,
+                'icon_class' => $iconClass !== '' ? $iconClass : null,
+                'status' => filter_var($row['status'] ?? false, FILTER_VALIDATE_BOOLEAN),
+            ];
+
+            if ($id > 0) {
+                SocialMedia::query()->whereKey($id)->update($payload);
+                continue;
+            }
+
+            SocialMedia::create($payload);
+        }
     }
 
     private function applyFilters(Builder $query, Request $request): Builder
@@ -612,6 +752,8 @@ class CampaignController extends Controller
             'campaignFaqs'       => collect(),
             'campaignReviews'    => collect(),
             'shippingCharges'    => $this->activeShippingCharges(),
+            'siteSetting'        => SiteSetting::query()->latest()->first(),
+            'campaignSocialMedias' => SocialMedia::query()->orderBy('id')->get(),
             'isEdit'             => false,
             'action'             => route('admin.campaigns.store'),
             'title'              => 'Landing Page Create',
@@ -652,6 +794,8 @@ class CampaignController extends Controller
             $this->syncCampaignFaqs($campaign, $request);
             $this->syncCampaignReviews($campaign, $request);
             $this->syncShippingCharges($request);
+            $this->syncCampaignSiteSetting($request);
+            $this->syncCampaignSocialMedia($request);
 
             return redirect()
                 ->route('admin.campaigns.index')
@@ -711,6 +855,8 @@ class CampaignController extends Controller
             'campaignFaqs'       => $campaign->faqs,
             'campaignReviews'    => $campaign->reviews,
             'shippingCharges'    => $this->activeShippingCharges(),
+            'siteSetting'        => SiteSetting::query()->latest()->first(),
+            'campaignSocialMedias' => SocialMedia::query()->orderBy('id')->get(),
             'isEdit'             => true,
             'action'             => route('admin.campaigns.update', $campaign->id),
             'title'              => 'Edit Campaign',
@@ -751,6 +897,8 @@ class CampaignController extends Controller
             $this->syncCampaignFaqs($campaign, $request);
             $this->syncCampaignReviews($campaign, $request);
             $this->syncShippingCharges($request);
+            $this->syncCampaignSiteSetting($request);
+            $this->syncCampaignSocialMedia($request);
 
             return redirect()
                 ->route('admin.campaigns.index')
@@ -1061,7 +1209,18 @@ class CampaignController extends Controller
                 continue;
             }
 
-            $campaign->clearMediaCollection($field);
+            /*
+             * campaign_video uses a versioned filename and the collection is
+             * configured as singleFile(). Add the new video first and let
+             * Media Library remove the previous item only after the new file
+             * has been stored successfully. This prevents an edit from losing
+             * the current video when an upload fails and also avoids stale
+             * browser/CDN cache caused by reusing the exact same video URL.
+             */
+            if ($field !== 'campaign_video') {
+                $campaign->clearMediaCollection($field);
+            }
+
             $this->ensureLandingMediaDirectory($pathSlug, $field);
 
             $media = $campaign
@@ -1180,11 +1339,26 @@ class CampaignController extends Controller
         UploadedFile $file,
         string $field
     ): string {
+        $pathSlug = $this->campaignMediaPathSlug($campaign);
+        $fieldSlug = Str::slug($field);
+        $extension = $this->uploadedMediaExtension($file);
+
+        if ($field === 'campaign_video') {
+            return sprintf(
+                '%s-%s-%s-%s.%s',
+                $pathSlug,
+                $fieldSlug,
+                now()->format('YmdHis'),
+                Str::lower(Str::random(8)),
+                $extension
+            );
+        }
+
         return sprintf(
             '%s-%s.%s',
-            $this->campaignMediaPathSlug($campaign),
-            Str::slug($field),
-            $this->uploadedMediaExtension($file)
+            $pathSlug,
+            $fieldSlug,
+            $extension
         );
     }
 

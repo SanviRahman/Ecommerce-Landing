@@ -39,6 +39,8 @@ class Campaign extends Model implements HasMedia
         'enable_bulk_order',
 
         'hero_section_status',
+        'hero_video_autoplay',
+        'hero_video_muted',
         'benefits_section_status',
         'category_section_status',
         'product_section_status',
@@ -50,6 +52,8 @@ class Campaign extends Model implements HasMedia
         'help_section_status',
         'order_section_status',
         'order_tracking_section_status',
+        'footer_section_status',
+        'social_media_section_status',
 
         'status',
         'is_default',
@@ -69,6 +73,8 @@ class Campaign extends Model implements HasMedia
         'enable_bulk_order'         => 'boolean',
 
         'hero_section_status'       => 'boolean',
+        'hero_video_autoplay'       => 'boolean',
+        'hero_video_muted'          => 'boolean',
         'benefits_section_status'   => 'boolean',
         'category_section_status'   => 'boolean',
         'product_section_status'    => 'boolean',
@@ -80,6 +86,8 @@ class Campaign extends Model implements HasMedia
         'help_section_status'       => 'boolean',
         'order_section_status'      => 'boolean',
         'order_tracking_section_status' => 'boolean',
+        'footer_section_status'     => 'boolean',
+        'social_media_section_status' => 'boolean',
 
         'status'                    => 'boolean',
         'is_default'                => 'boolean',

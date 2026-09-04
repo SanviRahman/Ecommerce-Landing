@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\SocialMedia;
+use App\Rules\SocialLink;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 
@@ -122,7 +123,7 @@ class SocialMediaController extends Controller
 
         $request->validate([
             'platform_name' => ['required', 'string', 'max:255'],
-            'link' => ['required', 'url', 'max:255'],
+            'link' => ['required', 'string', 'max:255', new SocialLink()],
             'icon_class' => ['nullable', 'string', 'max:255'],
             'status' => ['nullable', 'boolean'],
         ]);
@@ -177,7 +178,7 @@ class SocialMediaController extends Controller
 
         $request->validate([
             'platform_name' => ['required', 'string', 'max:255'],
-            'link' => ['required', 'url', 'max:255'],
+            'link' => ['required', 'string', 'max:255', new SocialLink()],
             'icon_class' => ['nullable', 'string', 'max:255'],
         ]);
 

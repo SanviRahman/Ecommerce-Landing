@@ -23,7 +23,8 @@
 
             <div class="col-md-12 mb-3">
                 <label>Target URL (Link) <span class="text-danger">*</span></label>
-                <input type="url" name="link" class="form-control" value="{{ $isEdit ? $socialMedia->link : '' }}" placeholder="https://facebook.com/yourpage" required>
+                <input type="text" name="link" class="form-control" value="{{ $isEdit ? $socialMedia->link : '' }}" placeholder="https://facebook.com/yourpage or tel:017XXXXXXXX" required>
+                <small class="text-muted d-block mt-1">Supports http(s), tel:, sms: and mailto: links.</small>
             </div>
 
             <div class="col-md-12 mb-3">

@@ -617,19 +617,6 @@ return [
                 ],
             ],
         ],
-        [
-            'text'    => 'Social Media',
-            'icon'    => 'fas fa-fw fa-share-alt',
-            'can'     => 'admin-only',
-            'submenu' => [
-                [
-                    'text' => 'All Social Media',
-                    'url'  => 'admin/social-media',
-                    'icon' => 'far fa-fw fa-circle',
-                    'can'  => 'admin-only',
-                ],
-            ],
-        ],
 
         /*
     |--------------------------------------------------------------------------
@@ -668,12 +655,6 @@ return [
         [
             'header' => 'SETTINGS',
             'can'    => 'admin-only',
-        ],
-        [
-            'text' => 'Site Settings',
-            'url'  => 'admin/site-settings',
-            'icon' => 'fas fa-fw fa-cogs',
-            'can'  => 'admin-only',
         ],
         [
             'text'   => 'Blocked Customers',

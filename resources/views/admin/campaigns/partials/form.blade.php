@@ -237,6 +237,49 @@
         ]);
     }
 
+    $siteSetting = $siteSetting ?? null;
+
+    $socialMediaSource = old('campaign_social_media');
+
+    if ($socialMediaSource === null) {
+        $socialMediaSource = $campaignSocialMedias ?? collect();
+    }
+
+    $campaignSocialRows = collect($socialMediaSource)->map(function ($social) {
+        if (is_array($social)) {
+            return [
+                'id' => $social['id'] ?? null,
+                'platform_name' => $social['platform_name'] ?? '',
+                'link' => $social['link'] ?? '',
+                'icon_class' => $social['icon_class'] ?? '',
+                'status' => array_key_exists('status', $social) ? (bool) $social['status'] : true,
+                'delete' => (bool) ($social['delete'] ?? false),
+            ];
+        }
+
+        return [
+            'id' => $social->id ?? null,
+            'platform_name' => $social->platform_name ?? '',
+            'link' => $social->link ?? '',
+            'icon_class' => $social->icon_class ?? '',
+            'status' => (bool) ($social->status ?? true),
+            'delete' => false,
+        ];
+    })->filter(fn ($social) => ! ($social['delete'] ?? false))->values();
+
+    if ($campaignSocialRows->isEmpty()) {
+        $campaignSocialRows = collect([
+            [
+                'id' => null,
+                'platform_name' => '',
+                'link' => '',
+                'icon_class' => '',
+                'status' => true,
+                'delete' => false,
+            ],
+        ]);
+    }
+
     $mediaFields = [
         'banner_image' => [
             'label' => 'Banner Image',
@@ -266,7 +309,7 @@
         'campaign_video' => [
             'label' => 'Campaign Video',
             'type' => 'video',
-            'hint' => 'Allowed: mp4, webm, ogg. Maximum size: 50MB.',
+            'hint' => 'Allowed: MP4, WebM, OGG, M4V. Maximum size: 100MB.',
         ],
     ];
 
@@ -597,10 +640,10 @@
                        class="form-control-file campaign-media-input @error($field) is-invalid @enderror"
                        data-preview="#preview_{{ $field }}"
                        data-type="{{ $mediaConfig['type'] }}"
-                       accept="video/mp4,video/webm,video/ogg">
+                       accept=".mp4,.webm,.ogg,.m4v,video/mp4,video/webm,video/ogg,video/x-m4v">
 
                 <small class="text-muted d-block mt-1">
-                    Embed video এবং hero multiple image না থাকলে এই uploaded video frontend hero media হিসেবে show হবে।
+                    MP4, WebM, OGG ও M4V support করে (সর্বোচ্চ 100MB)। Embed video এবং hero multiple image না থাকলে এই uploaded video frontend hero media হিসেবে show হবে।
                 </small>
 
                 @error($field)
@@ -623,6 +666,42 @@
                     @else
                         <div class="text-muted small border rounded p-3 bg-light">No file selected</div>
                     @endif
+                </div>
+            </div>
+
+            <div class="border rounded p-3 bg-light mb-4">
+                <div class="row align-items-center">
+                    <div class="col-md-6 mb-3 mb-md-0">
+                        <input type="hidden" name="hero_video_autoplay" value="0">
+                        <div class="custom-control custom-switch">
+                            <input type="checkbox"
+                                   class="custom-control-input"
+                                   id="hero_video_autoplay"
+                                   name="hero_video_autoplay"
+                                   value="1"
+                                   @checked((bool) old('hero_video_autoplay', $campaign->hero_video_autoplay ?? false))>
+                            <label class="custom-control-label font-weight-bold" for="hero_video_autoplay">
+                                Video Autoplay
+                            </label>
+                        </div>
+                        <small class="text-muted">Autoplay ON করলে browser policy অনুযায়ী muted mode recommended.</small>
+                    </div>
+
+                    <div class="col-md-6">
+                        <input type="hidden" name="hero_video_muted" value="0">
+                        <div class="custom-control custom-switch">
+                            <input type="checkbox"
+                                   class="custom-control-input"
+                                   id="hero_video_muted"
+                                   name="hero_video_muted"
+                                   value="1"
+                                   @checked((bool) old('hero_video_muted', $campaign->hero_video_muted ?? false))>
+                            <label class="custom-control-label font-weight-bold" for="hero_video_muted">
+                                Video Muted
+                            </label>
+                        </div>
+                        <small class="text-muted">Muted OFF রাখলে video sound user controls থেকে চালু/বন্ধ করা যাবে.</small>
+                    </div>
                 </div>
             </div>
 
@@ -1553,6 +1632,210 @@
                        value="{{ old('help_content.button_text', $helpContent['button_text'] ?? 'হেল্পলাইন') }}"
                        class="form-control">
             </div>
+        </div>
+    </div>
+
+    {{-- Footer / Site Settings --}}
+    <div class="card shadow-sm border-0 mb-3" style="border-radius: 12px;">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap">
+            <div>
+                <h5 class="mb-0 font-weight-bold">
+                    <i class="fas fa-window-maximize text-primary mr-1"></i>
+                    Footer / Site Settings
+                </h5>
+                <small class="text-muted">Footer-er website information ekhanei manage hobe. Data global thakbe, kintu footer visibility campaign-wise control hobe.</small>
+            </div>
+
+            {!! $sectionSwitch('footer_section_status', 'Active / Inactive') !!}
+        </div>
+
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label class="font-weight-bold">Website Name</label>
+                    <input type="text"
+                           name="site_settings[website_name]"
+                           value="{{ old('site_settings.website_name', $siteSetting->website_name ?? '') }}"
+                           class="form-control @error('site_settings.website_name') is-invalid @enderror"
+                           placeholder="Website name">
+                    @error('site_settings.website_name')<span class="invalid-feedback">{{ $message }}</span>@enderror
+                </div>
+
+                <div class="col-md-6 mb-3">
+                    <label class="font-weight-bold">Email</label>
+                    <input type="email"
+                           name="site_settings[email]"
+                           value="{{ old('site_settings.email', $siteSetting->email ?? '') }}"
+                           class="form-control @error('site_settings.email') is-invalid @enderror"
+                           placeholder="example@email.com">
+                    @error('site_settings.email')<span class="invalid-feedback">{{ $message }}</span>@enderror
+                </div>
+
+                <div class="col-md-4 mb-3">
+                    <label class="font-weight-bold">Phone</label>
+                    <input type="text" name="site_settings[phone]" value="{{ old('site_settings.phone', $siteSetting->phone ?? '') }}" class="form-control" placeholder="017XXXXXXXX">
+                </div>
+
+                <div class="col-md-4 mb-3">
+                    <label class="font-weight-bold">Hotline</label>
+                    <input type="text" name="site_settings[hotline]" value="{{ old('site_settings.hotline', $siteSetting->hotline ?? '') }}" class="form-control" placeholder="096XXXXXXXX">
+                </div>
+
+                <div class="col-md-4 mb-3">
+                    <label class="font-weight-bold">WhatsApp Number</label>
+                    <input type="text" name="site_settings[whatsapp_number]" value="{{ old('site_settings.whatsapp_number', $siteSetting->whatsapp_number ?? '') }}" class="form-control" placeholder="88017XXXXXXXX">
+                </div>
+
+                <div class="col-md-6 mb-3">
+                    <label class="font-weight-bold">Messenger Link</label>
+                    <input type="text" name="site_settings[messenger_link]" value="{{ old('site_settings.messenger_link', $siteSetting->messenger_link ?? '') }}" class="form-control" placeholder="https://m.me/yourpage">
+                </div>
+
+                <div class="col-md-6 mb-3">
+                    <label class="font-weight-bold">Working Hours</label>
+                    <input type="text" name="site_settings[working_hours]" value="{{ old('site_settings.working_hours', $siteSetting->working_hours ?? '') }}" class="form-control" placeholder="10:00 AM - 8:00 PM">
+                </div>
+
+                <div class="col-md-12 mb-3">
+                    <label class="font-weight-bold">Address</label>
+                    <textarea name="site_settings[address]" rows="2" class="form-control">{{ old('site_settings.address', $siteSetting->address ?? '') }}</textarea>
+                </div>
+
+                <div class="col-md-12 mb-3">
+                    <label class="font-weight-bold">Top Headline</label>
+                    <textarea name="site_settings[top_headline]" rows="2" class="form-control">{{ old('site_settings.top_headline', $siteSetting->top_headline ?? '') }}</textarea>
+                </div>
+
+                <div class="col-md-6 mb-3">
+                    <label class="font-weight-bold">Business Short Description</label>
+                    <textarea name="site_settings[business_short_description]" rows="3" class="form-control">{{ old('site_settings.business_short_description', $siteSetting->business_short_description ?? '') }}</textarea>
+                </div>
+
+                <div class="col-md-6 mb-3">
+                    <label class="font-weight-bold">Footer Text</label>
+                    <textarea name="site_settings[footer_text]" rows="3" class="form-control">{{ old('site_settings.footer_text', $siteSetting->footer_text ?? '') }}</textarea>
+                </div>
+            </div>
+
+            <div class="border rounded p-3 bg-light mb-3">
+                <div class="row">
+                    @foreach([
+                        'site_logo' => 'Site Logo',
+                        'site_white_logo' => 'White / Footer Logo',
+                        'site_favicon' => 'Favicon',
+                    ] as $siteMediaField => $siteMediaLabel)
+                        @php
+                            $siteMedia = $siteSetting?->getFirstMedia($siteMediaField);
+                        @endphp
+                        <div class="col-md-4 mb-3 mb-md-0">
+                            <label class="font-weight-bold">{{ $siteMediaLabel }}</label>
+                            <input type="file"
+                                   name="site_settings[{{ $siteMediaField }}]"
+                                   class="form-control-file @error('site_settings.' . $siteMediaField) is-invalid @enderror"
+                                   accept="image/*{{ $siteMediaField === 'site_favicon' ? ',.ico' : '' }}">
+                            @error('site_settings.' . $siteMediaField)
+                                <div class="text-danger small mt-1">{{ $message }}</div>
+                            @enderror
+
+                            @if($siteMedia)
+                                <div class="mt-2 p-2 bg-white border rounded text-center">
+                                    <img src="{{ $siteMedia->getUrl() }}" alt="{{ $siteMediaLabel }}" style="max-width: 140px; max-height: 70px; object-fit: contain;">
+                                    <small class="text-muted d-block mt-1">Upload a new file to replace.</small>
+                                </div>
+                            @endif
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+
+            <input type="hidden" name="site_settings[status]" value="0">
+            <div class="custom-control custom-switch">
+                <input type="checkbox"
+                       class="custom-control-input"
+                       id="site_settings_status"
+                       name="site_settings[status]"
+                       value="1"
+                       @checked((bool) old('site_settings.status', $siteSetting->status ?? true))>
+                <label class="custom-control-label font-weight-bold" for="site_settings_status">Global Site Setting Active</label>
+            </div>
+        </div>
+    </div>
+
+    {{-- Social Media --}}
+    <div class="card shadow-sm border-0 mb-3" style="border-radius: 12px;">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap">
+            <div>
+                <h5 class="mb-0 font-weight-bold">
+                    <i class="fas fa-share-alt text-info mr-1"></i>
+                    Social Media
+                </h5>
+                <small class="text-muted">Footer social links ekhanei manage korun. Phone-er jonno tel:017XXXXXXXX use kora jabe.</small>
+            </div>
+
+            {!! $sectionSwitch('social_media_section_status', 'Active / Inactive') !!}
+        </div>
+
+        <div class="card-body">
+            <div id="campaignSocialMediaRows">
+                @foreach($campaignSocialRows as $index => $social)
+                    <div class="campaign-social-row border rounded p-3 mb-3" data-existing-id="{{ $social['id'] ?? '' }}">
+                        <input type="hidden" name="campaign_social_media[{{ $index }}][id]" value="{{ $social['id'] ?? '' }}">
+                        <input type="hidden" class="campaign-social-delete-input" name="campaign_social_media[{{ $index }}][delete]" value="0">
+
+                        <div class="row align-items-end">
+                            <div class="col-md-3 mb-2">
+                                <label class="font-weight-bold">Platform Name</label>
+                                <input type="text"
+                                       name="campaign_social_media[{{ $index }}][platform_name]"
+                                       value="{{ $social['platform_name'] ?? '' }}"
+                                       class="form-control"
+                                       placeholder="Facebook / Phone">
+                            </div>
+
+                            <div class="col-md-4 mb-2">
+                                <label class="font-weight-bold">Target Link</label>
+                                <input type="text"
+                                       name="campaign_social_media[{{ $index }}][link]"
+                                       value="{{ $social['link'] ?? '' }}"
+                                       class="form-control"
+                                       placeholder="https://... or tel:017XXXXXXXX">
+                            </div>
+
+                            <div class="col-md-3 mb-2">
+                                <label class="font-weight-bold">FontAwesome Icon</label>
+                                <input type="text"
+                                       name="campaign_social_media[{{ $index }}][icon_class]"
+                                       value="{{ $social['icon_class'] ?? '' }}"
+                                       class="form-control"
+                                       placeholder="fab fa-facebook-f">
+                            </div>
+
+                            <div class="col-md-1 mb-2 text-center">
+                                <input type="hidden" name="campaign_social_media[{{ $index }}][status]" value="0">
+                                <div class="custom-control custom-switch d-inline-block">
+                                    <input type="checkbox"
+                                           class="custom-control-input"
+                                           id="campaign_social_status_{{ $index }}"
+                                           name="campaign_social_media[{{ $index }}][status]"
+                                           value="1"
+                                           @checked($social['status'] ?? true)>
+                                    <label class="custom-control-label" for="campaign_social_status_{{ $index }}">On</label>
+                                </div>
+                            </div>
+
+                            <div class="col-md-1 mb-2 text-right">
+                                <button type="button" class="btn btn-danger btn-sm btn-remove-campaign-social" title="Remove">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+
+            <button type="button" class="btn btn-outline-info btn-sm" id="addCampaignSocialMediaRow">
+                <i class="fas fa-plus mr-1"></i> Add Social Link
+            </button>
         </div>
     </div>
 
@@ -2721,6 +3004,71 @@ $(document).ready(function() {
     $(document).on('blur', '#customCampaignRouteInput', function () {
         $(this).val(customCampaignRoutePreview($(this).val()));
         syncCampaignRouteFields();
+    });
+
+    let campaignSocialNextIndex = {{ $campaignSocialRows->count() }};
+
+    function campaignSocialRowTemplate(index) {
+        return `
+            <div class="campaign-social-row border rounded p-3 mb-3" data-existing-id="">
+                <input type="hidden" name="campaign_social_media[${index}][id]" value="">
+                <input type="hidden" class="campaign-social-delete-input" name="campaign_social_media[${index}][delete]" value="0">
+
+                <div class="row align-items-end">
+                    <div class="col-md-3 mb-2">
+                        <label class="font-weight-bold">Platform Name</label>
+                        <input type="text" name="campaign_social_media[${index}][platform_name]" class="form-control" placeholder="Facebook / Phone">
+                    </div>
+
+                    <div class="col-md-4 mb-2">
+                        <label class="font-weight-bold">Target Link</label>
+                        <input type="text" name="campaign_social_media[${index}][link]" class="form-control" placeholder="https://... or tel:017XXXXXXXX">
+                    </div>
+
+                    <div class="col-md-3 mb-2">
+                        <label class="font-weight-bold">FontAwesome Icon</label>
+                        <input type="text" name="campaign_social_media[${index}][icon_class]" class="form-control" placeholder="fab fa-facebook-f">
+                    </div>
+
+                    <div class="col-md-1 mb-2 text-center">
+                        <input type="hidden" name="campaign_social_media[${index}][status]" value="0">
+                        <div class="custom-control custom-switch d-inline-block">
+                            <input type="checkbox"
+                                   class="custom-control-input"
+                                   id="campaign_social_status_${index}"
+                                   name="campaign_social_media[${index}][status]"
+                                   value="1"
+                                   checked>
+                            <label class="custom-control-label" for="campaign_social_status_${index}">On</label>
+                        </div>
+                    </div>
+
+                    <div class="col-md-1 mb-2 text-right">
+                        <button type="button" class="btn btn-danger btn-sm btn-remove-campaign-social" title="Remove">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    $(document).on('click', '#addCampaignSocialMediaRow', function () {
+        $('#campaignSocialMediaRows').append(campaignSocialRowTemplate(campaignSocialNextIndex));
+        campaignSocialNextIndex++;
+    });
+
+    $(document).on('click', '.btn-remove-campaign-social', function () {
+        const row = $(this).closest('.campaign-social-row');
+        const existingId = row.data('existing-id');
+
+        if (existingId) {
+            row.find('.campaign-social-delete-input').val('1');
+            row.slideUp(180);
+            return;
+        }
+
+        row.remove();
     });
 
     $(document).ready(function () {
