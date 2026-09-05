@@ -7,6 +7,7 @@ use App\Models\Courier;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
+use App\Models\ShippingCharge;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Str;
 
@@ -93,13 +94,22 @@ class OrderSeeder extends Seeder
                 return (bool) $item['is_free_delivery'];
             });
 
-            $deliveryArea = random_int(0, 1)
-                ? 'inside_dhaka'
-                : 'outside_dhaka';
+            $campaignId = ! empty($campaignIds)
+                ? (int) $campaignIds[array_rand($campaignIds)]
+                : null;
+
+            $availableShippingCharges = ShippingCharge::resolvedForCampaign($campaignId);
+            $selectedShippingCharge = $availableShippingCharges->isNotEmpty()
+                ? $availableShippingCharges->random()
+                : null;
+
+            $deliveryArea = $hasAnyFreeDeliveryProduct
+                ? 'free_delivery'
+                : ($selectedShippingCharge?->area_name ?: null);
 
             $shippingCharge = $hasAnyFreeDeliveryProduct
                 ? 0
-                : ($deliveryArea === 'inside_dhaka' ? 70 : 130);
+                : (int) ($selectedShippingCharge?->delivery_charge ?? 0);
 
             $codCharge = 0;
             $totalAmount = $subTotal + $shippingCharge + $codCharge;
@@ -125,9 +135,7 @@ class OrderSeeder extends Seeder
                 'invoice_id' => $this->generateInvoiceId(),
                 'success_token' => Str::random(40),
 
-                'campaign_id' => ! empty($campaignIds)
-                    ? $campaignIds[array_rand($campaignIds)]
-                    : null,
+                'campaign_id' => $campaignId,
 
                 'customer_name' => 'Customer ' . $i,
                 'phone' => '01711' . random_int(100000, 999999),
@@ -141,9 +149,7 @@ class OrderSeeder extends Seeder
                 | eta free_delivery rakhte paro.
                 |--------------------------------------------------------------------------
                 */
-                'delivery_area' => $hasAnyFreeDeliveryProduct
-                    ? 'free_delivery'
-                    : $deliveryArea,
+                'delivery_area' => $deliveryArea,
 
                 'courier_service' => $courier?->code,
                 'courier_id' => $courier?->id,
@@ -204,7 +210,7 @@ class OrderSeeder extends Seeder
             }
         }
 
-        $this->command?->info('Orders seeded successfully with success_token, courier and fixed free delivery logic.');
+        $this->command?->info('Orders seeded successfully with dynamic campaign shipping charges and free delivery logic.');
     }
 
     private function generateInvoiceId(): string

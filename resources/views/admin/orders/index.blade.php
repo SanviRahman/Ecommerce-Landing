@@ -949,7 +949,7 @@
                 'courierServices' => $courierServices ?? [],
                 'orderFields' => $orderFields ?? collect(),
                 'orderStatuses' => $orderStatuses ?? [],
-                'duplicateCustomerCounts' => $duplicateCustomerCounts ?? [],
+                'duplicatePhoneCounts' => $duplicatePhoneCounts ?? [],
                 'duplicateIpCounts' => $duplicateIpCounts ?? [],
             ])
         </div>

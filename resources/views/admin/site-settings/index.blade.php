@@ -50,11 +50,11 @@
             <div class="card-header bg-white">
                 <h5 class="mb-0 font-weight-bold">
                     <i class="fas fa-cogs text-primary mr-1"></i>
-                    Website Information
+                    Website Branding
                 </h5>
 
                 <small class="text-muted">
-                    Manage website name, contact information, headline and footer text.
+                    Website name, site logo, white logo and favicon manage করুন। Contact/footer information Campaign form থেকে manage হবে।
                 </small>
             </div>
 
@@ -66,184 +66,21 @@
                         @method('PUT')
                     @endif
 
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label>
-                                    Website Name <span class="text-danger">*</span>
-                                </label>
-
-                                <input type="text"
-                                       name="website_name"
-                                       value="{{ old('website_name', $siteSetting->website_name ?? '') }}"
-                                       class="form-control @error('website_name') is-invalid @enderror"
-                                       placeholder="Example: Shanto Gift Shop"
-                                       required>
-
-                                @error('website_name')
-                                    <span class="invalid-feedback">{{ $message }}</span>
-                                @enderror
-                            </div>
-                        </div>
-
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label>Email</label>
-
-                                <input type="email"
-                                       name="email"
-                                       value="{{ old('email', $siteSetting->email ?? '') }}"
-                                       class="form-control @error('email') is-invalid @enderror"
-                                       placeholder="example@gmail.com">
-
-                                @error('email')
-                                    <span class="invalid-feedback">{{ $message }}</span>
-                                @enderror
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="row">
-                        <div class="col-md-4">
-                            <div class="form-group">
-                                <label>Phone</label>
-
-                                <input type="text"
-                                       name="phone"
-                                       value="{{ old('phone', $siteSetting->phone ?? '') }}"
-                                       class="form-control @error('phone') is-invalid @enderror"
-                                       placeholder="017XXXXXXXX">
-
-                                @error('phone')
-                                    <span class="invalid-feedback">{{ $message }}</span>
-                                @enderror
-                            </div>
-                        </div>
-
-                        <div class="col-md-4">
-                            <div class="form-group">
-                                <label>Hotline</label>
-
-                                <input type="text"
-                                       name="hotline"
-                                       value="{{ old('hotline', $siteSetting->hotline ?? '') }}"
-                                       class="form-control @error('hotline') is-invalid @enderror"
-                                       placeholder="096XXXXXXXX">
-
-                                @error('hotline')
-                                    <span class="invalid-feedback">{{ $message }}</span>
-                                @enderror
-                            </div>
-                        </div>
-
-                        <div class="col-md-4">
-                            <div class="form-group">
-                                <label>WhatsApp Number</label>
-
-                                <input type="text"
-                                       name="whatsapp_number"
-                                       value="{{ old('whatsapp_number', $siteSetting->whatsapp_number ?? '') }}"
-                                       class="form-control @error('whatsapp_number') is-invalid @enderror"
-                                       placeholder="88017XXXXXXXX">
-
-                                @error('whatsapp_number')
-                                    <span class="invalid-feedback">{{ $message }}</span>
-                                @enderror
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Messenger Link</label>
-
-                        <input type="url"
-                               name="messenger_link"
-                               value="{{ old('messenger_link', $siteSetting->messenger_link ?? '') }}"
-                               class="form-control @error('messenger_link') is-invalid @enderror"
-                               placeholder="https://m.me/your-page-name">
-
-                        @error('messenger_link')
-                            <span class="invalid-feedback">{{ $message }}</span>
-                        @enderror
-                    </div>
-
-                    <div class="form-group">
-                        <label>Address</label>
-
-                        <textarea name="address"
-                                  class="form-control @error('address') is-invalid @enderror"
-                                  rows="3"
-                                  placeholder="Business address">{{ old('address', $siteSetting->address ?? '') }}</textarea>
-
-                        @error('address')
-                            <span class="invalid-feedback">{{ $message }}</span>
-                        @enderror
-                    </div>
-
-                    <div class="form-group">
-                        <label>Top Headline</label>
-
-                        <textarea name="top_headline"
-                                  class="form-control @error('top_headline') is-invalid @enderror"
-                                  rows="2"
-                                  placeholder="Example: আজকের স্পেশাল অফার">{{ old('top_headline', $siteSetting->top_headline ?? '') }}</textarea>
-
-                        @error('top_headline')
-                            <span class="invalid-feedback">{{ $message }}</span>
-                        @enderror
-                    </div>
-
-                    <div class="form-group">
-                        <label>Business Short Description</label>
-
-                        <textarea name="business_short_description"
-                                  class="form-control @error('business_short_description') is-invalid @enderror"
-                                  rows="4"
-                                  placeholder="Short business description">{{ old('business_short_description', $siteSetting->business_short_description ?? '') }}</textarea>
-
-                        @error('business_short_description')
-                            <span class="invalid-feedback">{{ $message }}</span>
-                        @enderror
-                    </div>
-
-                    <div class="form-group">
-                        <label>Footer Text</label>
-
-                        <textarea name="footer_text"
-                                  class="form-control @error('footer_text') is-invalid @enderror"
-                                  rows="3"
-                                  placeholder="Footer copyright or business text">{{ old('footer_text', $siteSetting->footer_text ?? '') }}</textarea>
-
-                        @error('footer_text')
-                            <span class="invalid-feedback">{{ $message }}</span>
-                        @enderror
-                    </div>
-
-                    <div class="form-group">
-                        <label>Working Hours</label>
+                    <div class="form-group mb-4">
+                        <label>
+                            Website Name <span class="text-danger">*</span>
+                        </label>
 
                         <input type="text"
-                               name="working_hours"
-                               value="{{ old('working_hours', $siteSetting->working_hours ?? '') }}"
-                               class="form-control @error('working_hours') is-invalid @enderror"
-                               placeholder="Example: Sat - Thu, 10:00 AM - 8:00 PM">
+                               name="website_name"
+                               value="{{ old('website_name', $siteSetting->website_name ?? '') }}"
+                               class="form-control @error('website_name') is-invalid @enderror"
+                               placeholder="Example: Shanto Gift Shop"
+                               required>
 
-                        @error('working_hours')
+                        @error('website_name')
                             <span class="invalid-feedback">{{ $message }}</span>
                         @enderror
-                    </div>
-
-                    <div class="custom-control custom-switch mb-4">
-                        <input type="checkbox"
-                               name="status"
-                               value="1"
-                               class="custom-control-input"
-                               id="status"
-                               @checked(old('status', $siteSetting->status ?? true))>
-
-                        <label class="custom-control-label font-weight-bold" for="status">
-                            Active
-                        </label>
                     </div>
 
                     <div class="card bg-light border-0 mb-4">
@@ -391,7 +228,7 @@
 
             <div class="card-body">
                 @if ($siteSetting)
-                    <div class="preview-brand-box text-center mb-4">
+                    <div class="preview-brand-box text-center mb-3">
                         @if ($siteSetting->getFirstMedia('site_logo'))
                             <img src="{{ $siteSetting->logo }}"
                                  class="img-fluid preview-logo"
@@ -402,53 +239,44 @@
                             </div>
                         @endif
 
-                        <h4 class="font-weight-bold mt-3 mb-1">
+                        <h4 class="font-weight-bold mt-3 mb-0">
                             {{ $siteSetting->website_name }}
                         </h4>
-
-                        @if ($siteSetting->status)
-                            <span class="badge badge-success">Active</span>
-                        @else
-                            <span class="badge badge-danger">Inactive</span>
-                        @endif
                     </div>
 
-                    <ul class="list-group list-group-flush preview-list">
-                        <li class="list-group-item px-0">
-                            <strong><i class="fas fa-phone text-primary mr-1"></i> Phone:</strong><br>
-                            <span>{{ $siteSetting->phone ?? 'N/A' }}</span>
-                        </li>
+                    <div class="branding-preview-grid">
+                        <div class="branding-preview-item">
+                            <strong>Site Logo</strong>
+                            @if ($siteSetting->getFirstMedia('site_logo'))
+                                <img src="{{ $siteSetting->logo }}" alt="Site Logo">
+                            @else
+                                <span class="text-muted">Not uploaded</span>
+                            @endif
+                        </div>
 
-                        <li class="list-group-item px-0">
-                            <strong><i class="fas fa-headset text-primary mr-1"></i> Hotline:</strong><br>
-                            <span>{{ $siteSetting->hotline ?? 'N/A' }}</span>
-                        </li>
+                        <div class="branding-preview-item dark-preview">
+                            <strong class="text-white">White Logo</strong>
+                            @if ($siteSetting->getFirstMedia('site_white_logo'))
+                                <img src="{{ $siteSetting->white_logo }}" alt="White Logo">
+                            @else
+                                <span class="text-light">Not uploaded</span>
+                            @endif
+                        </div>
 
-                        <li class="list-group-item px-0">
-                            <strong><i class="fab fa-whatsapp text-success mr-1"></i> WhatsApp:</strong><br>
-                            <span>{{ $siteSetting->whatsapp_number ?? 'N/A' }}</span>
-                        </li>
-
-                        <li class="list-group-item px-0">
-                            <strong><i class="fas fa-envelope text-primary mr-1"></i> Email:</strong><br>
-                            <span>{{ $siteSetting->email ?? 'N/A' }}</span>
-                        </li>
-
-                        <li class="list-group-item px-0">
-                            <strong><i class="fas fa-clock text-primary mr-1"></i> Working Hours:</strong><br>
-                            <span>{{ $siteSetting->working_hours ?? 'N/A' }}</span>
-                        </li>
-
-                        <li class="list-group-item px-0">
-                            <strong><i class="fas fa-map-marker-alt text-danger mr-1"></i> Address:</strong><br>
-                            <span>{{ $siteSetting->address ?? 'N/A' }}</span>
-                        </li>
-                    </ul>
+                        <div class="branding-preview-item">
+                            <strong>Favicon</strong>
+                            @if ($siteSetting->getFirstMedia('site_favicon'))
+                                <img src="{{ $siteSetting->favicon }}" class="favicon-preview" alt="Favicon">
+                            @else
+                                <span class="text-muted">Not uploaded</span>
+                            @endif
+                        </div>
+                    </div>
                 @else
                     <div class="text-center text-muted py-5">
                         <i class="fas fa-cogs fa-3x mb-3"></i>
                         <h5>No settings found</h5>
-                        <p class="mb-0">Fill the form and save your site settings.</p>
+                        <p class="mb-0">Website name and branding images save করুন।</p>
                     </div>
                 @endif
             </div>
@@ -463,13 +291,9 @@
             </div>
 
             <div class="card-body">
-                <p class="text-muted mb-2">
-                    Frontend header/footer এ এই settings use করতে পারবে।
+                <p class="text-muted mb-0">
+                    Contact information, footer content এবং related status Campaign form থেকে manage হবে।
                 </p>
-
-                <code>
-                    \App\Models\SiteSetting::where('status', true)->latest()->first()
-                </code>
             </div>
         </div>
     </div>
@@ -585,7 +409,7 @@ $(document).ready(function () {
 }
 
 .dark-preview {
-    background: #111827;
+    background: #111827 !important;
 }
 
 .favicon-preview {
@@ -618,12 +442,29 @@ $(document).ready(function () {
     margin: 0 auto;
 }
 
-.preview-list strong {
-    color: #111827;
+.branding-preview-grid {
+    display: grid;
+    gap: 10px;
 }
 
-.preview-list span {
-    color: #6b7280;
+.branding-preview-item {
+    min-height: 96px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    background: #f9fafb;
+    text-align: center;
+}
+
+.branding-preview-item img {
+    max-width: 100%;
+    max-height: 58px;
+    object-fit: contain;
 }
 
 .swal2-container {

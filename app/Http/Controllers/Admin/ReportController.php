@@ -52,6 +52,17 @@ class ReportController extends Controller
     }
 
 
+    private function deliveryAreas()
+    {
+        return Order::query()
+            ->whereNotNull('delivery_area')
+            ->where('delivery_area', '!=', '')
+            ->distinct()
+            ->orderBy('delivery_area')
+            ->pluck('delivery_area');
+    }
+
+
 
     private function groupByOptions(): array
     {
@@ -205,6 +216,7 @@ class ReportController extends Controller
             'campaigns'      => Campaign::query()->orderBy('title')->get(['id', 'title']),
             'products'       => Product::query()->orderBy('name')->get(['id', 'name']),
             'employees'      => User::query()->orderBy('name')->get(['id', 'name']),
+            'deliveryAreas'  => $this->deliveryAreas(),
             'breadcrumb'     => [
                 ['text' => 'Dashboard', 'url' => route('admin.dashboard')],
                 ['text' => 'Reports', 'url' => route('admin.reports.index')],
@@ -416,6 +428,7 @@ class ReportController extends Controller
             'campaigns'      => Campaign::query()->orderBy('title')->get(['id', 'title']),
             'products'       => Product::query()->orderBy('name')->get(['id', 'name']),
             'employees'      => User::query()->orderBy('name')->get(['id', 'name']),
+            'deliveryAreas'  => $this->deliveryAreas(),
             'breadcrumb'     => [
                 ['text' => 'Dashboard', 'url' => route('admin.dashboard')],
                 ['text' => 'Reports', 'url' => route('admin.reports.index')],

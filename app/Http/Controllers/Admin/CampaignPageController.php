@@ -88,10 +88,7 @@ class CampaignPageController extends Controller
             ->latest()
             ->get();
 
-        $shippingCharges = ShippingCharge::query()
-            ->active()
-            ->orderBy('id')
-            ->get();
+        $shippingCharges = ShippingCharge::resolvedForCampaign($campaign->id);
 
         return response()
             ->view('frontend.pages.home', [

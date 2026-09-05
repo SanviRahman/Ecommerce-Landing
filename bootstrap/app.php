@@ -1,5 +1,7 @@
 <?php
 
+require_once __DIR__ . '/runtime.php';
+
 use App\Http\Middleware\LteContext;
 use App\Http\Middleware\RoleMiddleware;
 use Illuminate\Foundation\Application;

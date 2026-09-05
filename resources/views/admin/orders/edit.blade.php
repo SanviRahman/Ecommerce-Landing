@@ -25,7 +25,6 @@
 @section('content')
 @php
 $productImageMap = $productImageMap ?? collect();
-$shippingChargeMap = $shippingChargeMap ?? [];
 $isNegotiatedBulkOrder = $isNegotiatedBulkOrder ?? in_array((string) $order->created_via, [
     \App\Models\Order::CREATED_VIA_ADMIN_BULK,
     \App\Models\Order::CREATED_VIA_EMPLOYEE_BULK,
@@ -41,35 +40,47 @@ $canBlockOrderIp = (bool) ($canBlockOrderIp ?? false);
 $orderSourceIp = trim((string) ($order->source_ip ?? ''));
 
 /*
-* Delivery area can come from the public checkout in different formats
-* depending on the older landing page version: inside_dhaka, Inside Dhaka,
-* or Bangla labels. Normalize only for selecting the correct dropdown option.
-*/
-$deliveryAreaOptions = [
-'inside_dhaka' => 'Inside Dhaka',
-'outside_dhaka' => 'Outside Dhaka',
-'free_delivery' => 'Free Delivery',
-];
+ * Delivery areas come from the selected Campaign only. A historical value
+ * already stored on this order is preserved only when it no longer exists in
+ * the campaign list, so editing an old order never silently changes its area.
+ */
+$shippingOptionsByCampaign = $shippingOptionsByCampaign ?? [];
+$currentCampaignId = (string) old('campaign_id', $suggestedCampaignId ?? $order->campaign_id ?? '');
+$currentShippingOptions = collect(
+    $shippingOptionsByCampaign[$currentCampaignId]
+        ?? $shippingOptionsByCampaign['']
+        ?? []
+);
 
-$rawDeliveryArea = old('delivery_area', $order->delivery_area);
-$normalizedDeliveryAreaKey = \Illuminate\Support\Str::lower(trim((string) $rawDeliveryArea));
+$rawDeliveryArea = trim((string) old('delivery_area', $order->delivery_area));
 
-$deliveryAreaAliases = [
-'inside_dhaka' => 'inside_dhaka',
-'inside dhaka' => 'inside_dhaka',
-'dhaka' => 'inside_dhaka',
-'ঢাকার ভিতরে' => 'inside_dhaka',
-'ঢাকা সিটির ভিতরে' => 'inside_dhaka',
-'outside_dhaka' => 'outside_dhaka',
-'outside dhaka' => 'outside_dhaka',
-'ঢাকার বাইরে' => 'outside_dhaka',
-'free_delivery' => 'free_delivery',
-'free delivery' => 'free_delivery',
-'ফ্রি ডেলিভারি' => 'free_delivery',
-];
+$normalizeDeliveryAreaForEdit = function ($value) {
+    $raw = \Illuminate\Support\Str::lower(trim((string) $value));
 
-$selectedDeliveryArea = $deliveryAreaAliases[$normalizedDeliveryAreaKey]
-?? (array_key_exists((string) $rawDeliveryArea, $deliveryAreaOptions) ? (string) $rawDeliveryArea : 'inside_dhaka');
+    return preg_replace('/[\s_-]+/u', ' ', $raw);
+};
+
+$selectedDeliveryArea = null;
+$normalizedStoredArea = $normalizeDeliveryAreaForEdit($rawDeliveryArea);
+
+foreach ($currentShippingOptions as $option) {
+    if ($normalizeDeliveryAreaForEdit($option['value'] ?? '') === $normalizedStoredArea) {
+        $selectedDeliveryArea = (string) ($option['value'] ?? '');
+        break;
+    }
+}
+
+if ($selectedDeliveryArea === null && $rawDeliveryArea !== '') {
+    $currentShippingOptions->push([
+        'id' => null,
+        'value' => $rawDeliveryArea,
+        'label' => $rawDeliveryArea,
+        'charge' => max(0, (float) $order->shipping_charge),
+        'legacy' => true,
+    ]);
+
+    $selectedDeliveryArea = $rawDeliveryArea;
+}
 @endphp
 
 @if(session('success'))
@@ -138,26 +149,17 @@ $selectedDeliveryArea = $deliveryAreaAliases[$normalizedDeliveryAreaKey]
 
                         <div class="col-md-6 mb-3">
                             <label class="font-weight-bold">Delivery Area</label>
-                            @php
-                            $currentDeliveryArea = trim((string) old('delivery_area', $order->delivery_area));
-                            $normalizedDeliveryArea = strtolower(str_replace([' ', '-'], '_', $currentDeliveryArea));
-
-                            $deliveryAreaOptions = [
-                            'inside_dhaka' => 'ঢাকার ভিতরে',
-                            'outside_dhaka' => 'ঢাকার বাইরে',
-                            'free_delivery' => 'ফ্রি ডেলিভারি',
-                            ];
-                            @endphp
-
                             <select name="delivery_area"
                                     id="deliveryAreaSelect"
                                     class="form-control @error('delivery_area') is-invalid @enderror">
                                 <option value="">Select Delivery Area</option>
 
-                                @foreach($deliveryAreaOptions as $value => $label)
-                                <option value="{{ $value }}" @selected($selectedDeliveryArea === $value)>
-                                    {{ $label }}
-                                </option>
+                                @foreach($currentShippingOptions as $option)
+                                    <option value="{{ $option['value'] }}"
+                                            data-charge="{{ $option['charge'] }}"
+                                            @selected((string) $selectedDeliveryArea === (string) $option['value'])>
+                                        {{ $option['label'] }}
+                                    </option>
                                 @endforeach
                             </select>
                             @error('delivery_area')
@@ -709,7 +711,9 @@ $selectedDeliveryArea = $deliveryAreaAliases[$normalizedDeliveryAreaKey]
 <script>
 $(document).ready(function() {
     let itemIndex = @json($rows->count());
-    const shippingChargeMap = @json($shippingChargeMap);
+    const shippingOptionsByCampaign = @json($shippingOptionsByCampaign ?? []);
+    const originalDeliveryArea = @json($rawDeliveryArea);
+    const originalShippingCharge = @json((float) $order->shipping_charge);
     const isNegotiatedBulkOrder = @json($isNegotiatedBulkOrder);
     const bulkNegotiatedTotal = @json($bulkNegotiatedTotal);
 
@@ -775,32 +779,82 @@ $(document).ready(function() {
     }
 
     function normalizeDeliveryArea(value) {
-        const raw = String(value || '').trim().toLowerCase();
-        const aliases = {
-            'inside dhaka': 'inside_dhaka',
-            'dhaka': 'inside_dhaka',
-            'ঢাকার ভিতরে': 'inside_dhaka',
-            'ঢাকা সিটির ভিতরে': 'inside_dhaka',
-            'outside dhaka': 'outside_dhaka',
-            'ঢাকার বাইরে': 'outside_dhaka',
-            'free delivery': 'free_delivery',
-            'ফ্রি ডেলিভারি': 'free_delivery'
-        };
+        return String(value || '')
+            .trim()
+            .toLowerCase()
+            .replace(/[\s_-]+/g, ' ');
+    }
 
-        return aliases[raw] || raw.replace(/[\s-]+/g, '_');
+    function getCampaignShippingOptions(campaignId) {
+        const key = String(campaignId || '');
+        const options = shippingOptionsByCampaign[key]
+            || shippingOptionsByCampaign['']
+            || [];
+
+        return Array.isArray(options) ? options : [];
+    }
+
+    function rebuildDeliveryAreaOptions(preferredValue, selectFirstWhenMissing = true) {
+        const select = $('#deliveryAreaSelect');
+        const campaignId = $('#campaignSelect').val();
+        const options = getCampaignShippingOptions(campaignId);
+        const preferredNormalized = normalizeDeliveryArea(preferredValue);
+
+        select.empty().append('<option value="">Select Delivery Area</option>');
+
+        let matchedValue = '';
+
+        options.forEach(function(option) {
+            const value = String(option.value || '').trim();
+            const label = String(option.label || value).trim();
+
+            if (!value) {
+                return;
+            }
+
+            const element = $('<option></option>')
+                .attr('value', value)
+                .attr('data-charge', toNumber(option.charge))
+                .text(label);
+
+            select.append(element);
+
+            if (!matchedValue && normalizeDeliveryArea(value) === preferredNormalized) {
+                matchedValue = value;
+            }
+        });
+
+        if (!matchedValue && preferredValue && preferredNormalized) {
+            const legacyValue = String(preferredValue).trim();
+            select.append(
+                $('<option></option>')
+                    .attr('value', legacyValue)
+                    .attr('data-charge', originalShippingCharge)
+                    .text(legacyValue)
+            );
+            matchedValue = legacyValue;
+        }
+
+        if (matchedValue) {
+            select.val(matchedValue);
+        } else if (selectFirstWhenMissing) {
+            const firstRealOption = select.find('option').eq(1);
+
+            if (firstRealOption.length) {
+                select.val(firstRealOption.val());
+            }
+        }
     }
 
     function applyCampaignShippingCharge() {
-        const campaignId = $('#campaignSelect').val();
-        const deliveryArea = normalizeDeliveryArea($('#deliveryAreaSelect').val());
+        const selectedOption = $('#deliveryAreaSelect option:selected');
+        const deliveryArea = normalizeDeliveryArea(selectedOption.val());
 
-        if (!campaignId || !deliveryArea) {
+        if (!deliveryArea) {
             return;
         }
 
-        const charge = deliveryArea === 'free_delivery'
-            ? 0
-            : shippingChargeMap[deliveryArea];
+        const charge = selectedOption.attr('data-charge');
 
         if (typeof charge === 'undefined') {
             return;
@@ -892,7 +946,15 @@ $(document).ready(function() {
 
     $(document).on('input change keyup', '.item-qty, .item-price, .item-discount, .total-input', recalcTotals);
 
-    $('#campaignSelect, #deliveryAreaSelect').on('change', applyCampaignShippingCharge);
+    $('#campaignSelect').on('change', function() {
+        const previousArea = $('#deliveryAreaSelect').val();
+        rebuildDeliveryAreaOptions(previousArea, true);
+        applyCampaignShippingCharge();
+    });
+
+    $('#deliveryAreaSelect').on('change', applyCampaignShippingCharge);
+
+    rebuildDeliveryAreaOptions(originalDeliveryArea, true);
 
     function blockRequestError(xhr) {
         if (xhr.responseJSON && xhr.responseJSON.errors) {

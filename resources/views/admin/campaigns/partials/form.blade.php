@@ -151,12 +151,6 @@
         return ! ($charge['delete'] ?? false);
     })->values();
 
-    if ($shippingChargeRows->isEmpty()) {
-        $shippingChargeRows = collect([
-            ['id' => null, 'area_name' => 'ঢাকার ভিতরে', 'delivery_charge' => 70, 'status' => true, 'delete' => false],
-            ['id' => null, 'area_name' => 'ঢাকার বাইরে', 'delivery_charge' => 130, 'status' => true, 'delete' => false],
-        ]);
-    }
 
     $faqSource = old('campaign_faqs');
 
@@ -873,34 +867,24 @@
         </div>
     </div>
 
-    {{-- Product Section --}}
+    {{-- Brand / Category Filter ON/OFF --}}
     <div class="card shadow-sm border-0 mb-3" style="border-radius: 12px;">
         <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap">
             <div>
                 <h5 class="mb-0 font-weight-bold">
-                    <i class="fas fa-box-open text-primary mr-1"></i>
-                    Product Section
+                    <i class="fas fa-filter text-primary mr-1"></i>
+                    Brand / Category Filter ON/OFF
                 </h5>
 
-                <small class="text-muted">Frontend product grid/order section-e sudhu selected products show hobe.</small>
+                <small class="text-muted">Filter OFF korleo selected products frontend-e visible thakbe.</small>
             </div>
 
-            {!! $sectionSwitch('product_section_status', 'Active / Inactive') !!}
+            {!! $sectionSwitch('product_section_status', 'ON / OFF') !!}
         </div>
 
         <div class="card-body">
             <div class="row">
-                <div class="col-md-4 mb-3">
-                    <label class="font-weight-bold">Product Section Title</label>
-
-                    <input type="text"
-                           name="section_titles[product_title]"
-                           value="{{ old('section_titles.product_title', $sectionTitles['product_title'] ?? 'আমাদের প্রোডাক্ট') }}"
-                           class="form-control"
-                           placeholder="Product Section Title">
-                </div>
-
-                <div class="col-md-4 mb-3">
+                <div class="col-md-6 mb-3 mb-md-0">
                     <label class="font-weight-bold">Category Filter Title</label>
 
                     <input type="text"
@@ -910,7 +894,7 @@
                            placeholder="Category Filter Title">
                 </div>
 
-                <div class="col-md-4 mb-3">
+                <div class="col-md-6">
                     <label class="font-weight-bold">Brand Filter Title</label>
 
                     <input type="text"
@@ -919,6 +903,29 @@
                            class="form-control"
                            placeholder="Brand Filter Title">
                 </div>
+            </div>
+        </div>
+    </div>
+
+    {{-- Product Selection: always independent from the filter switch --}}
+    <div class="card shadow-sm border-0 mb-3" style="border-radius: 12px;">
+        <div class="card-header bg-white">
+            <h5 class="mb-0 font-weight-bold">
+                <i class="fas fa-box-open text-success mr-1"></i>
+                Product Selection
+            </h5>
+            <small class="text-muted">Selected products frontend product grid/order section-e always available thakbe.</small>
+        </div>
+
+        <div class="card-body">
+            <div class="form-group">
+                <label class="font-weight-bold">Product Section Title</label>
+
+                <input type="text"
+                       name="section_titles[product_title]"
+                       value="{{ old('section_titles.product_title', $sectionTitles['product_title'] ?? 'আমাদের প্রোডাক্ট') }}"
+                       class="form-control"
+                       placeholder="Product Section Title">
             </div>
 
             <div class="form-group mb-0">
@@ -938,7 +945,7 @@
                 </select>
 
                 <small class="text-muted">
-                    Search kore multiple product select koro. Frontend product grid/order section-e sudhu selected products show hobe.
+                    Search kore multiple product select koro. Filter ON/OFF-er sathe product selection hide/show hobe na.
                 </small>
 
                 @error('products')
@@ -1537,6 +1544,12 @@
             </div>
 
             <div id="shippingChargesWrapper">
+                @if($shippingChargeRows->isEmpty())
+                    <div class="alert alert-light border mb-0" id="shippingChargesEmptyState">
+                        No delivery area has been added for this campaign yet. Click <strong>Add Shipping Area</strong> to create one.
+                    </div>
+                @endif
+
                 @foreach($shippingChargeRows as $index => $shippingCharge)
                     <div class="shipping-charge-item border rounded p-3 mb-2 bg-light">
                         <input type="hidden" name="shipping_charges[{{ $index }}][id]" value="{{ $shippingCharge['id'] ?? '' }}">
@@ -1549,18 +1562,18 @@
                                        name="shipping_charges[{{ $index }}][area_name]"
                                        value="{{ $shippingCharge['area_name'] ?? '' }}"
                                        class="form-control"
-                                       placeholder="Example: ঢাকার বাইরে">
+                                       placeholder="Example: Delivery area name">
                             </div>
 
                             <div class="col-md-3 mb-2">
                                 <label class="font-weight-bold">Delivery Charge</label>
                                 <input type="number"
                                        name="shipping_charges[{{ $index }}][delivery_charge]"
-                                       value="{{ $shippingCharge['delivery_charge'] ?? 0 }}"
+                                       value="{{ $shippingCharge['delivery_charge'] ?? '' }}"
                                        class="form-control"
                                        min="0"
                                        step="1"
-                                       placeholder="130">
+                                       placeholder="Delivery charge">
                             </div>
 
                             <div class="col-md-2 mb-2">
@@ -1643,7 +1656,7 @@
                     <i class="fas fa-window-maximize text-primary mr-1"></i>
                     Footer / Site Settings
                 </h5>
-                <small class="text-muted">Footer-er website information ekhanei manage hobe. Data global thakbe, kintu footer visibility campaign-wise control hobe.</small>
+                <small class="text-muted">Footer contact information ekhane manage hobe. Website name, logo, white logo & favicon Sidebar > Site Settings theke manage korun.</small>
             </div>
 
             {!! $sectionSwitch('footer_section_status', 'Active / Inactive') !!}
@@ -1651,17 +1664,7 @@
 
         <div class="card-body">
             <div class="row">
-                <div class="col-md-6 mb-3">
-                    <label class="font-weight-bold">Website Name</label>
-                    <input type="text"
-                           name="site_settings[website_name]"
-                           value="{{ old('site_settings.website_name', $siteSetting->website_name ?? '') }}"
-                           class="form-control @error('site_settings.website_name') is-invalid @enderror"
-                           placeholder="Website name">
-                    @error('site_settings.website_name')<span class="invalid-feedback">{{ $message }}</span>@enderror
-                </div>
-
-                <div class="col-md-6 mb-3">
+                <div class="col-md-12 mb-3">
                     <label class="font-weight-bold">Email</label>
                     <input type="email"
                            name="site_settings[email]"
@@ -1706,46 +1709,11 @@
                     <textarea name="site_settings[top_headline]" rows="2" class="form-control">{{ old('site_settings.top_headline', $siteSetting->top_headline ?? '') }}</textarea>
                 </div>
 
-                <div class="col-md-6 mb-3">
+                <div class="col-md-12 mb-3">
                     <label class="font-weight-bold">Business Short Description</label>
                     <textarea name="site_settings[business_short_description]" rows="3" class="form-control">{{ old('site_settings.business_short_description', $siteSetting->business_short_description ?? '') }}</textarea>
                 </div>
 
-                <div class="col-md-6 mb-3">
-                    <label class="font-weight-bold">Footer Text</label>
-                    <textarea name="site_settings[footer_text]" rows="3" class="form-control">{{ old('site_settings.footer_text', $siteSetting->footer_text ?? '') }}</textarea>
-                </div>
-            </div>
-
-            <div class="border rounded p-3 bg-light mb-3">
-                <div class="row">
-                    @foreach([
-                        'site_logo' => 'Site Logo',
-                        'site_white_logo' => 'White / Footer Logo',
-                        'site_favicon' => 'Favicon',
-                    ] as $siteMediaField => $siteMediaLabel)
-                        @php
-                            $siteMedia = $siteSetting?->getFirstMedia($siteMediaField);
-                        @endphp
-                        <div class="col-md-4 mb-3 mb-md-0">
-                            <label class="font-weight-bold">{{ $siteMediaLabel }}</label>
-                            <input type="file"
-                                   name="site_settings[{{ $siteMediaField }}]"
-                                   class="form-control-file @error('site_settings.' . $siteMediaField) is-invalid @enderror"
-                                   accept="image/*{{ $siteMediaField === 'site_favicon' ? ',.ico' : '' }}">
-                            @error('site_settings.' . $siteMediaField)
-                                <div class="text-danger small mt-1">{{ $message }}</div>
-                            @enderror
-
-                            @if($siteMedia)
-                                <div class="mt-2 p-2 bg-white border rounded text-center">
-                                    <img src="{{ $siteMedia->getUrl() }}" alt="{{ $siteMediaLabel }}" style="max-width: 140px; max-height: 70px; object-fit: contain;">
-                                    <small class="text-muted d-block mt-1">Upload a new file to replace.</small>
-                                </div>
-                            @endif
-                        </div>
-                    @endforeach
-                </div>
             </div>
 
             <input type="hidden" name="site_settings[status]" value="0">
@@ -2663,6 +2631,8 @@ $(document).ready(function() {
     $('#btnAddShippingCharge').on('click', function () {
         const index = shippingChargeIndex++;
 
+        $('#shippingChargesEmptyState').remove();
+
         $('#shippingChargesWrapper').append(`
             <div class="shipping-charge-item border rounded p-3 mb-2 bg-light">
                 <input type="hidden" name="shipping_charges[${index}][id]" value="">
@@ -2674,7 +2644,7 @@ $(document).ready(function() {
                         <input type="text"
                                name="shipping_charges[${index}][area_name]"
                                class="form-control"
-                               placeholder="Example: ঢাকার বাইরে">
+                               placeholder="Example: Delivery area name">
                     </div>
 
                     <div class="col-md-3 mb-2">
@@ -2684,7 +2654,7 @@ $(document).ready(function() {
                                class="form-control"
                                min="0"
                                step="1"
-                               placeholder="130">
+                               placeholder="Delivery charge">
                     </div>
 
                     <div class="col-md-2 mb-2">
@@ -2720,6 +2690,14 @@ $(document).ready(function() {
             item.slideUp(200);
         } else {
             item.remove();
+
+            if (! $('#shippingChargesWrapper .shipping-charge-item:visible').length) {
+                $('#shippingChargesWrapper').html(`
+                    <div class="alert alert-light border mb-0" id="shippingChargesEmptyState">
+                        No delivery area has been added for this campaign yet. Click <strong>Add Shipping Area</strong> to create one.
+                    </div>
+                `);
+            }
         }
     });
 
@@ -2750,7 +2728,6 @@ $(document).ready(function() {
         ],
 
         product_section_status: [
-            'section_titles[product_title]',
             'section_titles[category_filter_title]',
             'section_titles[brand_filter_title]'
         ],

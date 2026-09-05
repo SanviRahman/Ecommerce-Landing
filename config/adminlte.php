@@ -657,6 +657,13 @@ return [
             'can'    => 'admin-only',
         ],
         [
+            'text'   => 'Site Settings',
+            'url'    => 'admin/site-settings',
+            'icon'   => 'fas fa-cogs',
+            'can'    => 'admin-only',
+            'active' => ['admin/site-settings*'],
+        ],
+        [
             'text'   => 'Blocked Customers',
             'url'    => 'admin/blocked-customers',
             'icon'   => 'fas fa-user-slash',

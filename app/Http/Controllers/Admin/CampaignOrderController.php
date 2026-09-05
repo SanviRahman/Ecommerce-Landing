@@ -204,7 +204,7 @@ class CampaignOrderController extends Controller
             'customer_name'       => ['required', 'string', 'max:255'],
             'phone'               => ['required', 'string', 'regex:/^01[0-9]{9}$/'],
             'address'             => ['required', 'string'],
-            'delivery_area'       => ['required', 'string', 'max:255'],
+            'delivery_area'       => ['nullable', 'string', 'max:255'],
             'customer_note'       => ['nullable', 'string', 'max:1000'],
             'order_form_token'    => ['required', 'string', 'max:100'],
 
@@ -307,25 +307,19 @@ class CampaignOrderController extends Controller
             $selectedShippingCharge = null;
 
             if (! $hasAnyFreeDeliveryProduct) {
-                $selectedShippingCharge = ShippingCharge::query()
-                    ->active()
-                    ->whereKey($request->delivery_area)
-                    ->first();
+                $availableShippingCharges = ShippingCharge::resolvedForCampaign($campaign->id);
 
-                // Safe fallback for older frontend values before dynamic shipping charge update.
-                if (! $selectedShippingCharge && in_array($request->delivery_area, ['inside_dhaka', 'outside_dhaka'], true)) {
-                    $shippingCharge = $request->delivery_area === 'inside_dhaka' ? 70 : 130;
-                    $deliveryAreaName = $request->delivery_area;
-                } else {
-                    if (! $selectedShippingCharge) {
-                        return back()
-                            ->withInput()
-                            ->with('error', 'Please select a valid delivery area.');
-                    }
+                $selectedShippingCharge = $availableShippingCharges
+                    ->first(fn (ShippingCharge $charge) => (string) $charge->id === (string) $request->delivery_area);
 
-                    $shippingCharge = (int) $selectedShippingCharge->delivery_charge;
-                    $deliveryAreaName = $selectedShippingCharge->area_name;
+                if (! $selectedShippingCharge) {
+                    return back()
+                        ->withInput()
+                        ->with('error', 'Please select a valid delivery area.');
                 }
+
+                $shippingCharge = (int) $selectedShippingCharge->delivery_charge;
+                $deliveryAreaName = $selectedShippingCharge->area_name;
             } else {
                 $shippingCharge = 0;
                 $deliveryAreaName = 'free_delivery';

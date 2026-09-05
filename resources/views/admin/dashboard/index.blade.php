@@ -116,9 +116,9 @@
                         <label>Delivery Area</label>
                         <select name="delivery_area" id="delivery_area" class="form-control dashboard-filter-input">
                             <option value="">All Area</option>
-                            <option value="inside_dhaka">Inside Dhaka</option>
-                            <option value="outside_dhaka">Outside Dhaka</option>
-                            <option value="free_delivery">Free Delivery</option>
+                            @foreach(($deliveryAreas ?? collect()) as $deliveryArea)
+                                <option value="{{ $deliveryArea }}">{{ $deliveryArea }}</option>
+                            @endforeach
                         </select>
                     </div>
                 </div>

@@ -27,14 +27,27 @@
     $productImageMap = $productImageMap ?? collect();
     $isEmployeeCreator = $isEmployeeCreator ?? (auth()->check() && auth()->user()->isEmployee());
     $currentEmployee = $currentEmployee ?? ($isEmployeeCreator ? auth()->user() : null);
-    $shippingChargeMap = $shippingChargeMap ?? [];
+    $shippingOptionsByCampaign = $shippingOptionsByCampaign ?? [];
     $hasOldShippingCharge = array_key_exists('shipping_charge', session()->getOldInput());
+    $currentCampaignId = (string) old('campaign_id', '');
+    $currentShippingOptions = collect(
+        $shippingOptionsByCampaign[$currentCampaignId]
+            ?? $shippingOptionsByCampaign['']
+            ?? []
+    );
+    $selectedDeliveryArea = trim((string) old('delivery_area', ''));
 
-    $deliveryAreaOptions = [
-        'inside_dhaka' => 'ঢাকার ভিতরে',
-        'outside_dhaka' => 'ঢাকার বাইরে',
-        'free_delivery' => 'ফ্রি ডেলিভারি',
-    ];
+    if ($selectedDeliveryArea !== '' && ! $currentShippingOptions->contains(
+        fn (array $option) => trim((string) ($option['value'] ?? '')) === $selectedDeliveryArea
+    )) {
+        $currentShippingOptions->push([
+            'id' => null,
+            'value' => $selectedDeliveryArea,
+            'label' => $selectedDeliveryArea,
+            'charge' => max(0, (float) old('shipping_charge', 0)),
+            'legacy' => true,
+        ]);
+    }
 
     $rows = collect(old('items', [[
         'product_id' => null,
@@ -166,9 +179,11 @@
                                     class="form-control @error('delivery_area') is-invalid @enderror">
                                 <option value="">Select Delivery Area</option>
 
-                                @foreach($deliveryAreaOptions as $value => $label)
-                                    <option value="{{ $value }}" @selected(old('delivery_area', 'inside_dhaka') === $value)>
-                                        {{ $label }}
+                                @foreach($currentShippingOptions as $option)
+                                    <option value="{{ $option['value'] }}"
+                                            data-charge="{{ $option['charge'] }}"
+                                            @selected((string) $selectedDeliveryArea === (string) $option['value'])>
+                                        {{ $option['label'] }}
                                     </option>
                                 @endforeach
                             </select>
@@ -578,8 +593,10 @@ $(document).ready(function() {
     let itemIndex = @json($rows->count());
 
     const products = @json($productsForJs);
-    const shippingChargeMap = @json($shippingChargeMap);
+    const shippingOptionsByCampaign = @json($shippingOptionsByCampaign);
     const hasOldShippingCharge = @json($hasOldShippingCharge);
+    const initialDeliveryArea = @json($selectedDeliveryArea);
+    const initialShippingCharge = @json($initialShippingCharge);
 
     function toNumber(value) {
         const cleaned = String(value || 0).replace(/[^0-9.\-]/g, '');
@@ -639,33 +656,70 @@ $(document).ready(function() {
         $('#grandTotalPreview').val(money(subTotal + shipping + cod));
     }
 
-    function normalizeDeliveryArea(value) {
-        const raw = String(value || '').trim().toLowerCase();
-        const aliases = {
-            'inside dhaka': 'inside_dhaka',
-            'dhaka': 'inside_dhaka',
-            'ঢাকার ভিতরে': 'inside_dhaka',
-            'ঢাকা সিটির ভিতরে': 'inside_dhaka',
-            'outside dhaka': 'outside_dhaka',
-            'ঢাকার বাইরে': 'outside_dhaka',
-            'free delivery': 'free_delivery',
-            'ফ্রি ডেলিভারি': 'free_delivery'
-        };
+    function getCampaignShippingOptions(campaignId) {
+        const key = String(campaignId || '');
+        const options = shippingOptionsByCampaign[key]
+            || shippingOptionsByCampaign['']
+            || [];
 
-        return aliases[raw] || raw.replace(/[\s-]+/g, '_');
+        return Array.isArray(options) ? options : [];
+    }
+
+    function rebuildDeliveryAreaOptions(preferredValue = '') {
+        const select = $('#deliveryAreaSelect');
+        const options = getCampaignShippingOptions($('#campaignSelect').val());
+        const preferred = String(preferredValue || '').trim();
+
+        select.empty().append('<option value="">Select Delivery Area</option>');
+
+        options.forEach(function(option) {
+            const value = String(option.value || '').trim();
+            const label = String(option.label || value).trim();
+
+            if (!value) {
+                return;
+            }
+
+            select.append(
+                $('<option></option>')
+                    .attr('value', value)
+                    .attr('data-charge', toNumber(option.charge))
+                    .text(label)
+            );
+        });
+
+        const preferredOptionExists = preferred && select.find('option').filter(function() {
+            return String($(this).val()) === preferred;
+        }).length;
+
+        if (preferredOptionExists) {
+            select.val(preferred);
+        } else if (preferred) {
+            select.append(
+                $('<option></option>')
+                    .attr('value', preferred)
+                    .attr('data-charge', initialShippingCharge)
+                    .text(preferred)
+            );
+            select.val(preferred);
+        } else {
+            const firstRealOption = select.find('option').eq(1);
+
+            if (firstRealOption.length) {
+                select.val(firstRealOption.val());
+            }
+        }
     }
 
     function applyCampaignShippingCharge() {
-        const campaignId = $('#campaignSelect').val();
-        const deliveryArea = normalizeDeliveryArea($('#deliveryAreaSelect').val());
+        const selectedOption = $('#deliveryAreaSelect option:selected');
+        const value = String(selectedOption.val() || '').trim();
 
-        if (!campaignId || !deliveryArea) {
+        if (!value) {
             return;
         }
 
-        const charge = deliveryArea === 'free_delivery'
-            ? 0
-            : shippingChargeMap[deliveryArea];
+        const charge = selectedOption.attr('data-charge');
 
         if (typeof charge === 'undefined') {
             return;
@@ -802,13 +856,16 @@ $(document).ready(function() {
         this.value = this.value.replace(/\D/g, '').slice(0, 11);
     });
 
-    $('#campaignSelect, #deliveryAreaSelect').on('change', applyCampaignShippingCharge);
+    $('#campaignSelect').on('change', function() {
+        rebuildDeliveryAreaOptions('');
+        applyCampaignShippingCharge();
+    });
 
-    if (
-        !hasOldShippingCharge
-        && $('#campaignSelect').val()
-        && $('#deliveryAreaSelect').val()
-    ) {
+    $('#deliveryAreaSelect').on('change', applyCampaignShippingCharge);
+
+    rebuildDeliveryAreaOptions(initialDeliveryArea);
+
+    if (!hasOldShippingCharge && $('#deliveryAreaSelect').val()) {
         applyCampaignShippingCharge();
     }
 

@@ -52,17 +52,6 @@ class SiteSettingController extends Controller
         return DB::transaction(function () use ($request) {
             $siteSetting = SiteSetting::create([
                 'website_name' => $request->website_name,
-                'phone' => $request->phone,
-                'hotline' => $request->hotline,
-                'whatsapp_number' => $request->whatsapp_number,
-                'messenger_link' => $request->messenger_link,
-                'email' => $request->email,
-                'address' => $request->address,
-                'top_headline' => $request->top_headline,
-                'footer_text' => $request->footer_text,
-                'business_short_description' => $request->business_short_description,
-                'working_hours' => $request->working_hours,
-                'status' => $request->has('status') ? $request->boolean('status') : false,
             ]);
 
             $this->uploadMedia($siteSetting, $request);
@@ -80,19 +69,10 @@ class SiteSettingController extends Controller
         $request->validate($this->validationRules());
 
         return DB::transaction(function () use ($request, $siteSetting) {
+            // Site Settings only owns website identity/branding.
+            // Campaign form continues to manage footer/contact information.
             $siteSetting->update([
                 'website_name' => $request->website_name,
-                'phone' => $request->phone,
-                'hotline' => $request->hotline,
-                'whatsapp_number' => $request->whatsapp_number,
-                'messenger_link' => $request->messenger_link,
-                'email' => $request->email,
-                'address' => $request->address,
-                'top_headline' => $request->top_headline,
-                'footer_text' => $request->footer_text,
-                'business_short_description' => $request->business_short_description,
-                'working_hours' => $request->working_hours,
-                'status' => $request->has('status') ? $request->boolean('status') : false,
             ]);
 
             $this->uploadMedia($siteSetting, $request);
@@ -132,20 +112,6 @@ class SiteSettingController extends Controller
     {
         return [
             'website_name' => ['required', 'string', 'max:255'],
-
-            'phone' => ['nullable', 'string', 'max:30'],
-            'hotline' => ['nullable', 'string', 'max:30'],
-            'whatsapp_number' => ['nullable', 'string', 'max:30'],
-            'messenger_link' => ['nullable', 'string', 'max:255'],
-            'email' => ['nullable', 'email', 'max:255'],
-
-            'address' => ['nullable', 'string'],
-            'top_headline' => ['nullable', 'string'],
-            'footer_text' => ['nullable', 'string'],
-            'business_short_description' => ['nullable', 'string'],
-            'working_hours' => ['nullable', 'string', 'max:255'],
-
-            'status' => ['nullable', 'boolean'],
 
             'site_logo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp,svg', 'max:4096'],
             'site_white_logo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp,svg', 'max:4096'],

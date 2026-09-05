@@ -65,7 +65,10 @@ class OrderTrackingController extends Controller
         );
 
         if ($request->expectsJson()) {
-            $request->session()->put('order_tracking_phone', $phone);
+            // AJAX tracking is intentionally transient. Clear any previous
+            // tracking session value so a browser refresh never re-runs the
+            // last phone-number search automatically.
+            $request->session()->forget('order_tracking_phone');
 
             $phoneVariants = collect([
                 $phone,

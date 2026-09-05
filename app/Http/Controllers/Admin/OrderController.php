@@ -601,8 +601,10 @@ class OrderController extends Controller
     }
 
     /**
-     * Normalize delivery area values coming from old/public checkout labels.
-     * This keeps edit/update stable even when old orders saved Bangla labels.
+     * Normalize a delivery-area value only for comparison.
+     *
+     * Area names and charges are configured dynamically per campaign, so this
+     * helper intentionally contains no delivery-area aliases or fixed labels.
      */
     private function normalizeDeliveryArea(?string $area): ?string
     {
@@ -616,51 +618,50 @@ class OrderController extends Controller
             return null;
         }
 
-        $key = \Illuminate\Support\Str::lower($raw);
-
-        $aliases = [
-            'inside_dhaka'     => 'inside_dhaka',
-            'inside dhaka'     => 'inside_dhaka',
-            'dhaka'            => 'inside_dhaka',
-            'ঢাকার ভিতরে'      => 'inside_dhaka',
-            'ঢাকা সিটির ভিতরে' => 'inside_dhaka',
-            'outside_dhaka'    => 'outside_dhaka',
-            'outside dhaka'    => 'outside_dhaka',
-            'ঢাকার বাইরে'      => 'outside_dhaka',
-            'free_delivery'    => 'free_delivery',
-            'free delivery'    => 'free_delivery',
-            'ফ্রি ডেলিভারি'    => 'free_delivery',
-        ];
-
-        return $aliases[$key] ?? $raw;
+        return preg_replace(
+            '/[\s_-]+/u',
+            ' ',
+            \Illuminate\Support\Str::lower($raw)
+        );
     }
 
-    /**
-     * Return the currently active delivery charges using the same normalized
-     * delivery-area values used by the manual order forms.
-     *
-     * The existing project stores these rows in the shared shipping_charges
-     * table. This method only reads those settings and does not change the
-     * campaign, checkout, pricing, or shipping-charge management workflow.
-     */
-    private function getActiveShippingChargeMap(): array
+    private function getShippingOptionsByCampaign(Collection $campaigns): array
     {
-        return ShippingCharge::query()
-            ->active()
-            ->orderBy('id')
-            ->get(['area_name', 'delivery_charge'])
-            ->mapWithKeys(function (ShippingCharge $shippingCharge) {
-                $areaKey = $this->normalizeDeliveryArea($shippingCharge->area_name);
+        $options = [
+            '' => $this->shippingOptionsForCampaign(null),
+        ];
 
-                if (! $areaKey) {
-                    return [];
-                }
+        foreach ($campaigns as $campaign) {
+            $options[(string) $campaign->id] = $this->shippingOptionsForCampaign((int) $campaign->id);
+        }
 
-                return [
-                    $areaKey => max(0, (float) $shippingCharge->delivery_charge),
-                ];
-            })
-            ->toArray();
+        return $options;
+    }
+
+    private function shippingOptionsForCampaign(?int $campaignId): array
+    {
+        $rows = ShippingCharge::resolvedForCampaign($campaignId)
+            ->map(fn (ShippingCharge $shippingCharge) => [
+                'id' => (int) $shippingCharge->id,
+                'value' => trim((string) $shippingCharge->area_name),
+                'label' => trim((string) $shippingCharge->area_name),
+                'charge' => max(0, (float) $shippingCharge->delivery_charge),
+            ])
+            ->filter(fn (array $row) => $row['value'] !== '')
+            ->values();
+
+        $freeDeliveryKey = $this->normalizeDeliveryArea('free_delivery');
+
+        if (! $rows->contains(fn (array $row) => $this->normalizeDeliveryArea($row['value']) === $freeDeliveryKey)) {
+            $rows->push([
+                'id' => null,
+                'value' => 'free_delivery',
+                'label' => 'ফ্রি ডেলিভারি',
+                'charge' => 0,
+            ]);
+        }
+
+        return $rows->all();
     }
 
     /**
@@ -695,35 +696,70 @@ class OrderController extends Controller
     }
 
     /**
-     * Find customers with multiple orders for the currently visible page,
-     * while counting against the full accessible order list.
-     *
-     * Phone is intentionally not used as the identity key because different
-     * customers are allowed to share one phone number. Orders are grouped by
-     * customer_id, resolved from normalized customer name + phone.
+     * Normalize a customer phone into one comparison key for duplicate-risk
+     * highlighting. Local 01XXXXXXXXX and 8801XXXXXXXXX formats resolve to
+     * the same key without changing the stored order data.
      */
-    private function duplicateCustomerCountsForOrders($orders, bool $trash = false): array
+    private function duplicatePhoneKey(?string $phone): string
     {
-        $customerIds = $orders->getCollection()
-            ->pluck('customer_id')
-            ->map(fn($customerId) => (int) $customerId)
-            ->filter(fn(int $customerId) => $customerId > 0)
+        $phone = $this->normalizeCustomerPhone($phone);
+
+        if (str_starts_with($phone, '880') && strlen($phone) === 13) {
+            return '0' . substr($phone, 3);
+        }
+
+        return $phone;
+    }
+
+    /**
+     * Find repeated phone numbers for the currently visible page while
+     * counting matches against the full accessible order list.
+     *
+     * The order row becomes a duplicate-risk row when the same phone number
+     * appears more than once, even when those orders belong to different
+     * customer_id records or customer names.
+     */
+    private function duplicatePhoneCountsForOrders($orders, bool $trash = false): array
+    {
+        $visiblePhoneKeys = $orders->getCollection()
+            ->pluck('phone')
+            ->map(fn($phone) => $this->duplicatePhoneKey($phone))
+            ->filter()
             ->unique()
             ->values();
 
-        if ($customerIds->isEmpty()) {
+        if ($visiblePhoneKeys->isEmpty()) {
             return [];
         }
+
+        $phoneVariants = $visiblePhoneKeys
+            ->flatMap(function (string $phone) {
+                $variants = [$phone];
+
+                if (preg_match('/^01[0-9]{9}$/', $phone)) {
+                    $international = '880' . substr($phone, 1);
+                    $variants[] = $international;
+                    $variants[] = '+' . $international;
+                }
+
+                return $variants;
+            })
+            ->unique()
+            ->values()
+            ->all();
 
         $query = $trash ? Order::onlyTrashed() : Order::query();
 
         return $query
             ->forLoggedInUser()
-            ->whereIn('customer_id', $customerIds)
-            ->select('customer_id', DB::raw('COUNT(*) as total'))
-            ->groupBy('customer_id')
-            ->havingRaw('COUNT(*) > 1')
-            ->pluck('total', 'customer_id')
+            ->whereNotNull('phone')
+            ->where('phone', '<>', '')
+            ->whereIn('phone', $phoneVariants)
+            ->get(['phone'])
+            ->map(fn(Order $order) => $this->duplicatePhoneKey($order->phone))
+            ->filter(fn(string $phone) => $phone !== '' && $visiblePhoneKeys->contains($phone))
+            ->countBy()
+            ->filter(fn($count) => (int) $count > 1)
             ->map(fn($count) => (int) $count)
             ->toArray();
     }
@@ -786,7 +822,7 @@ class OrderController extends Controller
         }
 
         $orders                  = $query->paginate($perPage)->withQueryString();
-        $duplicateCustomerCounts = $this->duplicateCustomerCountsForOrders($orders, $isTrash);
+        $duplicatePhoneCounts    = $this->duplicatePhoneCountsForOrders($orders, $isTrash);
         $duplicateIpCounts       = $this->duplicateIpCountsForOrders($orders, $isTrash);
 
         $employees = User::query()
@@ -848,7 +884,7 @@ class OrderController extends Controller
                     'courierServices'      => $courierServices,
                     'orderFields'          => $orderFields,
                     'orderStatuses'        => $orderStatuses,
-                    'duplicateCustomerCounts' => $duplicateCustomerCounts,
+                    'duplicatePhoneCounts'    => $duplicatePhoneCounts,
                     'duplicateIpCounts'    => $duplicateIpCounts,
                     'localWebsiteName'     => $localWebsiteName,
                 ])->render(),
@@ -871,7 +907,7 @@ class OrderController extends Controller
             'orderStatuses'        => $orderStatuses,
             'paymentStatuses'      => $paymentStatuses,
             'orderFields'          => $orderFields,
-            'duplicateCustomerCounts' => $duplicateCustomerCounts,
+            'duplicatePhoneCounts'    => $duplicatePhoneCounts,
             'duplicateIpCounts'    => $duplicateIpCounts,
             'currentStatusView'    => $currentStatusView,
             'currentOrderField'    => $currentOrderField,
@@ -1509,6 +1545,11 @@ class OrderController extends Controller
             $request->query('return_url', route('admin.orders.index'))
         );
 
+        $campaigns = Campaign::query()
+            ->where('status', true)
+            ->orderBy('title')
+            ->get();
+
         return view('admin.orders.create', [
             'title'             => 'Create Manual Order',
             'returnUrl'         => $returnUrl,
@@ -1517,11 +1558,8 @@ class OrderController extends Controller
             )->format('Y-m-d\\TH:i'),
             'products'          => $products,
             'productImageMap'   => $productImageMap,
-            'campaigns'         => Campaign::query()
-                ->where('status', true)
-                ->orderBy('title')
-                ->get(),
-            'shippingChargeMap' => $this->getActiveShippingChargeMap(),
+            'campaigns'         => $campaigns,
+            'shippingOptionsByCampaign' => $this->getShippingOptionsByCampaign($campaigns),
             'employees'         => $isEmployeeCreator
                 ? collect([$currentUser])
                 : User::query()
@@ -1560,7 +1598,7 @@ class OrderController extends Controller
 
         $request->merge([
             'phone'                => $this->normalizeCustomerPhone($request->input('phone')),
-            'delivery_area'        => $this->normalizeDeliveryArea($request->input('delivery_area')),
+            'delivery_area'        => trim((string) $request->input('delivery_area')),
             'assigned_employee_id' => $isEmployeeCreator
                 ? $currentUser->id
                 : $request->input('assigned_employee_id'),
@@ -2234,6 +2272,8 @@ class OrderController extends Controller
             ->orderBy('title')
             ->get();
 
+        $shippingOptionsByCampaign = $this->getShippingOptionsByCampaign($campaigns);
+
         $returnUrl = $this->safeOrderReturnUrl(
             $request->query('return_url', url()->previous())
         );
@@ -2270,7 +2310,7 @@ class OrderController extends Controller
             'productImageMap'   => $productImageMap,
             'campaigns'         => $campaigns,
             'suggestedCampaignId' => $suggestedCampaignId,
-            'shippingChargeMap'    => $this->getActiveShippingChargeMap(),
+            'shippingOptionsByCampaign' => $shippingOptionsByCampaign,
             'isNegotiatedBulkOrder' => $isNegotiatedBulkOrder,
             'bulkNegotiatedTotal'   => $isNegotiatedBulkOrder
                 ? max(0, (float) old('bulk_negotiated_total', $order->total_amount))
@@ -2326,7 +2366,9 @@ class OrderController extends Controller
 
         $request->merge([
             'phone'         => $this->normalizeCustomerPhone($request->input('phone')),
-            'delivery_area' => $this->normalizeDeliveryArea($request->input('delivery_area')),
+            // Preserve the exact Campaign delivery-area label selected by admin.
+            // Normalization is used only for matching legacy aliases in the UI.
+            'delivery_area' => trim((string) $request->input('delivery_area')),
         ]);
 
         $isNegotiatedBulkOrder = $this->isNegotiatedBulkOrder($order);

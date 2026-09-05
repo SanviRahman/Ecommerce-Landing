@@ -229,6 +229,12 @@ class Campaign extends Model implements HasMedia
             ->latest();
     }
 
+    public function shippingCharges()
+    {
+        return $this->hasMany(ShippingCharge::class)
+            ->orderBy('id');
+    }
+
 
     /**
      * Toggle campaign-level default status.

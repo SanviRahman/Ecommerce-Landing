@@ -2,7 +2,7 @@
 $canBulkManageOrders = auth()->check() && (auth()->user()->isAdmin() || auth()->user()->isEmployee());
 $canDeleteOrders = auth()->check() && auth()->user()->isAdmin();
 $orderStatuses = $orderStatuses ?? [];
-$duplicateCustomerCounts = $duplicateCustomerCounts ?? [];
+$duplicatePhoneCounts = $duplicatePhoneCounts ?? [];
 $duplicateIpCounts = $duplicateIpCounts ?? [];
 $localWebsiteName = trim((string) ($localWebsiteName ?? request()->getHost() ?? 'Local Website'));
 @endphp
@@ -38,10 +38,15 @@ $localWebsiteName = trim((string) ($localWebsiteName ?? request()->getHost() ?? 
             $orderCreatedAt = method_exists($order, 'localDateTime')
             ? $order->localDateTime('created_at')
             : ($order->created_at ? $order->created_at->copy()->timezone('Asia/Dhaka') : null);
-            $orderCustomerId = (int) ($order->customer_id ?? 0);
+            $orderPhoneKey = preg_replace('/\D+/', '', (string) ($order->phone ?? '')) ?: '';
+
+            if (str_starts_with($orderPhoneKey, '880') && strlen($orderPhoneKey) === 13) {
+                $orderPhoneKey = '0' . substr($orderPhoneKey, 3);
+            }
+
             $orderSourceIp = trim((string) $order->source_ip);
-            $duplicateCustomerTotal = $orderCustomerId > 0
-                ? (int) ($duplicateCustomerCounts[$orderCustomerId] ?? 0)
+            $duplicatePhoneTotal = $orderPhoneKey !== ''
+                ? (int) ($duplicatePhoneCounts[$orderPhoneKey] ?? 0)
                 : 0;
             $duplicateIpTotal = $orderSourceIp !== ''
                 ? (int) ($duplicateIpCounts[$orderSourceIp] ?? 0)
@@ -57,9 +62,9 @@ $localWebsiteName = trim((string) ($localWebsiteName ?? request()->getHost() ?? 
             ], true);
 
             $isFrontendOrder = (string) ($order->created_via ?? '') === \App\Models\Order::CREATED_VIA_FRONTEND;
-            $hasDuplicateCustomer = $duplicateCustomerTotal > 1;
+            $hasDuplicatePhone = $duplicatePhoneTotal > 1;
             $hasDuplicateIp = $isFrontendOrder && $duplicateIpTotal > 1;
-            $hasDuplicateRisk = $hasDuplicateCustomer || $hasDuplicateIp;
+            $hasDuplicateRisk = $hasDuplicatePhone || $hasDuplicateIp;
             $isSingleBulkCustomerOrder = $isBulkCreatedOrder && ! $hasDuplicateRisk;
 
             $rowClassParts = [];
@@ -76,8 +81,8 @@ $localWebsiteName = trim((string) ($localWebsiteName ?? request()->getHost() ?? 
                 $rowClassParts[] = 'order-single-bulk-row';
             }
 
-            if ($hasDuplicateCustomer) {
-                $rowClassParts[] = 'order-duplicate-customer-row';
+            if ($hasDuplicatePhone) {
+                $rowClassParts[] = 'order-duplicate-phone-row';
             }
 
             if ($hasDuplicateIp) {
@@ -96,8 +101,8 @@ $localWebsiteName = trim((string) ($localWebsiteName ?? request()->getHost() ?? 
                 $rowTitleParts[] = 'This customer has one bulk-created order';
             }
 
-            if ($hasDuplicateCustomer) {
-                $rowTitleParts[] = "Same customer has {$duplicateCustomerTotal} orders";
+            if ($hasDuplicatePhone) {
+                $rowTitleParts[] = "Same phone number has {$duplicatePhoneTotal} orders";
             }
 
             if ($hasDuplicateIp) {
@@ -116,7 +121,7 @@ $localWebsiteName = trim((string) ($localWebsiteName ?? request()->getHost() ?? 
 
                 {{-- Order Info --}}
                 <td>
-                    <div class="font-weight-bold text-dark">
+                    <div class="font-weight-bold text-dark" style="font-size: 13px; line-height: 1.25;">
                         #{{ $order->invoice_id }}
                     </div>
 
@@ -171,21 +176,9 @@ $localWebsiteName = trim((string) ($localWebsiteName ?? request()->getHost() ?? 
                     @if($order->delivery_area)
                     @php
                     $deliveryAreaValue = trim((string) $order->delivery_area);
-
-                    $deliveryAreaKey = strtolower(str_replace([' ', '-'], '_', $deliveryAreaValue));
-
-                    $deliveryAreaLabels = [
-                    'inside_dhaka' => 'ঢাকার ভিতরে',
-                    'outside_dhaka' => 'ঢাকার বাইরে',
-                    'free_delivery' => 'ফ্রি ডেলিভারি',
-
-                    // Backward compatibility for old saved Bangla values
-                    'ঢাকার_ভিতরে' => 'ঢাকার ভিতরে',
-                    'ঢাকার_বাইরে' => 'ঢাকার বাইরে',
-                    'ফ্রি_ডেলিভারি' => 'ফ্রি ডেলিভারি',
-                    ];
-
-                    $deliveryAreaLabel = $deliveryAreaLabels[$deliveryAreaKey] ?? $deliveryAreaValue;
+                    $deliveryAreaLabel = $order->is_free_delivery
+                        ? 'ফ্রি ডেলিভারি'
+                        : $deliveryAreaValue;
                     @endphp
 
                     <span class="badge badge-light border">
@@ -658,22 +651,22 @@ $localWebsiteName = trim((string) ($localWebsiteName ?? request()->getHost() ?? 
 }
 
 /*
- * Duplicate customer/IP orders are risk-marked in red.
+ * Duplicate phone/IP orders are risk-marked in red.
  * Shared phone numbers are allowed, so duplication is based on customer_id.
  */
-.order-duplicate-customer-row>td,
+.order-duplicate-phone-row>td,
 .order-duplicate-ip-row>td {
     background: #fee2e2 !important;
     border-top-color: #fca5a5 !important;
     border-bottom-color: #fca5a5 !important;
 }
 
-.order-duplicate-customer-row:hover>td,
+.order-duplicate-phone-row:hover>td,
 .order-duplicate-ip-row:hover>td {
     background: #fecaca !important;
 }
 
-.order-duplicate-customer-row>td:first-child,
+.order-duplicate-phone-row>td:first-child,
 .order-duplicate-ip-row>td:first-child {
     box-shadow: inset 5px 0 0 #dc2626;
 }
@@ -689,36 +682,36 @@ $localWebsiteName = trim((string) ($localWebsiteName ?? request()->getHost() ?? 
 }
 
 /*
- * Duplicate customer/IP must take precedence over the green single-bulk marker.
+ * Duplicate phone/IP must take precedence over the green single-bulk marker.
  * This guarantees repeated customers and repeated frontend IP addresses are red.
  */
-.order-single-bulk-row.order-duplicate-customer-row>td,
+.order-single-bulk-row.order-duplicate-phone-row>td,
 .order-single-bulk-row.order-duplicate-ip-row>td {
     background: #fee2e2 !important;
 }
 
-.order-single-bulk-row.order-duplicate-customer-row:hover>td,
+.order-single-bulk-row.order-duplicate-phone-row:hover>td,
 .order-single-bulk-row.order-duplicate-ip-row:hover>td {
     background: #fecaca !important;
 }
 
 /*
- * Repeated customers/IP addresses must stay red even when the order was
+ * Repeated phone/IP values must stay red even when the order was
  * created manually. Red risk marking always has priority over green.
  */
-.order-manual-row.order-duplicate-customer-row>td,
+.order-manual-row.order-duplicate-phone-row>td,
 .order-manual-row.order-duplicate-ip-row>td {
     background: #fee2e2 !important;
     border-top-color: #fca5a5 !important;
     border-bottom-color: #fca5a5 !important;
 }
 
-.order-manual-row.order-duplicate-customer-row:hover>td,
+.order-manual-row.order-duplicate-phone-row:hover>td,
 .order-manual-row.order-duplicate-ip-row:hover>td {
     background: #fecaca !important;
 }
 
-.order-manual-row.order-duplicate-customer-row>td:first-child,
+.order-manual-row.order-duplicate-phone-row>td:first-child,
 .order-manual-row.order-duplicate-ip-row>td:first-child {
     box-shadow: inset 5px 0 0 #dc2626;
 }

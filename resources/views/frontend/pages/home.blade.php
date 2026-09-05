@@ -359,23 +359,17 @@
 
     if ($shippingCharges->isEmpty() && class_exists(\App\Models\ShippingCharge::class)) {
         try {
-            $shippingCharges = \App\Models\ShippingCharge::query()
-                ->active()
-                ->orderBy('id')
-                ->get();
+            $shippingCharges = \App\Models\ShippingCharge::resolvedForCampaign(
+                $campaign?->id ? (int) $campaign->id : null
+            );
         } catch (\Throwable $e) {
             $shippingCharges = collect();
         }
     }
 
-    if ($shippingCharges->isEmpty()) {
-        $shippingCharges = collect([
-            (object) ['id' => 'inside_dhaka', 'area_name' => 'ঢাকার ভিতরে', 'delivery_charge' => 70, 'status' => true],
-            (object) ['id' => 'outside_dhaka', 'area_name' => 'ঢাকার বাইরে', 'delivery_charge' => 130, 'status' => true],
-        ]);
-    }
-
-    $defaultShippingCharge = (int) ($shippingCharges->first()->delivery_charge ?? 0);
+    $defaultShippingCharge = $shippingCharges->isNotEmpty()
+        ? (int) $shippingCharges->first()->delivery_charge
+        : 0;
 
     $defaultCategoryId = 'all';
     $defaultBrandId = 'all';
@@ -792,7 +786,8 @@
     $isBenefitsSectionActive = (bool) ($campaign?->benefits_section_status ?? true);
     $isCategorySectionActive = (bool) ($campaign?->category_section_status ?? true) && $categories->isNotEmpty();
     $isBrandSectionActive = (bool) ($campaign?->category_section_status ?? true) && $brands->isNotEmpty();
-    $isProductSectionActive = (bool) ($campaign?->product_section_status ?? true);
+    $isProductFilterActive = (bool) ($campaign?->product_section_status ?? true);
+    $isProductSectionActive = $products->isNotEmpty();
     $isComparisonSectionActive = (bool) ($campaign?->comparison_section_status ?? true) && $comparisonMaxRows > 0;
     $isServiceSectionActive = (bool) ($campaign?->service_section_status ?? true);
     $isGallerySectionActive = (bool) ($campaign?->gallery_section_status ?? true) && $campaignGalleryImages->isNotEmpty();
@@ -1582,52 +1577,141 @@ body {
 
 .delivery-area-options {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 12px;
+    align-items: stretch;
 }
 
 .delivery-area-card {
-    border: 1px solid #cbd5e1;
-    border-radius: 12px;
-    padding: 14px 16px;
+    position: relative;
+    min-height: 88px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    margin: 0;
+    padding: 15px 16px 14px 48px;
     cursor: pointer;
+    border: 1px solid #dbe4ef;
+    border-radius: 14px;
     background: #ffffff;
-    transition: 0.25s ease;
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.04);
+    overflow: hidden;
+    transition: border-color 0.2s ease, background-color 0.2s ease,
+        box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.delivery-area-card::before {
+    content: '';
+    position: absolute;
+    left: 16px;
+    top: 50%;
+    width: 20px;
+    height: 20px;
+    border: 2px solid #cbd5e1;
+    border-radius: 50%;
+    background: #ffffff;
+    transform: translateY(-50%);
+    box-shadow: inset 0 0 0 4px #ffffff;
+    transition: 0.2s ease;
+}
+
+.delivery-area-card::after {
+    content: '';
+    position: absolute;
+    left: 21px;
+    top: 50%;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--front-green);
+    opacity: 0;
+    transform: translateY(-50%) scale(0.55);
+    transition: 0.2s ease;
 }
 
 .delivery-area-card input {
-    display: none;
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
 }
 
-.delivery-area-card.active,
 .delivery-area-card:hover {
+    border-color: rgba(34, 197, 94, 0.55);
+    background: #fbfffc;
+    box-shadow: 0 10px 26px rgba(15, 23, 42, 0.07);
+    transform: translateY(-1px);
+}
+
+.delivery-area-card.active {
     border-color: var(--front-green);
-    background: #f0fdf4;
-    box-shadow: 0 8px 22px rgba(34, 197, 94, 0.12);
+    background: linear-gradient(135deg, #f0fdf4 0%, #ffffff 100%);
+    box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.08),
+        0 12px 28px rgba(34, 197, 94, 0.12);
+}
+
+.delivery-area-card.active::before {
+    border-color: var(--front-green);
+}
+
+.delivery-area-card.active::after {
+    opacity: 1;
+    transform: translateY(-50%) scale(1);
 }
 
 .delivery-area-title {
     display: block;
-    font-weight: 900;
+    min-width: 0;
     color: #334155;
+    font-size: 15px;
+    font-weight: 900;
+    line-height: 1.45;
+    word-break: break-word;
 }
 
 .delivery-area-charge {
-    display: block;
-    margin-top: 4px;
+    display: inline-flex;
+    align-items: center;
+    align-self: flex-start;
+    margin-top: 7px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: #f0fdf4;
     color: var(--front-green-dark);
+    font-size: 14px;
     font-weight: 900;
+    line-height: 1.35;
+}
+
+.delivery-area-card.active .delivery-area-charge {
+    background: #dcfce7;
 }
 
 .delivery-area-free-box {
-    border: 1px solid var(--front-green);
-    background: #f0fdf4;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    margin-bottom: 12px;
+    padding: 13px 15px;
+    border: 1px solid rgba(34, 197, 94, 0.35);
+    border-radius: 14px;
+    background: linear-gradient(135deg, #f0fdf4 0%, #ffffff 100%);
     color: #16a34a;
-    border-radius: 12px;
-    padding: 16px;
+    font-size: 16px;
     font-weight: 900;
-    font-size: 17px;
-    box-shadow: 0 8px 22px rgba(34, 197, 94, 0.12);
+    box-shadow: 0 8px 22px rgba(34, 197, 94, 0.08);
+}
+
+.delivery-area-free-box i {
+    width: 32px;
+    height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 32px;
+    margin-right: 0 !important;
+    border-radius: 10px;
+    background: #dcfce7;
+    color: #16a34a;
 }
 
 
@@ -1922,6 +2006,9 @@ body {
 
 .order-product-price {
     color: var(--front-dark);
+    font-size: 15px;
+    font-weight: 900;
+    line-height: 1.35;
     white-space: nowrap;
 }
 
@@ -2101,6 +2188,20 @@ body {
 
     .delivery-area-options {
         grid-template-columns: 1fr;
+        gap: 10px;
+    }
+
+    .delivery-area-card {
+        min-height: 80px;
+        padding: 13px 14px 12px 46px;
+    }
+
+    .delivery-area-card::before {
+        left: 15px;
+    }
+
+    .delivery-area-card::after {
+        left: 20px;
     }
 
     .help-title {
@@ -2681,7 +2782,7 @@ body {
     <div class="container">
         <h2 class="section-title">{{ $productSectionTitle }}</h2>
 
-        @if($products->isNotEmpty())
+        @if($isProductFilterActive && $products->isNotEmpty())
         <div class="filter-card mb-4">
             <div class="row">
                 <div class="col-lg-6 mb-3 mb-lg-0">
@@ -3122,11 +3223,11 @@ body {
                             </div>
 
                             <div class="delivery-area-options" id="deliveryAreaOptions">
-                                @foreach($shippingCharges as $shippingCharge)
+                                @forelse($shippingCharges as $shippingCharge)
                                     @php
-                                        $shippingValue = (string) ($shippingCharge->id ?? '');
-                                        $shippingTitle = $shippingCharge->area_name ?? '';
-                                        $shippingAmount = (int) ($shippingCharge->delivery_charge ?? 0);
+                                        $shippingValue = (string) $shippingCharge->id;
+                                        $shippingTitle = trim((string) $shippingCharge->area_name);
+                                        $shippingAmount = (int) $shippingCharge->delivery_charge;
                                     @endphp
 
                                     <label class="delivery-area-card {{ $loop->first ? 'active' : '' }}">
@@ -3138,7 +3239,11 @@ body {
                                         <span class="delivery-area-title">{{ $shippingTitle }}</span>
                                         <span class="delivery-area-charge">৳{{ number_format($shippingAmount) }}</span>
                                     </label>
-                                @endforeach
+                                @empty
+                                    <div class="alert alert-warning mb-0 w-100" id="noDeliveryAreaConfigured">
+                                        এই campaign-এর জন্য কোনো active delivery area configure করা নেই।
+                                    </div>
+                                @endforelse
                             </div>
                         </div>
 
@@ -3165,11 +3270,6 @@ body {
                         <div class="summary-line">
                             <span>ডেলিভারি চার্জ</span>
                             <strong id="summaryDeliveryCharge">৳{{ number_format($defaultShippingCharge) }}</strong>
-                        </div>
-
-                        <div class="summary-line">
-                            <span>ক্যাশ অন ডেলিভারি চার্জ ১%</span>
-                            <strong id="summaryCodCharge">৳0</strong>
                         </div>
 
                         <div class="summary-line grand-total">
@@ -3220,7 +3320,7 @@ body {
                            maxlength="11"
                            inputmode="numeric"
                            pattern="01[0-9]{9}"
-                           autocomplete="tel"
+                           autocomplete="off"
                            required>
 
                     <button type="submit"
@@ -3448,6 +3548,44 @@ $(document).ready(function() {
         box.text('').addClass('d-none');
         input.removeClass('is-invalid');
     }
+
+
+    function resetOrderTrackingUi() {
+        $('#trackingPhone').val('').removeClass('is-invalid');
+        $('#orderTrackingError').text('').addClass('d-none');
+        $('#orderTrackingResults').empty();
+    }
+
+    function resetOrderTrackingAfterRefresh() {
+        let isReload = false;
+
+        try {
+            const navigationEntry = window.performance
+                && typeof window.performance.getEntriesByType === 'function'
+                ? window.performance.getEntriesByType('navigation')[0]
+                : null;
+
+            isReload = navigationEntry
+                ? navigationEntry.type === 'reload'
+                : !!(window.performance
+                    && window.performance.navigation
+                    && window.performance.navigation.type === 1);
+        } catch (error) {
+            isReload = false;
+        }
+
+        if (isReload) {
+            resetOrderTrackingUi();
+        }
+    }
+
+    resetOrderTrackingAfterRefresh();
+
+    window.addEventListener('pageshow', function(event) {
+        if (event.persisted) {
+            resetOrderTrackingUi();
+        }
+    });
 
     $(document).on('input', '#trackingPhone', function() {
         $(this).val(normalizeTrackingPhone($(this).val()));
@@ -3785,7 +3923,6 @@ $(document).ready(function() {
 
         $('#summarySubTotal').text(money(totals.subTotal));
         $('#summaryDeliveryCharge').text(totals.hasAnyFreeDeliveryProduct ? 'Free Delivery' : money(totals.deliveryCharge));
-        $('#summaryCodCharge').text(money(totals.codCharge));
         $('#summaryGrandTotal').text(money(totals.grandTotal));
 
         updateDeliveryAreaView();
@@ -3970,6 +4107,12 @@ $(document).ready(function() {
         if (!Object.keys(selectedProducts).length) {
             e.preventDefault();
             showOrderWarningPopup('দয়া করে কমপক্ষে একটি product select করুন।');
+            return false;
+        }
+
+        if (!hasFreeDeliveryProduct() && !$('input[name="delivery_area"]:checked').length) {
+            e.preventDefault();
+            showOrderWarningPopup('এই campaign-এর জন্য কোনো delivery area select করা হয়নি।');
             return false;
         }
 

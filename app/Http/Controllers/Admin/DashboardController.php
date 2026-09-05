@@ -83,14 +83,23 @@ class DashboardController extends Controller
             ->orderBy('name')
             ->get(['id', 'name']);
 
+        $deliveryAreas = Order::query()
+            ->forLoggedInUser()
+            ->whereNotNull('delivery_area')
+            ->where('delivery_area', '!=', '')
+            ->distinct()
+            ->orderBy('delivery_area')
+            ->pluck('delivery_area');
+
         return view('admin.dashboard.index', [
             'title'      => 'Dashboard',
             'breadcrumb' => [
                 ['text' => 'Dashboard', 'url' => route('admin.dashboard')],
             ],
             'campaigns'  => $campaigns,
-            'users'      => $users,
-            'isEmployee' => $this->isEmployee($user),
+            'users'         => $users,
+            'deliveryAreas' => $deliveryAreas,
+            'isEmployee'    => $this->isEmployee($user),
         ]);
     }
 

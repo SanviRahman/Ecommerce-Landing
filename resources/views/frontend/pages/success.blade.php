@@ -125,17 +125,9 @@
     );
 
     $rawDeliveryArea = trim((string) ($order->delivery_area ?? ''));
-
-    $deliveryAreaLabel = match ($rawDeliveryArea) {
-        'inside_dhaka'  => 'ঢাকার ভিতরে',
-        'outside_dhaka' => 'ঢাকার বাইরে',
-        'free_delivery' => 'ফ্রি ডেলিভারি',
-        default         => $rawDeliveryArea,
-    };
-
-    if ($isFreeDelivery) {
-        $deliveryAreaLabel = 'ফ্রি ডেলিভারি';
-    }
+    $deliveryAreaLabel = $isFreeDelivery
+        ? 'ফ্রি ডেলিভারি'
+        : $rawDeliveryArea;
 
     if ($deliveryAreaLabel === '') {
         $deliveryAreaLabel = '-';

@@ -127,7 +127,7 @@ class HomeController extends Controller
 
     private function resolveOrderTrackingData(): array
     {
-        $searchedPhone = session('order_tracking_phone');
+        $searchedPhone = session()->pull('order_tracking_phone');
 
         if (! is_string($searchedPhone) || $searchedPhone === '') {
             return [

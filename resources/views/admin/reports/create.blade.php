@@ -267,8 +267,11 @@
                                 <label>Delivery Area</label>
                                 <select name="filters[delivery_area]" class="form-control">
                                     <option value="">All Area</option>
-                                    <option value="inside_dhaka" @selected(old('filters.delivery_area') === 'inside_dhaka')>Inside Dhaka</option>
-                                    <option value="outside_dhaka" @selected(old('filters.delivery_area') === 'outside_dhaka')>Outside Dhaka</option>
+                                    @foreach(($deliveryAreas ?? collect()) as $deliveryArea)
+                                        <option value="{{ $deliveryArea }}" @selected(old('filters.delivery_area') === $deliveryArea)>
+                                            {{ $deliveryArea }}
+                                        </option>
+                                    @endforeach
                                 </select>
                             </div>
                         </div>

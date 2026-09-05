@@ -98,11 +98,13 @@ class CampaignController extends Controller
             ->get(['id', 'name', 'status']);
     }
 
-    private function activeShippingCharges()
+    private function activeShippingCharges(?Campaign $campaign = null)
     {
-        return ShippingCharge::query()
-            ->orderBy('id')
-            ->get(['id', 'area_name', 'delivery_charge', 'status']);
+        if (! $campaign) {
+            return collect();
+        }
+
+        return ShippingCharge::resolvedForCampaign((int) $campaign->id, false);
     }
 
     private function prepareRequest(Request $request): void
@@ -448,8 +450,8 @@ class CampaignController extends Controller
 
             'shipping_charges'                  => ['nullable', 'array'],
             'shipping_charges.*.id'             => ['nullable', 'integer', 'exists:shipping_charges,id'],
-            'shipping_charges.*.area_name'      => ['nullable', 'string', 'max:255'],
-            'shipping_charges.*.delivery_charge'=> ['nullable', 'numeric', 'min:0', 'max:999999'],
+            'shipping_charges.*.area_name'      => ['nullable', 'string', 'max:255', 'required_with:shipping_charges.*.delivery_charge'],
+            'shipping_charges.*.delivery_charge'=> ['nullable', 'numeric', 'min:0', 'max:999999', 'required_with:shipping_charges.*.area_name'],
             'shipping_charges.*.status'         => ['nullable', 'boolean'],
             'shipping_charges.*.delete'         => ['nullable', 'boolean'],
 
@@ -472,7 +474,6 @@ class CampaignController extends Controller
             'campaign_reviews.*.customer_image'   => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
 
             'site_settings'                         => ['nullable', 'array'],
-            'site_settings.website_name'            => ['nullable', 'string', 'max:255'],
             'site_settings.phone'                   => ['nullable', 'string', 'max:30'],
             'site_settings.hotline'                 => ['nullable', 'string', 'max:30'],
             'site_settings.whatsapp_number'         => ['nullable', 'string', 'max:30'],
@@ -480,13 +481,9 @@ class CampaignController extends Controller
             'site_settings.email'                   => ['nullable', 'email', 'max:255'],
             'site_settings.address'                 => ['nullable', 'string'],
             'site_settings.top_headline'            => ['nullable', 'string'],
-            'site_settings.footer_text'             => ['nullable', 'string'],
             'site_settings.business_short_description' => ['nullable', 'string'],
             'site_settings.working_hours'           => ['nullable', 'string', 'max:255'],
             'site_settings.status'                  => ['nullable', 'boolean'],
-            'site_settings.site_logo'               => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,svg', 'max:4096'],
-            'site_settings.site_white_logo'         => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,svg', 'max:4096'],
-            'site_settings.site_favicon'            => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,ico,svg', 'max:2048'],
 
             'campaign_social_media'                 => ['nullable', 'array'],
             'campaign_social_media.*.id'            => ['nullable', 'integer', 'exists:social_media,id'],
@@ -545,26 +542,22 @@ class CampaignController extends Controller
     {
         $input = (array) $request->input('site_settings', []);
         $siteSetting = SiteSetting::query()->latest()->first();
-        $hasUploadedMedia = collect([
-            'site_logo',
-            'site_white_logo',
-            'site_favicon',
-        ])->contains(fn (string $field) => $request->hasFile("site_settings.{$field}"));
 
         $hasSettingData = collect($input)
             ->except(['status'])
             ->contains(fn ($value) => filled($value));
 
-        if (! $request->has('site_settings') && ! $hasUploadedMedia) {
+        if (! $request->has('site_settings')) {
             return;
         }
 
-        if (! $siteSetting && ! $hasSettingData && ! $hasUploadedMedia) {
+        if (! $siteSetting && ! $hasSettingData) {
             return;
         }
 
         $payload = [
-            'website_name' => trim((string) ($input['website_name'] ?? $siteSetting?->website_name ?? config('app.name'))),
+            // Website identity/branding is managed only from Sidebar > Site Settings.
+            'website_name' => trim((string) ($siteSetting?->website_name ?? config('app.name', 'Website'))),
             'phone' => trim((string) ($input['phone'] ?? '')) ?: null,
             'hotline' => trim((string) ($input['hotline'] ?? '')) ?: null,
             'whatsapp_number' => trim((string) ($input['whatsapp_number'] ?? '')) ?: null,
@@ -572,7 +565,6 @@ class CampaignController extends Controller
             'email' => trim((string) ($input['email'] ?? '')) ?: null,
             'address' => trim((string) ($input['address'] ?? '')) ?: null,
             'top_headline' => trim((string) ($input['top_headline'] ?? '')) ?: null,
-            'footer_text' => trim((string) ($input['footer_text'] ?? '')) ?: null,
             'business_short_description' => trim((string) ($input['business_short_description'] ?? '')) ?: null,
             'working_hours' => trim((string) ($input['working_hours'] ?? '')) ?: null,
             'status' => filter_var($input['status'] ?? false, FILTER_VALIDATE_BOOLEAN),
@@ -585,18 +577,7 @@ class CampaignController extends Controller
         if ($siteSetting) {
             $siteSetting->update($payload);
         } else {
-            $siteSetting = SiteSetting::create($payload);
-        }
-
-        foreach (['site_logo', 'site_white_logo', 'site_favicon'] as $field) {
-            $file = $request->file("site_settings.{$field}");
-
-            if (! $file instanceof UploadedFile || ! $file->isValid()) {
-                continue;
-            }
-
-            $siteSetting->clearMediaCollection($field);
-            $siteSetting->addMedia($file)->toMediaCollection($field, 'public');
+            SiteSetting::create($payload);
         }
     }
 
@@ -793,7 +774,7 @@ class CampaignController extends Controller
             $this->uploadCampaignMedia($campaign, $request);
             $this->syncCampaignFaqs($campaign, $request);
             $this->syncCampaignReviews($campaign, $request);
-            $this->syncShippingCharges($request);
+            $this->syncShippingCharges($campaign, $request);
             $this->syncCampaignSiteSetting($request);
             $this->syncCampaignSocialMedia($request);
 
@@ -854,7 +835,7 @@ class CampaignController extends Controller
             'selectedProducts'   => $selectedProducts,
             'campaignFaqs'       => $campaign->faqs,
             'campaignReviews'    => $campaign->reviews,
-            'shippingCharges'    => $this->activeShippingCharges(),
+            'shippingCharges'    => $this->activeShippingCharges($campaign),
             'siteSetting'        => SiteSetting::query()->latest()->first(),
             'campaignSocialMedias' => SocialMedia::query()->orderBy('id')->get(),
             'isEdit'             => true,
@@ -896,7 +877,7 @@ class CampaignController extends Controller
             $this->uploadCampaignMedia($campaign, $request);
             $this->syncCampaignFaqs($campaign, $request);
             $this->syncCampaignReviews($campaign, $request);
-            $this->syncShippingCharges($request);
+            $this->syncShippingCharges($campaign, $request);
             $this->syncCampaignSiteSetting($request);
             $this->syncCampaignSocialMedia($request);
 
@@ -1590,21 +1571,8 @@ class CampaignController extends Controller
     }
 
 
-    private function syncShippingCharges(Request $request): void
+    private function syncShippingCharges(Campaign $campaign, Request $request): void
     {
-        /*
-        |--------------------------------------------------------------------------
-        | Campaign Form Shipping Charges Sync
-        |--------------------------------------------------------------------------
-        | এই method না থাকার কারণেই error আসছিল:
-        | Method App\Http\Controllers\Admin\CampaignController::syncShippingCharges does not exist.
-        |
-        | Campaign create/edit form থেকে shipping_charges[] array submit হবে।
-        | - id থাকলে update হবে
-        | - id না থাকলে নতুন row create হবে
-        | - delete = 1 হলে row delete হবে
-        | - status unchecked হলে inactive হবে
-        */
         if (! $request->has('shipping_charges')) {
             return;
         }
@@ -1616,9 +1584,18 @@ class CampaignController extends Controller
             $shippingChargeId = ! empty($row['id']) ? (int) $row['id'] : null;
             $shouldDelete = filter_var($row['delete'] ?? false, FILTER_VALIDATE_BOOLEAN);
 
+            // A campaign form may update only rows that belong to that campaign.
+            // Delivery areas and charges are never borrowed from another campaign.
+            $shippingCharge = $shippingChargeId
+                ? ShippingCharge::query()
+                    ->whereKey($shippingChargeId)
+                    ->where('campaign_id', $campaign->id)
+                    ->first()
+                : null;
+
             if ($shouldDelete) {
-                if ($shippingChargeId) {
-                    ShippingCharge::query()->whereKey($shippingChargeId)->delete();
+                if ($shippingCharge) {
+                    $shippingCharge->delete();
                 }
 
                 continue;
@@ -1627,41 +1604,33 @@ class CampaignController extends Controller
             $areaName = trim((string) ($row['area_name'] ?? ''));
             $deliveryCharge = $row['delivery_charge'] ?? null;
 
-            if ($areaName === '' && ($deliveryCharge === null || $deliveryCharge === '')) {
-                continue;
-            }
-
             if ($areaName === '') {
                 continue;
             }
 
-            $shippingCharge = $shippingChargeId
-                ? ShippingCharge::query()->whereKey($shippingChargeId)->first()
-                : new ShippingCharge();
-
             if (! $shippingCharge) {
-                continue;
+                $shippingCharge = new ShippingCharge();
+                $shippingCharge->campaign_id = $campaign->id;
             }
 
             $shippingCharge->area_name = $areaName;
-            $shippingCharge->delivery_charge = max(0, (float) ($deliveryCharge ?? 0));
+            $shippingCharge->delivery_charge = max(0, (float) $deliveryCharge);
             $shippingCharge->status = array_key_exists('status', $row)
                 ? filter_var($row['status'], FILTER_VALIDATE_BOOLEAN)
                 : false;
-
             $shippingCharge->save();
 
-            $keptIds[] = $shippingCharge->id;
+            $keptIds[] = (int) $shippingCharge->id;
         }
 
-        /*
-         * Form থেকে কোনো existing shipping charge row remove করলে সেটাও delete হবে।
-         * তবে shipping_charges key না থাকলে উপরে return করা হয়েছে, তাই accidental delete হবে না।
-         */
-        ShippingCharge::query()
-            ->when(count($keptIds), fn ($query) => $query->whereNotIn('id', $keptIds))
-            ->when(! count($keptIds), fn ($query) => $query->whereRaw('1 = 1'))
-            ->delete();
+        $deleteQuery = ShippingCharge::query()
+            ->where('campaign_id', $campaign->id);
+
+        if (count($keptIds)) {
+            $deleteQuery->whereNotIn('id', $keptIds);
+        }
+
+        $deleteQuery->delete();
     }
 
 }
