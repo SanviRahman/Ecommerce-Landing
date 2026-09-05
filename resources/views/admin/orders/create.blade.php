@@ -28,8 +28,14 @@
     $isEmployeeCreator = $isEmployeeCreator ?? (auth()->check() && auth()->user()->isEmployee());
     $currentEmployee = $currentEmployee ?? ($isEmployeeCreator ? auth()->user() : null);
     $shippingOptionsByCampaign = $shippingOptionsByCampaign ?? [];
+    $campaignProductIds = $campaignProductIds ?? [];
     $hasOldShippingCharge = array_key_exists('shipping_charge', session()->getOldInput());
     $currentCampaignId = (string) old('campaign_id', '');
+    $currentCampaignProductIds = collect(
+        $currentCampaignId !== ''
+            ? ($campaignProductIds[$currentCampaignId] ?? [])
+            : []
+    );
     $currentShippingOptions = collect(
         $shippingOptionsByCampaign[$currentCampaignId]
             ?? $shippingOptionsByCampaign['']
@@ -280,6 +286,11 @@
                                                     <option value="" data-price="0" data-image="">Select Product</option>
 
                                                     @foreach($products as $product)
+                                                        @continue(
+                                                            $currentCampaignId !== ''
+                                                            && ! $currentCampaignProductIds->contains((int) $product->id)
+                                                        )
+
                                                         @php
                                                             $optionImage = $productImageMap[$product->id] ?? null;
                                                         @endphp
@@ -593,6 +604,7 @@ $(document).ready(function() {
     let itemIndex = @json($rows->count());
 
     const products = @json($productsForJs);
+    const campaignProductIds = @json($campaignProductIds);
     const shippingOptionsByCampaign = @json($shippingOptionsByCampaign);
     const hasOldShippingCharge = @json($hasOldShippingCharge);
     const initialDeliveryArea = @json($selectedDeliveryArea);
@@ -729,8 +741,36 @@ $(document).ready(function() {
         recalcTotals();
     }
 
-    function productOptions() {
-        return products.map(function(product) {
+    function allowedProductIdsForCampaign(campaignId) {
+        const key = String(campaignId || '').trim();
+
+        if (!key) {
+            return null;
+        }
+
+        const ids = Array.isArray(campaignProductIds[key])
+            ? campaignProductIds[key]
+            : [];
+
+        return new Set(ids.map(function(id) {
+            return String(id);
+        }));
+    }
+
+    function productsForCampaign(campaignId) {
+        const allowedIds = allowedProductIdsForCampaign(campaignId);
+
+        if (allowedIds === null) {
+            return products;
+        }
+
+        return products.filter(function(product) {
+            return allowedIds.has(String(product.id));
+        });
+    }
+
+    function productOptions(campaignId = $('#campaignSelect').val()) {
+        return productsForCampaign(campaignId).map(function(product) {
             return `
                 <option value="${product.id}"
                         data-price="${product.price}"
@@ -739,6 +779,36 @@ $(document).ready(function() {
                 </option>
             `;
         }).join('');
+    }
+
+    function rebuildProductOptions() {
+        const campaignId = String($('#campaignSelect').val() || '').trim();
+        const allowedIds = allowedProductIdsForCampaign(campaignId);
+        const optionsHtml = productOptions(campaignId);
+
+        $('.product-select').each(function() {
+            const select = $(this);
+            const row = select.closest('.order-item-row');
+            const selectedProductId = String(select.val() || '').trim();
+            const canKeepSelection = selectedProductId
+                && (allowedIds === null || allowedIds.has(selectedProductId));
+
+            select.html(
+                '<option value="" data-price="0" data-image="">Select Product</option>'
+                + optionsHtml
+            );
+
+            if (canKeepSelection) {
+                select.val(selectedProductId);
+                return;
+            }
+
+            select.val('');
+            row.find('.item-price').val(0);
+            updateRowImage(row, '');
+        });
+
+        recalcTotals();
     }
 
     $('#btnAddOrderItem').on('click', function() {
@@ -857,12 +927,14 @@ $(document).ready(function() {
     });
 
     $('#campaignSelect').on('change', function() {
+        rebuildProductOptions();
         rebuildDeliveryAreaOptions('');
         applyCampaignShippingCharge();
     });
 
     $('#deliveryAreaSelect').on('change', applyCampaignShippingCharge);
 
+    rebuildProductOptions();
     rebuildDeliveryAreaOptions(initialDeliveryArea);
 
     if (!hasOldShippingCharge && $('#deliveryAreaSelect').val()) {

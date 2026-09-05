@@ -1546,8 +1546,23 @@ class OrderController extends Controller
 
         $campaigns = Campaign::query()
             ->where('status', true)
+            ->with([
+                'products' => fn ($query) => $query
+                    ->select('products.id')
+                    ->where('products.status', true),
+            ])
             ->orderBy('title')
             ->get();
+
+        $campaignProductIds = $campaigns
+            ->mapWithKeys(fn (Campaign $campaign) => [
+                (string) $campaign->id => $campaign->products
+                    ->pluck('id')
+                    ->map(fn ($id) => (int) $id)
+                    ->values()
+                    ->all(),
+            ])
+            ->all();
 
         return view('admin.orders.create', [
             'title'             => 'Create Manual Order',
@@ -1558,6 +1573,7 @@ class OrderController extends Controller
             'products'          => $products,
             'productImageMap'   => $productImageMap,
             'campaigns'         => $campaigns,
+            'campaignProductIds' => $campaignProductIds,
             'shippingOptionsByCampaign' => $this->getShippingOptionsByCampaign($campaigns),
             'employees'         => $isEmployeeCreator
                 ? collect([$currentUser])
@@ -1664,6 +1680,43 @@ class OrderController extends Controller
         if ($isEmployeeCreator) {
             // Never trust a manipulated employee assignment field from the browser.
             $validated['assigned_employee_id'] = (int) $currentUser->id;
+        }
+
+        /*
+         * A selected Campaign is also a product boundary for manual orders.
+         * The browser filters the dropdown for convenience, but this server-side
+         * check prevents a manipulated request from attaching products that do
+         * not belong to the selected active Campaign. When Campaign is empty,
+         * all active products remain valid and the existing auto-selection flow
+         * continues unchanged.
+         */
+        if (! empty($validated['campaign_id'])) {
+            $selectedCampaign = Campaign::query()
+                ->where('status', true)
+                ->find((int) $validated['campaign_id']);
+
+            $submittedProductIds = collect($validated['items'])
+                ->pluck('product_id')
+                ->map(fn ($id) => (int) $id)
+                ->unique()
+                ->values();
+
+            $allowedProductIds = $selectedCampaign
+                ? $selectedCampaign->products()
+                    ->where('products.status', true)
+                    ->pluck('products.id')
+                    ->map(fn ($id) => (int) $id)
+                    ->unique()
+                    ->values()
+                : collect();
+
+            if ($submittedProductIds->diff($allowedProductIds)->isNotEmpty()) {
+                return back()
+                    ->withInput()
+                    ->withErrors([
+                        'items' => 'One or more selected products do not belong to the selected campaign.',
+                    ]);
+            }
         }
 
         $orderDate = $this->orderDateToDatabase(
