@@ -40,9 +40,10 @@ $canBlockOrderIp = (bool) ($canBlockOrderIp ?? false);
 $orderSourceIp = trim((string) ($order->source_ip ?? ''));
 
 /*
- * Delivery areas come from the selected Campaign only. A historical value
- * already stored on this order is preserved only when it no longer exists in
- * the campaign list, so editing an old order never silently changes its area.
+ * Delivery areas come strictly from the selected Campaign. Legacy symbolic
+ * values are never injected into the dropdown. When an older order stores a
+ * legacy label, resolve it dynamically by its saved
+ * shipping amount so no hardcoded area-name mapping is required.
  */
 $shippingOptionsByCampaign = $shippingOptionsByCampaign ?? [];
 $currentCampaignId = (string) old('campaign_id', $suggestedCampaignId ?? $order->campaign_id ?? '');
@@ -53,6 +54,7 @@ $currentShippingOptions = collect(
 );
 
 $rawDeliveryArea = trim((string) old('delivery_area', $order->delivery_area));
+$storedShippingCharge = max(0, (float) old('shipping_charge', $order->shipping_charge ?? 0));
 
 $normalizeDeliveryAreaForEdit = function ($value) {
     $raw = \Illuminate\Support\Str::lower(trim((string) $value));
@@ -71,15 +73,26 @@ foreach ($currentShippingOptions as $option) {
 }
 
 if ($selectedDeliveryArea === null && $rawDeliveryArea !== '') {
-    $currentShippingOptions->push([
-        'id' => null,
-        'value' => $rawDeliveryArea,
-        'label' => $rawDeliveryArea,
-        'charge' => max(0, (float) $order->shipping_charge),
-        'legacy' => true,
-    ]);
+    $chargeMatchedOption = $currentShippingOptions->first(function ($option) use ($storedShippingCharge) {
+        $value = trim((string) ($option['value'] ?? ''));
+        $charge = max(0, (float) ($option['charge'] ?? 0));
 
-    $selectedDeliveryArea = $rawDeliveryArea;
+        return $value !== '' && abs($charge - $storedShippingCharge) < 0.00001;
+    });
+
+    if ($chargeMatchedOption) {
+        $selectedDeliveryArea = (string) ($chargeMatchedOption['value'] ?? '');
+    }
+}
+
+if ($selectedDeliveryArea === null) {
+    $firstConfiguredOption = $currentShippingOptions->first(
+        fn ($option) => trim((string) ($option['value'] ?? '')) !== ''
+    );
+
+    if ($firstConfiguredOption) {
+        $selectedDeliveryArea = (string) ($firstConfiguredOption['value'] ?? '');
+    }
 }
 @endphp
 
@@ -825,14 +838,16 @@ $(document).ready(function() {
         });
 
         if (!matchedValue && preferredValue && preferredNormalized) {
-            const legacyValue = String(preferredValue).trim();
-            select.append(
-                $('<option></option>')
-                    .attr('value', legacyValue)
-                    .attr('data-charge', originalShippingCharge)
-                    .text(legacyValue)
-            );
-            matchedValue = legacyValue;
+            const chargeMatchedOption = options.find(function(option) {
+                const value = String(option.value || '').trim();
+                const charge = toNumber(option.charge);
+
+                return value !== '' && Math.abs(charge - toNumber(originalShippingCharge)) < 0.00001;
+            });
+
+            if (chargeMatchedOption) {
+                matchedValue = String(chargeMatchedOption.value || '').trim();
+            }
         }
 
         if (matchedValue) {
@@ -955,6 +970,7 @@ $(document).ready(function() {
     $('#deliveryAreaSelect').on('change', applyCampaignShippingCharge);
 
     rebuildDeliveryAreaOptions(originalDeliveryArea, true);
+    applyCampaignShippingCharge();
 
     function blockRequestError(xhr) {
         if (xhr.responseJSON && xhr.responseJSON.errors) {

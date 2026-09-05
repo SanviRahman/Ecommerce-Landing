@@ -207,6 +207,7 @@ class CampaignOrderController extends Controller
             'delivery_area'       => ['nullable', 'string', 'max:255'],
             'customer_note'       => ['nullable', 'string', 'max:1000'],
             'order_form_token'    => ['required', 'string', 'max:100'],
+            'device_identifier'   => ['nullable', 'string', 'min:16', 'max:100', 'regex:/^[A-Za-z0-9_-]+$/'],
 
             'products'            => ['required', 'array', 'min:1'],
             'products.*.id'       => ['required', 'integer', 'exists:products,id'],
@@ -359,7 +360,12 @@ class CampaignOrderController extends Controller
                 'is_fake'           => false,
                 'customer_note'     => $request->customer_note,
 
+                // Keep the public/network IP for auditing/blocking only.
+                // Duplicate-order highlighting uses the browser-scoped device identifier instead.
                 'source_ip'         => $request->ip(),
+                'device_identifier' => $request->filled('device_identifier')
+                    ? trim((string) $request->input('device_identifier'))
+                    : null,
                 'user_agent'        => $request->userAgent(),
                 'source_url'        => url()->previous(),
             ]);

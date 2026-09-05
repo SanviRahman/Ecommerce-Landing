@@ -101,10 +101,7 @@ class HomeController extends Controller
             ->latest()
             ->get();
 
-        $shippingCharges = ShippingCharge::query()
-            ->active()
-            ->orderBy('id')
-            ->get();
+        $shippingCharges = ShippingCharge::resolvedForCampaign((int) $campaign->id);
 
         return $this->homeResponse([
             'siteSetting'               => $siteSetting,

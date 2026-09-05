@@ -765,26 +765,25 @@ class OrderController extends Controller
     }
 
     /**
-     * Find duplicate source IP addresses for the currently visible page only,
-     * while counting matches against the full order list available to the
-     * logged-in Admin/Employee.
+     * Find repeated browser-scoped device identifiers for the currently visible
+     * page while counting matches against the full accessible frontend-order list.
      *
-     * Empty IP values are ignored so legacy rows without an IP are never
-     * marked as duplicate orders. Only frontend orders are included because
-     * Admin/Employee manual and bulk orders store the staff member's IP, not
-     * the customer's IP; counting those would falsely mark an entire batch.
+     * Public/network IP addresses are intentionally NOT used here. Multiple
+     * customers can share one router/mobile network, so using source_ip would
+     * create false duplicate warnings. Legacy orders without a device identifier
+     * are ignored; same-phone detection still works for those orders separately.
      */
-    private function duplicateIpCountsForOrders($orders, bool $trash = false): array
+    private function duplicateDeviceCountsForOrders($orders, bool $trash = false): array
     {
-        $sourceIps = $orders->getCollection()
+        $deviceIdentifiers = $orders->getCollection()
             ->filter(fn(Order $order) => (string) $order->created_via === Order::CREATED_VIA_FRONTEND)
-            ->pluck('source_ip')
-            ->map(fn($sourceIp) => trim((string) $sourceIp))
+            ->pluck('device_identifier')
+            ->map(fn($deviceIdentifier) => trim((string) $deviceIdentifier))
             ->filter()
             ->unique()
             ->values();
 
-        if ($sourceIps->isEmpty()) {
+        if ($deviceIdentifiers->isEmpty()) {
             return [];
         }
 
@@ -793,13 +792,13 @@ class OrderController extends Controller
         return $query
             ->forLoggedInUser()
             ->where('created_via', Order::CREATED_VIA_FRONTEND)
-            ->whereNotNull('source_ip')
-            ->where('source_ip', '<>', '')
-            ->whereIn('source_ip', $sourceIps)
-            ->select('source_ip', DB::raw('COUNT(*) as total'))
-            ->groupBy('source_ip')
+            ->whereNotNull('device_identifier')
+            ->where('device_identifier', '<>', '')
+            ->whereIn('device_identifier', $deviceIdentifiers)
+            ->select('device_identifier', DB::raw('COUNT(*) as total'))
+            ->groupBy('device_identifier')
             ->havingRaw('COUNT(*) > 1')
-            ->pluck('total', 'source_ip')
+            ->pluck('total', 'device_identifier')
             ->map(fn($count) => (int) $count)
             ->toArray();
     }
@@ -823,7 +822,7 @@ class OrderController extends Controller
 
         $orders                  = $query->paginate($perPage)->withQueryString();
         $duplicatePhoneCounts    = $this->duplicatePhoneCountsForOrders($orders, $isTrash);
-        $duplicateIpCounts       = $this->duplicateIpCountsForOrders($orders, $isTrash);
+        $duplicateDeviceCounts   = $this->duplicateDeviceCountsForOrders($orders, $isTrash);
 
         $employees = User::query()
             ->where('role', 'employee')
@@ -885,7 +884,7 @@ class OrderController extends Controller
                     'orderFields'          => $orderFields,
                     'orderStatuses'        => $orderStatuses,
                     'duplicatePhoneCounts'    => $duplicatePhoneCounts,
-                    'duplicateIpCounts'    => $duplicateIpCounts,
+                    'duplicateDeviceCounts' => $duplicateDeviceCounts,
                     'localWebsiteName'     => $localWebsiteName,
                 ])->render(),
             ]);
@@ -908,7 +907,7 @@ class OrderController extends Controller
             'paymentStatuses'      => $paymentStatuses,
             'orderFields'          => $orderFields,
             'duplicatePhoneCounts'    => $duplicatePhoneCounts,
-            'duplicateIpCounts'    => $duplicateIpCounts,
+            'duplicateDeviceCounts' => $duplicateDeviceCounts,
             'currentStatusView'    => $currentStatusView,
             'currentOrderField'    => $currentOrderField,
             'isTrash'              => $isTrash,

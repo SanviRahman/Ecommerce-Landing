@@ -3130,6 +3130,7 @@ body {
             class="checkout-form order-panel" id="campaignOrderForm">
             @csrf
             <input type="hidden" name="order_form_token" value="{{ $orderFormToken ?? '' }}">
+            <input type="hidden" name="device_identifier" id="deviceIdentifier" value="">
 
             <div class="row">
                 <div class="col-lg-6 mb-5 mb-lg-0">
@@ -4080,6 +4081,50 @@ $(document).ready(function() {
         }
     });
 
+    const deviceIdentifierStorageKey = 'deshbajar_browser_device_identifier';
+
+    function createBrowserDeviceIdentifier() {
+        if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+            return window.crypto.randomUUID();
+        }
+
+        if (window.crypto && typeof window.crypto.getRandomValues === 'function') {
+            const bytes = new Uint8Array(16);
+            window.crypto.getRandomValues(bytes);
+            return 'dev_' + Array.from(bytes, function(byte) {
+                return byte.toString(16).padStart(2, '0');
+            }).join('');
+        }
+
+        return 'dev_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 18);
+    }
+
+    function ensureBrowserDeviceIdentifier() {
+        let deviceIdentifier = '';
+
+        try {
+            deviceIdentifier = String(localStorage.getItem(deviceIdentifierStorageKey) || '').trim();
+        } catch (error) {
+            deviceIdentifier = '';
+        }
+
+        if (!/^[A-Za-z0-9_-]{16,100}$/.test(deviceIdentifier)) {
+            deviceIdentifier = createBrowserDeviceIdentifier();
+
+            try {
+                localStorage.setItem(deviceIdentifierStorageKey, deviceIdentifier);
+            } catch (error) {
+                // Storage can be unavailable in strict/private browser modes.
+                // The hidden value still identifies orders during this page session.
+            }
+        }
+
+        $('#deviceIdentifier').val(deviceIdentifier);
+        return deviceIdentifier;
+    }
+
+    ensureBrowserDeviceIdentifier();
+
     function normalizeCustomerPhone(value) {
         return String(value || '').replace(/\D/g, '').slice(0, 11);
     }
@@ -4093,6 +4138,7 @@ $(document).ready(function() {
     });
 
     $('#campaignOrderForm').on('submit', function(e) {
+        ensureBrowserDeviceIdentifier();
         const customerPhone = normalizeCustomerPhone($('#customerPhone').val());
 
         $('#customerPhone').val(customerPhone);

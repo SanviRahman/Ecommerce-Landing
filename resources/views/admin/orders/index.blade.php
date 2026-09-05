@@ -950,7 +950,7 @@
                 'orderFields' => $orderFields ?? collect(),
                 'orderStatuses' => $orderStatuses ?? [],
                 'duplicatePhoneCounts' => $duplicatePhoneCounts ?? [],
-                'duplicateIpCounts' => $duplicateIpCounts ?? [],
+                'duplicateDeviceCounts' => $duplicateDeviceCounts ?? [],
             ])
         </div>
     </div>

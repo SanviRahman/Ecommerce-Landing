@@ -90,6 +90,7 @@ class Order extends Model
         'customer_note',
 
         'source_ip',
+        'device_identifier',
         'user_agent',
         'source_url',
 
