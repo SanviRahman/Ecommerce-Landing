@@ -485,9 +485,11 @@
         $params = [
             'rel' => 0,
             'autoplay' => $heroVideoAutoplay ? 1 : 0,
-            'mute' => $heroVideoMuted ? 1 : 0,
+            // Browser-safe autoplay starts muted; JS restores sound after interaction when Muted is OFF.
+            'mute' => ($heroVideoAutoplay || $heroVideoMuted) ? 1 : 0,
             'modestbranding' => 1,
             'playsinline' => 1,
+            'enablejsapi' => 1,
         ];
 
         if ($start > 0) {
@@ -497,13 +499,41 @@
         return 'https://www.youtube-nocookie.com/embed/' . $videoId . '?' . http_build_query($params);
     };
 
+    $facebookEmbedFromUrl = function (?string $url) use ($heroVideoAutoplay): ?string {
+        if (! $url) {
+            return null;
+        }
+
+        $url = trim($url);
+
+        if (\Illuminate\Support\Str::contains($url, ['facebook.com/plugins/video'])) {
+            $parts = parse_url($url);
+            $query = [];
+
+            if (! empty($parts['query'])) {
+                parse_str($parts['query'], $query);
+            }
+
+            $query['autoplay'] = $heroVideoAutoplay ? 'true' : 'false';
+
+            return 'https://www.facebook.com/plugins/video.php?' . http_build_query($query);
+        }
+
+        return 'https://www.facebook.com/plugins/video.php?' . http_build_query([
+            'href' => $url,
+            'show_text' => 'false',
+            'width' => 560,
+            'autoplay' => $heroVideoAutoplay ? 'true' : 'false',
+        ]);
+    };
+
     if ($heroEmbedUrl) {
         if (\Illuminate\Support\Str::contains($heroEmbedUrl, ['youtube.com', 'youtu.be', 'youtube-nocookie.com'])) {
             $videoEmbedUrl = $youtubeEmbedFromUrl($heroEmbedUrl);
         } elseif (\Illuminate\Support\Str::contains($heroEmbedUrl, ['facebook.com/plugins/video'])) {
-            $videoEmbedUrl = $heroEmbedUrl;
+            $videoEmbedUrl = $facebookEmbedFromUrl($heroEmbedUrl);
         } elseif (\Illuminate\Support\Str::contains($heroEmbedUrl, ['facebook.com', 'fb.watch'])) {
-            $videoEmbedUrl = 'https://www.facebook.com/plugins/video.php?href=' . urlencode($heroEmbedUrl) . '&show_text=false&width=560';
+            $videoEmbedUrl = $facebookEmbedFromUrl($heroEmbedUrl);
         } else {
             $videoFileUrl = \Illuminate\Support\Str::startsWith($heroEmbedUrl, ['http://', 'https://', '/'])
                 ? $heroEmbedUrl
@@ -517,9 +547,9 @@
         if (\Illuminate\Support\Str::contains($uploadedCampaignVideoUrl, ['youtube.com', 'youtu.be', 'youtube-nocookie.com'])) {
             $videoEmbedUrl = $youtubeEmbedFromUrl($uploadedCampaignVideoUrl);
         } elseif (\Illuminate\Support\Str::contains($uploadedCampaignVideoUrl, ['facebook.com/plugins/video'])) {
-            $videoEmbedUrl = $uploadedCampaignVideoUrl;
+            $videoEmbedUrl = $facebookEmbedFromUrl($uploadedCampaignVideoUrl);
         } elseif (\Illuminate\Support\Str::contains($uploadedCampaignVideoUrl, ['facebook.com', 'fb.watch'])) {
-            $videoEmbedUrl = 'https://www.facebook.com/plugins/video.php?href=' . urlencode($uploadedCampaignVideoUrl) . '&show_text=false&width=560';
+            $videoEmbedUrl = $facebookEmbedFromUrl($uploadedCampaignVideoUrl);
         } else {
             $fallbackVideoFileUrl = \Illuminate\Support\Str::startsWith($uploadedCampaignVideoUrl, ['http://', 'https://', '/'])
                 ? $uploadedCampaignVideoUrl
@@ -2668,8 +2698,11 @@ body {
                 @if($videoEmbedUrl || $videoFileUrl)
                     <div class="hero-video-box">
                         @if($videoEmbedUrl)
-                            <iframe src="{{ $videoEmbedUrl }}"
+                            <iframe id="campaignHeroEmbedVideo"
+                                    src="{{ $videoEmbedUrl }}"
                                     title="{{ $heroTitle }}"
+                                    data-autoplay="{{ $heroVideoAutoplay ? '1' : '0' }}"
+                                    data-admin-muted="{{ $heroVideoMuted ? '1' : '0' }}"
                                     allowfullscreen
                                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture">
                             </iframe>
@@ -3390,14 +3423,10 @@ $(document).ready(function() {
     const heroVideoMutedEnabled = @json($heroVideoMuted);
 
     /*
-     * Respect the Campaign "Video Muted" switch exactly.
-     * - Muted ON  => frontend video stays muted.
-     * - Muted OFF => frontend video starts/stays unmuted.
-     *
-     * Browsers can block autoplay with sound. When autoplay is enabled and the
-     * admin keeps Muted OFF, we first request normal unmuted autoplay. If the
-     * browser blocks it, playback is retried on the visitor's first interaction
-     * without changing the admin-selected mute state.
+     * Uploaded/direct file autoplay compatibility.
+     * Browsers block autoplay with sound. First try the admin-selected state;
+     * if that is blocked, retry muted so autoplay still works. When Muted is
+     * OFF, sound is restored on the visitor's first page interaction.
      */
     function initializeHeroVideoAutoplay() {
         const video = document.getElementById('campaignHeroVideo');
@@ -3418,63 +3447,75 @@ $(document).ready(function() {
             return;
         }
 
-        let waitingForUserGesture = false;
+        let fallbackStartedMuted = false;
+        let gestureListenersAttached = false;
 
-        const removeGestureFallback = function() {
-            document.removeEventListener('pointerdown', retryOnUserGesture, true);
-            document.removeEventListener('touchstart', retryOnUserGesture, true);
-            document.removeEventListener('keydown', retryOnUserGesture, true);
-        };
-
-        const retryOnUserGesture = function() {
-            if (!waitingForUserGesture) {
+        const restoreAdminSound = function() {
+            if (shouldMute || !fallbackStartedMuted) {
                 return;
             }
 
-            waitingForUserGesture = false;
-            removeGestureFallback();
+            video.muted = false;
+            video.defaultMuted = false;
+            removeGestureListeners();
 
-            // Never override the mute value selected by the admin.
-            video.muted = shouldMute;
-            video.defaultMuted = shouldMute;
+            if (video.paused) {
+                const retryPromise = video.play();
 
-            const retryPromise = video.play();
-
-            if (retryPromise && typeof retryPromise.catch === 'function') {
-                retryPromise.catch(function() {
-                    // Native controls remain available if playback is still blocked.
-                });
+                if (retryPromise && typeof retryPromise.catch === 'function') {
+                    retryPromise.catch(function() {});
+                }
             }
         };
 
-        const enableGestureFallback = function() {
-            if (waitingForUserGesture) {
+        const removeGestureListeners = function() {
+            if (!gestureListenersAttached) {
                 return;
             }
 
-            waitingForUserGesture = true;
-            document.addEventListener('pointerdown', retryOnUserGesture, true);
-            document.addEventListener('touchstart', retryOnUserGesture, true);
-            document.addEventListener('keydown', retryOnUserGesture, true);
+            gestureListenersAttached = false;
+            document.removeEventListener('pointerdown', restoreAdminSound, true);
+            document.removeEventListener('touchstart', restoreAdminSound, true);
+            document.removeEventListener('keydown', restoreAdminSound, true);
+        };
+
+        const attachSoundRestoreGesture = function() {
+            if (shouldMute || gestureListenersAttached) {
+                return;
+            }
+
+            gestureListenersAttached = true;
+            document.addEventListener('pointerdown', restoreAdminSound, true);
+            document.addEventListener('touchstart', restoreAdminSound, true);
+            document.addEventListener('keydown', restoreAdminSound, true);
+        };
+
+        const startMutedFallback = function() {
+            fallbackStartedMuted = true;
+            video.muted = true;
+            video.defaultMuted = true;
+
+            const mutedPlayPromise = video.play();
+
+            if (mutedPlayPromise && typeof mutedPlayPromise.then === 'function') {
+                mutedPlayPromise.then(attachSoundRestoreGesture).catch(attachSoundRestoreGesture);
+            } else {
+                attachSoundRestoreGesture();
+            }
         };
 
         const attemptAutoplay = function() {
-            // Keep the admin-selected mute state on every autoplay attempt.
             video.muted = shouldMute;
             video.defaultMuted = shouldMute;
 
             const playPromise = video.play();
 
-            if (playPromise && typeof playPromise.then === 'function') {
-                playPromise
-                    .then(function() {
-                        waitingForUserGesture = false;
-                        removeGestureFallback();
-                    })
-                    .catch(function() {
-                        // Unmuted autoplay is commonly blocked by browser policy.
-                        enableGestureFallback();
-                    });
+            if (playPromise && typeof playPromise.catch === 'function') {
+                playPromise.catch(function() {
+                    if (!shouldMute) {
+                        startMutedFallback();
+                    }
+                });
             }
         };
 
@@ -3486,9 +3527,59 @@ $(document).ready(function() {
 
         window.setTimeout(function() {
             if (video.paused) {
-                attemptAutoplay();
+                if (!shouldMute) {
+                    startMutedFallback();
+                } else {
+                    attemptAutoplay();
+                }
             }
-        }, 120);
+        }, 180);
+    }
+
+    /*
+     * YouTube embeds are generated muted when autoplay is ON because browsers
+     * block unmuted autoplay. If the admin kept Muted OFF, restore sound with
+     * the iframe API on the first page interaction. Other embeds safely ignore
+     * the YouTube command and keep their native controls.
+     */
+    function initializeHeroEmbedVideoAutoplay() {
+        const iframe = document.getElementById('campaignHeroEmbedVideo');
+
+        if (!iframe || !heroVideoAutoplayEnabled || heroVideoMutedEnabled) {
+            return;
+        }
+
+        let restored = false;
+
+        const restoreEmbedSound = function() {
+            if (restored) {
+                return;
+            }
+
+            restored = true;
+
+            try {
+                iframe.contentWindow.postMessage(JSON.stringify({
+                    event: 'command',
+                    func: 'unMute',
+                    args: []
+                }), '*');
+
+                iframe.contentWindow.postMessage(JSON.stringify({
+                    event: 'command',
+                    func: 'playVideo',
+                    args: []
+                }), '*');
+            } catch (error) {}
+
+            document.removeEventListener('pointerdown', restoreEmbedSound, true);
+            document.removeEventListener('touchstart', restoreEmbedSound, true);
+            document.removeEventListener('keydown', restoreEmbedSound, true);
+        };
+
+        document.addEventListener('pointerdown', restoreEmbedSound, true);
+        document.addEventListener('touchstart', restoreEmbedSound, true);
+        document.addEventListener('keydown', restoreEmbedSound, true);
     }
 
     /*
@@ -3530,6 +3621,7 @@ $(document).ready(function() {
     }
 
     initializeHeroVideoAutoplay();
+    initializeHeroEmbedVideoAutoplay();
     initializeReviewCarouselIndicators();
 
     function normalizeTrackingPhone(value) {

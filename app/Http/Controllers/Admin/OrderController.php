@@ -902,55 +902,91 @@ class OrderController extends Controller
     }
 
     /**
-     * Find customers with multiple orders for the currently visible page,
-     * while counting against the full accessible order list.
+     * Normalize a stored/order phone number into the local Bangladesh format
+     * used by the admin duplicate detector.
      *
-     * Phone is intentionally not used as the identity key because different
-     * customers are allowed to share one phone number. Orders are grouped by
-     * customer_id, resolved from normalized customer name + phone.
+     * Examples:
+     * 01352164236     -> 01352164236
+     * +8801352164236  -> 01352164236
+     * 8801352164236   -> 01352164236
      */
-    private function duplicateCustomerCountsForOrders($orders, bool $trash = false): array
+    private function duplicatePhoneKey(?string $phone): string
     {
-        $customerIds = $orders->getCollection()
-            ->pluck('customer_id')
-            ->map(fn($customerId) => (int) $customerId)
-            ->filter(fn(int $customerId) => $customerId > 0)
+        $digits = preg_replace('/\D+/', '', (string) $phone) ?: '';
+
+        if (str_starts_with($digits, '880') && strlen($digits) === 13) {
+            $digits = '0' . substr($digits, 3);
+        }
+
+        return $digits;
+    }
+
+    /**
+     * Find repeated phone numbers for orders shown on the current page.
+     *
+     * Phone is checked directly instead of customer_id because the same phone
+     * number can belong to customer rows with different names. This keeps the
+     * warning working even when the orders use different Wi-Fi/public IPs.
+     */
+    private function duplicatePhoneCountsForOrders($orders, bool $trash = false): array
+    {
+        $phoneKeys = $orders->getCollection()
+            ->map(fn (Order $order) => $this->duplicatePhoneKey($order->phone))
+            ->filter()
             ->unique()
             ->values();
 
-        if ($customerIds->isEmpty()) {
+        if ($phoneKeys->isEmpty()) {
             return [];
         }
 
         $query = $trash ? Order::onlyTrashed() : Order::query();
 
-        return $query
+        $phoneCandidates = $phoneKeys
+            ->flatMap(function (string $phone): array {
+                if (preg_match('/^01\d{9}$/', $phone)) {
+                    return [$phone, '88' . $phone, '+88' . $phone];
+                }
+
+                return [$phone];
+            })
+            ->unique()
+            ->values();
+
+        $counts = [];
+
+        $query
             ->forLoggedInUser()
-            ->whereIn('customer_id', $customerIds)
-            ->select('customer_id', DB::raw('COUNT(*) as total'))
-            ->groupBy('customer_id')
-            ->havingRaw('COUNT(*) > 1')
-            ->pluck('total', 'customer_id')
-            ->map(fn($count) => (int) $count)
+            ->whereNotNull('phone')
+            ->whereIn('phone', $phoneCandidates->all())
+            ->get(['phone'])
+            ->each(function (Order $order) use (&$counts, $phoneKeys): void {
+                $key = $this->duplicatePhoneKey($order->phone);
+
+                if ($key === '' || ! $phoneKeys->contains($key)) {
+                    return;
+                }
+
+                $counts[$key] = ($counts[$key] ?? 0) + 1;
+            });
+
+        return collect($counts)
+            ->filter(fn ($count) => (int) $count > 1)
+            ->map(fn ($count) => (int) $count)
             ->toArray();
     }
 
     /**
-     * Find duplicate source IP addresses for the currently visible page only,
-     * while counting matches against the full order list available to the
-     * logged-in Admin/Employee.
-     *
-     * Empty IP values are ignored so legacy rows without an IP are never
-     * marked as duplicate orders. Only frontend orders are included because
-     * Admin/Employee manual and bulk orders store the staff member's IP, not
-     * the customer's IP; counting those would falsely mark an entire batch.
+     * Find duplicate source/public IP addresses for frontend orders shown on
+     * the current page. Manual/bulk/API orders are excluded because their IP
+     * belongs to an admin/server and would create false duplicate warnings.
      */
     private function duplicateIpCountsForOrders($orders, bool $trash = false): array
     {
         $sourceIps = $orders->getCollection()
-            ->filter(fn(Order $order) => (string) $order->created_via === Order::CREATED_VIA_FRONTEND)
+            ->filter(fn (Order $order) => (string) $order->created_via === Order::CREATED_VIA_FRONTEND)
             ->pluck('source_ip')
-            ->map(fn($sourceIp) => trim((string) $sourceIp))
+            ->map(fn ($sourceIp) => trim((string) $sourceIp))
             ->filter()
             ->unique()
             ->values();
@@ -971,7 +1007,46 @@ class OrderController extends Controller
             ->groupBy('source_ip')
             ->havingRaw('COUNT(*) > 1')
             ->pluck('total', 'source_ip')
-            ->map(fn($count) => (int) $count)
+            ->map(fn ($count) => (int) $count)
+            ->toArray();
+    }
+
+    /**
+     * Find repeated browser-scoped device identifiers for frontend orders.
+     * The identifier is generated once in localStorage on the public campaign
+     * page, so it survives Wi-Fi/public-IP changes in the same browser.
+     */
+    private function duplicateDeviceCountsForOrders($orders, bool $trash = false): array
+    {
+        if (! Schema::hasColumn('orders', 'device_identifier')) {
+            return [];
+        }
+
+        $deviceIdentifiers = $orders->getCollection()
+            ->filter(fn (Order $order) => (string) $order->created_via === Order::CREATED_VIA_FRONTEND)
+            ->pluck('device_identifier')
+            ->map(fn ($identifier) => trim((string) $identifier))
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($deviceIdentifiers->isEmpty()) {
+            return [];
+        }
+
+        $query = $trash ? Order::onlyTrashed() : Order::query();
+
+        return $query
+            ->forLoggedInUser()
+            ->where('created_via', Order::CREATED_VIA_FRONTEND)
+            ->whereNotNull('device_identifier')
+            ->where('device_identifier', '<>', '')
+            ->whereIn('device_identifier', $deviceIdentifiers)
+            ->select('device_identifier', DB::raw('COUNT(*) as total'))
+            ->groupBy('device_identifier')
+            ->havingRaw('COUNT(*) > 1')
+            ->pluck('total', 'device_identifier')
+            ->map(fn ($count) => (int) $count)
             ->toArray();
     }
 
@@ -992,9 +1067,10 @@ class OrderController extends Controller
             $perPage = 15;
         }
 
-        $orders                  = $query->paginate($perPage)->withQueryString();
-        $duplicateCustomerCounts = $this->duplicateCustomerCountsForOrders($orders, $isTrash);
-        $duplicateIpCounts       = $this->duplicateIpCountsForOrders($orders, $isTrash);
+        $orders                = $query->paginate($perPage)->withQueryString();
+        $duplicatePhoneCounts  = $this->duplicatePhoneCountsForOrders($orders, $isTrash);
+        $duplicateIpCounts     = $this->duplicateIpCountsForOrders($orders, $isTrash);
+        $duplicateDeviceCounts = $this->duplicateDeviceCountsForOrders($orders, $isTrash);
 
         $employees = User::query()
             ->where('role', 'employee')
@@ -1055,8 +1131,9 @@ class OrderController extends Controller
                     'courierServices'      => $courierServices,
                     'orderFields'          => $orderFields,
                     'orderStatuses'        => $orderStatuses,
-                    'duplicateCustomerCounts' => $duplicateCustomerCounts,
-                    'duplicateIpCounts'    => $duplicateIpCounts,
+                    'duplicatePhoneCounts'  => $duplicatePhoneCounts,
+                    'duplicateIpCounts'     => $duplicateIpCounts,
+                    'duplicateDeviceCounts' => $duplicateDeviceCounts,
                     'localWebsiteName'     => $localWebsiteName,
                 ])->render(),
             ]);
@@ -1078,8 +1155,9 @@ class OrderController extends Controller
             'orderStatuses'        => $orderStatuses,
             'paymentStatuses'      => $paymentStatuses,
             'orderFields'          => $orderFields,
-            'duplicateCustomerCounts' => $duplicateCustomerCounts,
-            'duplicateIpCounts'    => $duplicateIpCounts,
+            'duplicatePhoneCounts'  => $duplicatePhoneCounts,
+            'duplicateIpCounts'     => $duplicateIpCounts,
+            'duplicateDeviceCounts' => $duplicateDeviceCounts,
             'currentStatusView'    => $currentStatusView,
             'currentOrderField'    => $currentOrderField,
             'isTrash'              => $isTrash,

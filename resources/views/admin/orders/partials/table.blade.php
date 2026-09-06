@@ -3,6 +3,7 @@ $canBulkManageOrders = auth()->check() && (auth()->user()->isAdmin() || auth()->
 $canDeleteOrders = auth()->check() && auth()->user()->isAdmin();
 $orderStatuses = $orderStatuses ?? [];
 $duplicatePhoneCounts = $duplicatePhoneCounts ?? [];
+$duplicateIpCounts = $duplicateIpCounts ?? [];
 $duplicateDeviceCounts = $duplicateDeviceCounts ?? [];
 $localWebsiteName = trim((string) ($localWebsiteName ?? request()->getHost() ?? 'Local Website'));
 @endphp
@@ -44,9 +45,13 @@ $localWebsiteName = trim((string) ($localWebsiteName ?? request()->getHost() ?? 
                 $orderPhoneKey = '0' . substr($orderPhoneKey, 3);
             }
 
+            $orderSourceIp = trim((string) ($order->source_ip ?? ''));
             $orderDeviceIdentifier = trim((string) ($order->device_identifier ?? ''));
             $duplicatePhoneTotal = $orderPhoneKey !== ''
                 ? (int) ($duplicatePhoneCounts[$orderPhoneKey] ?? 0)
+                : 0;
+            $duplicateIpTotal = $orderSourceIp !== ''
+                ? (int) ($duplicateIpCounts[$orderSourceIp] ?? 0)
                 : 0;
             $duplicateDeviceTotal = $orderDeviceIdentifier !== ''
                 ? (int) ($duplicateDeviceCounts[$orderDeviceIdentifier] ?? 0)
@@ -63,8 +68,9 @@ $localWebsiteName = trim((string) ($localWebsiteName ?? request()->getHost() ?? 
 
             $isFrontendOrder = (string) ($order->created_via ?? '') === \App\Models\Order::CREATED_VIA_FRONTEND;
             $hasDuplicatePhone = $duplicatePhoneTotal > 1;
+            $hasDuplicateIp = $isFrontendOrder && $duplicateIpTotal > 1;
             $hasDuplicateDevice = $isFrontendOrder && $duplicateDeviceTotal > 1;
-            $hasDuplicateRisk = $hasDuplicatePhone || $hasDuplicateDevice;
+            $hasDuplicateRisk = $hasDuplicatePhone || $hasDuplicateIp || $hasDuplicateDevice;
             $isSingleBulkCustomerOrder = $isBulkCreatedOrder && ! $hasDuplicateRisk;
 
             $rowClassParts = [];
@@ -85,6 +91,10 @@ $localWebsiteName = trim((string) ($localWebsiteName ?? request()->getHost() ?? 
                 $rowClassParts[] = 'order-duplicate-phone-row';
             }
 
+            if ($hasDuplicateIp) {
+                $rowClassParts[] = 'order-duplicate-ip-row';
+            }
+
             if ($hasDuplicateDevice) {
                 $rowClassParts[] = 'order-duplicate-device-row';
             }
@@ -103,6 +113,10 @@ $localWebsiteName = trim((string) ($localWebsiteName ?? request()->getHost() ?? 
 
             if ($hasDuplicatePhone) {
                 $rowTitleParts[] = "Same phone number has {$duplicatePhoneTotal} orders";
+            }
+
+            if ($hasDuplicateIp) {
+                $rowTitleParts[] = "Same public IP has {$duplicateIpTotal} frontend orders";
             }
 
             if ($hasDuplicateDevice) {
@@ -651,10 +665,10 @@ $localWebsiteName = trim((string) ($localWebsiteName ?? request()->getHost() ?? 
 }
 
 /*
- * Duplicate phone/device orders are risk-marked in red.
- * Network/public IP is not used for duplicate highlighting.
+ * Duplicate phone/public-IP/device orders are risk-marked in red.
  */
 .order-duplicate-phone-row>td,
+.order-duplicate-ip-row>td,
 .order-duplicate-device-row>td {
     background: #fee2e2 !important;
     border-top-color: #fca5a5 !important;
@@ -662,11 +676,13 @@ $localWebsiteName = trim((string) ($localWebsiteName ?? request()->getHost() ?? 
 }
 
 .order-duplicate-phone-row:hover>td,
+.order-duplicate-ip-row:hover>td,
 .order-duplicate-device-row:hover>td {
     background: #fecaca !important;
 }
 
 .order-duplicate-phone-row>td:first-child,
+.order-duplicate-ip-row>td:first-child,
 .order-duplicate-device-row>td:first-child {
     box-shadow: inset 5px 0 0 #dc2626;
 }
@@ -682,24 +698,27 @@ $localWebsiteName = trim((string) ($localWebsiteName ?? request()->getHost() ?? 
 }
 
 /*
- * Duplicate phone/device must take precedence over the green single-bulk marker.
+ * Duplicate phone/public-IP/device must take precedence over the green single-bulk marker.
  * This guarantees repeated phone numbers and repeated frontend devices stay red.
  */
 .order-single-bulk-row.order-duplicate-phone-row>td,
+.order-single-bulk-row.order-duplicate-ip-row>td,
 .order-single-bulk-row.order-duplicate-device-row>td {
     background: #fee2e2 !important;
 }
 
 .order-single-bulk-row.order-duplicate-phone-row:hover>td,
+.order-single-bulk-row.order-duplicate-ip-row:hover>td,
 .order-single-bulk-row.order-duplicate-device-row:hover>td {
     background: #fecaca !important;
 }
 
 /*
- * Repeated phone/device values must stay red even when the order was
+ * Repeated phone/public-IP/device values must stay red even when the order was
  * created manually. Red risk marking always has priority over green.
  */
 .order-manual-row.order-duplicate-phone-row>td,
+.order-manual-row.order-duplicate-ip-row>td,
 .order-manual-row.order-duplicate-device-row>td {
     background: #fee2e2 !important;
     border-top-color: #fca5a5 !important;
@@ -707,11 +726,13 @@ $localWebsiteName = trim((string) ($localWebsiteName ?? request()->getHost() ?? 
 }
 
 .order-manual-row.order-duplicate-phone-row:hover>td,
+.order-manual-row.order-duplicate-ip-row:hover>td,
 .order-manual-row.order-duplicate-device-row:hover>td {
     background: #fecaca !important;
 }
 
 .order-manual-row.order-duplicate-phone-row>td:first-child,
+.order-manual-row.order-duplicate-ip-row>td:first-child,
 .order-manual-row.order-duplicate-device-row>td:first-child {
     box-shadow: inset 5px 0 0 #dc2626;
 }
