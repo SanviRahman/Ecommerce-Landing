@@ -442,8 +442,24 @@ class OrderController extends Controller
             'all'               => (clone $totalQuery)->count(),
             'new'               => (clone $workflowBaseQuery)->where('order_status', Order::STATUS_PROCESSING)->count(),
             'pending'           => (clone $workflowBaseQuery)->where('order_status', Order::STATUS_PENDING)->count(),
-            'completed'         => (clone $workflowBaseQuery)->where('order_status', Order::STATUS_CONFIRMED)->count(),
-            'shipped'           => (clone $workflowBaseQuery)->shipped()->count(),
+            // Complete Orders includes both confirmed orders and orders whose invoice
+            // has already been completed but which have not yet moved to shipping.
+            // Without STATUS_COMPLETE_INVOICE those orders disappear from the top cards.
+            'completed'         => (clone $workflowBaseQuery)
+                ->whereIn('order_status', [
+                    Order::STATUS_CONFIRMED,
+                    Order::STATUS_COMPLETE_INVOICE,
+                ])
+                ->count(),
+
+            // Shipped is a cumulative fulfilment count: currently shipped + delivered.
+            // Delivered remains available as its own card as requested.
+            'shipped'           => (clone $workflowBaseQuery)
+                ->whereIn('order_status', [
+                    Order::STATUS_SHIPPED,
+                    Order::STATUS_DELIVERED,
+                ])
+                ->count(),
             'delivered'         => (clone $workflowBaseQuery)->where('order_status', Order::STATUS_DELIVERED)->count(),
             'cancelled'         => (clone $workflowBaseQuery)->whereIn('order_status', [Order::STATUS_CANCELLED, Order::STATUS_CANCELED])->count(),
             'courier_pending'   => (clone $sharedBaseQuery)->courierPending()->count(),
@@ -601,10 +617,8 @@ class OrderController extends Controller
     }
 
     /**
-     * Normalize a delivery-area value only for comparison.
-     *
-     * Area names and charges are configured dynamically per campaign, so this
-     * helper intentionally contains no delivery-area aliases or fixed labels.
+     * Normalize delivery area values coming from old/public checkout labels.
+     * This keeps edit/update stable even when old orders saved Bangla labels.
      */
     private function normalizeDeliveryArea(?string $area): ?string
     {
@@ -618,50 +632,51 @@ class OrderController extends Controller
             return null;
         }
 
-        return preg_replace(
-            '/[\s_-]+/u',
-            ' ',
-            \Illuminate\Support\Str::lower($raw)
-        );
-    }
+        $key = \Illuminate\Support\Str::lower($raw);
 
-    private function getShippingOptionsByCampaign(Collection $campaigns): array
-    {
-        $options = [
-            '' => $this->shippingOptionsForCampaign(null),
+        $aliases = [
+            'inside_dhaka'     => 'inside_dhaka',
+            'inside dhaka'     => 'inside_dhaka',
+            'dhaka'            => 'inside_dhaka',
+            'ঢাকার ভিতরে'      => 'inside_dhaka',
+            'ঢাকা সিটির ভিতরে' => 'inside_dhaka',
+            'outside_dhaka'    => 'outside_dhaka',
+            'outside dhaka'    => 'outside_dhaka',
+            'ঢাকার বাইরে'      => 'outside_dhaka',
+            'free_delivery'    => 'free_delivery',
+            'free delivery'    => 'free_delivery',
+            'ফ্রি ডেলিভারি'    => 'free_delivery',
         ];
 
-        foreach ($campaigns as $campaign) {
-            $options[(string) $campaign->id] = $this->shippingOptionsForCampaign((int) $campaign->id);
-        }
-
-        return $options;
+        return $aliases[$key] ?? $raw;
     }
 
-    private function shippingOptionsForCampaign(?int $campaignId): array
+    /**
+     * Return the currently active delivery charges using the same normalized
+     * delivery-area values used by the manual order forms.
+     *
+     * The existing project stores these rows in the shared shipping_charges
+     * table. This method only reads those settings and does not change the
+     * campaign, checkout, pricing, or shipping-charge management workflow.
+     */
+    private function getActiveShippingChargeMap(): array
     {
-        $rows = ShippingCharge::resolvedForCampaign($campaignId)
-            ->map(fn (ShippingCharge $shippingCharge) => [
-                'id' => (int) $shippingCharge->id,
-                'value' => trim((string) $shippingCharge->area_name),
-                'label' => trim((string) $shippingCharge->area_name),
-                'charge' => max(0, (float) $shippingCharge->delivery_charge),
-            ])
-            ->filter(fn (array $row) => $row['value'] !== '')
-            ->values();
+        return ShippingCharge::query()
+            ->active()
+            ->orderBy('id')
+            ->get(['area_name', 'delivery_charge'])
+            ->mapWithKeys(function (ShippingCharge $shippingCharge) {
+                $areaKey = $this->normalizeDeliveryArea($shippingCharge->area_name);
 
-        $freeDeliveryKey = $this->normalizeDeliveryArea('free_delivery');
+                if (! $areaKey) {
+                    return [];
+                }
 
-        if (! $rows->contains(fn (array $row) => $this->normalizeDeliveryArea($row['value']) === $freeDeliveryKey)) {
-            $rows->push([
-                'id' => null,
-                'value' => 'free_delivery',
-                'label' => 'ফ্রি ডেলিভারি',
-                'charge' => 0,
-            ]);
-        }
-
-        return $rows->all();
+                return [
+                    $areaKey => max(0, (float) $shippingCharge->delivery_charge),
+                ];
+            })
+            ->toArray();
     }
 
     /**
@@ -696,94 +711,60 @@ class OrderController extends Controller
     }
 
     /**
-     * Normalize a customer phone into one comparison key for duplicate-risk
-     * highlighting. Local 01XXXXXXXXX and 8801XXXXXXXXX formats resolve to
-     * the same key without changing the stored order data.
-     */
-    private function duplicatePhoneKey(?string $phone): string
-    {
-        $phone = $this->normalizeCustomerPhone($phone);
-
-        if (str_starts_with($phone, '880') && strlen($phone) === 13) {
-            return '0' . substr($phone, 3);
-        }
-
-        return $phone;
-    }
-
-    /**
-     * Find repeated phone numbers for the currently visible page while
-     * counting matches against the full accessible order list.
+     * Find customers with multiple orders for the currently visible page,
+     * while counting against the full accessible order list.
      *
-     * The order row becomes a duplicate-risk row when the same phone number
-     * appears more than once, even when those orders belong to different
-     * customer_id records or customer names.
+     * Phone is intentionally not used as the identity key because different
+     * customers are allowed to share one phone number. Orders are grouped by
+     * customer_id, resolved from normalized customer name + phone.
      */
-    private function duplicatePhoneCountsForOrders($orders, bool $trash = false): array
+    private function duplicateCustomerCountsForOrders($orders, bool $trash = false): array
     {
-        $visiblePhoneKeys = $orders->getCollection()
-            ->pluck('phone')
-            ->map(fn($phone) => $this->duplicatePhoneKey($phone))
-            ->filter()
+        $customerIds = $orders->getCollection()
+            ->pluck('customer_id')
+            ->map(fn($customerId) => (int) $customerId)
+            ->filter(fn(int $customerId) => $customerId > 0)
             ->unique()
             ->values();
 
-        if ($visiblePhoneKeys->isEmpty()) {
+        if ($customerIds->isEmpty()) {
             return [];
         }
-
-        $phoneVariants = $visiblePhoneKeys
-            ->flatMap(function (string $phone) {
-                $variants = [$phone];
-
-                if (preg_match('/^01[0-9]{9}$/', $phone)) {
-                    $international = '880' . substr($phone, 1);
-                    $variants[] = $international;
-                    $variants[] = '+' . $international;
-                }
-
-                return $variants;
-            })
-            ->unique()
-            ->values()
-            ->all();
 
         $query = $trash ? Order::onlyTrashed() : Order::query();
 
         return $query
             ->forLoggedInUser()
-            ->whereNotNull('phone')
-            ->where('phone', '<>', '')
-            ->whereIn('phone', $phoneVariants)
-            ->get(['phone'])
-            ->map(fn(Order $order) => $this->duplicatePhoneKey($order->phone))
-            ->filter(fn(string $phone) => $phone !== '' && $visiblePhoneKeys->contains($phone))
-            ->countBy()
-            ->filter(fn($count) => (int) $count > 1)
+            ->whereIn('customer_id', $customerIds)
+            ->select('customer_id', DB::raw('COUNT(*) as total'))
+            ->groupBy('customer_id')
+            ->havingRaw('COUNT(*) > 1')
+            ->pluck('total', 'customer_id')
             ->map(fn($count) => (int) $count)
             ->toArray();
     }
 
     /**
-     * Find repeated browser-scoped device identifiers for the currently visible
-     * page while counting matches against the full accessible frontend-order list.
+     * Find duplicate source IP addresses for the currently visible page only,
+     * while counting matches against the full order list available to the
+     * logged-in Admin/Employee.
      *
-     * Public/network IP addresses are intentionally NOT used here. Multiple
-     * customers can share one router/mobile network, so using source_ip would
-     * create false duplicate warnings. Legacy orders without a device identifier
-     * are ignored; same-phone detection still works for those orders separately.
+     * Empty IP values are ignored so legacy rows without an IP are never
+     * marked as duplicate orders. Only frontend orders are included because
+     * Admin/Employee manual and bulk orders store the staff member's IP, not
+     * the customer's IP; counting those would falsely mark an entire batch.
      */
-    private function duplicateDeviceCountsForOrders($orders, bool $trash = false): array
+    private function duplicateIpCountsForOrders($orders, bool $trash = false): array
     {
-        $deviceIdentifiers = $orders->getCollection()
+        $sourceIps = $orders->getCollection()
             ->filter(fn(Order $order) => (string) $order->created_via === Order::CREATED_VIA_FRONTEND)
-            ->pluck('device_identifier')
-            ->map(fn($deviceIdentifier) => trim((string) $deviceIdentifier))
+            ->pluck('source_ip')
+            ->map(fn($sourceIp) => trim((string) $sourceIp))
             ->filter()
             ->unique()
             ->values();
 
-        if ($deviceIdentifiers->isEmpty()) {
+        if ($sourceIps->isEmpty()) {
             return [];
         }
 
@@ -792,13 +773,13 @@ class OrderController extends Controller
         return $query
             ->forLoggedInUser()
             ->where('created_via', Order::CREATED_VIA_FRONTEND)
-            ->whereNotNull('device_identifier')
-            ->where('device_identifier', '<>', '')
-            ->whereIn('device_identifier', $deviceIdentifiers)
-            ->select('device_identifier', DB::raw('COUNT(*) as total'))
-            ->groupBy('device_identifier')
+            ->whereNotNull('source_ip')
+            ->where('source_ip', '<>', '')
+            ->whereIn('source_ip', $sourceIps)
+            ->select('source_ip', DB::raw('COUNT(*) as total'))
+            ->groupBy('source_ip')
             ->havingRaw('COUNT(*) > 1')
-            ->pluck('total', 'device_identifier')
+            ->pluck('total', 'source_ip')
             ->map(fn($count) => (int) $count)
             ->toArray();
     }
@@ -821,8 +802,8 @@ class OrderController extends Controller
         }
 
         $orders                  = $query->paginate($perPage)->withQueryString();
-        $duplicatePhoneCounts    = $this->duplicatePhoneCountsForOrders($orders, $isTrash);
-        $duplicateDeviceCounts   = $this->duplicateDeviceCountsForOrders($orders, $isTrash);
+        $duplicateCustomerCounts = $this->duplicateCustomerCountsForOrders($orders, $isTrash);
+        $duplicateIpCounts       = $this->duplicateIpCountsForOrders($orders, $isTrash);
 
         $employees = User::query()
             ->where('role', 'employee')
@@ -883,8 +864,8 @@ class OrderController extends Controller
                     'courierServices'      => $courierServices,
                     'orderFields'          => $orderFields,
                     'orderStatuses'        => $orderStatuses,
-                    'duplicatePhoneCounts'    => $duplicatePhoneCounts,
-                    'duplicateDeviceCounts' => $duplicateDeviceCounts,
+                    'duplicateCustomerCounts' => $duplicateCustomerCounts,
+                    'duplicateIpCounts'    => $duplicateIpCounts,
                     'localWebsiteName'     => $localWebsiteName,
                 ])->render(),
             ]);
@@ -906,8 +887,8 @@ class OrderController extends Controller
             'orderStatuses'        => $orderStatuses,
             'paymentStatuses'      => $paymentStatuses,
             'orderFields'          => $orderFields,
-            'duplicatePhoneCounts'    => $duplicatePhoneCounts,
-            'duplicateDeviceCounts' => $duplicateDeviceCounts,
+            'duplicateCustomerCounts' => $duplicateCustomerCounts,
+            'duplicateIpCounts'    => $duplicateIpCounts,
             'currentStatusView'    => $currentStatusView,
             'currentOrderField'    => $currentOrderField,
             'isTrash'              => $isTrash,
@@ -1544,26 +1525,6 @@ class OrderController extends Controller
             $request->query('return_url', route('admin.orders.index'))
         );
 
-        $campaigns = Campaign::query()
-            ->where('status', true)
-            ->with([
-                'products' => fn ($query) => $query
-                    ->select('products.id')
-                    ->where('products.status', true),
-            ])
-            ->orderBy('title')
-            ->get();
-
-        $campaignProductIds = $campaigns
-            ->mapWithKeys(fn (Campaign $campaign) => [
-                (string) $campaign->id => $campaign->products
-                    ->pluck('id')
-                    ->map(fn ($id) => (int) $id)
-                    ->values()
-                    ->all(),
-            ])
-            ->all();
-
         return view('admin.orders.create', [
             'title'             => 'Create Manual Order',
             'returnUrl'         => $returnUrl,
@@ -1572,9 +1533,11 @@ class OrderController extends Controller
             )->format('Y-m-d\\TH:i'),
             'products'          => $products,
             'productImageMap'   => $productImageMap,
-            'campaigns'         => $campaigns,
-            'campaignProductIds' => $campaignProductIds,
-            'shippingOptionsByCampaign' => $this->getShippingOptionsByCampaign($campaigns),
+            'campaigns'         => Campaign::query()
+                ->where('status', true)
+                ->orderBy('title')
+                ->get(),
+            'shippingChargeMap' => $this->getActiveShippingChargeMap(),
             'employees'         => $isEmployeeCreator
                 ? collect([$currentUser])
                 : User::query()
@@ -1613,7 +1576,7 @@ class OrderController extends Controller
 
         $request->merge([
             'phone'                => $this->normalizeCustomerPhone($request->input('phone')),
-            'delivery_area'        => trim((string) $request->input('delivery_area')),
+            'delivery_area'        => $this->normalizeDeliveryArea($request->input('delivery_area')),
             'assigned_employee_id' => $isEmployeeCreator
                 ? $currentUser->id
                 : $request->input('assigned_employee_id'),
@@ -1680,43 +1643,6 @@ class OrderController extends Controller
         if ($isEmployeeCreator) {
             // Never trust a manipulated employee assignment field from the browser.
             $validated['assigned_employee_id'] = (int) $currentUser->id;
-        }
-
-        /*
-         * A selected Campaign is also a product boundary for manual orders.
-         * The browser filters the dropdown for convenience, but this server-side
-         * check prevents a manipulated request from attaching products that do
-         * not belong to the selected active Campaign. When Campaign is empty,
-         * all active products remain valid and the existing auto-selection flow
-         * continues unchanged.
-         */
-        if (! empty($validated['campaign_id'])) {
-            $selectedCampaign = Campaign::query()
-                ->where('status', true)
-                ->find((int) $validated['campaign_id']);
-
-            $submittedProductIds = collect($validated['items'])
-                ->pluck('product_id')
-                ->map(fn ($id) => (int) $id)
-                ->unique()
-                ->values();
-
-            $allowedProductIds = $selectedCampaign
-                ? $selectedCampaign->products()
-                    ->where('products.status', true)
-                    ->pluck('products.id')
-                    ->map(fn ($id) => (int) $id)
-                    ->unique()
-                    ->values()
-                : collect();
-
-            if ($submittedProductIds->diff($allowedProductIds)->isNotEmpty()) {
-                return back()
-                    ->withInput()
-                    ->withErrors([
-                        'items' => 'One or more selected products do not belong to the selected campaign.',
-                    ]);
-            }
         }
 
         $orderDate = $this->orderDateToDatabase(
@@ -1969,7 +1895,12 @@ class OrderController extends Controller
 
         return $this->listResponse(
             $request,
-            $this->orderQuery()->whereNull('custom_order_list')->confirmed(),
+            $this->orderQuery()
+                ->whereNull('custom_order_list')
+                ->whereIn('order_status', [
+                    Order::STATUS_CONFIRMED,
+                    Order::STATUS_COMPLETE_INVOICE,
+                ]),
             'Complete Orders',
             false,
             'completed'
@@ -1987,7 +1918,12 @@ class OrderController extends Controller
 
         return $this->listResponse(
             $request,
-            $this->orderQuery()->whereNull('custom_order_list')->shipped(),
+            $this->orderQuery()
+                ->whereNull('custom_order_list')
+                ->whereIn('order_status', [
+                    Order::STATUS_SHIPPED,
+                    Order::STATUS_DELIVERED,
+                ]),
             'Shipped Orders',
             false,
             'shipped'
@@ -2026,8 +1962,14 @@ class OrderController extends Controller
         return match ($card) {
             'new'          => $query->where('order_status', Order::STATUS_PROCESSING),
             'pending'      => $query->pending(),
-            'completed'    => $query->confirmed(),
-            'shipped'      => $query->shipped(),
+            'completed'    => $query->whereIn('order_status', [
+                Order::STATUS_CONFIRMED,
+                Order::STATUS_COMPLETE_INVOICE,
+            ]),
+            'shipped'      => $query->whereIn('order_status', [
+                Order::STATUS_SHIPPED,
+                Order::STATUS_DELIVERED,
+            ]),
             'delivered'    => $query->delivered(),
             'cancelled'    => $query->cancelled(),
             'stock_out'    => $query->stockOut(),
@@ -2324,8 +2266,6 @@ class OrderController extends Controller
             ->orderBy('title')
             ->get();
 
-        $shippingOptionsByCampaign = $this->getShippingOptionsByCampaign($campaigns);
-
         $returnUrl = $this->safeOrderReturnUrl(
             $request->query('return_url', url()->previous())
         );
@@ -2362,7 +2302,7 @@ class OrderController extends Controller
             'productImageMap'   => $productImageMap,
             'campaigns'         => $campaigns,
             'suggestedCampaignId' => $suggestedCampaignId,
-            'shippingOptionsByCampaign' => $shippingOptionsByCampaign,
+            'shippingChargeMap'    => $this->getActiveShippingChargeMap(),
             'isNegotiatedBulkOrder' => $isNegotiatedBulkOrder,
             'bulkNegotiatedTotal'   => $isNegotiatedBulkOrder
                 ? max(0, (float) old('bulk_negotiated_total', $order->total_amount))
@@ -2418,9 +2358,7 @@ class OrderController extends Controller
 
         $request->merge([
             'phone'         => $this->normalizeCustomerPhone($request->input('phone')),
-            // Preserve the exact Campaign delivery-area label selected by admin.
-            // Normalization is used only for matching legacy aliases in the UI.
-            'delivery_area' => trim((string) $request->input('delivery_area')),
+            'delivery_area' => $this->normalizeDeliveryArea($request->input('delivery_area')),
         ]);
 
         $isNegotiatedBulkOrder = $this->isNegotiatedBulkOrder($order);
@@ -3439,8 +3377,14 @@ class OrderController extends Controller
                 match ($request->current_status_view) {
                     'new'              => $query->newOrders(),
                     'pending'          => $query->pending(),
-                    'shipped'          => $query->shipped(),
-                    'completed'        => $query->confirmed(),
+                    'shipped'          => $query->whereIn('order_status', [
+                        Order::STATUS_SHIPPED,
+                        Order::STATUS_DELIVERED,
+                    ]),
+                    'completed'        => $query->whereIn('order_status', [
+                        Order::STATUS_CONFIRMED,
+                        Order::STATUS_COMPLETE_INVOICE,
+                    ]),
                     'delivered'        => $query->delivered(),
                     'cancelled'        => $query->cancelled(),
                     'pending-invoice'  => $query->confirmed()->whereNull('invoice_printed_at'),
@@ -3484,70 +3428,30 @@ class OrderController extends Controller
 
         try {
             $data = $bdCourierFraudCheckerService->check($order->phone);
-        } catch (Throwable $exception) {
-            report($exception);
 
-            $message = str_contains(
-                strtolower($exception->getMessage()),
-                'phone number'
-            )
-                ? 'Valid customer phone number not found.'
-                : 'Fraud checker could not fetch BD Courier data from this server. Check production API configuration/connectivity.';
-
-            $statusCode = $message === 'Valid customer phone number not found.'
-                ? 422
-                : 502;
+            $order->forceFill([
+                'fraud_check_success' => max(0, (int) ($data['success'] ?? 0)),
+                'fraud_check_cancel'  => max(0, (int) ($data['cancel'] ?? 0)),
+                'fraud_checked_at'    => now(),
+            ])->save();
 
             return response()->json([
-                'status' => false,
-                'message' => $message,
-            ], $statusCode);
+                'status'  => true,
+                'message' => 'Fraud checker data fetched successfully.',
+                'order'   => [
+                    'id'            => $order->id,
+                    'invoice_id'    => $order->invoice_id,
+                    'customer_name' => $order->customer_name,
+                    'phone'         => $order->phone,
+                ],
+                'data'    => $data,
+            ]);
+        } catch (Throwable $e) {
+            return response()->json([
+                'status'  => false,
+                'message' => 'Fraud Check Failed. Please try again later.',
+            ], 422);
         }
-
-        $summarySaved = false;
-
-        try {
-            $summaryColumnsExist =
-                Schema::hasColumn('orders', 'fraud_check_success')
-                && Schema::hasColumn('orders', 'fraud_check_cancel')
-                && Schema::hasColumn('orders', 'fraud_checked_at');
-
-            if ($summaryColumnsExist) {
-                $order->forceFill([
-                    'fraud_check_success' => max(0, (int) ($data['success'] ?? 0)),
-                    'fraud_check_cancel' => max(0, (int) ($data['cancel'] ?? 0)),
-                    'fraud_checked_at' => now(),
-                ])->save();
-
-                $summarySaved = true;
-            } else {
-                logger()->warning('Fraud check summary columns are missing on orders table.', [
-                    'order_id' => $order->id,
-                    'required_columns' => [
-                        'fraud_check_success',
-                        'fraud_check_cancel',
-                        'fraud_checked_at',
-                    ],
-                ]);
-            }
-        } catch (Throwable $exception) {
-            report($exception);
-        }
-
-        return response()->json([
-            'status' => true,
-            'message' => $summarySaved
-                ? 'Fraud checker data fetched successfully.'
-                : 'Fraud checker data fetched successfully. Run the pending database migration to persist the summary.',
-            'order' => [
-                'id' => $order->id,
-                'invoice_id' => $order->invoice_id,
-                'customer_name' => $order->customer_name,
-                'phone' => $order->phone,
-            ],
-            'data' => $data,
-            'summary_saved' => $summarySaved,
-        ]);
     }
 
     public function storeOrderField(Request $request)
