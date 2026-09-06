@@ -356,9 +356,26 @@ class DashboardController extends Controller
             $query->where($column, '<=', $end);
         }
     }
+    /**
+     * Keep the dashboard Total Count cards aligned with the order-management
+     * cards without changing the existing dashboard filters or UI.
+     *
+     * Important business rules:
+     * - Total Orders is the local website total only.
+     * - Every workflow card includes Local + External/API orders.
+     * - Shipped includes Shipped + Delivered + Courier Pending.
+     * - Cancelled includes Cancelled/Canceled + Courier Cancelled + Fake.
+     * - Static Order List 1/2 rows stay outside the normal workflow buckets.
+     */
     private function dashboardStats(Builder $orderQuery, array $filters, array $dateRange): array
     {
-        $totalOrders = (clone $orderQuery)->count();
+        $totalOrderQuery = clone $orderQuery;
+
+        if (Schema::hasColumn('orders', 'external_website_id')) {
+            $totalOrderQuery->whereNull('external_website_id');
+        }
+
+        $totalOrders = $totalOrderQuery->count();
 
         $workflowOrderQuery = clone $orderQuery;
 
@@ -366,13 +383,45 @@ class DashboardController extends Controller
             $workflowOrderQuery->whereNull('custom_order_list');
         }
 
-        $pendingOrders    = (clone $workflowOrderQuery)->where('order_status', 'pending')->count();
-        $confirmedOrders  = (clone $workflowOrderQuery)->whereIn('order_status', ['confirmed', 'complete', 'completed'])->count();
-        $processingOrders = (clone $workflowOrderQuery)->where('order_status', 'processing')->count();
-        $shippedOrders    = (clone $workflowOrderQuery)->shipped()->count();
-        $deliveredOrders  = (clone $workflowOrderQuery)->where('order_status', 'delivered')->count();
-        $cancelledOrders  = (clone $workflowOrderQuery)->whereIn('order_status', ['cancelled', 'canceled'])->count();
-        $grossSales       = (clone $orderQuery)->sum('total_amount');
+        $pendingOrders = (clone $workflowOrderQuery)
+            ->where('order_status', Order::STATUS_PENDING)
+            ->count();
+
+        $confirmedOrders = (clone $workflowOrderQuery)
+            ->whereIn('order_status', [
+                Order::STATUS_CONFIRMED,
+                Order::STATUS_COMPLETE_INVOICE,
+                'complete',
+                'completed',
+            ])
+            ->count();
+
+        $processingOrders = (clone $workflowOrderQuery)
+            ->where('order_status', Order::STATUS_PROCESSING)
+            ->count();
+
+        $shippedOrders = (clone $workflowOrderQuery)
+            ->whereIn('order_status', [
+                Order::STATUS_SHIPPED,
+                Order::STATUS_DELIVERED,
+                Order::STATUS_COURIER_PENDING,
+            ])
+            ->count();
+
+        $deliveredOrders = (clone $workflowOrderQuery)
+            ->where('order_status', Order::STATUS_DELIVERED)
+            ->count();
+
+        $cancelledOrders = (clone $workflowOrderQuery)
+            ->whereIn('order_status', [
+                Order::STATUS_CANCELLED,
+                Order::STATUS_CANCELED,
+                Order::STATUS_COURIER_CANCELLED,
+                Order::STATUS_FAKE,
+            ])
+            ->count();
+
+        $grossSales = (clone $orderQuery)->sum('total_amount');
 
         $productQuery  = Product::query();
         $totalProducts = $productQuery->count();
