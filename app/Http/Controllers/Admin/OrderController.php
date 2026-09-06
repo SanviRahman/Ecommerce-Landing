@@ -719,14 +719,13 @@ class OrderController extends Controller
     /**
      * Build the delivery-area options used by the manual Create/Edit forms.
      *
-     * Rules:
-     * - No Campaign reads only legacy/global shipping rows (campaign_id NULL).
-     * - A selected Campaign reads only that Campaign's active shipping rows.
-     * - When the campaign_id column is not available yet, keep the legacy
-     *   behaviour by exposing the same active rows for every campaign.
+     * Manual orders must be able to use every active delivery area configured
+     * from Campaign forms. Selecting a Campaign may still prioritise that
+     * Campaign's own charge when the same area name exists in multiple places,
+     * but it must never hide the other configured areas.
      *
-     * The Blade views already switch this map dynamically when Campaign changes;
-     * this method only supplies the missing data and does not alter order logic.
+     * Free Delivery is a permanent system option for manual orders. It does not
+     * need to be configured inside any Campaign and always carries a zero charge.
      */
     private function getShippingOptionsByCampaign(Collection $campaigns): array
     {
@@ -739,35 +738,26 @@ class OrderController extends Controller
 
         $hasCampaignColumn = Schema::hasColumn('shipping_charges', 'campaign_id');
 
-        $query = ShippingCharge::query()
-            ->active()
-            ->orderBy('id');
-
-        if ($hasCampaignColumn) {
-            $query->where(function ($shippingQuery) use ($campaignIds) {
-                $shippingQuery->whereNull('campaign_id');
-
-                if ($campaignIds->isNotEmpty()) {
-                    $shippingQuery->orWhereIn('campaign_id', $campaignIds->all());
-                }
-            });
-        }
-
         $columns = ['id', 'area_name', 'delivery_charge'];
 
         if ($hasCampaignColumn) {
             $columns[] = 'campaign_id';
         }
 
-        $shippingCharges = $query->get($columns);
+        // Read every active Campaign/global shipping area so manual Create/Edit
+        // can always show the complete configured list.
+        $shippingCharges = ShippingCharge::query()
+            ->active()
+            ->orderBy('id')
+            ->get($columns);
 
         $toOptions = function (Collection $charges): array {
-            return $charges
+            $configuredOptions = $charges
                 ->map(function (ShippingCharge $shippingCharge) {
                     $label = trim((string) $shippingCharge->area_name);
                     $value = $this->normalizeDeliveryArea($label);
 
-                    if (! $value) {
+                    if (! $value || $value === 'free_delivery') {
                         return null;
                     }
 
@@ -783,32 +773,67 @@ class OrderController extends Controller
                 ->unique(fn (array $option) => (string) $option['value'])
                 ->values()
                 ->all();
+
+            // Keep this option available even when no Campaign has a matching
+            // shipping row. Appending it preserves the existing first-area
+            // selection behaviour of the manual order forms.
+            $configuredOptions[] = [
+                'id'     => null,
+                'value'  => 'free_delivery',
+                'label'  => 'ফ্রি ডেলিভারি',
+                'charge' => 0,
+                'legacy' => false,
+                'system' => true,
+            ];
+
+            return $configuredOptions;
         };
 
         if (! $hasCampaignColumn) {
-            $legacyOptions = $toOptions($shippingCharges);
-            $options = ['' => $legacyOptions];
+            $allOptions = $toOptions($shippingCharges);
+            $options = ['' => $allOptions];
 
             foreach ($campaignIds as $campaignId) {
-                $options[(string) $campaignId] = $legacyOptions;
+                $options[(string) $campaignId] = $allOptions;
             }
 
             return $options;
         }
 
+        $globalCharges = $shippingCharges
+            ->filter(fn (ShippingCharge $shippingCharge) => $shippingCharge->campaign_id === null)
+            ->values();
+
+        $campaignCharges = $shippingCharges
+            ->filter(fn (ShippingCharge $shippingCharge) => $shippingCharge->campaign_id !== null)
+            ->values();
+
+        // With no Campaign selected, prefer legacy/global charges when duplicate
+        // area names exist, then include every Campaign-configured area.
         $options = [
-            '' => $toOptions(
-                $shippingCharges->filter(
-                    fn (ShippingCharge $shippingCharge) => $shippingCharge->campaign_id === null
-                )
-            ),
+            '' => $toOptions($globalCharges->concat($campaignCharges)),
         ];
 
         foreach ($campaignIds as $campaignId) {
-            $options[(string) $campaignId] = $toOptions(
-                $shippingCharges->filter(
+            $ownCharges = $campaignCharges
+                ->filter(
                     fn (ShippingCharge $shippingCharge) => (int) $shippingCharge->campaign_id === (int) $campaignId
                 )
+                ->values();
+
+            $otherCampaignCharges = $campaignCharges
+                ->reject(
+                    fn (ShippingCharge $shippingCharge) => (int) $shippingCharge->campaign_id === (int) $campaignId
+                )
+                ->values();
+
+            // Same area name can exist in several campaigns. Put the selected
+            // Campaign first so its configured charge wins after de-duplication,
+            // while still exposing all remaining active areas.
+            $options[(string) $campaignId] = $toOptions(
+                $ownCharges
+                    ->concat($globalCharges)
+                    ->concat($otherCampaignCharges)
             );
         }
 
