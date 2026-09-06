@@ -18,7 +18,7 @@ class NormalizeCourierOrderStatuses extends Command
         {--limit=5000 : Maximum courier orders to inspect}
         {--dry-run : Show changes without updating the database}';
 
-    protected $description = 'Map existing courier provider states to Courier Pending/Courier Cancel while preserving local Cancelled.';
+    protected $description = 'Map existing courier provider states to Courier Pending/Shipped/Courier Cancel while preserving final local statuses.';
 
     public function handle(
         SteadfastStatusService $steadfastStatusService,
@@ -62,6 +62,7 @@ class NormalizeCourierOrderStatuses extends Command
 
                 $targetStatus = match ($category) {
                     'cancelled' => Order::STATUS_COURIER_CANCELLED,
+                    'shipped' => Order::STATUS_SHIPPED,
                     'pending' => Order::STATUS_COURIER_PENDING,
                     default => null,
                 };

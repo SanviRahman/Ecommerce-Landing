@@ -1027,7 +1027,7 @@ class PathaoCourierService
             'merchant_order_id' => (string) $order->invoice_id,
             'recipient_name' => $this->normalizeRecipientName($order->customer_name),
             'recipient_phone' => $this->normalizePhone($order->phone),
-            'recipient_address' => $this->normalizeAddress($order->address),
+            'recipient_address' => $this->normalizeAddress($order->address, $order->delivery_area),
             'delivery_type' => $deliveryType,
             'item_type' => $itemType,
             'special_instruction' => Str::limit($this->makeInstruction($order, $courier), 250, ''),
@@ -1188,9 +1188,28 @@ class PathaoCourierService
         return $phone;
     }
 
-    private function normalizeAddress(?string $address): string
+    private function normalizeAddress(?string $address, ?string $deliveryArea = null): string
     {
         $address = trim((string) preg_replace('/\s+/u', ' ', (string) $address));
+
+        /*
+         * Pathao requires recipient_address to contain at least 10 characters.
+         * Some valid local orders only contain a short address (for example,
+         * "Banarsee") while the selected delivery area is stored separately.
+         * In that case, enrich only the Pathao payload with the delivery area;
+         * the local order/address remains unchanged.
+         */
+        if (mb_strlen($address, 'UTF-8') < 10) {
+            $area = trim((string) preg_replace(
+                '/\s+/u',
+                ' ',
+                str_replace('_', ' ', (string) $deliveryArea)
+            ));
+
+            if ($area !== '' && ! str_contains(mb_strtolower($address, 'UTF-8'), mb_strtolower($area, 'UTF-8'))) {
+                $address = trim($address . ($address !== '' ? ', ' : '') . $area);
+            }
+        }
 
         if (mb_strlen($address, 'UTF-8') < 10) {
             throw new RuntimeException('Pathao recipient address must be at least 10 characters. Please enter a complete delivery address before sending.');

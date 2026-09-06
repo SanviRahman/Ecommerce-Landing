@@ -64,6 +64,30 @@ $writeRuntimeLog = static function (string $message) use ($runtimeLogFile): void
 };
 
 /*
+ * Capture fatal PHP shutdown errors that can occur before Laravel's exception
+ * handler has a chance to run. This is intentionally best-effort and never
+ * changes the application's response or control flow.
+ */
+register_shutdown_function(static function () use ($runtimeLogFile): void {
+    $error = error_get_last();
+
+    if (! is_array($error) || ! in_array($error['type'] ?? null, [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) {
+        return;
+    }
+
+    $line = sprintf(
+        '[%s] fatal-shutdown.ERROR: %s in %s:%s%s',
+        date('Y-m-d H:i:s'),
+        (string) ($error['message'] ?? 'Unknown fatal error'),
+        (string) ($error['file'] ?? 'unknown'),
+        (string) ($error['line'] ?? '0'),
+        PHP_EOL
+    );
+
+    @file_put_contents($runtimeLogFile, $line, FILE_APPEND | LOCK_EX);
+});
+
+/*
  * Composer's generated platform check is the source of truth for the vendor
  * folder currently shipped with this project. Detect its PHP minimum before
  * requiring vendor/autoload.php so an incompatible server gets a useful error

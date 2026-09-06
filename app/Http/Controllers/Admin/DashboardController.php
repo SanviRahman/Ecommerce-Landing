@@ -363,7 +363,8 @@ class DashboardController extends Controller
      * Important business rules:
      * - Total Orders is the local website total only.
      * - Every workflow card includes Local + External/API orders.
-     * - Shipped includes Shipped + Delivered + Courier Pending.
+     * - Shipped includes only Shipped + Delivered. Courier Pending stays
+     *   in its own operational bucket until the courier reports shipment.
      * - Cancelled includes Cancelled/Canceled + Courier Cancelled + Fake.
      * - Static Order List 1/2 rows stay outside the normal workflow buckets.
      */
@@ -404,7 +405,6 @@ class DashboardController extends Controller
             ->whereIn('order_status', [
                 Order::STATUS_SHIPPED,
                 Order::STATUS_DELIVERED,
-                Order::STATUS_COURIER_PENDING,
             ])
             ->count();
 

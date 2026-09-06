@@ -19,6 +19,13 @@ class SteadfastStatusService
         'unknown',
     ];
 
+    public const SHIPPED_STATUSES = [
+        'shipped',
+        'dispatched',
+        'in_transit',
+        'out_for_delivery',
+    ];
+
     public const DELIVERED_STATUSES = [
         'delivered',
         'partial_delivered',
@@ -51,6 +58,13 @@ class SteadfastStatusService
             'cancel' => 'cancelled',
             'partially_delivered' => 'partial_delivered',
             'partial_delivery' => 'partial_delivered',
+            'shipped' => 'shipped',
+            'dispatch' => 'dispatched',
+            'dispatched' => 'dispatched',
+            'intransit' => 'in_transit',
+            'in_transit' => 'in_transit',
+            'out_for_delivery' => 'out_for_delivery',
+            'delivery_in_progress' => 'out_for_delivery',
         ];
 
         if (isset($aliases[$normalized])) {
@@ -84,6 +98,22 @@ class SteadfastStatusService
 
         if (str_contains($normalized, 'partial') && str_contains($normalized, 'deliver')) {
             return 'partial_delivered';
+        }
+
+        if (str_contains($normalized, 'out_for_delivery') || str_contains($normalized, 'delivery_in_progress')) {
+            return 'out_for_delivery';
+        }
+
+        if (str_contains($normalized, 'shipp')) {
+            return 'shipped';
+        }
+
+        if (str_contains($normalized, 'dispatch')) {
+            return 'dispatched';
+        }
+
+        if (str_contains($normalized, 'transit')) {
+            return 'in_transit';
         }
 
         if (str_contains($normalized, 'cancel')) {
@@ -125,6 +155,10 @@ class SteadfastStatusService
 
         if (in_array($status, self::CANCELLED_STATUSES, true)) {
             return 'cancelled';
+        }
+
+        if (in_array($status, self::SHIPPED_STATUSES, true)) {
+            return 'shipped';
         }
 
         return 'pending';
@@ -199,6 +233,19 @@ class SteadfastStatusService
                 if (Schema::hasColumn('orders', 'custom_order_list_moved_at')) {
                     $updateData['custom_order_list_moved_at'] = null;
                 }
+            }
+
+            if (
+                $category === 'shipped'
+                && ! in_array($lockedOrder->order_status, [
+                    Order::STATUS_DELIVERED,
+                    Order::STATUS_CANCELLED,
+                    Order::STATUS_CANCELED,
+                    Order::STATUS_COURIER_CANCELLED,
+                ], true)
+            ) {
+                $updateData['order_status'] = Order::STATUS_SHIPPED;
+                $updateData['shipped_at'] = $lockedOrder->shipped_at ?: now();
             }
 
             if (

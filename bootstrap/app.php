@@ -2,6 +2,7 @@
 
 require_once __DIR__ . '/runtime.php';
 
+use App\Http\Middleware\LogRequestLifecycle;
 use App\Http\Middleware\LteContext;
 use App\Http\Middleware\RoleMiddleware;
 use Illuminate\Foundation\Application;
@@ -16,6 +17,10 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Keep a lightweight audit trail for every HTTP feature execution.
+        // It only observes requests; it does not change route/controller logic.
+        $middleware->prepend(LogRequestLifecycle::class);
+
         $middleware->alias([
             'lte_context' => LteContext::class,
             'role'        => RoleMiddleware::class,

@@ -399,7 +399,8 @@ class OrderController extends Controller
      *
      * These groups keep operational sub-statuses visible in the existing
      * cards without changing the stored order_status value or adding new UI.
-     * - Courier Pending has already entered the courier/shipped lifecycle.
+     * - Courier Pending stays only in the Courier Pending bucket until the
+     *   courier provider reports a real shipped/in-transit state.
      * - Courier Cancelled and Fake are terminal rejected/cancelled outcomes.
      * - Legacy complete/completed values are treated as Complete Orders.
      */
@@ -418,7 +419,6 @@ class OrderController extends Controller
         return [
             Order::STATUS_SHIPPED,
             Order::STATUS_DELIVERED,
-            Order::STATUS_COURIER_PENDING,
         ];
     }
 
@@ -487,8 +487,8 @@ class OrderController extends Controller
                 ->whereIn('order_status', $this->completedCardStatuses())
                 ->count(),
 
-            // Keep all courier-stage orders visible in the existing Shipped card.
-            // Delivered is still shown separately, exactly like before.
+            // Shipped contains only actually shipped + delivered orders.
+            // Courier Pending remains exclusive to the Courier Pending bucket.
             'shipped'           => (clone $workflowBaseQuery)
                 ->whereIn('order_status', $this->shippedCardStatuses())
                 ->count(),

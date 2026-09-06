@@ -14,15 +14,20 @@ class PathaoStatusService
         'order_updated',
         'pickup_requested',
         'assigned_for_pickup',
+        'on_hold',
+        'exchange',
+        'payment_invoice',
+        'pending',
+    ];
+
+    public const SHIPPED_STATUSES = [
         'picked',
         'at_the_sorting_hub',
         'in_transit',
         'received_at_last_mile_hub',
         'assigned_for_delivery',
-        'on_hold',
-        'exchange',
-        'payment_invoice',
-        'pending',
+        'shipped',
+        'dispatched',
     ];
 
     public const DELIVERED_STATUSES = [
@@ -74,6 +79,11 @@ class PathaoStatusService
             'in_transit' => 'in_transit',
             'received_at_last_mile_hub' => 'received_at_last_mile_hub',
             'assigned_for_delivery' => 'assigned_for_delivery',
+            'out_for_delivery' => 'assigned_for_delivery',
+            'delivery_in_progress' => 'assigned_for_delivery',
+            'shipped' => 'shipped',
+            'dispatch' => 'dispatched',
+            'dispatched' => 'dispatched',
             'delivered' => 'delivered',
             'partial_delivered' => 'partial_delivery',
             'partial_delivery' => 'partial_delivery',
@@ -119,6 +129,18 @@ class PathaoStatusService
 
         if (str_contains($normalized, 'partial') && str_contains($normalized, 'deliver')) {
             return 'partial_delivery';
+        }
+
+        if (str_contains($normalized, 'out_for_delivery') || str_contains($normalized, 'delivery_in_progress')) {
+            return 'assigned_for_delivery';
+        }
+
+        if (str_contains($normalized, 'shipp')) {
+            return 'shipped';
+        }
+
+        if (str_contains($normalized, 'dispatch')) {
+            return 'dispatched';
         }
 
         if (str_contains($normalized, 'deliver') && ! str_contains($normalized, 'fail')) {
@@ -237,6 +259,10 @@ class PathaoStatusService
             return 'cancelled';
         }
 
+        if (in_array($status, self::SHIPPED_STATUSES, true)) {
+            return 'shipped';
+        }
+
         return 'pending';
     }
 
@@ -320,6 +346,19 @@ class PathaoStatusService
                 if (Schema::hasColumn('orders', 'custom_order_list_moved_at')) {
                     $updates['custom_order_list_moved_at'] = null;
                 }
+            }
+
+            if (
+                $category === 'shipped'
+                && ! in_array($lockedOrder->order_status, [
+                    Order::STATUS_DELIVERED,
+                    Order::STATUS_CANCELLED,
+                    Order::STATUS_CANCELED,
+                    Order::STATUS_COURIER_CANCELLED,
+                ], true)
+            ) {
+                $updates['order_status'] = Order::STATUS_SHIPPED;
+                $updates['shipped_at'] = $lockedOrder->shipped_at ?: now();
             }
 
             if (
