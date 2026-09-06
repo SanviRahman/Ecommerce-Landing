@@ -46,7 +46,13 @@ $orderSourceIp = trim((string) ($order->source_ip ?? ''));
  * shipping amount so no hardcoded area-name mapping is required.
  */
 $shippingOptionsByCampaign = $shippingOptionsByCampaign ?? [];
+$campaignProductIds = $campaignProductIds ?? [];
 $currentCampaignId = (string) old('campaign_id', $suggestedCampaignId ?? $order->campaign_id ?? '');
+$currentCampaignProductIds = collect(
+    $currentCampaignId !== ''
+        ? ($campaignProductIds[$currentCampaignId] ?? [])
+        : []
+);
 $currentShippingOptions = collect(
     $shippingOptionsByCampaign[$currentCampaignId]
         ?? $shippingOptionsByCampaign['']
@@ -94,6 +100,17 @@ if ($selectedDeliveryArea === null) {
         $selectedDeliveryArea = (string) ($firstConfiguredOption['value'] ?? '');
     }
 }
+
+$productsForJs = $products
+    ->map(function ($product) use ($productImageMap) {
+        return [
+            'id' => (int) $product->id,
+            'name' => (string) $product->name,
+            'price' => (float) ($product->new_price ?? 0),
+            'image' => (string) ($productImageMap[$product->id] ?? ''),
+        ];
+    })
+    ->values();
 @endphp
 
 @if(session('success'))
@@ -367,6 +384,10 @@ if ($selectedDeliveryArea === null) {
                                                 class="form-control product-select" required>
                                                 <option value="" data-price="0" data-image="">Select Product</option>
                                                 @foreach($products as $product)
+                                                @continue(
+                                                    $currentCampaignId !== ''
+                                                    && ! $currentCampaignProductIds->contains((int) $product->id)
+                                                )
                                                 @php
                                                 $optionImage = $productImageMap[$product->id] ?? null;
                                                 @endphp
@@ -724,6 +745,8 @@ if ($selectedDeliveryArea === null) {
 <script>
 $(document).ready(function() {
     let itemIndex = @json($rows->count());
+    const products = @json($productsForJs);
+    const campaignProductIds = @json($campaignProductIds);
     const shippingOptionsByCampaign = @json($shippingOptionsByCampaign ?? []);
     const originalDeliveryArea = @json($rawDeliveryArea);
     const originalShippingCharge = @json((float) $order->shipping_charge);
@@ -879,17 +902,74 @@ $(document).ready(function() {
         recalcTotals();
     }
 
-    function productOptions() {
-        return `@foreach($products as $product)
-            @php
-                $optionImage = $productImageMap[$product->id] ?? null;
-            @endphp
-            <option value="{{ $product->id }}"
-                    data-price="{{ $product->new_price ?? 0 }}"
-                    data-image="{{ $optionImage }}">
-                {{ addslashes($product->name) }} — ৳{{ number_format($product->new_price ?? 0) }}
-            </option>
-        @endforeach`;
+    function allowedProductIdsForCampaign(campaignId) {
+        const key = String(campaignId || '').trim();
+
+        if (!key) {
+            return null;
+        }
+
+        const ids = Array.isArray(campaignProductIds[key])
+            ? campaignProductIds[key]
+            : [];
+
+        return new Set(ids.map(function(id) {
+            return String(id);
+        }));
+    }
+
+    function productsForCampaign(campaignId) {
+        const allowedIds = allowedProductIdsForCampaign(campaignId);
+
+        if (allowedIds === null) {
+            return products;
+        }
+
+        return products.filter(function(product) {
+            return allowedIds.has(String(product.id));
+        });
+    }
+
+    function productOptions(campaignId = $('#campaignSelect').val()) {
+        return productsForCampaign(campaignId).map(function(product) {
+            return `
+                <option value="${product.id}"
+                        data-price="${product.price}"
+                        data-image="${escapeHtml(product.image)}">
+                    ${escapeHtml(product.name)} — ${money(product.price)}
+                </option>
+            `;
+        }).join('');
+    }
+
+    function rebuildProductOptions() {
+        const campaignId = String($('#campaignSelect').val() || '').trim();
+        const allowedIds = allowedProductIdsForCampaign(campaignId);
+        const optionsHtml = productOptions(campaignId);
+
+        $('.product-select').each(function() {
+            const select = $(this);
+            const row = select.closest('.order-item-row');
+            const selectedProductId = String(select.val() || '').trim();
+            const canKeepSelection = selectedProductId
+                && (allowedIds === null || allowedIds.has(selectedProductId));
+
+            select.html(
+                '<option value="" data-price="0" data-image="">Select Product</option>'
+                + optionsHtml
+            );
+
+            if (canKeepSelection) {
+                select.val(selectedProductId);
+                return;
+            }
+
+            select.val('');
+            row.find('.item-price').val(0);
+            updateRowImage(row, '');
+        });
+
+        recalcTotals();
     }
 
     $('#btnAddOrderItem').on('click', function() {
@@ -963,12 +1043,14 @@ $(document).ready(function() {
 
     $('#campaignSelect').on('change', function() {
         const previousArea = $('#deliveryAreaSelect').val();
+        rebuildProductOptions();
         rebuildDeliveryAreaOptions(previousArea, true);
         applyCampaignShippingCharge();
     });
 
     $('#deliveryAreaSelect').on('change', applyCampaignShippingCharge);
 
+    rebuildProductOptions();
     rebuildDeliveryAreaOptions(originalDeliveryArea, true);
     applyCampaignShippingCharge();
 

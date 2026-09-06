@@ -717,6 +717,61 @@ class OrderController extends Controller
     }
 
     /**
+     * Build a campaign => active product ID map for the manual order forms.
+     *
+     * No Campaign intentionally has no entry: the Blade/JavaScript layer then
+     * falls back to the full active product list. Selecting a Campaign limits
+     * the product dropdown to products attached to that Campaign only.
+     */
+    private function getCampaignProductIds(Collection $campaigns, Collection $products): array
+    {
+        $campaignIds = $campaigns
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($campaignIds->isEmpty()) {
+            return [];
+        }
+
+        $activeProductIds = $products
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($activeProductIds->isEmpty()) {
+            return $campaignIds
+                ->mapWithKeys(fn ($campaignId) => [(string) $campaignId => []])
+                ->all();
+        }
+
+        $grouped = DB::table('campaign_product')
+            ->whereIn('campaign_id', $campaignIds->all())
+            ->whereIn('product_id', $activeProductIds->all())
+            ->orderBy('campaign_id')
+            ->orderBy('sort_order')
+            ->get(['campaign_id', 'product_id'])
+            ->groupBy(fn ($row) => (string) $row->campaign_id);
+
+        return $campaignIds
+            ->mapWithKeys(function ($campaignId) use ($grouped) {
+                return [
+                    (string) $campaignId => collect($grouped->get((string) $campaignId, []))
+                        ->pluck('product_id')
+                        ->map(fn ($productId) => (int) $productId)
+                        ->unique()
+                        ->values()
+                        ->all(),
+                ];
+            })
+            ->all();
+    }
+
+    /**
      * Keep admin/editor inside the application when redirecting back from edit.
      * This prevents open redirect bugs while preserving sidebar/list context.
      */
@@ -1558,6 +1613,13 @@ class OrderController extends Controller
                 $product->id => $this->resolveProductImageUrl($product),
             ]);
 
+        $campaigns = Campaign::query()
+            ->where('status', true)
+            ->orderBy('title')
+            ->get();
+
+        $campaignProductIds = $this->getCampaignProductIds($campaigns, $products);
+
         $returnUrl = $this->safeOrderReturnUrl(
             $request->query('return_url', route('admin.orders.index'))
         );
@@ -1570,10 +1632,8 @@ class OrderController extends Controller
             )->format('Y-m-d\\TH:i'),
             'products'          => $products,
             'productImageMap'   => $productImageMap,
-            'campaigns'         => Campaign::query()
-                ->where('status', true)
-                ->orderBy('title')
-                ->get(),
+            'campaigns'         => $campaigns,
+            'campaignProductIds'=> $campaignProductIds,
             'shippingChargeMap' => $this->getActiveShippingChargeMap(),
             'employees'         => $isEmployeeCreator
                 ? collect([$currentUser])
@@ -2293,6 +2353,8 @@ class OrderController extends Controller
             ->orderBy('title')
             ->get();
 
+        $campaignProductIds = $this->getCampaignProductIds($campaigns, $products);
+
         $returnUrl = $this->safeOrderReturnUrl(
             $request->query('return_url', url()->previous())
         );
@@ -2328,6 +2390,7 @@ class OrderController extends Controller
             'products'          => $products,
             'productImageMap'   => $productImageMap,
             'campaigns'         => $campaigns,
+            'campaignProductIds'=> $campaignProductIds,
             'suggestedCampaignId' => $suggestedCampaignId,
             'shippingChargeMap'    => $this->getActiveShippingChargeMap(),
             'isNegotiatedBulkOrder' => $isNegotiatedBulkOrder,
