@@ -717,6 +717,105 @@ class OrderController extends Controller
     }
 
     /**
+     * Build the delivery-area options used by the manual Create/Edit forms.
+     *
+     * Rules:
+     * - No Campaign reads only legacy/global shipping rows (campaign_id NULL).
+     * - A selected Campaign reads only that Campaign's active shipping rows.
+     * - When the campaign_id column is not available yet, keep the legacy
+     *   behaviour by exposing the same active rows for every campaign.
+     *
+     * The Blade views already switch this map dynamically when Campaign changes;
+     * this method only supplies the missing data and does not alter order logic.
+     */
+    private function getShippingOptionsByCampaign(Collection $campaigns): array
+    {
+        $campaignIds = $campaigns
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->values();
+
+        $hasCampaignColumn = Schema::hasColumn('shipping_charges', 'campaign_id');
+
+        $query = ShippingCharge::query()
+            ->active()
+            ->orderBy('id');
+
+        if ($hasCampaignColumn) {
+            $query->where(function ($shippingQuery) use ($campaignIds) {
+                $shippingQuery->whereNull('campaign_id');
+
+                if ($campaignIds->isNotEmpty()) {
+                    $shippingQuery->orWhereIn('campaign_id', $campaignIds->all());
+                }
+            });
+        }
+
+        $columns = ['id', 'area_name', 'delivery_charge'];
+
+        if ($hasCampaignColumn) {
+            $columns[] = 'campaign_id';
+        }
+
+        $shippingCharges = $query->get($columns);
+
+        $toOptions = function (Collection $charges): array {
+            return $charges
+                ->map(function (ShippingCharge $shippingCharge) {
+                    $label = trim((string) $shippingCharge->area_name);
+                    $value = $this->normalizeDeliveryArea($label);
+
+                    if (! $value) {
+                        return null;
+                    }
+
+                    return [
+                        'id'     => (int) $shippingCharge->id,
+                        'value'  => $value,
+                        'label'  => $label !== '' ? $label : $value,
+                        'charge' => max(0, (float) $shippingCharge->delivery_charge),
+                        'legacy' => false,
+                    ];
+                })
+                ->filter()
+                ->unique(fn (array $option) => (string) $option['value'])
+                ->values()
+                ->all();
+        };
+
+        if (! $hasCampaignColumn) {
+            $legacyOptions = $toOptions($shippingCharges);
+            $options = ['' => $legacyOptions];
+
+            foreach ($campaignIds as $campaignId) {
+                $options[(string) $campaignId] = $legacyOptions;
+            }
+
+            return $options;
+        }
+
+        $options = [
+            '' => $toOptions(
+                $shippingCharges->filter(
+                    fn (ShippingCharge $shippingCharge) => $shippingCharge->campaign_id === null
+                )
+            ),
+        ];
+
+        foreach ($campaignIds as $campaignId) {
+            $options[(string) $campaignId] = $toOptions(
+                $shippingCharges->filter(
+                    fn (ShippingCharge $shippingCharge) => (int) $shippingCharge->campaign_id === (int) $campaignId
+                )
+            );
+        }
+
+        return $options;
+    }
+
+    /**
      * Build a campaign => active product ID map for the manual order forms.
      *
      * No Campaign intentionally has no entry: the Blade/JavaScript layer then
@@ -1634,6 +1733,7 @@ class OrderController extends Controller
             'productImageMap'   => $productImageMap,
             'campaigns'         => $campaigns,
             'campaignProductIds'=> $campaignProductIds,
+            'shippingOptionsByCampaign' => $this->getShippingOptionsByCampaign($campaigns),
             'shippingChargeMap' => $this->getActiveShippingChargeMap(),
             'employees'         => $isEmployeeCreator
                 ? collect([$currentUser])
@@ -2392,6 +2492,7 @@ class OrderController extends Controller
             'campaigns'         => $campaigns,
             'campaignProductIds'=> $campaignProductIds,
             'suggestedCampaignId' => $suggestedCampaignId,
+            'shippingOptionsByCampaign' => $this->getShippingOptionsByCampaign($campaigns),
             'shippingChargeMap'    => $this->getActiveShippingChargeMap(),
             'isNegotiatedBulkOrder' => $isNegotiatedBulkOrder,
             'bulkNegotiatedTotal'   => $isNegotiatedBulkOrder
