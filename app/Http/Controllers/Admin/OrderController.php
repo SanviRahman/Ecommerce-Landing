@@ -394,6 +394,44 @@ class OrderController extends Controller
         });
     }
 
+    /**
+     * Status groups used by the top order cards.
+     *
+     * These groups keep operational sub-statuses visible in the existing
+     * cards without changing the stored order_status value or adding new UI.
+     * - Courier Pending has already entered the courier/shipped lifecycle.
+     * - Courier Cancelled and Fake are terminal rejected/cancelled outcomes.
+     * - Legacy complete/completed values are treated as Complete Orders.
+     */
+    private function completedCardStatuses(): array
+    {
+        return [
+            Order::STATUS_CONFIRMED,
+            Order::STATUS_COMPLETE_INVOICE,
+            'complete',
+            'completed',
+        ];
+    }
+
+    private function shippedCardStatuses(): array
+    {
+        return [
+            Order::STATUS_SHIPPED,
+            Order::STATUS_DELIVERED,
+            Order::STATUS_COURIER_PENDING,
+        ];
+    }
+
+    private function cancelledCardStatuses(): array
+    {
+        return [
+            Order::STATUS_CANCELLED,
+            Order::STATUS_CANCELED,
+            Order::STATUS_COURIER_CANCELLED,
+            Order::STATUS_FAKE,
+        ];
+    }
+
     private function getStats(
         bool $apiOnly = false,
         array $websiteFilters = ['all'],
@@ -446,22 +484,21 @@ class OrderController extends Controller
             // has already been completed but which have not yet moved to shipping.
             // Without STATUS_COMPLETE_INVOICE those orders disappear from the top cards.
             'completed'         => (clone $workflowBaseQuery)
-                ->whereIn('order_status', [
-                    Order::STATUS_CONFIRMED,
-                    Order::STATUS_COMPLETE_INVOICE,
-                ])
+                ->whereIn('order_status', $this->completedCardStatuses())
                 ->count(),
 
-            // Shipped is a cumulative fulfilment count: currently shipped + delivered.
-            // Delivered remains available as its own card as requested.
+            // Keep all courier-stage orders visible in the existing Shipped card.
+            // Delivered is still shown separately, exactly like before.
             'shipped'           => (clone $workflowBaseQuery)
-                ->whereIn('order_status', [
-                    Order::STATUS_SHIPPED,
-                    Order::STATUS_DELIVERED,
-                ])
+                ->whereIn('order_status', $this->shippedCardStatuses())
                 ->count(),
             'delivered'         => (clone $workflowBaseQuery)->where('order_status', Order::STATUS_DELIVERED)->count(),
-            'cancelled'         => (clone $workflowBaseQuery)->whereIn('order_status', [Order::STATUS_CANCELLED, Order::STATUS_CANCELED])->count(),
+
+            // Courier-cancelled and fake/rejected orders are terminal outcomes.
+            // Count them in Cancelled while keeping their dedicated pages intact.
+            'cancelled'         => (clone $workflowBaseQuery)
+                ->whereIn('order_status', $this->cancelledCardStatuses())
+                ->count(),
             'courier_pending'   => (clone $sharedBaseQuery)->courierPending()->count(),
             'courier_cancelled' => (clone $sharedBaseQuery)->courierCancelled()->count(),
             'courier_delivered' => (clone $sharedBaseQuery)->courierDelivered()->count(),
@@ -1897,10 +1934,7 @@ class OrderController extends Controller
             $request,
             $this->orderQuery()
                 ->whereNull('custom_order_list')
-                ->whereIn('order_status', [
-                    Order::STATUS_CONFIRMED,
-                    Order::STATUS_COMPLETE_INVOICE,
-                ]),
+                ->whereIn('order_status', $this->completedCardStatuses()),
             'Complete Orders',
             false,
             'completed'
@@ -1920,10 +1954,7 @@ class OrderController extends Controller
             $request,
             $this->orderQuery()
                 ->whereNull('custom_order_list')
-                ->whereIn('order_status', [
-                    Order::STATUS_SHIPPED,
-                    Order::STATUS_DELIVERED,
-                ]),
+                ->whereIn('order_status', $this->shippedCardStatuses()),
             'Shipped Orders',
             false,
             'shipped'
@@ -1962,16 +1993,10 @@ class OrderController extends Controller
         return match ($card) {
             'new'          => $query->where('order_status', Order::STATUS_PROCESSING),
             'pending'      => $query->pending(),
-            'completed'    => $query->whereIn('order_status', [
-                Order::STATUS_CONFIRMED,
-                Order::STATUS_COMPLETE_INVOICE,
-            ]),
-            'shipped'      => $query->whereIn('order_status', [
-                Order::STATUS_SHIPPED,
-                Order::STATUS_DELIVERED,
-            ]),
+            'completed'    => $query->whereIn('order_status', $this->completedCardStatuses()),
+            'shipped'      => $query->whereIn('order_status', $this->shippedCardStatuses()),
             'delivered'    => $query->delivered(),
-            'cancelled'    => $query->cancelled(),
+            'cancelled'    => $query->whereIn('order_status', $this->cancelledCardStatuses()),
             'stock_out'    => $query->stockOut(),
             'order_list_1' => $query->orderListOne(),
             'order_list_2' => $query->orderListTwo(),
@@ -2049,7 +2074,9 @@ class OrderController extends Controller
 
         return $this->listResponse(
             $request,
-            $this->orderQuery()->whereNull('custom_order_list')->cancelled(),
+            $this->orderQuery()
+                ->whereNull('custom_order_list')
+                ->whereIn('order_status', $this->cancelledCardStatuses()),
             'Cancelled Orders',
             false,
             'cancelled'
@@ -3377,16 +3404,10 @@ class OrderController extends Controller
                 match ($request->current_status_view) {
                     'new'              => $query->newOrders(),
                     'pending'          => $query->pending(),
-                    'shipped'          => $query->whereIn('order_status', [
-                        Order::STATUS_SHIPPED,
-                        Order::STATUS_DELIVERED,
-                    ]),
-                    'completed'        => $query->whereIn('order_status', [
-                        Order::STATUS_CONFIRMED,
-                        Order::STATUS_COMPLETE_INVOICE,
-                    ]),
+                    'shipped'          => $query->whereIn('order_status', $this->shippedCardStatuses()),
+                    'completed'        => $query->whereIn('order_status', $this->completedCardStatuses()),
                     'delivered'        => $query->delivered(),
-                    'cancelled'        => $query->cancelled(),
+                    'cancelled'        => $query->whereIn('order_status', $this->cancelledCardStatuses()),
                     'pending-invoice'  => $query->confirmed()->whereNull('invoice_printed_at'),
                     'complete-invoice' => $query->whereNotNull('invoice_printed_at'),
                     'stock-out'        => $query->stockOut(),
