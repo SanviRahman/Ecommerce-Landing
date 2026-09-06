@@ -268,18 +268,6 @@
             </div>
 
             <div class="col-lg-3 col-md-6">
-                <a href="{{ route('admin.orders.all') }}"
-                   class="today-report-item today-report-link text-decoration-none"
-                   aria-label="View incompleted orders">
-                    <span class="today-icon bg-info"><i class="fas fa-spinner"></i></span>
-                    <div>
-                        <strong>Incompleted Order</strong>
-                        <h5 id="today_incompletedOrder">0</h5>
-                    </div>
-                </a>
-            </div>
-
-            <div class="col-lg-3 col-md-6">
                 <a href="{{ route('admin.orders.stock_out') }}"
                    class="today-report-item today-report-link text-decoration-none"
                    aria-label="View stock out orders">

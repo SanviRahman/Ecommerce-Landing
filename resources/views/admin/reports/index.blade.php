@@ -183,20 +183,6 @@
 
         <div class="col-xl-3 col-lg-4 col-md-4 col-sm-6 mb-3">
             <div class="info-box shadow-sm border-0 h-100">
-                <span class="info-box-icon bg-info">
-                    <i class="fas fa-spinner"></i>
-                </span>
-                <div class="info-box-content">
-                    <span class="info-box-text text-muted font-weight-bold">Incompleted Order</span>
-                    <span class="info-box-number text-dark h5 mb-0">
-                        {{ number_format($summary['incompleted_order'] ?? 0) }}
-                    </span>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-xl-3 col-lg-4 col-md-4 col-sm-6 mb-3">
-            <div class="info-box shadow-sm border-0 h-100">
                 <span class="info-box-icon bg-dark">
                     <i class="fas fa-box-open"></i>
                 </span>
