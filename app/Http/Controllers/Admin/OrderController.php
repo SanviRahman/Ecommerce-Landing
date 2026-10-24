@@ -1957,6 +1957,8 @@ class OrderController extends Controller
             $customerIdentityService,
             $campaignAutoSelectionService
         ) {
+            app(\App\Services\Inventory\ManagedOrderWriter::class)->assertTransactionReady();
+
             $customer = $customerIdentityService->resolveOrCreate(
                 $validated['customer_name'],
                 $validated['phone'],
@@ -2138,6 +2140,8 @@ class OrderController extends Controller
                     'total_price'     => $item['total_price'],
                 ]);
             }
+
+            app(\App\Services\Inventory\ManagedOrderWriter::class)->allocateCreatedOrder($order->id, 'items');
 
             return redirect()
                 ->to($this->safeOrderReturnUrl($validated['return_url'] ?? null))
@@ -2692,7 +2696,9 @@ class OrderController extends Controller
             'courier_id'              => ['nullable', 'integer', 'exists:couriers,id'],
             'order_field_id'          => ['nullable', 'integer', 'exists:order_fields,id'],
             'items'                   => ['required', 'array', 'min:1'],
-            'items.*.id'              => ['nullable', 'integer', 'exists:order_items,id'],
+            'items.*.id'              => ['nullable', 'integer', 'distinct:strict', Rule::exists('order_items', 'id')->where(function ($query) use ($order) {
+                $query->where('order_id', $order->id)->whereNull('deleted_at');
+            })],
             'items.*.product_id'      => ['required', 'integer', 'exists:products,id'],
             'items.*.quantity'        => ['required', 'integer', 'min:1'],
             'items.*.unit_price'      => ['required', 'numeric', 'min:0'],

@@ -1,0 +1,13 @@
+{
+  "status": "PASS",
+  "markdown_files": 33,
+  "internal_links_checked": 75,
+  "json_examples_parsed": 8,
+  "source_excerpt_files_checked": 24,
+  "code_fences_balanced": true,
+  "required_aliases_present": true,
+  "application_files_changed": false,
+  "mermaid_rendering": "Not executed; Mermaid code blocks provided",
+  "application_tests": "Not executed",
+  "errors": []
+}

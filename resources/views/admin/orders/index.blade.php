@@ -842,18 +842,22 @@
                                             'return_to' => $webhookReturnTo,
                                         ]);
                                     @endphp
-                                    <a class="dropdown-item sync-webhook-action"
-                                       href="{{ $steadfastWebhookUrl }}"
-                                       data-name="SteadFast"
-                                       data-url="{{ $steadfastWebhookUrl }}">
-                                        <i class="fas fa-shipping-fast mr-1 text-primary"></i> Sync SteadFast
-                                    </a>
-                                    <a class="dropdown-item sync-webhook-action"
-                                       href="{{ $pathaoWebhookUrl }}"
-                                       data-name="Pathao"
-                                       data-url="{{ $pathaoWebhookUrl }}">
-                                        <i class="fas fa-route mr-1 text-success"></i> Sync Pathao
-                                    </a>
+                                    <form method="POST" action="{{ $steadfastWebhookUrl }}" class="sync-webhook-form">
+                                        @csrf
+                                        <input type="hidden" name="source" value="{{ $webhookSource }}">
+                                        <input type="hidden" name="return_to" value="{{ $webhookReturnTo }}">
+                                        <button type="submit" class="dropdown-item sync-webhook-action" data-name="SteadFast">
+                                            <i class="fas fa-shipping-fast mr-1 text-primary"></i> Sync SteadFast
+                                        </button>
+                                    </form>
+                                    <form method="POST" action="{{ $pathaoWebhookUrl }}" class="sync-webhook-form">
+                                        @csrf
+                                        <input type="hidden" name="source" value="{{ $webhookSource }}">
+                                        <input type="hidden" name="return_to" value="{{ $webhookReturnTo }}">
+                                        <button type="submit" class="dropdown-item sync-webhook-action" data-name="Pathao">
+                                            <i class="fas fa-route mr-1 text-success"></i> Sync Pathao
+                                        </button>
+                                    </form>
                                 </div>
                             </div>
                             <button class="btn btn-danger btn-sm mr-2 mb-1 shadow-none"
@@ -2236,10 +2240,10 @@ $(document).ready(function() {
         e.preventDefault();
 
         const syncName = String($(this).data('name') || 'Courier');
-        const syncUrl = String($(this).data('url') || '');
+        const form = $(this).closest('form.sync-webhook-form');
 
-        if (!syncUrl) {
-            showToast('error', 'Sync route পাওয়া যায়নি।');
+        if (!form.length) {
+            showToast('error', 'Sync form পাওয়া যায়নি।');
             return;
         }
 
@@ -2253,12 +2257,10 @@ $(document).ready(function() {
             cancelButtonText: 'Cancel'
         }).then(function(result) {
             if (swalConfirmed(result)) {
-                const targetUrl = new URL(syncUrl, window.location.origin);
-                targetUrl.searchParams.set(
-                    'return_to',
+                form.find('input[name="return_to"]').val(
                     window.location.pathname + window.location.search
                 );
-                window.location.href = targetUrl.toString();
+                form[0].submit();
             }
         });
     });

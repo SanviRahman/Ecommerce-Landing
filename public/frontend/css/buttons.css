@@ -1,0 +1,87 @@
+/* Frontend actions: consistent professional emerald buttons. Bootstrap 4 compatible. */
+:root {
+    --front-button: #167643;
+    --front-button-hover: #105b32;
+    --front-button-active: #0e4f2e;
+    --front-button-ring: rgba(22, 118, 67, 0.24);
+}
+
+.btn-success,
+.order-nav-btn,
+.add-order-btn,
+.order-submit-btn,
+.order-tracking-button,
+.track-button,
+.help-main-btn,
+.order-popup-btn,
+.free-delivery-btn {
+    background: linear-gradient(135deg, #19834a 0%, var(--front-button) 100%) !important;
+    border: 1px solid #12653a !important;
+    border-radius: 11px;
+    color: #fff !important;
+    font-weight: 800;
+    letter-spacing: .005em;
+    box-shadow: 0 5px 14px rgba(16, 93, 50, .15);
+    transition: background .22s ease, border-color .22s ease, box-shadow .22s ease, transform .22s ease;
+    text-decoration: none;
+}
+
+.btn-success:not(:disabled):not(.disabled):hover,
+.order-nav-btn:hover,
+.add-order-btn:hover,
+.order-submit-btn:hover,
+.order-tracking-button:hover,
+.track-button:hover,
+.help-main-btn:hover,
+.order-popup-btn:hover,
+.free-delivery-btn:hover {
+    background: linear-gradient(135deg, #146b3e 0%, var(--front-button-hover) 100%) !important;
+    border-color: #0e4f2e !important;
+    color: #fff !important;
+    box-shadow: 0 8px 20px rgba(16, 93, 50, .21);
+    transform: translateY(-1px);
+}
+
+.btn-success:focus-visible,
+.order-nav-btn:focus-visible,
+.add-order-btn:focus-visible,
+.order-submit-btn:focus-visible,
+.order-tracking-button:focus-visible,
+.track-button:focus-visible,
+.help-main-btn:focus-visible,
+.order-popup-btn:focus-visible,
+.free-delivery-btn:focus-visible {
+    outline: 3px solid rgba(16, 93, 50, .34) !important;
+    outline-offset: 3px;
+    box-shadow: 0 0 0 4px var(--front-button-ring) !important;
+}
+
+.btn-success:not(:disabled):not(.disabled):active,
+.order-nav-btn:active,
+.add-order-btn:active,
+.order-submit-btn:active,
+.help-main-btn:active,
+.order-popup-btn:active {
+    background: var(--front-button-active) !important;
+    transform: translateY(0);
+    box-shadow: 0 2px 7px rgba(16, 93, 50, .17);
+}
+
+.btn-success:disabled, .btn-success.disabled,
+.order-submit-btn:disabled, .order-popup-btn:disabled,
+.add-order-btn:disabled {
+    opacity: .60;
+    cursor: not-allowed;
+    transform: none !important;
+    box-shadow: none !important;
+}
+
+.order-nav-btn { border-radius: 12px; }
+.add-order-btn, .order-submit-btn { min-height: 44px; }
+.help-main-btn, .track-button { min-height: 48px; }
+
+@media (prefers-reduced-motion: reduce) {
+    .btn-success, .order-nav-btn, .add-order-btn, .order-submit-btn,
+    .order-tracking-button, .track-button, .help-main-btn, .order-popup-btn,
+    .free-delivery-btn { transition: none !important; transform: none !important; }
+}

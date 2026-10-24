@@ -25,7 +25,8 @@ use App\Http\Controllers\Admin\TrackingPixelController;
 use App\Http\Controllers\Admin\UserController;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware(['auth'])->group(function () {
+// RoleMiddleware also enforces active-account status on shared admin routes.
+Route::middleware(['auth', 'role:admin,employee'])->group(function () {
 
     /*
     |--------------------------------------------------------------------------

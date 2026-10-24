@@ -1,0 +1,35 @@
+{
+  "prepared": "2026-10-24",
+  "type": "documentation-and-static-review",
+  "application_patched": false,
+  "meeting_pdf_received": true,
+  "website_uploads_identical": true,
+  "archives": {
+    "target": {
+      "archive": "website(1).zip",
+      "sha256": "349b43d5ad81f83480712c6fd618a4d95c39ba368dbdec6eba291d9cbe190004",
+      "entries": 773
+    },
+    "reference": {
+      "archive": "public_html leatherket(1).zip",
+      "sha256": "0f7f4a664be0f97dfe812db9dbac09b3c6af8a939b04a6e102bb02b12969556f",
+      "entries": 562
+    }
+  },
+  "syntax_check": {
+    "count": 234,
+    "passed": 234,
+    "runtime": "PHP 8.4.24 (cli) (built: Jul 31 2026 05:11:11) (NTS)"
+  },
+  "not_run": [
+    "Composer install",
+    "Artisan boot",
+    "Database migrations",
+    "Feature tests",
+    "Browser tests",
+    "Build",
+    "Concurrency tests"
+  ],
+  "secrets_included_in_deliverable": false,
+  "meeting_pdf_status": "32-page separate attachment integrated in docs/19-27; prior AI report, not original audio/video; ends after CF-06"
+}

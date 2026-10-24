@@ -1,0 +1,15 @@
+{
+  "md_files": 43,
+  "total_files": 58,
+  "local_markdown_links_checked": 121,
+  "meeting_features": 11,
+  "new_meeting_acceptance_tests": 45,
+  "original_meeting_pdf_sha256": "d974c4f318c8bda0383d9756538a51c28243c11271180ed70706e163b6ba2611",
+  "missing_references": 0,
+  "issues": [],
+  "new_application_code_modified": false,
+  "tests_executed_in_application": false,
+  "json_code_examples_parsed": 8,
+  "json_code_parse_errors": [],
+  "status": "PASS"
+}

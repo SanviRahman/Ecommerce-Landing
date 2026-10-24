@@ -238,7 +238,7 @@
             {{-- Keep the original header shell/spacing, but render no visible data. --}}
             <nav class="navbar navbar-expand-lg front-navbar px-0"
                  aria-hidden="true"
-                 style="min-height: 88px;">
+                 data-empty-header="true">
                 <div class="w-100"></div>
             </nav>
         @endif
