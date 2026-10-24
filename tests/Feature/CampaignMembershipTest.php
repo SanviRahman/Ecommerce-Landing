@@ -1,6 +1,6 @@
 <?php
 
-namespace Tests\Feature\Security;
+namespace Tests\Feature;
 
 use App\Models\Campaign;
 use App\Models\Category;

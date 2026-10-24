@@ -1,18 +1,23 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
-         bootstrap="tests/bootstrap-p01.php"
+         bootstrap="tests/bootstrap-p03.php"
          colors="true"
 >
     <testsuites>
-        <testsuite name="P01"><directory>tests/Feature/Security</directory></testsuite>
+        <testsuite name="P01">
+            <file>tests/Feature/CampaignMembershipTest.php</file>
+            <file>tests/Feature/MaintenanceRoutesTest.php</file>
+        </testsuite>
     </testsuites>
     <php>
         <env name="APP_ENV" value="testing" force="true"/>
         <env name="DB_CONNECTION" value="mysql" force="true"/>
         <env name="DB_HOST" value="127.0.0.1" force="true"/>
+        <env name="DB_PORT" value="3306" force="true"/>
         <env name="DB_DATABASE" value="p01_campaign_test" force="true"/>
         <env name="DB_USERNAME" value="p01_tester" force="true"/>
+        <env name="DB_SOCKET" value="" force="true"/>
         <env name="DB_URL" value="" force="true"/>
         <env name="CACHE_STORE" value="array" force="true"/>
         <env name="SESSION_DRIVER" value="array" force="true"/>

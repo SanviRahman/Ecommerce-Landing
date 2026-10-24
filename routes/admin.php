@@ -208,6 +208,10 @@ Route::middleware(['auth', 'role:admin,employee'])->group(function () {
             Route::patch('/{order}/mark-as-fake', [OrderController::class, 'markAsFake'])->name('mark_as_fake');
             Route::patch('/{order}/restore-fake', [OrderController::class, 'restoreFake'])->name('restore_fake');
 
+            // Test-only managed quantity edits; controller + service enforce
+            // independent isolated MySQL guards and CSRF/auth middleware.
+            Route::patch('/{order}/managed-items/{item}/quantity', [OrderController::class, 'updateManagedItemQuantity'])
+                ->name('managed_items.quantity');
             Route::get('/{order}/edit', [OrderController::class, 'edit'])->name('edit');
             Route::put('/{order}', [OrderController::class, 'update'])->name('update');
             Route::patch('/{order}', [OrderController::class, 'update']);

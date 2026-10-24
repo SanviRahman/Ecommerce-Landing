@@ -115,3 +115,44 @@ Not approved. Requires mandatory acceptance matrix, no unresolved P0/P1 blockers
 - New `DefaultVariantMapping` and `ManagedOrderWriter`, read-only P03 MySQL state report and standalone offline tests.
 - Open release blockers: P02 backfill/reconciliation, **real MariaDB end-to-end and concurrency tests**, manual order negotiated prices, managed-order edit/cancel/status/courier callbacks, durable idempotency wiring, external integration policy, production migration/release plan. P03 is **NOT complete**.
 - No migration, backfill, direct DB modification, frontend design change, deployment or production switch in this patch.
+
+### 2026-10-24 - P03 synthetic rollback-only Laravel/MySQL integration-test code
+
+- User-run evidence: `p01_campaign_test` had P02 11/11 already applied; read-only P03 readiness returned `EMPTY_CATALOG_NEEDS_SYNTHETIC_FIXTURES` with zero products, variants and movements.
+- Added guarded synthetic fixture factory, 9-case direct Laravel service smoke test, strict pre-bootstrap DB/account/migration/data guard, optional 12-test PHPUnit MySQL suite and independent static contract verification. Existing application controllers/config flags/schema were not changed.
+- All fixture writes require exact restricted local MySQL account, explicit one-off approval and an enclosing rollback transaction; the check refuses to mix fixtures with existing business rows. Application vendor and MySQL runtime are NOT available in this review sandbox.
+- **P03 remains test-only/disabled; no production stock cutover, no customer DB access or deployment.** MySQL integration, controller HTTP tests and concurrency tests must be run locally and reported before further phase approval.
+
+### 2026-10-24 — P03 test-only managed order lifecycle hardening (isolated source copy)
+
+- Input status: user shared `9/9 REAL MYSQL INTEGRATION CHECKS PASS` from local `p01_campaign_test` with fixture transaction rollback. Assistant did **not** execute this DB test itself.
+- Gap: admin single/bulk status changes did not atomically release pre-dispatch managed stock; full Edit/delete could make managed stock/accounting inconsistent if P03 test features were enabled.
+- Changed: new `ManagedOrderLifecycle`; P03-only guarded admin single/bulk status and managed Edit/delete paths; new 11-case rollback-only MySQL lifecycle smoke runner and 21-check static contract QA; standalone Bangla guide.
+- Safety: old paths remain unchanged when flags OFF; no migrations/production mode/DB writes; deletion/edit now fail closed for managed orders in P03 test mode; courier/shipped/terminal statuses do not auto-restock.
+- Actual local offline tests (assistant environment): lifecycle source contract 21/21 PASS, writer source 18/18 PASS, P03 core pure PHP 26/26 PASS, P03 writer mapping 17/17 PASS, runtime source 11/11 PASS, security 14/14 PASS, frontend 56/56 PASS, 252 targeted PHP files syntax PASS. New MySQL lifecycle test code **NOT EXECUTED** (no local MariaDB/Composer vendor).
+- Remaining P03 blockers: approved managed quantity edit delta, admin HTTP/controller tests, external/courier mutation policies, 2-process race tests and original DB reconciliation/rollout. Do not label P03 production complete.
+
+### 2026-10-24 — P03 staged quantity-edit patch (after user-reported 11/11 lifecycle MySQL)
+
+- User-reported isolated P03 lifecycle results: 21/21 static and 11/11 real MariaDB smoke PASS; rollback-only.
+- New source code: dedicated `ManagedOrderQuantityEditor` service, auth-scoped admin PATCH action/route and optional Blade quantity reconciliation panel; all flags remain OFF by default. The existing full-order edit guard remains in place.
+- Behavior: optimistic expected-quantity guard, lock order/item/product/variant, validate original ledger and order money, reconcile variant/product stock, item quantity and totals, append a signed delta ledger movement atomically. Rejects shipped, cancelled, courier, collected, fake and negotiated bulk orders.
+- Offline verification: `node tools/qa/check-p03-quantity-contract.mjs` 22/22 PASS, lifecycle 21/21, writer 18/18, mapping 17/17, P03 core 26/26, source security 14/14, frontend 56/56. PHP syntax checks PASS. Unapproved test runner exits 2/BLOCKED. No local MySQL/customer DB touched.
+- Real MySQL quantity 16-case smoke: **NOT RUN in authoring container** (missing test connection); user must execute on restricted isolated MySQL test schema and report outcome. Two-connection concurrency and authenticated HTTP tests remain PENDING. Production rollout NOT APPROVED.
+
+### 2026-10-24 — P03 authenticated HTTP and two-connection lock gate (new source patch)
+
+- Prior user-provided evidence: P03 quantity **22/22 source PASS** and **16/16 real MariaDB rollback-only PASS** in restricted `p01_campaign_test`. This does not authorize original DB writes or production feature flags.
+- New files: `tests/Feature/Inventory/ManagedOrderHttpMySqlTest.php`, `tools/qa/p03-http-mysql-smoke.php`, `tools/qa/p03-mysql-lock-probe.php`, `tools/qa/check-p03-http-and-lock-contract.mjs` and handover guide. No controller, Blade, migration, route, schema, `.env` or feature flag modifications.
+- New HTTP tests include admin/employee assignment/access, inactive/guest rejection, price tampering, stale optimistic quantity, cross-order item, negotiated bulk, cancellation and shipped-order checks. Tests use synthetic rows with `DatabaseTransactions` and prebootstrap isolation.
+- Read-only two-connection lock probe uses InnoDB `SELECT ... FOR UPDATE` on an existing test migration row and rolls back both connections; it does not simulate two committed checkout purchases.
+- Source-review results: 23/23 new static checks PASS; 285/285 PHP syntax PASS in app/bootstrap/config/database/routes/tests/tools. Prior P03 core 26/26, quantity 22/22, lifecycle 21/21, writer 18/18, runtime 11/11, P01 security 14/14 and frontend 56/56 PASS.
+- Local XAMPP HTTP and MariaDB lock runs **PENDING**. Browser CSRF and real two-worker last-unit stock race **PENDING**. P03 production flags remain OFF; P04/P05 not yet implemented by this patch.
+
+### 2026-10-25 — P01 test autoload & suite discovery repair (after successful P03 HTTP integration)
+
+- User-reported restricted MySQL results: P03 authenticated HTTP PHPUnit **13 tests / 58 assertions PASS**; two-connection metadata row-lock probe **3/3 PASS**; real race purchase and browser CSRF remain pending. Locked Composer dev install completed with PHPUnit 12.5.24, but Composer emitted two verified PSR-4 warnings.
+- **Confirmed root cause:** `tests/Feature/{CampaignMembershipTest,MaintenanceRoutesTest}.php` declared `Tests\\Feature\\Security` while residing under `tests/Feature/`, and `phpunit.p01.xml` selected an absent `tests/Feature/Security/` directory.
+- **Fix:** correct both test namespaces in-place (no moved/deleted files), explicitly enumerate exactly those two test files in P01 PHPUnit config, and use strict `tests/bootstrap-p03.php` isolation. Add a P01-specific rollback-only, restricted test-schema CLI launcher with 6-test JUnit count acceptance and a PSR-4/runner offline checker.
+- Authoring-environment offline QA: `node tools/qa/check-p01-psr4-suite.mjs` **14/14 PASS**; unauthorised runner **BLOCKED/exit 2**; targeted PHP lint **178/178 PASS**; unchanged P03 HTTP 23/23, quantity 22/22, lifecycle 21/21, writer 18/18, core 26/26, P01 static security 14/14, frontend 56/56 PASS.
+- **P01 runtime suite NOT RUN** in authoring environment (no local `p01_tester` DB and vendor). User must run `composer dump-autoload --no-scripts --no-plugins` and then `php tools/qa/p01-http-mysql-smoke.php` with its test-only environment approvals. No migration, production DB, feature-flag or public route modifications.
