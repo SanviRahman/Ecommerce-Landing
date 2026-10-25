@@ -57,3 +57,8 @@ The user-provided 32-page AI meeting report describes a different demonstrated s
 - **Offline evidence after patch:** P07 source contract **34/34 PASS**, P07 DOM unit **10/10 PASS**; full PHP lint and other static checks passed in extracted source. **The 16-case real MariaDB/PHPUnit suite is NOT executable in this container (no MySQL/PHPUnit vendor)**. It remains **PENDING user rerun**; do not mark the runtime bug verified resolved until `Exit Code: 0`.
 - **Local extraction:** uploaded archive contains `resources/views/storefront/pages/shop.blade.php`; earlier Windows `ENOENT` indicates local extraction/path mismatch, not a missing file in uploaded ZIP. Supply the Blade file and post-extraction existence checks in the hotfix package.
 - **No migration, reset, DB write, production configuration or checkout behavior changed by this patch.**
+
+### P08 preventative fixes / coverage (2026-10-25)
+
+- P07 `guest_carts` mismatch is retained as corrected in this source baseline; P08 exclusively uses the real `carts`/`cart_items` schema.
+- New feature risks explicitly covered by P08 code: foreign-cart line mutation, optimistic stale updates, client price/variant manipulation, missing shipping, duplicate checkout and double allocation. A **17-case real MySQL regression suite** has been authored, not executed here; do not mark these production issues fully closed before real runtime evidence.

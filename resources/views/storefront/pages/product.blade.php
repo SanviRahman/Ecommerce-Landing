@@ -46,10 +46,44 @@
                 <p class="p07-variant-status">{{ $catalog->displayStock($product) > 0 ? 'Available: '.$catalog->displayStock($product) : 'Currently out of stock' }}</p>
                 @if($product->weight_size)<p class="p07-sku">{{ $product->weight_size }}</p>@endif
             @endif
-            <div class="p07-checkout-notice" role="note">
-                <strong>Browsing preview</strong>
-                <span>Cart and Order Now will become available only after secure checkout is completed and verified.</span>
-            </div>
+            @if($cartVersion !== null)
+                @php
+                    $simpleDefault = $product->has_variants ? null : $product->variants()->where('is_default', true)->where('is_active', true)->first();
+                @endphp
+                <form class="p08-product-order" method="POST" action="{{ route('storefront.cart.add') }}">
+                    @csrf
+                    <input type="hidden" name="cart_version" value="{{ $cartVersion }}">
+                    @if($product->has_variants)
+                        <label for="p08-variant-id">Selected variation</label>
+                        <select name="product_variant_id" id="p08-variant-id" required>
+                            <option value="">Choose the exact SKU</option>
+                            @foreach($catalog->eligibleVariants($product) as $variant)
+                                <option value="{{ $variant->id }}" @disabled($variant->stock < 1)>
+                                    {{ $variant->optionValues->map(fn($v) => $v->label)->implode(' / ') }} ({{ $variant->sku }}) — {{ $variant->stock }} available
+                                </option>
+                            @endforeach
+                        </select>
+                    @else
+                        <input type="hidden" name="product_variant_id" value="{{ $simpleDefault?->id }}">
+                    @endif
+                    <label for="p08-product-quantity">Quantity</label>
+                    <input type="number" name="quantity" id="p08-product-quantity" min="1" max="1000" value="1" required>
+                    <div class="p08-product-actions">
+                        <button type="submit" name="intent" value="cart" class="p08-action-cart" @disabled(!$product->has_variants && (!$simpleDefault || $simpleDefault->stock < 1))>Add to Cart</button>
+                        @if(config('storefront.p08_checkout_test_enabled', false) && config('storefront.p03_core_test_enabled', false))
+                            <button type="submit" name="intent" value="checkout" class="p08-action-buy" @disabled(!$product->has_variants && (!$simpleDefault || $simpleDefault->stock < 1))>Order Now</button>
+                        @else
+                            <a class="p08-action-buy" href="{{ route('storefront.cart') }}">View Cart</a>
+                        @endif
+                    </div>
+                    <p class="p08-help">Cash on delivery. Prices and availability are checked again before confirmation.</p>
+                </form>
+            @else
+                <div class="p07-checkout-notice" role="note">
+                    <strong>Browsing preview</strong>
+                    <span>Cart and Order Now will become available only after secure checkout is completed and verified.</span>
+                </div>
+            @endif
             <a class="p07-back-to-shop" href="{{ route('storefront.shop') }}">Explore more products</a>
         </section>
     </div>

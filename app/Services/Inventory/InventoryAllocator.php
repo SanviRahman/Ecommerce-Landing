@@ -202,6 +202,153 @@ final class InventoryAllocator
     }
 
     /**
+     * Variant-aware storefront allocation, in the SAME inventory ledger as P03.
+     * The caller provides item->variant mappings only after persisting order lines;
+     * catalog validation, price verification and all stock mutations happen here.
+     * Existing campaign/default-variant allocation is unchanged.
+     *
+     * @param array<int,int> $variantByOrderItem
+     */
+    public function allocateStorefrontOrder(int $orderId, array $variantByOrderItem): void
+    {
+        $this->assertTestTransaction();
+        if (! config('storefront.p08_checkout_test_enabled', false) || $orderId < 1 || $variantByOrderItem === []) {
+            throw new LogicException('Storefront inventory allocation is not enabled or has no order.');
+        }
+        foreach ($variantByOrderItem as $itemId => $variantId) {
+            if (! is_int($itemId) || $itemId < 1 || ! is_int($variantId) || $variantId < 1) {
+                throw new InvalidArgumentException('Invalid storefront order item/variant mapping.');
+            }
+        }
+        $order = DB::table('orders')->where('id', $orderId)->lockForUpdate()->first();
+        if (! $order || $order->deleted_at !== null || $order->campaign_id !== null
+            || $order->created_via !== 'frontend' || (int) $order->inventory_version !== 0) {
+            throw new DomainException('Order is not an unallocated storefront order.');
+        }
+        $items = DB::table('order_items')->where('order_id', $orderId)->whereNull('deleted_at')
+            ->orderBy('id')->get()->keyBy('id');
+        if ($items->count() !== count($variantByOrderItem)) {
+            throw new DomainException('All storefront order items require a server-authorized variant.');
+        }
+        $productIds = [];
+        $variantIds = [];
+        foreach ($items as $item) {
+            $itemId = (int) $item->id;
+            if (! isset($variantByOrderItem[$itemId]) || $item->product_id === null) {
+                throw new DomainException('Missing storefront product or option selection.');
+            }
+            InventoryPolicy::assertPurchasable(1000, (int) $item->quantity);
+            $productIds[] = (int) $item->product_id;
+            $variantIds[] = $variantByOrderItem[$itemId];
+        }
+        $productIds = array_values(array_unique($productIds));
+        $variantIds = array_values(array_unique($variantIds));
+        sort($productIds, SORT_NUMERIC);
+        sort($variantIds, SORT_NUMERIC);
+        $products = DB::table('products')->whereIn('id', $productIds)
+            ->orderBy('id')->lockForUpdate()->get()->keyBy('id');
+        $variants = DB::table('product_variants')->whereIn('id', $variantIds)
+            ->orderBy('id')->lockForUpdate()->get()->keyBy('id');
+        if ($products->count() !== count($productIds) || $variants->count() !== count($variantIds)) {
+            throw new DomainException('Storefront product/variant was removed.');
+        }
+        $catalog = app(\App\Services\Storefront\PublicCatalog::class);
+        $eligible = [];
+        foreach ($products as $product) {
+            if (! $product->status || $product->deleted_at !== null || (int) $product->inventory_version !== 1
+                || ! $catalog->eligibleProducts()->where('products.id', $product->id)->exists()) {
+                throw new DomainException('Storefront product is inactive or inventory is not reconciled.');
+            }
+            if ((bool) $product->has_variants) {
+                $model = \App\Models\Product::query()->with('variants.optionValues.option')->find($product->id);
+                $eligible[(int) $product->id] = $catalog->eligibleVariants($model)->pluck('id')->map('intval')->all();
+            }
+        }
+        $subtotal = 0;
+        $needed = [];
+        $approvedLines = [];
+        foreach ($items as $item) {
+            $itemId = (int) $item->id;
+            $product = $products->get((int) $item->product_id);
+            $variantId = $variantByOrderItem[$itemId];
+            $variant = $variants->get($variantId);
+            if ((int) $variant->product_id !== (int) $product->id || ! (bool) $variant->is_active
+                || $variant->deleted_at !== null || (int) ($item->product_variant_id ?? 0) !== $variantId) {
+                throw new DomainException('Storefront variant identity is not consistent.');
+            }
+            if ((bool) $product->has_variants) {
+                if ((bool) $variant->is_default || ! in_array($variantId, $eligible[(int) $product->id], true)) {
+                    throw new DomainException('Incomplete or inactive storefront option combination.');
+                }
+                $selected = DB::table('product_variant_values')->where('product_variant_id', $variantId)
+                    ->pluck('product_option_value_id', 'product_option_id')->map('intval')->all();
+                if ($selected === [] || \App\Support\VariantSignature::fromOptionValues($selected) !== $variant->option_signature) {
+                    throw new DomainException('Variant option identity has changed.');
+                }
+            } else {
+                if (! (bool) $variant->is_default || $variant->option_signature !== 'default') {
+                    throw new DomainException('Simple product requires its active default variant.');
+                }
+                $selected = [];
+            }
+            $unitMinor = \App\Support\ExactBdt::fromDecimal((string) ($variant->price_override ?? $product->new_price));
+            $lineMinor = \App\Support\ExactBdt::multiply($unitMinor, (int) $item->quantity);
+            if ($unitMinor < 1 || \App\Support\ExactBdt::fromDecimal((string) $item->unit_price) !== $unitMinor
+                || \App\Support\ExactBdt::fromDecimal((string) $item->total_price) !== $lineMinor
+                || \App\Support\ExactBdt::fromDecimal((string) ($item->discount_amount ?? '0')) !== 0
+                || (int) $item->inventory_allocated_quantity !== 0
+                || DB::table('inventory_movements')->where('operation_key', 'allocate:v1:item:' . $itemId)->exists()) {
+                throw new DomainException('Storefront price, order item or stock movement is inconsistent.');
+            }
+            $subtotal = \App\Support\ExactBdt::add($subtotal, $lineMinor);
+            $quantity = (int) $item->quantity;
+            $needed[$variantId] = ($needed[$variantId] ?? 0) + $quantity;
+            $approvedLines[] = [$itemId, $variantId, $quantity, (string) $variant->sku, $selected];
+        }
+        if (\App\Support\ExactBdt::fromDecimal((string) $order->sub_total) !== $subtotal
+            || ! in_array($order->order_status, ['pending', 'processing', 'confirmed'], true)) {
+            throw new DomainException('Storefront totals or order status do not permit allocation.');
+        }
+        foreach ($needed as $variantId => $quantity) {
+            InventoryPolicy::assertPurchasable((int) $variants->get($variantId)->stock, $quantity);
+        }
+        foreach ($needed as $variantId => $quantity) {
+            $affected = DB::table('product_variants')->where('id', $variantId)
+                ->where('stock', '>=', $quantity)->decrement('stock', $quantity);
+            if ($affected !== 1) {
+                throw new DomainException('Concurrent checkout stock change: order was rolled back.');
+            }
+        }
+        $running = [];
+        foreach ($variants as $variant) {
+            $running[(int) $variant->id] = (int) $variant->stock;
+        }
+        foreach ($approvedLines as [$itemId, $variantId, $quantity, $sku, $selected]) {
+            $before = $running[$variantId];
+            $after = $before - $quantity;
+            $running[$variantId] = $after;
+            DB::table('inventory_movements')->insert([
+                'product_variant_id' => $variantId,
+                'order_item_id' => $itemId, 'event_uuid' => (string) Str::uuid(),
+                'operation_key' => 'allocate:v1:item:' . $itemId,
+                'kind' => 'allocation', 'quantity_delta' => -$quantity,
+                'stock_before' => $before, 'stock_after' => $after,
+                'actor_id' => null, 'reason' => 'P08 storefront COD checkout',
+                'metadata' => json_encode(['order_id' => $orderId], JSON_THROW_ON_ERROR),
+                'created_at' => now(),
+            ]);
+            DB::table('order_items')->where('id', $itemId)->where('order_id', $orderId)->update([
+                'variant_sku' => $sku,
+                'variant_options' => json_encode($selected === [] ? new \stdClass() : $selected, JSON_THROW_ON_ERROR),
+                'inventory_allocated_quantity' => $quantity,
+                'updated_at' => now(),
+            ]);
+        }
+        $this->refreshLegacyStock($productIds);
+        DB::table('orders')->where('id', $orderId)->update(['inventory_version' => 1, 'updated_at' => now()]);
+    }
+
+    /**
      * Explicit pre-dispatch cancellation ONLY. Never called from generic status
      * updates, courier callbacks, or order deletion without an approved policy.
      */

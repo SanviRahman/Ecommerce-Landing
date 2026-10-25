@@ -7,6 +7,9 @@
     <meta name="theme-color" content="#21653f">
     <title>@yield('title', 'Shop') — {{ config('app.name', 'Storefront') }}</title>
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-catalog.css') }}">
+    @if(config('storefront.p08_cart_test_enabled', false))
+        <link rel="stylesheet" href="{{ asset('frontend/css/storefront-cart.css') }}">
+    @endif
 </head>
 <body>
     <a class="p07-skip" href="#main">Skip to content</a>

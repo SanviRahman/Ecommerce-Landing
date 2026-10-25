@@ -56,3 +56,7 @@ Map existing block detection, customer identity normalization, assignment, statu
 ## Meeting F-004/F-007/F-008/F-010 UI contract
 
 Product cards: 25% cart / 75% primary Buy/Order action. Product sticky detail CTA: label is **Order Now** and uses chosen SKU/qty. Desktop checkout shows sticky summary on the right with totals and submit; mobile shows **one real `অর্ডার করুন` submit directly below customer information form**, ahead of long summary. Mini-cart is a side drawer opened by independent floating cart icon, not same as WhatsApp/Messenger/Email contact+. All UI values must be sourced from actual cart and server quote; do not create a client-only cart or fake count. See docs/22 and meeting MT24-MT30 tests.
+
+## P08 implementation note (2026-10-25, staged)
+
+See `P08-START-HERE.md` for actual code paths, opt-in flags, rollback-only test command, and currently unverified real-browser/concurrency gates. Cart IDs and owner hashes cannot be submitted from the public form. Storefront variation/order snapshots are allocated by `InventoryAllocator::allocateStorefrontOrder()` under the same P03 inventory ledger and transaction as the original managed orders.

@@ -13,4 +13,8 @@ return [
     // P07 read-only browsing; default OFF, independently restricted to the local
     // p01_campaign_test DB by PublicCatalog::assertAvailable().
     'p07_catalog_test_enabled' => env('P07_CATALOG_TEST_ENABLED', false),
+
+    // Explicitly disabled until isolated P08 MySQL and browser regressions pass.
+    'p08_cart_test_enabled' => env('P08_CART_TEST_ENABLED', false),
+    'p08_checkout_test_enabled' => env('P08_CHECKOUT_TEST_ENABLED', false),
 ];

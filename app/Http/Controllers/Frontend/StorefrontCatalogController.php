@@ -98,13 +98,19 @@ final class StorefrontCatalogController extends Controller
         ]));
     }
 
-    public function product(string $slug, PublicCatalog $catalog): Response
+    public function product(Request $request, string $slug, PublicCatalog $catalog): Response
     {
         $catalog->assertAvailable();
         $product = $catalog->product($slug);
+        $cartVersion = null;
+        if (config('storefront.p08_cart_test_enabled', false) === true) {
+            $ownerHash = app(\App\Services\Cart\GuestCartOwner::class)->hash($request);
+            $cartVersion = app(\App\Services\Cart\GuestCartService::class)->show($ownerHash)['version'];
+        }
         return $this->noStore(response()->view('storefront.pages.product', [
             'product' => $product, 'category' => $product->category,
             'catalog' => $catalog, 'selection' => $catalog->selectionData($product),
+            'cartVersion' => $cartVersion,
             'navigation' => $catalog->navigationCategories(),
         ]));
     }

@@ -22,9 +22,11 @@
   const price = document.getElementById('p07-selected-price');
   const status = document.getElementById('p07-variant-status');
   const sku = document.getElementById('p07-variant-sku');
+  const cartVariant = document.getElementById('p08-variant-id');
   const originalPrice = price?.textContent || '';
   const update = () => {
     const selected = {};
+    if (cartVariant) cartVariant.value = ''; 
     for (const field of selectors) {
       if (!field.value) {
         if (status) status.textContent = 'Select all options to view exact price and stock.';
@@ -48,6 +50,15 @@
       ? 'Available: ' + Number(variant.stock)
       : 'Currently out of stock';
     if (sku) sku.textContent = 'SKU: ' + variant.sku;
+    if (cartVariant && Number(variant.stock) > 0) cartVariant.value = String(variant.id);
   };
   selectors.forEach((field) => field.addEventListener('change', update));
+  cartVariant?.addEventListener('change', () => {
+    const chosen = data.variants.find((row) => String(row.id) === cartVariant.value);
+    if (!chosen) return;
+    selectors.forEach((field) => {
+      field.value = String(chosen.selected?.[field.dataset.optionId] ?? '');
+    });
+    update();
+  });
 })();

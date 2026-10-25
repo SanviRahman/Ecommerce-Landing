@@ -12,6 +12,9 @@
         <nav class="p07-primary-links" aria-label="Main navigation">
             <a href="{{ route('storefront.home') }}" @if(request()->routeIs('storefront.home')) aria-current="page" @endif>Home</a>
             <a href="{{ route('storefront.shop') }}" @if(request()->routeIs('storefront.shop')) aria-current="page" @endif>Shop</a>
+            @if(config('storefront.p08_cart_test_enabled', false))
+                <a href="{{ route('storefront.cart') }}" @if(request()->routeIs('storefront.cart')) aria-current="page" @endif>Cart</a>
+            @endif
             <details class="p07-category-menu">
                 <summary>Categories</summary>
                 <div class="p07-category-dropdown">
@@ -34,4 +37,7 @@
     <a href="{{ route('storefront.home') }}" @if(request()->routeIs('storefront.home')) aria-current="page" @endif>Home</a>
     <a href="{{ route('storefront.shop') }}" @if(request()->routeIs('storefront.shop')) aria-current="page" @endif>Shop</a>
     <a href="{{ route('storefront.shop') }}#categories">Categories</a>
+    @if(config('storefront.p08_cart_test_enabled', false))
+        <a href="{{ route('storefront.cart') }}" @if(request()->routeIs('storefront.cart')) aria-current="page" @endif>Cart</a>
+    @endif
 </nav>

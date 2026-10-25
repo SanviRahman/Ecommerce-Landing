@@ -107,3 +107,11 @@ Open: browser-level preview/CSRF QA, image file reference tests, real MariaDB 20
 - **Decision:** enable P07 catalog only in named restricted local MySQL test DB and only with `P07_CATALOG_TEST_ENABLED=true` (default false); P02 migration guard is independent. No production homepage mode switch.
 - **Decision:** published-mode home uses pinned published revision; private preview retains inert action spans. All P07 product links are browse-only until P08 cart/checkout is real.
 - **Open:** before canonical shop URLs or production cutover, audit existing campaign slugs, backfill and reconcile inventory on an approved staging DB, verify image storage and browser tests, run committed last-stock parallel checkout test, and approve final product weight/pack mapping. Do not use `migrate:fresh` on original data.
+
+### 2026-10-25 - P08 scoped checkout decisions (staged)
+
+- Retain `/storefront/*` paths and preserve legacy root/campaign endpoints; no public fixed `/cart` single-segment slug until campaign collision audit.
+- Reuse existing P02 `carts`, `cart_items`, `checkout_requests` and P03 `inventory_movements` tables. No new schema or manual DB changes. Persistent guest ownership uses an HttpOnly, same-site cookie, raw token kept out of SQL; hash is stored.
+- Extend the single P03 `InventoryAllocator` for optioned SKUs rather than create a second stock authority. Idempotency claim and completion, stock movement and cart clearing share a transaction. Repricing requires explicit cart update; invalid shipping cannot silently become free.
+- Default all P08 flags OFF and keep the independent local P02 database test guard. P08 PHPUnit activates P03 core inside the restricted test process. Full browser checkout and production mode remain UNAPPROVED until isolated MySQL and parallel-purchase tests pass.
+- Open decision: final storefront shipping/free-delivery policy, actual weight vs piece pack units, active admin variable-order quantity-edit behavior, and true browser cookie/CSRF smoke evidence before release.
