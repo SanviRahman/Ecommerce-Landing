@@ -67,3 +67,14 @@ body{margin:0}img{max-width:100%;display:block}button,input,select{font:inherit}
 @media(min-width:581px){.sf-hide-desktop{display:none}}
 @media(max-width:580px){.sf-hide-mobile{display:none}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;transition-duration:.01ms!important}}
+
+/* P07 published browse links; preview's inert Cart/Buy remain unchanged. */
+.sf-brand-link,.sf-header nav a,.sf-tile h3 a,.sf-meta-link{text-decoration:none;color:inherit}
+.sf-header nav a:hover,.sf-tile h3 a:hover,.sf-meta-link:hover{text-decoration:underline}
+.sf-cta{text-decoration:none}.sf-p07-browse{display:flex;width:100%;margin-top:8px}
+.sf-mobile-nav{display:none}
+@media(max-width:580px){
+    .sf-footer{padding-bottom:95px}
+    .sf-mobile-nav{display:flex;position:fixed;bottom:0;inset-inline:0;z-index:15;justify-content:space-around;align-items:center;background:#fff;border-top:1px solid #dae6dc;padding:10px 8px calc(10px + env(safe-area-inset-bottom))}
+    .sf-mobile-nav a{text-decoration:none;color:#21653f;font-size:12px;font-weight:720;padding:9px;min-width:60px;text-align:center}
+}

@@ -1,10 +1,11 @@
 <!doctype html>
-<html lang="en">
+<html lang="bn">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    {{-- Stage catalog only; public promotion waits for the P09 release gate. --}}
     <meta name="robots" content="noindex,nofollow">
-    <title>Storefront Homepage — Revision #{{ $revision['revision_number'] }}</title>
+    <title>{{ config('app.name', 'Storefront') }} — Homepage</title>
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-preview.css') }}">
 </head>
 <body>
@@ -28,8 +29,17 @@
 </div>
 @endif
 <header class="sf-header"><div class="sf-wrapper sf-header-inner">
-    <div class="sf-brand"><span class="sf-mark" aria-hidden="true">S</span> Your Store</div>
-    <nav aria-label="Preview navigation"><span>Home</span><span>Shop</span><span>Categories</span></nav>
+    @if($isPreview ?? false)
+        <div class="sf-brand"><span class="sf-mark" aria-hidden="true">S</span> {{ config('app.name', 'Storefront') }}</div>
+        <nav aria-label="Preview navigation"><span>Home</span><span>Shop</span><span>Categories</span></nav>
+    @else
+        <a class="sf-brand sf-brand-link" href="{{ route('storefront.home') }}"><span class="sf-mark" aria-hidden="true">S</span> {{ config('app.name', 'Storefront') }}</a>
+        <nav aria-label="Shop navigation">
+            <a href="{{ route('storefront.home') }}" aria-current="page">Home</a>
+            <a href="{{ route('storefront.shop') }}">Shop</a>
+            <a href="{{ route('storefront.shop') }}#categories">Categories</a>
+        </nav>
+    @endif
     @if($isPreview ?? false)<span class="sf-preview-tag">Design preview · Not accepting orders</span>@endif
 </div></header>
 <main id="main">
@@ -64,7 +74,13 @@
                                 <span class="sf-eyebrow">Featured Collection</span>
                                 <h1>{{ $item['title'] ?: $section['title'] }}</h1>
                                 @if($item['description'])<p>{{ $item['description'] }}</p>@endif
-                                @if($item['link_label'])<span class="sf-cta sf-inert">{{ $item['link_label'] }} <span aria-hidden="true">→</span></span>@endif
+                                @if($item['link_label'])
+                                    @if(!($isPreview ?? false) && $item['link_url'])
+                                        <a class="sf-cta" href="{{ $item['link_url'] }}" rel="noopener noreferrer">{{ $item['link_label'] }} <span aria-hidden="true">→</span></a>
+                                    @else
+                                        <span class="sf-cta sf-inert">{{ $item['link_label'] }} <span aria-hidden="true">→</span></span>
+                                    @endif
+                                @endif
                             </div>
                             <img src="{{ $media[$item['media_id']]->getUrl() }}" alt="{{ $item['title'] ?: 'Featured collection' }}" loading="{{ $loop->first ? 'eager' : 'lazy' }}">
                         </div>
@@ -79,9 +95,14 @@
                                 @if($categories->has($catId))
                                     @php $cat = $categories[$catId]; @endphp
                                     <article class="sf-tile">
-                                        <div class="sf-square"><img src="{{ $cat->image }}" alt="" loading="lazy"></div>
-                                        <h3>{{ $cat->name }}</h3>
-                                        <span class="sf-meta">Browse category</span>
+                                        <div class="sf-square"><img src="{{ ($isPreview ?? false) ? $cat->image : $catalog->categoryImage($cat) }}" alt="" loading="lazy"></div>
+                                        @if($isPreview ?? false)
+                                            <h3>{{ $cat->name }}</h3>
+                                            <span class="sf-meta">Browse category</span>
+                                        @else
+                                            <h3><a href="{{ route('storefront.category', $cat->slug) }}">{{ $cat->name }}</a></h3>
+                                            <a class="sf-meta sf-meta-link" href="{{ route('storefront.category', $cat->slug) }}">Browse category</a>
+                                        @endif
                                     </article>
                                 @endif
                             @endforeach
@@ -92,11 +113,16 @@
                                 @if($products->has($productId))
                                     @php $product = $products[$productId]; @endphp
                                     <article class="sf-tile sf-product">
-                                        <div class="sf-product-image"><img src="{{ $product->thumbnail }}" alt="{{ $product->name }}" loading="lazy"></div>
+                                        <div class="sf-product-image"><img src="{{ ($isPreview ?? false) ? $product->thumbnail : $catalog->productImage($product) }}" alt="{{ $product->name }}" loading="lazy"></div>
                                         <div class="sf-product-copy">
                                             <h3>{{ $product->name }}</h3>
-                                            <div class="sf-price">৳{{ number_format((float) $product->new_price, 0) }}</div>
-                                            <div class="sf-product-actions"><span class="sf-secondary sf-inert">Cart</span><span class="sf-cta sf-inert">Buy</span></div>
+                                            @if($isPreview ?? false)
+                                                <div class="sf-price">৳{{ number_format((float) $product->new_price, 0) }}</div>
+                                                <div class="sf-product-actions"><span class="sf-secondary sf-inert">Cart</span><span class="sf-cta sf-inert">Buy</span></div>
+                                            @else
+                                                <div class="sf-price">{{ $product->has_variants ? 'From ' : '' }}৳{{ number_format($catalog->displayPrice($product)) }}</div>
+                                                <a class="sf-cta sf-p07-browse" href="{{ route('storefront.product', $product->slug) }}">{{ $product->has_variants ? 'View options' : 'View details' }}</a>
+                                            @endif
                                         </div>
                                     </article>
                                 @endif
@@ -109,7 +135,13 @@
                                 <img src="{{ $media[$item['media_id']]->getUrl() }}" alt="{{ $item['title'] ?: 'Collection image' }}" loading="lazy">
                                 <div><span class="sf-kicker">Discover More</span><h3>{{ $item['title'] }}</h3>
                                 <p>{{ $item['description'] }}</p>
-                                @if($item['link_label'])<span class="sf-cta sf-inert">{{ $item['link_label'] }}</span>@endif</div>
+                                @if($item['link_label'])
+                                    @if(!($isPreview ?? false) && $item['link_url'])
+                                        <a class="sf-cta" href="{{ $item['link_url'] }}" rel="noopener noreferrer">{{ $item['link_label'] }}</a>
+                                    @else
+                                        <span class="sf-cta sf-inert">{{ $item['link_label'] }}</span>
+                                    @endif
+                                @endif</div>
                             </div>
                         @endforeach
                     @elseif($section['type']==='reviews')
@@ -133,6 +165,13 @@
     @endforelse
 </main>
 <footer class="sf-footer"><div class="sf-wrapper">
-    Your Store @if($isPreview ?? false)<span>·</span> Storefront staging preview — existing campaign pages are unaffected @endif
+    {{ config('app.name', 'Storefront') }} @if($isPreview ?? false)<span>·</span> Storefront staging preview — existing campaign pages are unaffected @endif
 </div></footer>
+@if(!($isPreview ?? false))
+<nav class="sf-mobile-nav" aria-label="Mobile shop navigation">
+    <a href="{{ route('storefront.home') }}" aria-current="page">Home</a>
+    <a href="{{ route('storefront.shop') }}">Shop</a>
+    <a href="{{ route('storefront.shop') }}#categories">Categories</a>
+</nav>
+@endif
 </body></html>

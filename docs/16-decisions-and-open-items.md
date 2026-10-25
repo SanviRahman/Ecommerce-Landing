@@ -100,3 +100,10 @@ Open: browser-level preview/CSRF QA, image file reference tests, real MariaDB 20
 - Client: failed 409/419/network saves restore the locally displayed list, show an aria-live error, and do not update the editor version or re-render form inputs; success updates optimistic form versions and moves existing DOM card nodes.
 - Design tokens: 18 existing allowlisted `HomeSectionSchema::STYLE_KEYS` map to constant section-scoped preview CSS variables. Blank section override inherits the saved global token. No migration or raw CSS injection.
 - Stage gate: P05 MySQL suite user output not yet supplied; P06 12-case real MySQL HTTP suite and full Laravel browser validation still PENDING. No production DB mode approval. Per-item/manual-product reorder remains open for subsequent P06 iteration.
+
+### 2026-10-25 — P07 route namespace and staged browse security
+
+- **Decision:** use four `/storefront/...` paths (at least two segments) rather than immediately reserving `/shop` or `/product` root slugs; preserves current root-level custom campaign URLs without an unverified collision migration.
+- **Decision:** enable P07 catalog only in named restricted local MySQL test DB and only with `P07_CATALOG_TEST_ENABLED=true` (default false); P02 migration guard is independent. No production homepage mode switch.
+- **Decision:** published-mode home uses pinned published revision; private preview retains inert action spans. All P07 product links are browse-only until P08 cart/checkout is real.
+- **Open:** before canonical shop URLs or production cutover, audit existing campaign slugs, backfill and reconcile inventory on an approved staging DB, verify image storage and browser tests, run committed last-stock parallel checkout test, and approve final product weight/pack mapping. Do not use `migrate:fresh` on original data.

@@ -48,3 +48,12 @@ The user-provided 32-page AI meeting report describes a different demonstrated s
 - Verified risk: generic `forceDelete` would violate FK/history after P02 `product_variants` records exist. **Patch:** reject permanent deletion of products with variants and skip these in bulk force delete.
 - Identified limitation: category hierarchy schema existed but old Category CRUD lacked parent/sort/cycle protection. **Patch:** optional parent/sort fields with test-only validation and cycle guard. Runtime category regression pending.
 - A stage-guard prevents accidental sale of variable SKUs via old checkout: converting simple to variable sets `status=false`; ordinary admin/bulk reactivation is rejected until variant-aware order processing exists.
+
+### B16 / P1 — P07 smoke test references a nonexistent `guest_carts` table (2026-10-25)
+
+- **Verified on uploaded `website(6).zip`:** `database/migrations/2026_10_24_210011_p02_create_guest_carts.php` actually creates `carts` and `cart_items`. The P07 smoke prebootstrap and `P07PublicCatalogMySqlTest` instead queried `guest_carts`, causing MySQL 1146 before PHPUnit ran.
+- **Reproduction before patch:** `node tools/qa/check-p07-catalog-contract.mjs` with the newly added schema consistency assertions produced **32/34, FAIL** (two mismatches); user's Windows runner previously reported `Base table ... p01_campaign_test.guest_carts doesn't exist`.
+- **Scoped fix:** replace the phantom table in `tools/qa/p07-mysql-catalog-smoke.php` preflight with both real cart tables, assert both real tables remain empty in the existing PHPUnit test; add migration/schema consistency regression assertions and clear missing-file diagnostic to `check-p07-catalog-contract.mjs`.
+- **Offline evidence after patch:** P07 source contract **34/34 PASS**, P07 DOM unit **10/10 PASS**; full PHP lint and other static checks passed in extracted source. **The 16-case real MariaDB/PHPUnit suite is NOT executable in this container (no MySQL/PHPUnit vendor)**. It remains **PENDING user rerun**; do not mark the runtime bug verified resolved until `Exit Code: 0`.
+- **Local extraction:** uploaded archive contains `resources/views/storefront/pages/shop.blade.php`; earlier Windows `ENOENT` indicates local extraction/path mismatch, not a missing file in uploaded ZIP. Supply the Blade file and post-extraction existence checks in the hotfix package.
+- **No migration, reset, DB write, production configuration or checkout behavior changed by this patch.**

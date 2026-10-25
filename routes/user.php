@@ -22,6 +22,9 @@ use Illuminate\View\Middleware\ShareErrorsFromSession;
 
 Route::get('/', [HomeController::class, 'index'])->name('home');
 
+/* Separate P07 browse-only storefront; root and existing campaigns stay untouched. */
+require __DIR__ . '/storefront.php';
+
 /*
 |--------------------------------------------------------------------------
 | Public Campaign Landing Page

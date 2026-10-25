@@ -9,4 +9,8 @@ return [
     // OFF by default. Test-only bridge across campaign, manual and bulk order
     // creation. Still denied on all databases except p01_campaign_test.
     'p03_order_writer_test_enabled' => false,
+
+    // P07 read-only browsing; default OFF, independently restricted to the local
+    // p01_campaign_test DB by PublicCatalog::assertAvailable().
+    'p07_catalog_test_enabled' => env('P07_CATALOG_TEST_ENABLED', false),
 ];

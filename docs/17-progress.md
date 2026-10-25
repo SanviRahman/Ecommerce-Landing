@@ -181,3 +181,19 @@ Not approved. Requires mandatory acceptance matrix, no unresolved P0/P1 blockers
 - Tested offline: P06 sort-core 18/18; static contracts 35/35; prior P05 13/13 schema + 33/33 source and earlier P01/P03/P04 source tests; PHP syntax 299/299. Chromium mock-API keyboard/mouse/rollback/stale 4 scenarios, mobile touch 390px, palette desktop/mobile isolation succeeded. Explicit-consentless MySQL runner intentionally BLOCKED.
 - Not tested: user's P05 20-case MySQL result was not provided, P06 12-case Laravel/MySQL HTTP suite not executed in this sandbox, live AdminLTE browser/CSRF details not verified. Per-item/product selections drag reorder and P07 public storefront remain pending.
 - No `.env`, customer rows, database writes/migrations, deployment, production flag changes or external calls performed.
+
+### 2026-10-25 — P07 separate browse-only public storefront (source staged)
+
+- User-reported P05 homepage tests: **20 tests / 64 assertions PASS**; P06 source 35/35 and sort 18/18 PASS, but original MySQL P06 11/12 failed exact Cache-Control comparison. A corrected single-file test had been shared; latest real MySQL P06 retest result has not been supplied, so no 12/12 claim.
+- P07 code: staged test-only GET browse routes at `/storefront/home`, `/storefront/shop`, `/storefront/category/{slug}`, `/storefront/product/{slug}`. Existing `/`, custom campaign/order routes unchanged. Published home uses only pinned published revisions; if none exists, it renders a neutral safe fallback with Shop link, never private draft content. New accessible responsive Blade pages with search, category/product filters, pagination, gallery, explicit variant price/stock and functional read-only navigation; no cart/checkout writes or dummy purchase controls.
+- Guard: default P07 false plus independent local restricted `p01_campaign_test` / `p01_tester` account verification. No migration, production DB writes, schema reset or feature cutover.
+- Authoring environment checks: **304/304 PHP syntax PASS**, **31/31 P07 source checks**, **10/10 browser JS DOM unit**, Chromium static CSS/JS fixture 1440/390/320px PASS, P04/P05/P06 source QA 31/33/35 PASS. No Composer vendor or local p01 MariaDB credentials available here: **P07 16 real MySQL tests pending user execution**.
+- P07 remains **NOT PRODUCTION READY**, P08 checkout and P03 parallel last-stock race still blocked.
+
+### 2026-10-25 — P07 cart table mismatch repair against `website(6).zip`
+
+- Verified latest user-uploaded ZIP (994 archive entries): P07 runner and PHPUnit test still queried the nonexistent `guest_carts` table; P02 migration creates `carts` and `cart_items` instead. The P07 `shop.blade.php` file **is included** in the upload; earlier local `ENOENT` came from install/extraction mismatch.
+- New failing regression source checks reproduced the mismatch (32/34), then passed after fixing the two PHP references (34/34). P07 browser JS unit tests 10/10 passed. Full syntax and earlier QA were rerun in the extracted offline source; see `P07-FIX-INSTALL-BN.md` for installation and runtime validation.
+- Changed the P07 smoke *preflight* to inspect actual `carts` and `cart_items` row counts, and the rollback-only PHPUnit test to assert neither table receives records from browsing. No P02 migration/schema changes.
+- The real P07 16-case MySQL suite **has not been executed here** due to unavailable local `p01_campaign_test`, `p01_tester` credentials, and PHPUnit vendor. Pending Windows rerun; staging flags remain off by default.
+- Existing campaign routes, order flows, `.env` and database content unchanged.
