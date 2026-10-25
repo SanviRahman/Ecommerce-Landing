@@ -9,7 +9,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        P02MigrationSafety::assertIsolatedTestDatabase();
+        P02MigrationSafety::assertApprovedP02Up();
 
         Schema::table('orders', function (Blueprint $table) {
             $table->unsignedSmallInteger('inventory_version')->default(0);

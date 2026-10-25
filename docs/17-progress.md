@@ -254,3 +254,40 @@ Not approved. Requires mandatory acceptance matrix, no unresolved P0/P1 blockers
 - No controllers, routes, migration, stock/checkout logic, feature flag, payment method or original database changed. COD remains the only payment method.
 - **Post-fix source-only evidence (audit container):** P11 release check 42/42 PASS, master offline gate 13/13 PASS, source fingerprint 512/512 verified, PHP syntax 478/478 PASS, Node syntax 61/61 PASS. No Composer/PHPUnit vendor, MySQL server or browser screenshot gate was available in this container.
 - **Release gates still pending:** Composer locked-dependency security audit/remediation, post-update integration reruns, real browser QA, staging backup/restore rehearsal and explicit owner approval. Original `ecommerce_landing_db` remains untouched.
+
+
+### 2026-10-25 — P13 Admin Homepage Builder 404/menu mismatch (latest screenshot + website(10).zip)
+
+- User browser evidence: Homepage Builder returns 404 at `/admin/storefront/home` on regular `127.0.0.1:8000`; sidebar labels it `STOREFRONT (P05 TEST)` and shows link from unrelated `/admin/pages/create`.
+- Source verifies deliberate test-only DB guard in `HomepageBuilderController::adminOnly()` / `HomepageBuilder::assertTestSchema()` / `P02MigrationSafety`; **do not weaken it** or migrate original `ecommerce_landing_db`.
+- P13 adds a source-level AdminLTE Gate so link/header only appear when local isolated test DB configuration matches; admin protected URL/actual database checks remain independent and unchanged. Standalone browser PS script + aggregate-only QA-admin preflight targets `website-p12-test` at localhost 8089 using synthetic APP_KEY and restricted `p01_tester` account, enabling read-only P07 catalog only within restricted preview and leaving P08 checkout flags OFF.
+- Uploaded `website(10).zip` is NOT a complete runnable source export because seven `routes/*.php` files are absent; authoring reconstruction used the unchanged route files from prior user-uploaded `website(9).zip`, with an optional conditional restoration script for **missing files in isolated test copy only**. Do not silently replace newer local routing.
+- Authoring verification on reconstructed, clean extracted source: P13 static 24/24 PASS, P11 release contracts 42/42 PASS, P11 full offline gate 14/14 PASS, SHA256 manifest 517/517 verified; PHP syntax 507 non-vendor files/0 failures and JS syntax 62 files/0 failures. CLI PHP available in authoring environment, but Composer vendor/Laravel runtime, isolated MariaDB, Windows PowerShell and actual browser are not. New PHP Gate unit tests / fresh P05 and P10 MySQL tests / full AdminLTE browser checks **PENDING user run**. No migration, production enablement or original database changes.
+
+
+### P13.1 — P13 test-copy placement and optional route recovery QA fix (2026-10-25)
+
+- User showed P13 test under original `website` in VS Code while commands ran from `website-p12-test`; P11 printed 13/13 (old gate) and both test/browser script paths were missing. Latest uploaded source ZIP also lacked the P13 optional route recovery script despite all seven route files existing.
+- Implemented **source QA dependency correction**: 7 SHA256-pinned original routes checked; no recovery script required, no existing route touched. Added fail-closed `tools/qa/p13-sync-source-to-test.ps1` to copy only reviewed P13 source files to the already-created P12 test copy, after safe P12 `.env`/lock/routes/vendor/source-manifest preflight; target backups and hash comparison included.
+- No schema, migration, original DB, production setting, product stock, checkout, or payment changes. COD only.
+- Actual Windows PowerShell sync, PHPUnit, browser and complete staging tests must be confirmed from user outputs; no release approval granted.
+
+### 2026-10-25 — P14 Local-only Homepage Builder access & P02 upgrade opt-in
+
+- **Reproduced:** user screenshot showed Homepage Builder absent under AdminLTE while direct `/admin/storefront/home` returned 404. The new menu Gate and the HomepageBuilder service required `p01_campaign_test`, and the eleven P02 migration `up()` methods required that same isolated DB. User confirmed original DB is locally seeded and explicitly requested a local CRUD/test path followed by a reviewed migration.
+- **Fix:** explicit default-OFF local-only developer permission for exact `ecommerce_landing_db`, active admin/CSRF and **runtime DB account/schema identity**; independent CLI-only P02 `up()` consent with strict existing `down()` and all P03/P04/P07/P08 guards unchanged. Menu says `HOMEPAGE MANAGEMENT`; Blade no longer incorrectly states that only `p01_campaign_test` is supported. No route, COD, cart, stock, campaign or public homepage change.
+- **Scope:** `app/Support/LocalHomepageAccess.php`, `app/Support/P02MigrationSafety.php`, HomepageBuilder service + controller, AppServiceProvider, config/storefront.php and adminlte.php, existing Homepage Builder Blade, the `up()` guard in eleven P02 migrations, QA contract scripts + fingerprint, read-only local migration preflight, local guide, and ADR.
+- **QA:** Static/pure-PHP source checks run locally; full P11 offline, PHPUnit P14 and real MariaDB/browser results will be recorded in delivery. NO local or production database migration/seeding was performed by the authoring environment. Deployment remains NO-GO pending further checks.
+
+### 2026-10-25 — P14 user-run database migration and browser evidence
+
+- **USER-REPORTED, not independently run:** `php artisan migrate` completed all 11 P02 migrations with `DONE`, followed by `migrate:status` listing all 11 as Batch 2 `Ran`; earlier migrations remain Batch 1 `Ran`.
+- Screenshots supplied by user show authenticated `127.0.0.1:8000/admin/storefront/home` rendering with active AdminLTE sidebar menu, Draft Revision #1, lock version 2, no staged publication and zero added sections. **This validates routing/page rendering only**, not successful Add/Save/Preview/Publish or correct runtime stock/cart behavior.
+- No additional migration or MySQL action was executed in this offline audit. Existing campaign `/` remains excluded from builder publication.
+
+### 2026-10-25 — P15 targeted source QA / reviewed patch candidate
+
+- Scope: product standalone Create/Edit URL view resolution; private generation of CSV/PDF report exports; spreadsheet CSV formula escaping; null optional report title; Apache deny rule for legacy public report paths.
+- Existing `app`, `routes`, P02 migrations, `.env`, customer database, `public/storage`, inventory, campaigns, homepage permissions and public storefront flag are intentionally unchanged except the P15 files listed in the patch manifest.
+- Offline acceptance: P11 baseline gate 17/17, P15 CSV/private export check, view-ref resolution, PHP syntax and JavaScript syntax. These are **source-only checks** without Laravel vendor/MySQL/browser runtime and do not certify end-to-end security or deployment.
+- Legacy public exports remain a security follow-up on PHP dev server, Nginx, IIS and CDN; migrate existing files only after inventory/backup/owner review. **Production release remains NO-GO**.

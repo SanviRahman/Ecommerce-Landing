@@ -43,3 +43,9 @@ Use bounded rate limits and idempotency for checkout; retain existing customer b
 ## Security acceptance
 
 Guest admin mutations denied; employee publish denied; foreign resource IDs rejected; missing/invalid CSRF denied; bad color/URL/HTML/file payloads inert/rejected; cart IDOR denied; forged variant/price/quantity rejected; identical checkout retry deduplicated; raw errors/secrets not returned. See docs/12-testing-and-acceptance.md for case IDs.
+
+## P15 local-only report export confidentiality (2026-10-25)
+
+CSV/PDF reports may contain confidential order/customer information; new generated files are written to the existing `local` disk (`storage/app/private/reports/`) and downloaded only through the authenticated, active-admin `ReportController::download()` route. Public media stays on the existing configured public disk; DO NOT relocate public product/campaign files. Exported text cells, including metadata and filters, are serialized through `SafeCsvCell` before CSV quoting to prevent spreadsheet formula interpretation.
+
+Historical `file_disk=public` report records are deliberately preserved for download compatibility. A separate approved maintenance workflow is needed to inventory/migrate existing `public/storage/reports/` exports and record the new private path; do not delete or rewrite originals without backups. `public/.htaccess` forbids direct `/storage/reports/` reads on Apache, **but Nginx, CDN, PHP `artisan serve`, Windows/IIS or a custom document root require independent server-level deny rules or verified legacy migration**. Never call this server-agnostic remediation without actual HTTP verification on the deployment server.

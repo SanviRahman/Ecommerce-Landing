@@ -1,6 +1,6 @@
 @extends('adminlte::page')
 
-@section('title', 'Homepage Builder - P06')
+@section('title', 'Homepage Builder')
 @section('content_header')
 <div class="d-flex justify-content-between align-items-start flex-wrap">
     <div>
@@ -28,8 +28,13 @@
 <div class="alert alert-danger" role="alert"><strong>Changes were not saved:</strong><ul class="mb-0">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>
 @endif
 <div class="alert alert-info" role="note">
-    <strong>Local test-only phase (P05).</strong> This builder is restricted to <code>p01_campaign_test</code>.
-    Publishing here changes only the staged revision pointer—not the existing public <code>/</code> campaign homepage.
+    @if(\App\Support\LocalHomepageAccess::configuredForBuilder())
+        <strong>Local development Homepage Builder.</strong> Drafts, sections and published revisions are saved to your approved local database.
+    @else
+        <strong>Isolated QA Homepage Builder.</strong> This editor uses the restricted test database.
+    @endif
+    Publishing changes the builder's staged revision, <strong>not</strong> the existing public <code>/</code> campaign homepage.
+    Use the <strong>Preview homepage</strong> button to review the frontend before a separate public cutover.
     <span class="d-block mt-1">If another browser tab saves first, this page returns HTTP 409. Reload before editing.</span>
 </div>
 <div class="row">
@@ -200,7 +205,21 @@
                 <div class="form-group col-md-6"><label>Public / Global Review</label>
                     <select class="form-control" name="review_id" required><option value="">Choose a review</option>
                         @foreach($reviews as $review)<option value="{{ $review->id }}">#{{ $review->id }} — {{ $review->customer_name }}</option>@endforeach
-                    </select></div>
+                    </select>
+                </div>
+                @if($reviews->isEmpty())
+                    <div class="col-12">
+                        <div class="alert alert-warning py-2 mb-3" role="status">
+                            <strong>No active Global / Store Review is available.</strong>
+                            Campaign-specific reviews are intentionally excluded from this homepage.
+                            Open <a href="{{ route('admin.reviews.index', ['campaign_id' => 'global']) }}"
+                                target="_blank" rel="noopener noreferrer" class="alert-link">Customer Reviews</a>
+                            to add a genuine General / Store Review, or edit an existing one and change
+                            its campaign to General (this removes its original campaign association).
+                            Keep the review Active, save it, then reload this Builder page.
+                        </div>
+                    </div>
+                @endif
                 @else
                 <div class="form-group col-md-6"><label>Approved public media file</label>
                     <select class="form-control" name="media_id" required><option value="">Choose media</option>
@@ -212,7 +231,8 @@
                 <div class="form-group col-md-3"><label>CTA URL (HTTPS or /path)</label><input class="form-control" name="link_url" maxlength="2048"></div>
                 @endif
             </div>
-            <button class="btn btn-outline-success">Add Item</button>
+            <button class="btn btn-outline-success"
+                @disabled($section['type']==='reviews' && $reviews->isEmpty())>Add Item</button>
         </form>
         @endif
         <hr>

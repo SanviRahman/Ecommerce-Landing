@@ -57,7 +57,10 @@ class ReviewController extends Controller
             $query->where('rating', $request->rating);
         }
 
-        if ($request->filled('campaign_id') && $request->campaign_id !== 'all') {
+        if ($request->input('campaign_id') === 'global') {
+            // NULL campaign is the only scope eligible for the staged storefront homepage.
+            $query->whereNull('campaign_id');
+        } elseif ($request->filled('campaign_id') && $request->campaign_id !== 'all') {
             $query->where('campaign_id', $request->campaign_id);
         }
 
@@ -139,6 +142,10 @@ class ReviewController extends Controller
     {
         $this->adminOnly();
 
+        // Treat the General / Store Review selection as NULL before nullable validation.
+        $request->merge(['campaign_id' => $request->filled('campaign_id')
+            ? $request->input('campaign_id') : null]);
+
         $request->validate([
             'campaign_id' => ['nullable', 'exists:campaigns,id'],
             'customer_name' => ['required', 'string', 'max:255'],
@@ -152,7 +159,8 @@ class ReviewController extends Controller
 
         DB::transaction(function () use ($request) {
             $review = Review::create([
-                'campaign_id' => $request->campaign_id,
+                // Explicitly store null when the admin chooses General / Store Review.
+                'campaign_id' => $request->filled('campaign_id') ? (int) $request->input('campaign_id') : null,
                 'customer_name' => $request->customer_name,
                 'location' => $request->location,
                 'rating' => $request->rating,
@@ -213,6 +221,10 @@ class ReviewController extends Controller
     {
         $this->adminOnly();
 
+        // Treat the General / Store Review selection as NULL before nullable validation.
+        $request->merge(['campaign_id' => $request->filled('campaign_id')
+            ? $request->input('campaign_id') : null]);
+
         $request->validate([
             'campaign_id' => ['nullable', 'exists:campaigns,id'],
             'customer_name' => ['required', 'string', 'max:255'],
@@ -226,7 +238,7 @@ class ReviewController extends Controller
 
         DB::transaction(function () use ($request, $review) {
             $review->update([
-                'campaign_id' => $request->campaign_id,
+                'campaign_id' => $request->filled('campaign_id') ? (int) $request->input('campaign_id') : null,
                 'customer_name' => $request->customer_name,
                 'location' => $request->location,
                 'rating' => $request->rating,

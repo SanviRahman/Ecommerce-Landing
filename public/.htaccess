@@ -5,6 +5,10 @@
 
     RewriteEngine On
 
+    # Existing legacy report exports may reside on the public disk. Never serve
+    # their CSV/PDF files directly; authenticated admin download stays usable.
+    RewriteRule ^storage/reports(?:/|$) - [F,L,NC]
+
     # Handle Authorization Header
     RewriteCond %{HTTP:Authorization} .
     RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]

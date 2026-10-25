@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Storefront;
 
 use App\Support\HomeSectionSchema;
+use App\Support\LocalHomepageAccess;
 use App\Support\P02MigrationSafety;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -16,7 +17,7 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 
 /**
  * P05: immutable publications, draft-only mutations, optimistic page version.
- * ALL P05 database operations are blocked outside the isolated p01_campaign_test.
+ * Database operations require the isolated test DB or explicit P14 local-only consent.
  * Does not affect the existing / or /campaign routes.
  */
 final class HomepageBuilder
@@ -33,7 +34,11 @@ final class HomepageBuilder
 
     public function assertTestSchema(): void
     {
-        P02MigrationSafety::assertIsolatedTestDatabase();
+        if (LocalHomepageAccess::configuredForBuilder()) {
+            LocalHomepageAccess::assertActualBuilderDatabase();
+        } else {
+            P02MigrationSafety::assertIsolatedTestDatabase();
+        }
         foreach (['storefront_pages', 'storefront_revisions', 'homepage_sections',
             'homepage_section_items', 'homepage_section_products', 'homepage_section_categories',
             'homepage_audit_events'] as $table) {

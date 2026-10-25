@@ -115,3 +115,39 @@ The user-provided 32-page AI meeting report describes a different demonstrated s
 - **Root cause:** `{!! !!}` skips HTML escaping; validation text should be inert text, not trusted markup.
 - **Scoped fix:** use `{{ $error }}` in `resources/views/admin/site-settings/index.blade.php`, `resources/views/admin/reports/create.blade.php`, `resources/views/admin/reports/edit.blade.php`, and `resources/views/admin/tracking-pixels/partials/form.blade.php`. Add per-template contract in P11 checker and refresh approved manifest.
 - **Acceptance:** P11 offline gate 13/13 PASS with 42/42 release source contracts and fingerprint verification; runtime Blade/admin cross-browser regression remains a staging gate. No DB/schema, COD checkout, media or feature-flag edits.
+
+
+### B20 / P13 — Homepage Builder visible in normal Admin but GET returns 404 (2026-10-25)
+
+- **Actual browser reproduction:** user provided `http://127.0.0.1:8000/admin/storefront/home` displaying `404 Not Found`; AdminLTE sidebar showed `STOREFRONT (P05 TEST)` / `Homepage Builder` on the working `/admin/pages/create` screen.
+- **Verified source cause:** `config/adminlte.php` displayed the menu for any admin, but `HomepageBuilderController::adminOnly()` calls `$builder->assertTestSchema()`, which checks `P02MigrationSafety::assertIsolatedTestDatabase()`. Outside restricted `p01_campaign_test` with `p01_tester@127.0.0.1`, controller deliberately aborts 404. This is **intentional isolation**, not evidence of a missing route on the running site.
+- **Separate source packaging defect:** the newly uploaded `website(10).zip` omitted the entire `routes/` folder. Earlier user archive `website(9).zip` contains seven route files. Screenshot proves actual running Windows website has routing, so **do not overwrite existing routes** with older snapshots. A *missing-file-only*, *test-copy-only* route recovery tool and historical snapshot are supplied for isolated test-copy verification.
+- **Scoped repair:** Add an `isolated-homepage-builder` Gate (active admin + exact local test DB *configuration*, no DB query) to the AdminLTE header and link. Change staging label to `STOREFRONT (ISOLATED QA)`. Preserve controller/service independent **runtime MySQL identity guard**, no production activation or migrations. Provide a restricted, read-only preflight and separate localhost QA server command using **P12 synthetic .env/key** and `php artisan serve --no-reload` to retain restricted DB process variables. The server refuses to run without an already-approved synthetic `@example.test` test-schema admin; **it never creates users**.
+- **Regression:** new `tests/Unit/P13HomepageMenuGateTest.php` (MySQL/SQLite/employee/inactive/alternate-host cases; needs Windows PHP execution) and `tools/qa/check-p13-homepage-gate.mjs` (static checks); P11 offline aggregator includes P13. Historical routes are restored *only within this authoring source* for source QA and the manifest. Original production DB, old campaign routes, stock and COD checkout unchanged.
+- **Status:** authoring clean-room P11 offline 14/14 and P13 source 24/24 PASS, PHP syntax lint 507/507 PASS; Laravel PHPUnit requires Composer vendor/MySQL and Windows browser remains untested. Site release remains blocked until validated by user on isolated Windows test copy; **direct URL stays intentionally unavailable on normal DB**.
+
+
+### B21 / P13.1 — P13 PHPUnit/browser commands executed from stale P12 test copy (2026-10-25)
+
+- **User reproduction:** `node tools/qa/p11-offline-gate.mjs` in `website-p12-test` reported **13/13** old jobs, while `php artisan test tests/Unit/P13HomepageMenuGateTest.php` returned **Test file not found** and `tools/qa/p13-isolated-admin-browser.ps1` returned **File does not exist**. VS Code Explorer screenshot shows the P13 PHPUnit file under sibling `website/tests/Unit`, not `website-p12-test/tests/Unit`.
+- **Separate confirmed ZIP defect:** the latest `website(20261025-140435).zip` contains all seven current routes and P13 source files but omits `P13-RESTORE-MISSING-ROUTES.ps1`. The earlier P13 source checker blindly opens that optional script and the old P11 manifest fingerprints it, so a clean latest-ZIP source-only gate fails `ENOENT`, even though routes are present.
+- **Scoped repair:** remove the obsolete recovery-script dependency, verify the seven actual route SHA256 digests, add strict test-copy-only source synchronizer (`tools/qa/p13-sync-source-to-test.ps1`) with P12 synthetic-env identity, original/test Composer + routes parity, source fingerprint/gate preflight, allowlisted code-file transfers, backups and postcopy digests. Adjust P11 manifest allowlist and provide precise commands for each folder.
+- **Forbidden changes:** No copying/restoring/overwriting routes; no original `.env`, DB, uploads, vendor or live admin data; no migration, feature activation or COD/stock changes. No test assertions disabled.
+- **Verification:** Source-only P13 static and P11 offline results are recorded separately from *pending* actual Windows PHPUnit, PowerShell, MySQL and browser use. Missing test file is an installation defect, not a failed test case.
+
+### B-P14-01 — Local Admin Homepage Builder hidden / 404; migrations gated (2026-10-25)
+
+- **Reproduction:** `config/adminlte.php` checks `isolated-homepage-builder` Gate which only accepted `p01_campaign_test` with `p01_tester`. `HomepageBuilder::assertTestSchema()` called P02 isolated test guard on direct route; all eleven new migration `up()` guards were likewise test-only. Original seeded local DB cannot use homepage CRUD by merely migrating.
+- **Fix:** opt-in exact localhost developer database guard, separate migration `up()` consent, unconditional real DB identity verification before Builder access; original isolated test and strict `down()` gates preserved. Stale local-only status text updated in Builder Blade. No `APP_ENV=production` bypass, arbitrary database selection, or public storefront mode activation.
+- **Tests:** P14 pure-PHP and source contract tests, P13/P11 regression gate, PHP/JS lint; **MySQL migrations and authenticated browser CRUD require user execution and are not yet verified**.
+
+### B-P15-01 — Missing standalone product Create/Edit Blade views (source verified)
+
+- **Reproduction:** `ProductController::create()` and `edit()` return `admin.products.create/edit` on non-AJAX GET; supplied archive had only `admin.products.partials.form` and modal contexts. Direct route would fail `View [admin.products.create] not found` or `...edit`.
+- **Narrow fix:** new create/edit wrappers use the shared validated form; standalone cancel/media actions use an external JS module. AJAX modal route behavior, product stock and permission middleware are unchanged.
+- **Evidence:** source view-reference test initially failed 2/144 and passes with wrappers; real Laravel/browser still pending.
+
+### B-P15-02 — Reports public export and CSV formula injection (source verified)
+
+- **Reproduction:** report CSV/PDF writers wrote into `Storage::disk('public')` under `reports/`; `.htaccess` did not deny the report path. CSV dynamic cells lacked spreadsheet-formula escaping.
+- **Narrow fix:** private new exports, sanitized CSV cells, Apache deny for old URLs without deleting historical files, and optional title fallback. Pending cross-server security and download verification.

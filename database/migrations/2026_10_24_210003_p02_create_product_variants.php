@@ -9,7 +9,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        P02MigrationSafety::assertIsolatedTestDatabase();
+        P02MigrationSafety::assertApprovedP02Up();
 
         Schema::create('product_option_assignments', function (Blueprint $table) {
             $table->foreignId('product_id')->constrained('products')->restrictOnDelete();

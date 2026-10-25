@@ -72,8 +72,9 @@
 
                     <div class="col-md-3 col-sm-6 mb-2">
                         <label class="small font-weight-bold text-muted text-uppercase">Campaign</label>
-                        <select id="filter_campaign" class="form-control border-0 bg-light shadow-none">
+                        <select id="filter_campaign" class="form-control border-0 bg-light shadow-none" aria-label="Filter reviews by campaign scope">
                             <option value="all">All Campaigns</option>
+                            <option value="global" @selected(request('campaign_id') === 'global')>General / Store Review</option>
                             @foreach($campaigns as $camp)
                                 <option value="{{ $camp->id }}">{{ $camp->title }}</option>
                             @endforeach

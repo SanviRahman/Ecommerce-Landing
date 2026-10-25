@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Services\TodayReportSummaryService;
+use App\Support\SafeCsvCell;
 use App\Models\Campaign;
 use App\Models\Order;
 use App\Models\Product;
@@ -358,7 +359,7 @@ class ReportController extends Controller
 
         $report = ReportExport::create([
             'report_uid'   => $this->generateReportUid(),
-            'title'        => $validated['title'] ?: $this->defaultReportTitle($reportType, $dateFrom, $dateTo),
+            'title'        => ($validated['title'] ?? null) ?: $this->defaultReportTitle($reportType, $dateFrom, $dateTo),
             'report_type'  => $reportType,
             'date_from'    => $dateFrom,
             'date_to'      => $dateTo,
@@ -473,10 +474,9 @@ class ReportController extends Controller
         ]);
 
         if ($request->boolean('regenerate_file')) {
-            if ($report->file_path && Storage::disk($report->file_disk)->exists($report->file_path)) {
-                Storage::disk($report->file_disk)->delete($report->file_path);
-            }
-
+            // Never destroy the previous export BEFORE its replacement is saved.
+            // Legacy public exports remain downloadable through the admin route;
+            // moving/deleting those files needs a separately approved data plan.
             $payload = $this->generateReportPayload(
                 $report->report_type,
                 optional($report->date_from)->format('Y-m-d'),
@@ -488,7 +488,7 @@ class ReportController extends Controller
             $fileData = [
                 'file_name' => null,
                 'file_path' => null,
-                'file_disk' => $report->file_disk ?: 'public',
+                'file_disk' => 'local',
                 'mime_type' => null,
                 'file_size' => null,
             ];
@@ -1055,45 +1055,34 @@ class ReportController extends Controller
         ];
     }
 
-    private function csvValue($value): string
+    /** Every dynamic CSV cell, including metadata and filters, is sanitized. */
+    private function writeCsvRow($handle, array $cells): void
     {
-        if ($value === null) {
-            return '';
-        }
-
-        if (is_bool($value)) {
-            return $value ? 'Yes' : 'No';
-        }
-
-        if (is_array($value) || is_object($value)) {
-            return json_encode($value, JSON_UNESCAPED_UNICODE);
-        }
-
-        return (string) $value;
+        fputcsv($handle, array_map(SafeCsvCell::stringify(...), $cells));
     }
 
     private function writeCsvSection($handle, string $title, array $rows, ?array $columns = null): void
     {
-        fputcsv($handle, []);
-        fputcsv($handle, [$title]);
+        $this->writeCsvRow($handle, []);
+        $this->writeCsvRow($handle, [$title]);
 
         if (empty($rows)) {
-            fputcsv($handle, ['No data found']);
+            $this->writeCsvRow($handle, ['No data found']);
             return;
         }
 
         $firstRow = (array) $rows[0];
         $columns = $columns ?: array_keys($firstRow);
 
-        fputcsv($handle, array_map(
-            fn ($heading) => ucwords(str_replace('_', ' ', $heading)),
+        $this->writeCsvRow($handle, array_map(
+            static fn ($heading) => ucwords(str_replace('_', ' ', $heading)),
             $columns
         ));
 
         foreach ($rows as $row) {
             $row = (array) $row;
-            fputcsv($handle, array_map(
-                fn ($column) => $this->csvValue($row[$column] ?? ''),
+            $this->writeCsvRow($handle, array_map(
+                static fn ($column) => $row[$column] ?? '',
                 $columns
             ));
         }
@@ -1106,14 +1095,16 @@ class ReportController extends Controller
 
         $csvContent = $this->buildDesignedCsv($report, $payload);
 
-        Storage::disk('public')->put($filePath, $csvContent);
+        if (Storage::disk('local')->put($filePath, $csvContent) !== true) {
+            throw new \RuntimeException('Unable to save CSV export to private storage.');
+        }
 
         return [
             'file_name' => $fileName,
             'file_path' => $filePath,
-            'file_disk' => 'public',
+            'file_disk' => 'local',
             'mime_type' => 'application/vnd.ms-excel; charset=UTF-8',
-            'file_size' => Storage::disk('public')->size($filePath),
+            'file_size' => Storage::disk('local')->size($filePath),
         ];
     }
 
@@ -1126,32 +1117,32 @@ class ReportController extends Controller
         // UTF-8 BOM দিলে Bangla text Excel-এ readable থাকে।
         fputs($handle, "\xEF\xBB\xBF");
 
-        fputcsv($handle, ['Report Title', $report->title]);
-        fputcsv($handle, ['Report UID', $report->report_uid]);
-        fputcsv($handle, ['Report Type', $this->reportTypes()[$report->report_type] ?? $report->report_type]);
-        fputcsv($handle, ['Date Range', ($report->date_from ? optional($report->date_from)->format('d M Y') : 'Start') . ' to ' . ($report->date_to ? optional($report->date_to)->format('d M Y') : 'Today')]);
-        fputcsv($handle, ['Group By', $report->group_by ?: 'Default']);
-        fputcsv($handle, ['Generated By', optional($report->generatedBy)->name ?? auth()->user()?->name ?? 'System']);
-        fputcsv($handle, ['Generated At', optional($report->generated_at)->format('d M Y, h:i A')]);
+        $this->writeCsvRow($handle, ['Report Title', $report->title]);
+        $this->writeCsvRow($handle, ['Report UID', $report->report_uid]);
+        $this->writeCsvRow($handle, ['Report Type', $this->reportTypes()[$report->report_type] ?? $report->report_type]);
+        $this->writeCsvRow($handle, ['Date Range', ($report->date_from ? optional($report->date_from)->format('d M Y') : 'Start') . ' to ' . ($report->date_to ? optional($report->date_to)->format('d M Y') : 'Today')]);
+        $this->writeCsvRow($handle, ['Group By', $report->group_by ?: 'Default']);
+        $this->writeCsvRow($handle, ['Generated By', optional($report->generatedBy)->name ?? auth()->user()?->name ?? 'System']);
+        $this->writeCsvRow($handle, ['Generated At', optional($report->generated_at)->format('d M Y, h:i A')]);
 
-        fputcsv($handle, []);
-        fputcsv($handle, ['SUMMARY']);
+        $this->writeCsvRow($handle, []);
+        $this->writeCsvRow($handle, ['SUMMARY']);
 
         foreach (($payload['summary'] ?? []) as $key => $value) {
-            fputcsv($handle, [
+            $this->writeCsvRow($handle, [
                 ucwords(str_replace('_', ' ', $key)),
-                $this->csvValue($value),
+                $value,
             ]);
         }
 
-        fputcsv($handle, []);
-        fputcsv($handle, ['FILTERS']);
+        $this->writeCsvRow($handle, []);
+        $this->writeCsvRow($handle, ['FILTERS']);
 
         if (empty($report->filters)) {
-            fputcsv($handle, ['No filters applied']);
+            $this->writeCsvRow($handle, ['No filters applied']);
         } else {
             foreach (($report->filters ?? []) as $key => $value) {
-                fputcsv($handle, [
+                $this->writeCsvRow($handle, [
                     ucwords(str_replace('_', ' ', $key)),
                     $this->humanReadableFilterValue($key, $value),
                 ]);
@@ -1196,14 +1187,16 @@ class ReportController extends Controller
             'reportTypes' => $this->reportTypes(),
         ])->setPaper('a4', 'portrait');
 
-        Storage::disk('public')->put($filePath, $pdf->output());
+        if (Storage::disk('local')->put($filePath, $pdf->output()) !== true) {
+            throw new \RuntimeException('Unable to save PDF export to private storage.');
+        }
 
         return [
             'file_name' => $fileName,
             'file_path' => $filePath,
-            'file_disk' => 'public',
+            'file_disk' => 'local',
             'mime_type' => 'application/pdf',
-            'file_size' => Storage::disk('public')->size($filePath),
+            'file_size' => Storage::disk('local')->size($filePath),
         ];
     }
 

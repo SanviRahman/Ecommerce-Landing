@@ -7,6 +7,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 const root = path.resolve(import.meta.dirname, '../..');
 const jobs = [
+  ['P13 homepage UI gate', 'node', ['tools/qa/check-p13-homepage-gate.mjs']],
+  ['P14 local Homepage source', 'node', ['tools/qa/check-p14-local-homepage.mjs']],
+  ['P14 local permission matrix', 'php', ['tools/qa/check-p14-local-access.php']],
+  ['P02 schema source contracts', 'node', ['tools/qa/check-p02-schema.mjs']],
   ['P11 source safety', 'node', ['tools/qa/check-p11-release-contract.mjs']],
   ['P11 policy', 'php', ['tools/qa/check-p11-readiness-policy.php']],
   ['P11 SHA-256 fingerprint', 'node', ['tools/qa/p11-source-manifest.mjs', '--verify']],

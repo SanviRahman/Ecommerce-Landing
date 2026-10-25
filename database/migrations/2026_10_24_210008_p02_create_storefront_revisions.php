@@ -9,7 +9,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        P02MigrationSafety::assertIsolatedTestDatabase();
+        P02MigrationSafety::assertApprovedP02Up();
 
         Schema::create('storefront_revisions', function (Blueprint $table) {
             $table->id();

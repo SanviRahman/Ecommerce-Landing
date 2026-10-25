@@ -186,7 +186,7 @@ final class HomepageBuilderController extends Controller
         $this->adminOnly($builder);
         $data = $request->validate(['expected_version' => ['required', 'integer', 'min:1']]);
         $builder->publish((int) $data['expected_version'], (int) auth()->id());
-        return $this->back('Revision published in P05 staging. The public / route remains the campaign homepage.');
+        return $this->back('Revision published in Homepage Builder. The public / route remains the existing campaign homepage.');
     }
 
     public function preview(Request $request, HomepageBuilder $builder): \Illuminate\Http\Response
@@ -238,8 +238,13 @@ final class HomepageBuilderController extends Controller
         abort_unless(auth()->check() && auth()->user()->isAdmin() && auth()->user()->is_active, 403);
         try {
             $builder->assertTestSchema();
-        } catch (RuntimeException) {
-            abort(404, 'P05 homepage builder is available only in the isolated local test database.');
+        } catch (RuntimeException $error) {
+            // Local opt-in can show the menu before the 11 P02 migrations exist.
+            // Do not convert missing schema into a misleading route-not-found.
+            if (str_starts_with($error->getMessage(), 'P05 requires the complete P02 homepage schema:')) {
+                abort(503, 'Homepage Builder requires the reviewed P02 migrations before use.');
+            }
+            abort(404, 'Homepage Builder access is not approved for this database.');
         }
     }
 

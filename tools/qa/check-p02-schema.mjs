@@ -17,7 +17,7 @@ assert.equal(files.length, 11, 'P02 must contain exactly 11 ordered migrations')
 const text = files.map((file, i) => {
   assert.ok(file.startsWith(expected[i]), 'P02 migration ordering mismatch: '+file);
   const code = fs.readFileSync(path.join(migrationDir, file), 'utf8');
-  assert.match(code, /public function up\(\): void\s*\{\s*P02MigrationSafety::assertIsolatedTestDatabase\(\);/, file+' missing up guard');
+  assert.match(code, /public function up\(\): void\s*\{\s*P02MigrationSafety::assertApprovedP02Up\(\);/, file+' missing explicit up guard');
   assert.match(code, /public function down\(\): void\s*\{\s*P02MigrationSafety::assertIsolatedTestDatabase\(\);/, file+' missing down guard');
   const up = code.split('public function up(): void')[1]?.split('public function down(): void')[0] ?? '';
   assert.doesNotMatch(up, /Schema::drop|DB::statement\s*\(\s*['"`]\s*(?:DROP|TRUNCATE|DELETE|UPDATE)/i, file+' contains potential destructive SQL');

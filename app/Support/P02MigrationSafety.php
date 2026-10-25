@@ -6,12 +6,27 @@ use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
 /**
- * Temporary rollout gate: P02 schemas are permitted in the disposable local
- * test database ONLY. A production migration requires a separate reviewed
- * release change and operator approval after P03/P09 validation.
+ * Permanent P02 restricted test database guard used by catalog, stock, cart,
+ * checkout, migration DOWN and rollback-only QA. P14 adds a SEPARATE, explicit
+ * local-debug-only forward migration path; it never loosens this method or
+ * permits a production/staging schema upgrade.
  */
 final class P02MigrationSafety
 {
+    /**
+     * P14 forward-only LOCAL schema upgrade. Never authorizes a rollback,
+     * an arbitrary database, or any other isolated-only catalog/stock service.
+     */
+    public static function assertApprovedP02Up(): void
+    {
+        if (LocalHomepageAccess::configuredForMigrations()) {
+            LocalHomepageAccess::assertActualMigrationDatabase();
+            return;
+        }
+
+        self::assertIsolatedTestDatabase();
+    }
+
     public static function assertIsolatedTestDatabase(): void
     {
         if (! app()->environment(['local', 'testing']) || config('database.default') !== 'mysql') {

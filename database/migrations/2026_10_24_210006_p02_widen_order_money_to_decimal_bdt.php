@@ -14,7 +14,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        P02MigrationSafety::assertIsolatedTestDatabase();
+        P02MigrationSafety::assertApprovedP02Up();
 
         Schema::table('orders', function (Blueprint $table) {
             foreach (['sub_total', 'shipping_charge', 'cod_charge', 'total_amount'] as $column) {
