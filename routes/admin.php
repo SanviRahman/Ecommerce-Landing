@@ -13,9 +13,12 @@ use App\Http\Controllers\Admin\CreatePageController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\ExternalWebsiteController;
 use App\Http\Controllers\Admin\FaqController;
+use App\Http\Controllers\Admin\HomepageBuilderController;
 use App\Http\Controllers\Admin\MediaManagementController;
 use App\Http\Controllers\Admin\OrderController;
 use App\Http\Controllers\Admin\ProductController;
+use App\Http\Controllers\Admin\ProductOptionController;
+use App\Http\Controllers\Admin\ProductVariantController;
 use App\Http\Controllers\Admin\ProfileController;
 use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\Admin\ReviewController;
@@ -35,6 +38,24 @@ Route::middleware(['auth', 'role:admin,employee'])->group(function () {
     */
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard.index');
+
+    /* P05 test-only homepage drafts. Admin authorization and MySQL isolation rechecked in controller/service. */
+    Route::middleware('role:admin')->prefix('storefront/home')->as('storefront.home.')->group(function () {
+        Route::get('/', [HomepageBuilderController::class, 'index'])->name('index');
+        Route::post('/draft', [HomepageBuilderController::class, 'start'])->name('draft');
+        Route::post('/restore/{revision}', [HomepageBuilderController::class, 'restore'])->whereNumber('revision')->name('restore');
+        Route::post('/sections', [HomepageBuilderController::class, 'addSection'])->name('sections.store');
+        Route::patch('/sections/reorder', [HomepageBuilderController::class, 'reorder'])->name('sections.reorder');
+        Route::patch('/sections/{sectionKey}', [HomepageBuilderController::class, 'saveSection'])->whereUuid('sectionKey')->name('sections.update');
+        Route::patch('/sections/{sectionKey}/move', [HomepageBuilderController::class, 'move'])->whereUuid('sectionKey')->name('sections.move');
+        Route::delete('/sections/{sectionKey}', [HomepageBuilderController::class, 'deleteSection'])->whereUuid('sectionKey')->name('sections.delete');
+        Route::post('/sections/{sectionKey}/items', [HomepageBuilderController::class, 'addItem'])->whereUuid('sectionKey')->name('items.store');
+        Route::delete('/sections/{sectionKey}/items/{itemKey}', [HomepageBuilderController::class, 'deleteItem'])
+            ->whereUuid('sectionKey')->whereUuid('itemKey')->name('items.delete');
+        Route::patch('/theme', [HomepageBuilderController::class, 'theme'])->name('theme');
+        Route::post('/publish', [HomepageBuilderController::class, 'publish'])->name('publish');
+        Route::get('/preview', [HomepageBuilderController::class, 'preview'])->name('preview');
+    });
 
     Route::get('/profile', [ProfileController::class, 'profile'])->name('profile');
     Route::post('/profile', [ProfileController::class, 'updateProfile'])->name('profile.update');
@@ -237,6 +258,17 @@ Route::middleware(['auth', 'role:admin,employee'])->group(function () {
         ->group(function () {
 
             Route::middleware(['role:admin'])->group(function () {
+                // P04 catalog administration (isolated P02 test DB only).
+                Route::get('/options/manage', [ProductOptionController::class, 'index'])->name('options.index');
+                Route::post('/options/bootstrap', [ProductOptionController::class, 'bootstrap'])->name('options.bootstrap');
+                Route::post('/options/{option}/values', [ProductOptionController::class, 'value'])->name('options.values.store');
+                Route::get('/{product}/variants', [ProductVariantController::class, 'index'])->name('variants.index');
+                Route::post('/{product}/variants/prepare', [ProductVariantController::class, 'prepare'])->name('variants.prepare');
+                Route::post('/{product}/variants/convert', [ProductVariantController::class, 'convert'])->name('variants.convert');
+                Route::post('/{product}/variants', [ProductVariantController::class, 'store'])->name('variants.store');
+                Route::patch('/{product}/variants/{variant}', [ProductVariantController::class, 'update'])->name('variants.update');
+                Route::post('/{product}/variants/{variant}/stock', [ProductVariantController::class, 'stock'])->name('variants.stock');
+
                 Route::get('/create', [ProductController::class, 'create'])->name('create');
                 Route::post('/', [ProductController::class, 'store'])->name('store');
 

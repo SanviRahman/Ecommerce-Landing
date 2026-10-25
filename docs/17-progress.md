@@ -156,3 +156,28 @@ Not approved. Requires mandatory acceptance matrix, no unresolved P0/P1 blockers
 - **Fix:** correct both test namespaces in-place (no moved/deleted files), explicitly enumerate exactly those two test files in P01 PHPUnit config, and use strict `tests/bootstrap-p03.php` isolation. Add a P01-specific rollback-only, restricted test-schema CLI launcher with 6-test JUnit count acceptance and a PSR-4/runner offline checker.
 - Authoring-environment offline QA: `node tools/qa/check-p01-psr4-suite.mjs` **14/14 PASS**; unauthorised runner **BLOCKED/exit 2**; targeted PHP lint **178/178 PASS**; unchanged P03 HTTP 23/23, quantity 22/22, lifecycle 21/21, writer 18/18, core 26/26, P01 static security 14/14, frontend 56/56 PASS.
 - **P01 runtime suite NOT RUN** in authoring environment (no local `p01_tester` DB and vendor). User must run `composer dump-autoload --no-scripts --no-plugins` and then `php tools/qa/p01-http-mysql-smoke.php` with its test-only environment approvals. No migration, production DB, feature-flag or public route modifications.
+
+### 2026-10-25 — P04 main implementation (uploaded `website(5).zip`)
+
+- Scope: existing Product/Category models and admin controllers; new option/variant models, variant catalog service, admin option/variant Blade pages and guarded admin routes.
+- Implemented: Color/Size/Weight/Piece Count option values; immutable signature by sorted option/value IDs; unique SKU; zero-stock variant creation; nullable price overrides; inventory initial prepare; safe variable conversion; audited delta stock edits and stale-form checks; product stock mirror; parent-category/sort-order CRUD with cycle prevention; blocked unmanaged direct stock overwrite and variant product premature activation/deletion.
+- Isolated development mode only. Product conversion sets status false; variable products cannot yet be ordered. Existing P03 inventory flags remain OFF. P05 homepage is NOT touched.
+- Independent safety checks: `tools/qa/check-p04-signature.php` and `tools/qa/check-p04-contract.mjs`; new 17-case rollback-only P04 PHPUnit/MySQL suite and dedicated launcher provided. **Actual MySQL/PHPUnit/browser tests NOT RUN in this code environment.**
+- Existing legacy product/campaign routes and Blade remain unchanged except safe admin product management UI links/guards; `.env`, migrations and original database not modified.
+- Next gates: user-run P04 MySQL suite, manual admin view checks; P03 full last-item concurrency test; P04 option lifecycle polish and controlled activation; P05 separate storefront homepage backend without replacing campaign home.
+
+## P05 — Homepage Builder + Blade staged code (2026-10-25)
+
+- User reported P04 real MySQL catalog PHPUnit **17 tests / 57 assertions PASS** (isolated rollback-only), not independently run inside this assistant container.
+- Added source files: `HomepageBuilder` service, `HomeSectionSchema`, `HomepageBuilderController`, separate AdminLTE editor, reusable storefront homepage Blade and authenticated preview wrapper/CSS, guarded PHPUnit/MySQL and pure-source QA.
+- Local offline QA: P05 **13/13** pure PHP schema checks, **33/33** static source checks; existing P01/P03/P04 regression QA reported PASS in this container. Changed PHP lint succeeded. Guard runner without authorization returns `BLOCKED`, exit 2.
+- **P05 real MariaDB 20 tests/HTTP/browser manual checks pending**; production and main DB unchanged. Original `frontend/pages/home.blade.php`, `/` and campaign routing preserved; no migration or database write performed.
+- Later phases P06/P07/P08 not marked complete: public store checkout, sortable JS, section item editing UI, publish cutover remain gated.
+
+### 2026-10-25 — P06 staged section drag-and-drop + complete design-token UI
+
+- Base: actual P05 source in user-provided website ZIP plus P04/P05 updated patches; local inspection of AGENTS.md, rules.md, bugfix.md and constraints.md. No `.git` history inside extracted snapshot. Existing `frontend/pages/home.blade.php`, root route and campaign checkout remain untouched.
+- Implemented: editable draft-section organizer with pointer/touch/keyboard movement; existing authenticated admin PATCH endpoint responds with optional JSON saved order/version; optimistic save, restore on 409/network, existing up/down fallback. Global/section design editor expanded to 18 allowlisted tokens with picker/hex/reset; preview CSS resolved per section including hover/focus. No new routes, migrations or dependencies.
+- Tested offline: P06 sort-core 18/18; static contracts 35/35; prior P05 13/13 schema + 33/33 source and earlier P01/P03/P04 source tests; PHP syntax 299/299. Chromium mock-API keyboard/mouse/rollback/stale 4 scenarios, mobile touch 390px, palette desktop/mobile isolation succeeded. Explicit-consentless MySQL runner intentionally BLOCKED.
+- Not tested: user's P05 20-case MySQL result was not provided, P06 12-case Laravel/MySQL HTTP suite not executed in this sandbox, live AdminLTE browser/CSRF details not verified. Per-item/product selections drag reorder and P07 public storefront remain pending.
+- No `.env`, customer rows, database writes/migrations, deployment, production flag changes or external calls performed.

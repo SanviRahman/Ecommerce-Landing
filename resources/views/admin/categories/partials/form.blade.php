@@ -36,6 +36,24 @@
                                placeholder="auto-generated">
                     </div>
 
+                    @if($hierarchyAvailable ?? false)
+                    <div class="form-row">
+                        <div class="form-group col-md-8">
+                            <label class="font-weight-bold small text-uppercase text-muted" for="category_parent">Parent Category</label>
+                            <select class="form-control" id="category_parent" name="parent_id">
+                                <option value="">Top-level category</option>
+                                @foreach($parents as $parent)
+                                <option value="{{ $parent->id }}" @selected(old('parent_id', $category->parent_id ?? '') == $parent->id)>{{ $parent->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="form-group col-md-4">
+                            <label class="font-weight-bold small text-uppercase text-muted" for="category_order">Sort Order</label>
+                            <input class="form-control" type="number" min="0" max="1000000" id="category_order" name="sort_order"
+                                value="{{ old('sort_order', $category->sort_order ?? 0) }}">
+                        </div>
+                    </div>
+                    @endif
                     <div class="row">
                         <div class="col-md-6 form-group">
                             <div class="custom-control custom-switch" style="padding-left: 3.5rem;">

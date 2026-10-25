@@ -23,6 +23,8 @@ class Product extends Model implements HasMedia
         'old_price',
         'new_price',
         'stock',
+        'has_variants',
+        'inventory_version',
         'sold_quantity',
         'weight_size',
         'short_description',
@@ -41,6 +43,8 @@ class Product extends Model implements HasMedia
         'old_price'        => 'integer',
         'new_price'        => 'integer',
         'stock'            => 'integer',
+        'has_variants'     => 'boolean',
+        'inventory_version'=> 'integer',
         'sold_quantity'    => 'integer',
         'is_top_sale'      => 'boolean',
         'is_feature'       => 'boolean',
@@ -74,6 +78,11 @@ class Product extends Model implements HasMedia
     public function brand()
     {
         return $this->belongsTo(Brand::class);
+    }
+
+    public function variants()
+    {
+        return $this->hasMany(ProductVariant::class)->orderBy('sort_order')->orderBy('id');
     }
 
     public function campaigns()

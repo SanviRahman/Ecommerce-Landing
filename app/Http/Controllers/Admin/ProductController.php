@@ -6,11 +6,14 @@ use App\Http\Controllers\Controller;
 use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Product;
+use App\Models\ProductVariant;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
@@ -156,6 +159,11 @@ class ProductController extends Controller
         $query = $this->applyFilters($query, $request);
 
         $products = $query->paginate(15)->withQueryString();
+        $variantAdminAvailable = app()->environment(['local', 'testing'])
+            && config('database.default') === 'mysql'
+            && config('database.connections.mysql.database') === 'p01_campaign_test'
+            && config('database.connections.mysql.username') === 'p01_tester'
+            && Schema::hasTable('product_variants');
 
         $breadcrumb = [
             ['text' => 'Dashboard', 'url' => route('admin.dashboard')],
@@ -175,6 +183,7 @@ class ProductController extends Controller
                 'html'   => view('admin.products.partials.table', [
                     'products' => $products,
                     'isTrash'  => $isTrash,
+                    'variantAdminAvailable' => $variantAdminAvailable,
                 ])->render(),
             ]);
         }
@@ -186,6 +195,7 @@ class ProductController extends Controller
             'title'      => $title,
             'breadcrumb' => $breadcrumb,
             'isTrash'    => $isTrash,
+            'variantAdminAvailable' => $variantAdminAvailable,
         ]);
     }
 
@@ -432,7 +442,22 @@ class ProductController extends Controller
         ]);
 
         return DB::transaction(function () use ($request, $product) {
-            $product->update([
+            // Managed stock is variant-backed. The generic Product Edit form must
+            // never overwrite a newer stock balance from a checkout or adjustment.
+            $locked = Product::query()->whereKey($product->id)->lockForUpdate()->firstOrFail();
+            $managed = (int) ($locked->inventory_version ?? 0) === 1;
+            if ((bool) ($locked->has_variants ?? false) && $request->boolean('status')) {
+                throw ValidationException::withMessages([
+                    'status' => 'Variable products cannot be activated before variant-aware checkout is released.',
+                ]);
+            }
+            if ($managed && $request->has('stock')
+                && (int) $request->input('stock') !== (int) $locked->stock) {
+                throw ValidationException::withMessages([
+                    'stock' => 'Managed stock is read-only here. Use Variants > Audited Stock Adjustment.',
+                ]);
+            }
+            $locked->update([
                 'category_id'       => $request->category_id,
                 'brand_id'          => $request->brand_id,
 
@@ -447,7 +472,7 @@ class ProductController extends Controller
                 'old_price'         => $request->old_price ?: 0,
                 'new_price'         => $request->new_price,
 
-                'stock'             => $request->stock ?: 0,
+                'stock'             => $managed ? $locked->stock : ($request->stock ?: 0),
                 'sold_quantity'     => $request->sold_quantity ?: 0,
                 'weight_size'       => $request->weight_size,
 
@@ -464,6 +489,7 @@ class ProductController extends Controller
                 'meta_description'  => $request->meta_description,
             ]);
 
+            $product->refresh();
             $this->uploadProductMedia($product, $request);
 
             if ($request->ajax()) {
@@ -520,6 +546,13 @@ class ProductController extends Controller
         $this->adminOnly();
 
         $product = Product::onlyTrashed()->findOrFail($id);
+        if (Schema::hasTable('product_variants')
+            && ProductVariant::withTrashed()->where('product_id', $product->id)->exists()) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Product has variant inventory/history. Permanent deletion is blocked.',
+            ], 422);
+        }
 
         $product->clearMediaCollection('product_thumbnail');
         $product->clearMediaCollection('product_gallery');
@@ -570,6 +603,10 @@ class ProductController extends Controller
             $products = Product::onlyTrashed()->whereIn('id', $ids)->get();
 
             foreach ($products as $product) {
+                if (Schema::hasTable('product_variants')
+                    && ProductVariant::withTrashed()->where('product_id', $product->id)->exists()) {
+                    continue; // Preserve variant FK, stock ledger and ordered-SKU history.
+                }
                 $product->clearMediaCollection('product_thumbnail');
                 $product->clearMediaCollection('product_gallery');
                 $product->forceDelete();
@@ -579,6 +616,14 @@ class ProductController extends Controller
                 'status'  => true,
                 'message' => 'Selected products permanently deleted.',
             ]);
+        }
+
+        if ($action === 'active' && Schema::hasColumn('products', 'has_variants')
+            && Product::whereIn('id', $ids)->where('has_variants', true)->exists()) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Variable products cannot be activated until variant-aware checkout is available.',
+            ], 422);
         }
 
         $updateData = match ($action) {

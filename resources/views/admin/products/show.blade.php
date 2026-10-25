@@ -23,6 +23,14 @@
             <i class="fas fa-arrow-left mr-1"></i> Back
         </a>
 
+        @if(auth()->user()->isAdmin() && app()->environment(['local', 'testing'])
+            && config('database.connections.mysql.database') === 'p01_campaign_test'
+            && config('database.connections.mysql.username') === 'p01_tester')
+        <a href="{{ route('admin.products.variants.index', $product->id) }}" class="btn btn-outline-success btn-sm">
+            <i class="fas fa-layer-group mr-1"></i> Variants &amp; Stock
+        </a>
+        @endif
+
         @if(auth()->user()->isAdmin())
         <button type="button" class="btn btn-primary btn-sm btnEditFromShow"
             data-url="{{ route('admin.products.edit', $product->id) }}">

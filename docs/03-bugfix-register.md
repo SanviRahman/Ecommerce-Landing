@@ -41,3 +41,10 @@ For each item append: reproduction, changed paths, regression test names, actual
 ## Meeting-reported gaps are not automatically confirmed bugs in this ZIP
 
 The user-provided 32-page AI meeting report describes a different demonstrated site (proyojonerbazar.com) and requested nested submenu, responsive 4/2 grids, CTA ratio, 2-part product detail, sticky mobile UI and theme pickers. These are **M-reported client change requests**, not reproducible bugs proven on the uploaded campaign source. Track them as F-001..F-011 in docs/20, with acceptance cases in docs/25; only add B-IDs and a confirmed root cause after reproducing on the real target revision. Do not claim the referenced site's observed past 500 error came from this Laravel ZIP.
+
+### P04 source hardening — 2026-10-25
+
+- Verified risk: `ProductController::update` previously overwrote `products.stock` from generic edit form regardless of `inventory_version`; with P03 managed allocations that can desynchronize stock mirror/ledger. **Patch:** row lock + reject changed managed stock + read-only UI field; normal legacy product edits preserved. Runtime regression still pending.
+- Verified risk: generic `forceDelete` would violate FK/history after P02 `product_variants` records exist. **Patch:** reject permanent deletion of products with variants and skip these in bulk force delete.
+- Identified limitation: category hierarchy schema existed but old Category CRUD lacked parent/sort/cycle protection. **Patch:** optional parent/sort fields with test-only validation and cycle guard. Runtime category regression pending.
+- A stage-guard prevents accidental sale of variable SKUs via old checkout: converting simple to variable sets `status=false`; ordinary admin/bulk reactivation is rejected until variant-aware order processing exists.

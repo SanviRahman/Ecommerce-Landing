@@ -77,3 +77,26 @@ The additional reported decisions MD01-MD12 and pending gates G01-G18 live in [d
 - Only simple default variants are permitted in this initial core; options/pack conversions remain P04 work. Existing manually discounted/negotiated order totals require a separately defined trusted pricing adapter.
 - Cancelled unshipped orders can be credited via an explicit operation; shipped or courier-dispatched orders cannot be auto-restocked. Legacy orders are never credited.
 - Source tests are not runtime tests. No migration, order creation, stock update or production cutover occurred.
+
+## 2026-10-25 — P04-S1 staged variant administration (not release approved)
+
+- **Scope:** On the existing AdminLTE stack add 4 fixed dimensions (`color`, `size`, `weight`, `piece_count`), option values, manually selected SKU combinations, explicit nullable BDT price overrides and per-SKU stock ledger movements. No new public route or storefront cart behavior is enabled.
+- **Data authority:** One `product_variants.stock` balance per sellable SKU, `inventory_movements` for opening and adjustments, `products.stock` as a compatibility sum of nondeleted variants. New combinations have *zero* opening stock. Duplicate signatures/SKUs (including archived SKUs) are rejected.
+- **Conversion policy:** Existing default SKU must have zero stock and no linked managed order items before converting to optioned product. The default row/history remains; variable product becomes inactive until public variant checkout is released. Pack weights and piece-count quantities remain independent sellable SKU balances; do not assume conversion.
+- **Permissions/rollout:** Admin-only route/form CSRF; P04 mutations require `P02MigrationSafety::assertIsolatedTestDatabase()` with restricted test MySQL user. Existing campaign/storefront views, `ecommerce_landing_db`, `.env`, P03 flags and courier flows are unchanged. Controlled rollout requires separate release approval.
+- **Evidence:** Source checks and pure PHP signature tests passed locally in an offline workspace; new P04 17-case Laravel/MySQL suite is provided but not yet executed on user's XAMPP. No production deployment or migration.
+
+## P05-ADR-01 (2026-10-25) — Stage versioned homepage privately
+
+Decision: introduce `HomepageBuilder` and the reusable `storefront/pages/home.blade.php` using existing P02 tables. Keep all mutations behind verified `p01_campaign_test` identity and authenticated active-admin routes. Retain original campaign `/` route and frontend Blade. Drafts are isolated; published revision content is never mutated; restoring clones to a new draft. Every edit requires expected `lock_version`; HTTP 409 on stale input. Five component types are hardcoded, colors use `#RRGGBB`, CTA URLs HTTPS or safe root-relative, media limited to public approved collections and checked for file existence. Publish enforces active referenced resources and contrast. Future P06 drag handles will invoke the existing exact-permutation reorder endpoint. P07 public storefront integration requires independent approval and regression tests.
+
+Open: browser-level preview/CSRF QA, image file reference tests, real MariaDB 20-case suite, P06 JS accessible drag, P07 final public mode switch/checkout path; no production rollout authorization.
+
+### ADR P06-01 — Native pointer/keyboard drag UI, existing versioned reorder endpoint (2026-10-25)
+
+- Decision: use dependency-free Pointer Events on a compact, admin-only section list and the existing `PATCH /admin/storefront/home/sections/reorder` backend, adding JSON acknowledgement only when `expectsJson()` is true. Plain HTML `Up`/`Down` forms continue working.
+- Rationale: preserve the P05 DB draft-only permutation/version/audit transaction, avoid adding unreviewed NPM dependencies, retain touch/keyboard movement and avoid breaking campaign pages.
+- Rejection: no client-only saved order, no writing to public revisions, no global style CSS injection, no last-write-wins updates.
+- Client: failed 409/419/network saves restore the locally displayed list, show an aria-live error, and do not update the editor version or re-render form inputs; success updates optimistic form versions and moves existing DOM card nodes.
+- Design tokens: 18 existing allowlisted `HomeSectionSchema::STYLE_KEYS` map to constant section-scoped preview CSS variables. Blank section override inherits the saved global token. No migration or raw CSS injection.
+- Stage gate: P05 MySQL suite user output not yet supplied; P06 12-case real MySQL HTTP suite and full Laravel browser validation still PENDING. No production DB mode approval. Per-item/manual-product reorder remains open for subsequent P06 iteration.

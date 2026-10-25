@@ -134,10 +134,13 @@
 
         <div class="col-md-4">
             <div class="form-group">
-                <label>Stock</label>
+                <label>Stock {{ $isEdit && (int) ($product->inventory_version ?? 0) === 1 ? '(managed)' : '' }}</label>
 
                 <input type="number" name="stock" value="{{ old('stock', $product->stock ?? 0) }}" class="form-control"
-                    min="0" placeholder="0">
+                    min="0" placeholder="0" @if($isEdit && (int) ($product->inventory_version ?? 0) === 1) readonly aria-readonly="true" @endif>
+                @if($isEdit && (int) ($product->inventory_version ?? 0) === 1)
+                    <small class="text-muted d-block">Adjust stock through the audited Variants page.</small>
+                @endif
             </div>
         </div>
 

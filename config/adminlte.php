@@ -534,6 +534,17 @@ return [
 |--------------------------------------------------------------------------
 */
         [
+            'header' => 'STOREFRONT (P05 TEST)',
+            'can'    => 'admin-only',
+        ],
+        [
+            'text'   => 'Homepage Builder',
+            'url'    => 'admin/storefront/home',
+            'icon'   => 'fas fa-fw fa-layer-group',
+            'can'    => 'admin-only',
+            'active' => ['admin/storefront/home*'],
+        ],
+        [
             'header' => 'LANDING PAGE',
             'can'    => 'admin-only',
         ],
