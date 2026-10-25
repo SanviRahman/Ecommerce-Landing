@@ -102,3 +102,10 @@ Pin dependency versions and build assets for the same tested commit. Ensure serv
 ## Meeting-SRS release blockers
 
 Before enabling the new storefront mode, obtain approval for meeting/client conflicts G01 (actual ZIP vs described proyojonerbazar.com deployment), G02/G03 (weight/pack per-variant price + stock units), G04 (final global green HEX/brand) as needed for brand signoff, G10 (campaign-specific pricing/shipping), and G18 (cancel/returns stock transitions). Add before/after browser evidence for meeting tests MT01-MT45, explicit 4/2 grid, 25/75 CTA, sticky mobile bar and checkout. PDF is an AI-produced prior report and lacks independently verified recording; request actual owner approvals instead of treating PDF wording as a signed SRS.
+
+
+## P11 supplementary read-only readiness (2026-10-25)
+
+An optional user-requested P11 release handoff now includes `tools/qa/p11-readiness-review.php`, guarded to the separate `p01_campaign_test` / `p01_tester` database and requiring `P11_READ_ONLY_APPROVED=YES_ISOLATED_ONLY`. It only counts managed/legacy products, stock mirror mismatches, simple/variable SKU completeness, global shipping and pinned published homepage revisions. It **never** applies migrations, performs backfills, authorizes a deployment or reads secrets from `.env`. A blocked/empty schema must stay blocked until independently reviewed.
+
+The offline code fingerprint lives in `reports/p11-source-manifest.json`; use `node tools/qa/p11-source-manifest.mjs --verify` and review source differences before updating it. This is code integrity evidence, not a DB backup. Use `docs/P11-release-signoff-template.md` for owner/operator sign-off. This supplements rather than replaces the P09/P10 deployment sequence. The temporary P02/P03/P07/P08 test-only gates are intentionally *not* bypassed to simulate production.

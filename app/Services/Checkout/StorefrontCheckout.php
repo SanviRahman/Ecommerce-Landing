@@ -53,19 +53,30 @@ final class StorefrontCheckout
         if ($this->blocked->findActiveBlock($phone, $request->ip())) {
             throw ValidationException::withMessages(['phone' => 'Checkout is unavailable for this contact.']);
         }
-        // The claim hash has no client prices. It remains stable on successful retries,
-        // even though completion clears the cart and increments its version.
-        $cartIdentity = DB::table('carts')->where('owner_hash', $ownerHash)->value('id');
-        $requestHash = hash('sha256', json_encode([
-            'channel' => 'storefront', 'cart_id' => $cartIdentity, 'version' => $expected,
-            'shipping_area_id' => $shippingId, 'name' => $name, 'phone' => $phone,
-            'address' => $address, 'note' => $note,
-        ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE));
-
         return DB::transaction(function () use (
-            $request, $ownerHash, $expected, $shippingId, $key, $requestHash,
+            $request, $ownerHash, $expected, $shippingId, $key,
             $name, $phone, $address, $note
         ): string {
+            // Serialize ALL checkout attempts for this owned cart before claiming an
+            // idempotency key. Otherwise two transactions can each observe a missing
+            // claim and race to insert the same unique (owner_hash, key), producing
+            // an avoidable SQL duplicate/deadlock instead of a stable replay.
+            // Do NOT validate version yet: successful checkout increments the cart
+            // version, and a replay must still return the original order token.
+            $cartIdentity = DB::table('carts')
+                ->where('owner_hash', $ownerHash)->lockForUpdate()->first(['id']);
+            if ($cartIdentity === null) {
+                throw ValidationException::withMessages([
+                    'cart' => 'Your cart no longer exists. Refresh and start a new checkout.',
+                ]);
+            }
+            // Hash the authoritative, locked cart identity, not a pre-transaction
+            // snapshot. It remains identical after order completion clears lines.
+            $requestHash = hash('sha256', json_encode([
+                'channel' => 'storefront', 'cart_id' => (string) $cartIdentity->id,
+                'version' => $expected, 'shipping_area_id' => $shippingId,
+                'name' => $name, 'phone' => $phone, 'address' => $address, 'note' => $note,
+            ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE));
             $claim = $this->idempotency->claim($ownerHash, $key, $requestHash, 'storefront');
             if ($claim['state'] === 'replayed') {
                 $completed = Order::query()->whereKey($claim['order_id'])->where('inventory_version', 1)->first();

@@ -205,3 +205,42 @@ Not approved. Requires mandatory acceptance matrix, no unresolved P0/P1 blockers
 - Added `StorefrontCheckout` to orchestrate customer/block/shipping/idempotency/order/stock/cart-clear in one transaction; variant-aware method in the **existing** P03 `InventoryAllocator` with original ledger operation-key format and exact BDT arithmetic. Checkout replay is bound to cart ID, owner, version and normalized request fields. P08 feature flags default OFF; P03 core remains OFF outside isolated PHPUnit overrides.
 - New rollback-only, prebootstrap restricted test launcher + 17-case Laravel/MySQL suite, and 41-check static source contract. Authoring environment **P08 41/41 static PASS**, **P07 34/34 source PASS**, **P07 JS 10/10 PASS**, PHP source lint PASS, and unauthorized test launcher intentionally exit 2/BLOCKED. **P08 17 MySQL cases NOT RUN** in authoring container because user's MariaDB/PHPUnit vendor are unavailable here. User must report actual runtime result.
 - Remaining release gates: browser-level CSRF, end-to-end local order UI, true concurrent committed last-item checkout, verified cancellation/courier paths for variable orders, controlled backfill and production cutover. This is NOT a production activation or claim of error-free application.
+
+### 2026-10-25 — P09 checkout concurrency / CSRF stabilization (staged)
+
+- User-reported latest P08 local MariaDB result: **17 tests / 72 assertions PASS** (rollback-only). Source defect discovered after that result: first-use idempotency claim was taken before locking the owned cart.
+- Changed P08 checkout to lock the cart before idempotency claim and compute the canonical hash inside the DB transaction; added two P08 rollback-only cases. Future local P08 suite count: **19**, not yet run by user.
+- Built P09 two-independent-Laravel-process final-item race test. This requires a **separate explicit synthetic-committed-write approval** and DB backup; after contention it verifies exactly one order and one allocation, performs precise FK-aware fixture cleanup, and stops on leftover records. Real local result **PENDING**.
+- Added real localhost PowerShell HTTP CSRF gate with invalid product ID `0` (no order/cart writes). Actual localhost run **PENDING**.
+- Authoring environment: `node tools/qa/check-p09-race-contract.mjs` **18/18 PASS**, PHP changed-file lint PASS; prior P01–P08 source QA regression unaffected. No MySQL connection, migration, production change, activation or web deployment performed here.
+
+### 2026-10-25 — P09 unsigned PowerShell CSRF test fix (source staged)
+
+- User-reported P09 18/18 offline, P08 41/41 static, P07 34/34 static, and **P08 19 tests/83 assertions REAL MySQL PASS**. The P09 PowerShell HTTP CSRF script did not execute due to Windows unsigned-script policy (`PSSecurityException`).
+- Implemented a Node.js (no extra npm dependencies) localhost 127.0.0.1:8089 real-HTTP CSRF runner, pure cookie/status helpers, and read-only P02 identity/empty-commerce pre/post checks. No Windows execution-policy change required. Existing PS1 remains unmodified.
+- Offline QA: P09 Node-CSRF 20/20 unit/source checks PASS; PHP new guard lint PASS; no-approval runner intentionally exits 2/BLOCKED. Real user's P09 HTTP (3/3) and committed race (4/4) NOT YET VERIFIED.
+- No changes to existing controllers, checkout routes, migrations, main database, `.env`, feature flags or campaign workflow. See `P09-CSRF-WINDOWS-FIX-BN.md`.
+
+### 2026-10-25 — P09 user-run gates; P10 integration patch (staging **not deployed**)
+
+- **User-provided Windows/XAMPP results:** P08 expanded MySQL suite 19 tests / 83 assertions PASS; P09 real HTTP CSRF 3/3 PASS; P09 committed two-worker last-stock checkout 4/4 PASS, exit 0. We did **not** run these on the user's machine and did not independently verify post-test state.
+- **P10 code patch on `website(7).zip` plus the P09 Node CSRF fix:** truthful cart/checkout footer, gated published-home Cart links, accessible product validation error display, remembered variation on validation redirect, safe active `SiteSetting` contact widget, fixed mobile same-form COD action.
+- **Actual local source/unit checks:** P10 contact 16/16 PASS; P10 integration source 23/23 PASS; full source PHP syntax 300/300 PASS; P01-P09 available offline security/contract checks PASS. No migrations or data writes.
+- **NOT RUN / BLOCKED:** P10 7-case isolated real MySQL suite, browser-level staging screenshots (local Chromium timed out), actual staging inventory reconciliation, backup restore, owner approval or production rollout.
+- **P10 disposition:** UI integration implementation **STAGED**. Full repository-defined P10 staging/deployment gate **NOT COMPLETE**. See `P10-INTEGRATION-AND-TESTING-BN.md`.
+
+
+### 2026-10-25 — P10 error-display regression repair + P11 release toolkit (latest `website(8).zip`)
+
+- **User-provided actual results:** P10 static contact 16/16, P10 source 23/23, P09 static 18/18 PASS. P10 isolated MySQL suite **6/7 tests PASS**, 7 tests/28 assertions with one failed artificial session error assertion (`test_product_error_is_visible_without_mutating_inventory`). Earlier P09 3/3 real HTTP CSRF, 4/4 committed two-worker checkout PASS, P08 19 tests/83 assertions PASS.
+- **P10 fix:** test now activates real isolated cart and triggers the real invalid POST/302/session error path, checks alert and submitted quantity, without any cart/order/stock write. Product form quantity restores `old('quantity', 1)`.
+- **P11 additions:** aggregate-only MySQL readiness policy and CLI, 12-case offline policy tests, fail-closed release source checker, 510+ file allowlisted hash manifest, and unsigned operator sign-off template. Existing routes/controllers/P03 stock flags remain unchanged.
+- **Local authoring:** PHP syntax, P11 offline policy and source checks PASS; real P10 MariaDB rerun and P11 readiness require Windows isolated DB; no vendor/MySQL in this authoring container, no operational staging/production deployment.
+- **Release status:** **P11 TOOLING IMPLEMENTED; STAGING AND PRODUCTION NO-GO UNTIL EXTERNAL GATES COMPLETE**. `P11-START-HERE-BN.md` and `docs/P11-release-signoff-template.md` have commands and blockers.
+
+
+### 2026-10-25 — P10 validation flash visibility follow-up (after P11 offline 13/13)
+
+- User-reported verified results: **P11 13/13 offline PASS**, **P10 7 tests/34 assertions, 1 FAIL**; error visible only in POST response bag, not on redirected product HTML, while quantity old input survived.
+- Scoped HTML/UI repair: session error bag fallback plus server-rendered product origin marker and a one-time, same-product generic failure notice, without any new mutating path or feature activation. Real invalid cart POST remains required in the test; unchanged order/cart/product/variant stock is checked.
+- P11 source/static checker now covers the feedback path; manifest regenerated for reviewed code. Local lint/offline QA results are logged in the delivery message; **real MariaDB P10 7/7 requires a new user run**. P11 staging and production remain NO-GO pending approval, backup/restore and full browser QA.

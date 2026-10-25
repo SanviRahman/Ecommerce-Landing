@@ -62,3 +62,48 @@ The user-provided 32-page AI meeting report describes a different demonstrated s
 
 - P07 `guest_carts` mismatch is retained as corrected in this source baseline; P08 exclusively uses the real `carts`/`cart_items` schema.
 - New feature risks explicitly covered by P08 code: foreign-cart line mutation, optimistic stale updates, client price/variant manipulation, missing shipping, duplicate checkout and double allocation. A **17-case real MySQL regression suite** has been authored, not executed here; do not mark these production issues fully closed before real runtime evidence.
+
+### B17 / P1 — P08 idempotency claim raced ahead of cart lock (2026-10-25)
+
+- **Verified from current P08 source:** `StorefrontCheckout::place()` read a cart ID without locking outside its transaction and called `CheckoutIdempotencyService::claim()` before `assertOwnedCart()`. Two overlapping requests on the same key/owner could both try to create a new unique claim, producing an avoidable SQL duplicate-key/deadlock rather than the expected single committed order and stable replay.
+- **Scoped patch:** lock the owned `carts` row first, calculate request hash from that locked cart ID inside the transaction, then claim. Preserve stable retry after completed checkout and existing BDT/cart/inventory/campaign behavior.
+- **Added regression:** 2 new P08 rollback-only cases for missing/replaced owned cart and P09 real two-worker last-stock service-level smoke, with explicit separate committed-fixture approval and targeted cleanup. P09 source checks are not a substitute for MySQL results.
+- **Status:** source fix prepared; real local tests PENDING. Existing P08 17/17 result is **before** this patch; do not reuse it as 19/19 evidence.
+
+### B18 — P09 real browser CSRF probe blocked by unsigned PowerShell script (2026-10-25)
+
+- **Reproduced from user terminal:** `p09-browser-csrf-smoke.ps1` returned `PSSecurityException / UnauthorizedAccess` due to the `.ps1` not being digitally signed. P08 suite separately passed 19 tests/83 assertions; these are unrelated concerns.
+- **Source-verified root cause:** the P09 probe is implemented only as an unsigned PowerShell script; its code cannot execute under the user's current execution policy. Do not disable CSRF or lower machine-wide execution policy to mask this.
+- **Scoped fix:** add a Node.js real-HTTP CSRF runner (no PowerShell `.ps1`), pure cookie/status helpers, an isolated read-only P02 schema+empty-cart guard, and an offline unit/source checker. Keep existing P09 `.ps1` as optional; no production code, routes, migrations or database changes.
+- **Evidence:** offline Node cookie/safety suite 20/20 PASS, PHP new guard syntax PASS, unsigned PowerShell not invoked; actual user's localhost 3/3 HTTP test and committed concurrency test PENDING.
+
+### 2026-10-25 — P10 storefront UI source bugs (staged patch)
+
+- **P10-UI01:** Catalog footer asserted checkout was unavailable regardless of enabled P08 flags. Fixed via explicit browse/cart/COD branches. Source regression P10 check included; MySQL HTTP suite pending.
+- **P10-UI02:** Published homepage omitted gated cart navigation. Added links for desktop/mobile, private preview intentionally untouched.
+- **P10-UI03:** Product add-to-cart validation failures were invisible. Display scoped `$errors` with an accessible alert and restore remembered variant value on a failed request; no server-side price/stock bypass.
+- **P10-UI04:** Storefront lacked configured customer contact actions. Added safe `SiteSetting`-driven WhatsApp/Messenger/Email/Call only, with an explicit URL allowlist; no fake controls.
+- **P10-UI05:** Mobile product checkout lacked persistent Order Now. Added a second visual submit control owning the **existing P08 form** (not a new order path); no checkout enabled by default.
+- Evidence: `P10-INTEGRATION-AND-TESTING-BN.md`; source/unit tests PASS; runtime and full staging acceptance not yet verified.
+
+
+### B19 / P10 integration — invalid synthetic error-bag test did not exercise Add-to-Cart (2026-10-25)
+
+- **User reproduction:** `php tools/qa/p10-mysql-ui-smoke.php` ran 7 rollback-only Laravel tests; 1 failed (`test_product_error_is_visible_without_mutating_inventory`, 7 tests / 28 assertions) while source checks P10 23/23, P09 18/18, P10 contact 16/16 passed. Product response included `Browsing preview` rather than the synthetic cart error.
+- **Confirmed source mismatch:** `setUp()` left `p08_cart_test_enabled=false`, and the test injected `ViewErrorBag` directly with `withSession()` before issuing a GET. It did not open the real cart form, perform invalid Add-to-Cart POST, or assert an actual validation redirect. The product Blade *already* contains `$errors->any()`/`role="alert"`; the failed test does not, by itself, prove the production Blade is broken.
+- **Scoped test repair:** enable isolated P08 cart for this one test, render real product form, POST invalid `product_variant_id=0`, assert redirect + session errors, and verify the returned page shows the validation message, alert, and original quantity. `old('quantity', 1)` restores the entered quantity after a rejection.
+- **Authoring proof:** corrected test PHP syntax + P10/P11 offline source QA passed; **real corrected 7-case MySQL run is still pending user's Windows result.** No inventory mutation/migration or production activation.
+
+### P11 release review — no automatic production sign-off (2026-10-25)
+
+- Source controls: restricted read-only P02 MySQL gate, migration/schema inventory, active managed stock mirror, default/variable SKU completeness, published pointer, global COD delivery, pure policy tests and SHA-256 fingerprint of allowlisted source files only.
+- These checks are deliberately fail-closed. Empty isolated test data yields `BLOCKED_DATA_READINESS`, NOT an approval. Source test success never implies staging deployed or production safe; manual operational evidence in `docs/P11-release-signoff-template.md` remains unsigned.
+- No production migrations, database writes, seeding, key rotation, media movement, checkout flags, external calls or deploy performed by this patch.
+
+
+### P10-VF-02 — Product validation feedback missing after rejected Add-to-Cart POST (2026-10-25)
+
+- **Evidence:** User's actual P10 MySQL output: 7 tests / 34 assertions / 1 failure; HTTP 302 and `assertSessionHasErrors(product_variant_id)` passed, `old('quantity')=2` restored on GET, but no visible alert.
+- **Confirmed scope:** Rendered feedback on the next GET, not validation execution or stock/order mutation. Exact root cause of the missing shared view error bag is not yet independently reproduced with Laravel vendor in authoring environment.
+- **Repair:** Product page reads both the shared Laravel errors and flashed request-session `ViewErrorBag` and has a product-slug-scoped generic failure notice when both are empty. Hidden origin field only influences presentation, never checkout authorization. The feature test now simulates a full browser Add-to-Cart POST and verifies visible feedback plus unchanged cart/order/product/variant stock.
+- **Regression gates:** P10 real MySQL rerun pending user. P10/P11 static source contracts and P11 source-fingerprint regenerate/verify performed offline. Never claim production ready on a static-only result.

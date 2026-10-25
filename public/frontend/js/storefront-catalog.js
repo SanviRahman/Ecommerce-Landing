@@ -52,6 +52,17 @@
     if (sku) sku.textContent = 'SKU: ' + variant.sku;
     if (cartVariant && Number(variant.stock) > 0) cartVariant.value = String(variant.id);
   };
+  // Preserve the previously selected SKU after Laravel redirects back with
+  // validation errors. Option picker remains the source of displayed price.
+  if (cartVariant?.value) {
+    const remembered = data.variants.find((row) => String(row.id) === cartVariant.value);
+    if (remembered) {
+      selectors.forEach((field) => {
+        field.value = String(remembered.selected?.[field.dataset.optionId] ?? '');
+      });
+    }
+  }
+  update();
   selectors.forEach((field) => field.addEventListener('change', update));
   cartVariant?.addEventListener('change', () => {
     const chosen = data.variants.find((row) => String(row.id) === cartVariant.value);

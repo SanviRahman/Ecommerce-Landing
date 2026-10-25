@@ -7,6 +7,9 @@
     <meta name="robots" content="noindex,nofollow">
     <title>{{ config('app.name', 'Storefront') }} — Homepage</title>
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-preview.css') }}">
+    @unless($isPreview ?? false)
+        <link rel="stylesheet" href="{{ asset('frontend/css/storefront-contact.css') }}">
+    @endunless
 </head>
 <body>
 @php
@@ -38,6 +41,9 @@
             <a href="{{ route('storefront.home') }}" aria-current="page">Home</a>
             <a href="{{ route('storefront.shop') }}">Shop</a>
             <a href="{{ route('storefront.shop') }}#categories">Categories</a>
+            @if(config('storefront.p08_cart_test_enabled', false))
+                <a href="{{ route('storefront.cart') }}">Cart</a>
+            @endif
         </nav>
     @endif
     @if($isPreview ?? false)<span class="sf-preview-tag">Design preview · Not accepting orders</span>@endif
@@ -168,10 +174,14 @@
     {{ config('app.name', 'Storefront') }} @if($isPreview ?? false)<span>·</span> Storefront staging preview — existing campaign pages are unaffected @endif
 </div></footer>
 @if(!($isPreview ?? false))
+@include('storefront.partials.contact-widget')
 <nav class="sf-mobile-nav" aria-label="Mobile shop navigation">
     <a href="{{ route('storefront.home') }}" aria-current="page">Home</a>
     <a href="{{ route('storefront.shop') }}">Shop</a>
     <a href="{{ route('storefront.shop') }}#categories">Categories</a>
+    @if(config('storefront.p08_cart_test_enabled', false))
+        <a href="{{ route('storefront.cart') }}">Cart</a>
+    @endif
 </nav>
 @endif
 </body></html>

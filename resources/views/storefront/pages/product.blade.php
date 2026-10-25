@@ -1,6 +1,28 @@
 @extends('storefront.layouts.catalog')
 @section('title', $product->name)
 @section('content')
+    @php
+        // The web middleware normally supplies $errors. Read the flashed bag as
+        // a fallback so a redirected storefront form never loses its feedback.
+        $flashedProductErrors = request()->hasSession() ? request()->session()->get('errors') : null;
+        $hasFlashedProductErrors = $flashedProductErrors instanceof \Illuminate\Support\ViewErrorBag
+            && $flashedProductErrors->any();
+        // A marker from this exact product form is flashed ONLY on validation
+        // failure. Do not show a warning from unrelated cart/checkout forms.
+        $rejectedProductForm = old('storefront_product_origin') === $product->slug;
+    @endphp
+    @if($errors->any() || $hasFlashedProductErrors || $rejectedProductForm)
+        <div class="p08-error p10-product-error" role="alert" aria-live="assertive">
+            <strong>We could not update your cart.</strong>
+            @if($errors->any())
+                <ul>@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
+            @elseif($hasFlashedProductErrors)
+                <ul>@foreach($flashedProductErrors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
+            @else
+                <p>We could not add this item. Review the selected variation, quantity and current cart, then try again.</p>
+            @endif
+        </div>
+    @endif
     <div class="p07-breadcrumb" aria-label="Breadcrumb">
         <a href="{{ route('storefront.home') }}">Home</a><span aria-hidden="true">/</span>
         <a href="{{ route('storefront.shop') }}">Shop</a><span aria-hidden="true">/</span>
@@ -50,15 +72,16 @@
                 @php
                     $simpleDefault = $product->has_variants ? null : $product->variants()->where('is_default', true)->where('is_active', true)->first();
                 @endphp
-                <form class="p08-product-order" method="POST" action="{{ route('storefront.cart.add') }}">
+                <form id="p08-product-order-form" class="p08-product-order" method="POST" action="{{ route('storefront.cart.add') }}">
                     @csrf
+                    <input type="hidden" name="storefront_product_origin" value="{{ $product->slug }}">
                     <input type="hidden" name="cart_version" value="{{ $cartVersion }}">
                     @if($product->has_variants)
                         <label for="p08-variant-id">Selected variation</label>
-                        <select name="product_variant_id" id="p08-variant-id" required>
+                        <select name="product_variant_id" id="p08-variant-id" aria-describedby="p07-variant-status" required>
                             <option value="">Choose the exact SKU</option>
                             @foreach($catalog->eligibleVariants($product) as $variant)
-                                <option value="{{ $variant->id }}" @disabled($variant->stock < 1)>
+                                <option value="{{ $variant->id }}" @disabled($variant->stock < 1) @selected((string) old('product_variant_id') === (string) $variant->id)>
                                     {{ $variant->optionValues->map(fn($v) => $v->label)->implode(' / ') }} ({{ $variant->sku }}) — {{ $variant->stock }} available
                                 </option>
                             @endforeach
@@ -67,7 +90,7 @@
                         <input type="hidden" name="product_variant_id" value="{{ $simpleDefault?->id }}">
                     @endif
                     <label for="p08-product-quantity">Quantity</label>
-                    <input type="number" name="quantity" id="p08-product-quantity" min="1" max="1000" value="1" required>
+                    <input type="number" name="quantity" id="p08-product-quantity" min="1" max="1000" value="{{ old('quantity', 1) }}" required>
                     <div class="p08-product-actions">
                         <button type="submit" name="intent" value="cart" class="p08-action-cart" @disabled(!$product->has_variants && (!$simpleDefault || $simpleDefault->stock < 1))>Add to Cart</button>
                         @if(config('storefront.p08_checkout_test_enabled', false) && config('storefront.p03_core_test_enabled', false))
@@ -78,6 +101,14 @@
                     </div>
                     <p class="p08-help">Cash on delivery. Prices and availability are checked again before confirmation.</p>
                 </form>
+                @if(config('storefront.p08_checkout_test_enabled', false) && config('storefront.p03_core_test_enabled', false))
+                    <div class="p10-mobile-buy" aria-label="Quick order action">
+                        <button form="p08-product-order-form" type="submit" name="intent" value="checkout"
+                            @disabled(!$product->has_variants && (!$simpleDefault || $simpleDefault->stock < 1))>
+                            Order Now · Cash on Delivery
+                        </button>
+                    </div>
+                @endif
             @else
                 <div class="p07-checkout-notice" role="note">
                     <strong>Browsing preview</strong>

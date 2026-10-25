@@ -273,6 +273,49 @@ final class P08GuestCartCheckoutMySqlTest extends TestCase
         self::assertSame(7, (int) DB::table('product_variants')->where('id', $f['variant'])->value('stock'));
     }
 
+    public function test_missing_cart_cannot_reserve_checkout_key(): void
+    {
+        $f = $this->fixture();
+        $payload = $this->payload(['version' => 1], $f['shipping']);
+        try {
+            $this->place($payload);
+            self::fail('Checkout without a persisted owner cart must be refused.');
+        } catch (ValidationException $exception) {
+            self::assertArrayHasKey('cart', $exception->errors());
+        }
+        self::assertSame(0, DB::table('checkout_requests')->count());
+        self::assertSame(0, DB::table('orders')->count());
+    }
+
+    public function test_reusing_key_after_cart_identity_changes_is_refused(): void
+    {
+        $f = $this->fixture();
+        $cart = $this->add($f['variant']);
+        $payload = $this->payload($cart, $f['shipping']);
+        $first = $this->place($payload);
+        $previousCartId = DB::table('carts')->where('owner_hash', $this->owner)->value('id');
+        self::assertNotNull($previousCartId);
+        // Simulate an expired/removed cart being replaced with the same browser
+        // owner; the old idempotency key must not refer to a different cart.
+        DB::table('carts')->where('id', $previousCartId)->delete();
+        DB::table('carts')->insert([
+            'id' => (string) Str::uuid(), 'owner_hash' => $this->owner,
+            'currency' => 'BDT', 'lock_version' => 2,
+            'expires_at' => now()->addDays(30),
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
+        try {
+            $this->place($payload);
+            self::fail('Reused key must not bind to a replacement cart.');
+        } catch (\DomainException $exception) {
+            self::assertStringContainsString('Checkout key was reused', $exception->getMessage());
+        }
+        self::assertSame(1, DB::table('checkout_requests')->count());
+        self::assertSame(1, DB::table('orders')->count());
+        self::assertSame($first, (string) DB::table('orders')->value('success_token'));
+        self::assertSame(7, (int) DB::table('product_variants')->where('id', $f['variant'])->value('stock'));
+    }
+
     public function test_checkout_key_reused_for_changed_payload_is_rejected(): void
     {
         $f = $this->fixture();

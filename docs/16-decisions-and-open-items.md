@@ -115,3 +115,32 @@ Open: browser-level preview/CSRF QA, image file reference tests, real MariaDB 20
 - Extend the single P03 `InventoryAllocator` for optioned SKUs rather than create a second stock authority. Idempotency claim and completion, stock movement and cart clearing share a transaction. Repricing requires explicit cart update; invalid shipping cannot silently become free.
 - Default all P08 flags OFF and keep the independent local P02 database test guard. P08 PHPUnit activates P03 core inside the restricted test process. Full browser checkout and production mode remain UNAPPROVED until isolated MySQL and parallel-purchase tests pass.
 - Open decision: final storefront shipping/free-delivery policy, actual weight vs piece pack units, active admin variable-order quantity-edit behavior, and true browser cookie/CSRF smoke evidence before release.
+
+### ADR P09-01 — Serialize storefront idempotency behind owned cart lock (2026-10-25)
+
+- All storefront checkout calls lock the persisted owned `carts` row BEFORE reading/claiming `(owner_hash, idempotency_key)` to avoid first-use unique-key insertion races. Compute canonical request hash from that locked cart identity. Replays remain allowed after cart version increment; new purchases still demand exact cart version and full server price/stock validation.
+- Added optional two-worker committed fake-final-item test in `p01_campaign_test` only. It uses IDs scoped to generated fixtures, suppresses external-order-sync observers and employee assignment, has an explicit distinct approval environment variable, and targets safe cleanup. Interrupted fixtures remain an inspection-only recovery case, not authorization for resetting any database.
+- No shipping policy, stock unit mapping, migration, checkout UI route, or production flag changes. Browser HTTPS/mobile/courier acceptance and production cutover remain separately blocked.
+
+### ADR-P09-CSRF — Platform-independent localhost CSRF verification (2026-10-25)
+
+- Decision: prefer a built-in Node.js `fetch` + PHP local web-server CSRF runner over requesting an Execution Policy bypass for unsigned PowerShell.
+- Tradeoff: extra Node test files; no new runtime packages or production route changes. Laravel cookie session, fake APP_KEY and restricted `p01_tester` process environment remain separate from the app `.env`.
+- Controls: explicit local-test permission flag, port 8089 exclusively on loopback, standalone MySQL account+schema/empty-commerce preflight and postflight, invalid product ID=0, PHP child termination, fail-closed cached-config/port checks.
+- Open: user's real CSRF result (3/3) and committed independent last-item race remain unverified here; P10/P11 are not complete.
+
+### 2026-10-25 — P10 staged integration decision
+
+- No automatic staging/production deployment because owner approval, real catalog reconciliation, production-ready schema upgrade and rollback evidence are still missing. The repository defines P10 as **staging deployment/rehearsal**, not simply UI work.
+- Public contact controls read only from active existing `site_settings`, use reviewed URL formats, and render nothing if absent. Mini-cart and contact remain separate controls.
+- Published homepage receives the same safe contact partial as catalog; private draft preview remains isolated/inert.
+- Mobile Order Now is a form-associated P08 submit control, not duplicate checkout logic. Existing authorization, CSRF, cart version, money and stock guards remain authoritative.
+- Browser/real MySQL P10 test results remain open, despite P09 CSRF and concurrent last-item tests reported PASS by the user.
+
+
+### ADR P11-01 — Correct HTTP validation reproduction and read-only release review (2026-10-25)
+
+- **Decision:** P10 UI validation must be proven via the existing POST `/storefront/cart/items` + 302 redirect + `ShareErrorsFromSession`, not by putting an artificial `ViewErrorBag` into a GET while cart is disabled. Keep the cart feature restricted to the isolated test account.
+- **Decision:** Label the additional user-requested P11 stage as a *release-readiness tooling handoff*. The repository `docs/14-implementation-sequence.md` still names P10 as the real approved staging deployment; code agents do not silently reclassify staging as completed.
+- **Decision:** P11 read-only data audit must run ONLY using existing restricted P02 test credentials, with explicit approval, no Laravel .env boot, no SQL writes, and public counts only. A candidate is NOT permission for production.
+- **Open:** updated P10 7-case MariaDB result, populated staging data reconciliation, media evidence, browser/mobile captures, production asset/cache rehearsal, schema-compatible rollback, and signed owner release approval. Do not enable storefront flags against the original DB.
