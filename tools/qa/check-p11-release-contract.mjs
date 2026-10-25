@@ -22,6 +22,15 @@ const p09 = read('tools/qa/p09-checkout-race-smoke.php');
 const qa = read('tools/qa/check-p10-integration.mjs');
 const docs = read('docs/13-deployment-and-rollback.md');
 const notes = read('P11-START-HERE-BN.md');
+const adminValidationViews = [
+  'resources/views/admin/site-settings/index.blade.php',
+  'resources/views/admin/reports/create.blade.php',
+  'resources/views/admin/reports/edit.blade.php',
+  'resources/views/admin/tracking-pixels/partials/form.blade.php',
+].map(read);
+check('Admin validation errors are always Blade-escaped',
+  adminValidationViews.every((view) => view.includes('{{ $error }}')
+    && !/{!!\s*\$error\s*!!}/.test(view)));
 check('P10 product still renders genuine validation feedback', product.includes('$errors->any()') && product.includes('role="alert"'));
 check('P10 product remembers rejected quantity', product.includes("old('quantity', 1)"));
 check('P10 form carries scoped feedback origin', product.includes('name="storefront_product_origin"') && product.includes('{{ $product->slug }}'));
@@ -63,4 +72,4 @@ check('P11 pure policy unit test exists', exists('tools/qa/check-p11-readiness-p
 check('P11 source fingerprint exists', exists('reports/p11-source-manifest.json'));
 check('P11 provides a single-command read-only regression gate', exists('tools/qa/p11-offline-gate.mjs') && read('tools/qa/p11-offline-gate.mjs').includes('CODE_REVIEW_ONLY'));
 check('P11 sign-off has no preapproved operations', read('docs/P11-release-signoff-template.md').includes('NO-GO for production') && !read('docs/P11-release-signoff-template.md').includes('- [x]'));
-console.log(`RESULT: ${count}/41 P11 static release safety contracts ${process.exitCode ? 'FAIL' : 'PASS'} (no database).`);
+console.log(`RESULT: ${count}/42 P11 static release safety contracts ${process.exitCode ? 'FAIL' : 'PASS'} (no database).`);

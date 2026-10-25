@@ -2,7 +2,7 @@
   "schema": 1,
   "scope": "allowlisted-code-only",
   "count": 512,
-  "sha256": "94210398012eb75bc8d55f5233efa571dae95b0d819cb1f548efd23e356046ba",
+  "sha256": "cacae52b7b31ebbd5bec0d028be14f9a41d1225f2a4e29ee908430f9163c9a5b",
   "files": [
     {
       "path": "app/Console/Commands/BackfillDefaultProductVariants.php",
@@ -1696,13 +1696,13 @@
     },
     {
       "path": "resources/views/admin/reports/create.blade.php",
-      "bytes": 23331,
-      "sha256": "29236c0ab39760a0f9cde677c60f708f6263183834a3c672e91bdc22dc40894b"
+      "bytes": 23329,
+      "sha256": "d90a615411fdd13783e02ee8f7271bbe9639c6fa86e8859431fd47ce757d2f2c"
     },
     {
       "path": "resources/views/admin/reports/edit.blade.php",
-      "bytes": 26363,
-      "sha256": "544cd438f9eff6987adbbee708d8684e6760c0aca03e1f400f4d782eb54ca977"
+      "bytes": 26361,
+      "sha256": "2942c8fcb07f401dfae61fad339b5a3238baca5ea6a32b371174d5c7498a11a6"
     },
     {
       "path": "resources/views/admin/reports/exports/pdf.blade.php",
@@ -1746,8 +1746,8 @@
     },
     {
       "path": "resources/views/admin/site-settings/index.blade.php",
-      "bytes": 18289,
-      "sha256": "60b7a2b055a80a8c3cfb2de96d553df786078bd7c843282ac3c10f0ce042619e"
+      "bytes": 18287,
+      "sha256": "19d2e5f84ec637e0e73827cff94ae175638bfa7f97a956eb839f4a8c77e2abc2"
     },
     {
       "path": "resources/views/admin/social-media/index.blade.php",
@@ -1791,8 +1791,8 @@
     },
     {
       "path": "resources/views/admin/tracking-pixels/partials/form.blade.php",
-      "bytes": 3311,
-      "sha256": "5e1d24b23c7597ce2ea2fe00a4837895b50caf26cd846a152f0bf77b9590f449"
+      "bytes": 3309,
+      "sha256": "7355a4fc2a02d28f8547f4b35576d7e627fd4255f441b8bf43c9d2e605f4e4f8"
     },
     {
       "path": "resources/views/admin/tracking-pixels/partials/table.blade.php",
@@ -2396,8 +2396,8 @@
     },
     {
       "path": "tools/qa/check-p11-release-contract.mjs",
-      "bytes": 6792,
-      "sha256": "c153cd44979bc0ce5ff1fdace7aac8732aeaf0bbf44af90cd47066c1c43ebd53"
+      "bytes": 7233,
+      "sha256": "bb7242ada44fb8116259a020ea83fecca5326f5326ca65c198cd3fcfc4cb46af"
     },
     {
       "path": "tools/qa/check-summary-html.mjs",

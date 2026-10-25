@@ -244,3 +244,13 @@ Not approved. Requires mandatory acceptance matrix, no unresolved P0/P1 blockers
 - User-reported verified results: **P11 13/13 offline PASS**, **P10 7 tests/34 assertions, 1 FAIL**; error visible only in POST response bag, not on redirected product HTML, while quantity old input survived.
 - Scoped HTML/UI repair: session error bag fallback plus server-rendered product origin marker and a one-time, same-product generic failure notice, without any new mutating path or feature activation. Real invalid cart POST remains required in the test; unchanged order/cart/product/variant stock is checked.
 - P11 source/static checker now covers the feedback path; manifest regenerated for reviewed code. Local lint/offline QA results are logged in the delivery message; **real MariaDB P10 7/7 requires a new user run**. P11 staging and production remain NO-GO pending approval, backup/restore and full browser QA.
+
+
+### 2026-10-25 — P11 admin validation escaping audit (latest `website(9).zip`)
+
+- **Reproduction:** a new fail-closed P11 source contract first failed (41/42) against four admin validation templates rendering `{!! $error !!}`. This is unsafe escaping behavior (risk of HTML/script rendering), **not a demonstrated remote exploit**.
+- **Scoped correction:** replace raw `$error` rendering with Blade-escaped `{{ $error }}` in site settings, report create/edit, and tracking-pixel form. Add regression in `tools/qa/check-p11-release-contract.mjs` and regenerate the P11 source fingerprint for the reviewed source.
+- **Previous user's Windows evidence:** P10 isolated MySQL 7 tests/43 assertions PASS, P09 real HTTP CSRF 3/3 PASS, P09 two-worker checkout race 4/4 PASS. These were not rerun in the source-audit container.
+- No controllers, routes, migration, stock/checkout logic, feature flag, payment method or original database changed. COD remains the only payment method.
+- **Post-fix source-only evidence (audit container):** P11 release check 42/42 PASS, master offline gate 13/13 PASS, source fingerprint 512/512 verified, PHP syntax 478/478 PASS, Node syntax 61/61 PASS. No Composer/PHPUnit vendor, MySQL server or browser screenshot gate was available in this container.
+- **Release gates still pending:** Composer locked-dependency security audit/remediation, post-update integration reruns, real browser QA, staging backup/restore rehearsal and explicit owner approval. Original `ecommerce_landing_db` remains untouched.

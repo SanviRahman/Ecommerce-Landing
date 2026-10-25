@@ -107,3 +107,11 @@ The user-provided 32-page AI meeting report describes a different demonstrated s
 - **Confirmed scope:** Rendered feedback on the next GET, not validation execution or stock/order mutation. Exact root cause of the missing shared view error bag is not yet independently reproduced with Laravel vendor in authoring environment.
 - **Repair:** Product page reads both the shared Laravel errors and flashed request-session `ViewErrorBag` and has a product-slug-scoped generic failure notice when both are empty. Hidden origin field only influences presentation, never checkout authorization. The feature test now simulates a full browser Add-to-Cart POST and verifies visible feedback plus unchanged cart/order/product/variant stock.
 - **Regression gates:** P10 real MySQL rerun pending user. P10/P11 static source contracts and P11 source-fingerprint regenerate/verify performed offline. Never claim production ready on a static-only result.
+
+
+### B19 / P11 — Admin validation error messages use raw Blade output (2026-10-25)
+
+- **Verified risk/reproduction:** four admin views rendered `{!! $error !!}`. A P11 source regression added before the fix reproduced a failure: `41/42 P11 static release safety contracts FAIL` (admin escaping check). This does not by itself prove exploitable XSS.
+- **Root cause:** `{!! !!}` skips HTML escaping; validation text should be inert text, not trusted markup.
+- **Scoped fix:** use `{{ $error }}` in `resources/views/admin/site-settings/index.blade.php`, `resources/views/admin/reports/create.blade.php`, `resources/views/admin/reports/edit.blade.php`, and `resources/views/admin/tracking-pixels/partials/form.blade.php`. Add per-template contract in P11 checker and refresh approved manifest.
+- **Acceptance:** P11 offline gate 13/13 PASS with 42/42 release source contracts and fingerprint verification; runtime Blade/admin cross-browser regression remains a staging gate. No DB/schema, COD checkout, media or feature-flag edits.
