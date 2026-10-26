@@ -211,7 +211,14 @@ final class InventoryAllocator
      */
     public function allocateStorefrontOrder(int $orderId, array $variantByOrderItem): void
     {
-        $this->assertTestTransaction();
+        if (request()->attributes->get('p32_local_checkout', false) === true) {
+            app(\App\Support\P32LocalStorefrontAccess::class)->assertStorefrontCheckout();
+            if (DB::transactionLevel() < 1) {
+                throw new LogicException('Storefront inventory must share the checkout transaction.');
+            }
+        } else {
+            $this->assertTestTransaction();
+        }
         if (! config('storefront.p08_checkout_test_enabled', false) || $orderId < 1 || $variantByOrderItem === []) {
             throw new LogicException('Storefront inventory allocation is not enabled or has no order.');
         }

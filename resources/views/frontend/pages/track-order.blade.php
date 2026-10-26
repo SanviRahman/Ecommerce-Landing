@@ -28,6 +28,7 @@
 <section class="track-page">
     <div class="container">
         <div class="track-box">
+            <p><a href="{{ route('home') }}">← দোকানের হোমপেজে ফিরুন</a></p>
             <h1 class="track-title">অর্ডার ট্র্যাক করুন</h1>
             <p class="track-subtitle">অর্ডারে ব্যবহার করা ১১ সংখ্যার ফোন নম্বরটি লিখুন।</p>
 
@@ -36,9 +37,9 @@
                 <div class="d-flex track-form-row">
                     <input
                         type="tel"
-                        name="phone"
-                        value="{{ old('phone', $searchedPhone) }}"
-                        class="form-control track-input mr-sm-2 @error('phone') is-invalid @enderror"
+                        name="tracking_phone"
+                        value="{{ old('tracking_phone', $searchedPhone) }}"
+                        class="form-control track-input mr-sm-2 @error('tracking_phone') is-invalid @enderror"
                         placeholder="01XXXXXXXXX"
                         maxlength="11"
                         inputmode="numeric"
@@ -52,7 +53,7 @@
                     </button>
                 </div>
 
-                @error('phone')
+                @error('tracking_phone')
                     <div class="text-danger small mt-2">{{ $message }}</div>
                 @enderror
             </form>

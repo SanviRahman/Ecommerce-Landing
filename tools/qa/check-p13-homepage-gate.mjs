@@ -23,11 +23,11 @@ const unittest = read('tests/Unit/P13HomepageMenuGateTest.php');
 const sync = read('tools/qa/p13-sync-source-to-test.ps1');
 const routeFiles = ['admin.php', 'api.php', 'command.php', 'console.php', 'storefront.php', 'user.php', 'web.php'];
 const approvedRouteHashes = {
-  'admin.php': '2f68278de6efe46ec66225a057209b4e155505bd524471b355d3d6b31b398254', // P24: reviewed active-admin-only preview shortcut
+  'admin.php': 'c490c22f5ee58b873523abbdbf21a808877d4cd9c1c0bd811b94768b0b881e2a', // P26: local admin-only readiness with CSRF-protected opt-in
   'api.php': '3144a774cccb127f0881e7d34ce43e963356dad03bf29bc59885cee7a548fdbf',
   'command.php': '2f66d33c8fb0436ee246c822e7799d13a9cca4789ffdeb0469ef81255a0fd02c',
   'console.php': 'd0ef5e225aed6e5a558dcf7c6a2cb76f109534d2e70b6f3d98c960ee557c12b8',
-  'storefront.php': 'c5a07336f86270178be73ec7c551832e89cf06805923233dc35b3412b8c9a6a2',
+  'storefront.php': '45b9727807dd60a5eb26cc6f5a27546105bd011a730b65b436b35a2f0e747c21', // P26: fail-closed isolated commerce QA middleware
   'user.php': 'a0897fdf9df2e0e17a7be4833ab2b33e3489a4640dd3b62b60a85b0ea44102b5',
   'web.php': 'c3819a296e7965d5a4bf3ebdd887264759dbacc121c1d15c635fe536974163ea',
 };

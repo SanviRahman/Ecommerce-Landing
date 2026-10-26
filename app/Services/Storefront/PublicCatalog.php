@@ -7,23 +7,27 @@ namespace App\Services\Storefront;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\ProductVariant;
-use App\Support\P02MigrationSafety;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
-use RuntimeException;
 
 /** Read-only P07 browse contract. Checkout and legacy campaigns remain independent. */
 final class PublicCatalog
 {
+    /** Public read-only pages, with no QA consent or admin session required.
+     * No inventory, cart or checkout capability is granted by this check.
+     */
     public function assertAvailable(): void
     {
-        // Independent connection check protects real commerce DB even if someone toggles config.
-        abort_unless(config('storefront.p07_catalog_test_enabled', false) === true
-            && app()->environment(['local', 'testing']), 404);
-        try {
-            P02MigrationSafety::assertIsolatedTestDatabase();
-        } catch (RuntimeException $exception) {
-            abort(404, 'Storefront browsing is not enabled on this database.');
+        // Fail safely if this deployment has not installed the storefront schema.
+        // Never expose a draft or try to migrate from a customer request.
+        foreach ([
+            'storefront_pages', 'storefront_revisions', 'homepage_sections',
+            'homepage_section_items', 'homepage_section_products',
+            'homepage_section_categories', 'categories', 'products',
+            'product_variants', 'product_variant_values', 'product_option_assignments',
+        ] as $table) {
+            abort_unless(\Illuminate\Support\Facades\Schema::hasTable($table), 503,
+                'The storefront database schema is not ready.');
         }
     }
 

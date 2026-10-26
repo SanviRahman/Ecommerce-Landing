@@ -37,6 +37,9 @@ final class StorefrontCheckout
         $this->carts->assertEnabled();
         abort_unless(config('storefront.p08_checkout_test_enabled', false) === true
             && config('storefront.p03_core_test_enabled', false) === true, 404);
+        if (request()->attributes->get('p32_local_commerce', false) === true) {
+            app(\App\Support\P32LocalStorefrontAccess::class)->assertStorefrontCheckout();
+        }
     }
 
     /** @param array<string,mixed> $data */

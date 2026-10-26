@@ -3,17 +3,32 @@
 namespace App\Http\Controllers\Frontend;
 
 use App\Http\Controllers\Controller;
-use App\Models\Campaign;
 use App\Models\Order;
-use Illuminate\Http\RedirectResponse;
+use App\Models\SiteSetting;
+use App\Services\Storefront\PublicCatalog;
+use Illuminate\Http\Response;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
 class OrderTrackingController extends Controller
 {
-    public function index(): RedirectResponse
+    public function index(Request $request, PublicCatalog $catalog): Response
     {
-        return redirect()->to(route('home') . '#order-track-section');
+        // Tracking must remain reachable now that / is a storefront homepage,
+        // not the former campaign page containing #order-track-section.
+        $searchedPhone = $request->session()->pull('order_tracking_phone');
+        $orders = is_string($searchedPhone) && preg_match('/\A01[0-9]{9}\z/D', $searchedPhone)
+            ? $this->ordersByPhone($searchedPhone)
+            : null;
+
+        return response()->view('storefront.pages.track-order', [
+            'siteSetting' => SiteSetting::query()->where('status', true)->latest()->first(),
+            'navigation' => $catalog->navigationCategories(),
+            'showFrontendHeader' => false,
+            'campaign' => null,
+            'orders' => $orders,
+            'searchedPhone' => is_string($searchedPhone) ? $searchedPhone : '',
+        ])->header('Cache-Control', 'private, no-store, max-age=0');
     }
 
     public function search(Request $request)
@@ -34,30 +49,9 @@ class OrderTrackingController extends Controller
             }
 
             return redirect()
-                ->to(route('home') . '#order-track-section')
+                ->route('order.track')
                 ->withErrors($validator)
                 ->withInput();
-        }
-
-        $campaign = Campaign::resolveHomepageCampaign();
-
-        if (! $campaign || ! (bool) ($campaign->order_tracking_section_status ?? true)) {
-            $message = 'Order tracking বর্তমানে বন্ধ আছে।';
-
-            if ($request->expectsJson()) {
-                return response()->json([
-                    'message' => $message,
-                    'errors' => [
-                        'tracking_phone' => [$message],
-                    ],
-                ], 422);
-            }
-
-            return redirect()
-                ->to(route('home') . '#order-track-section')
-                ->withErrors([
-                    'tracking_phone' => $message,
-                ]);
         }
 
         $phone = $this->normalizePhone(
@@ -70,18 +64,7 @@ class OrderTrackingController extends Controller
             // last phone-number search automatically.
             $request->session()->forget('order_tracking_phone');
 
-            $phoneVariants = collect([
-                $phone,
-                '880' . substr($phone, 1),
-                '+880' . substr($phone, 1),
-            ])->unique()->values()->all();
-
-            $orders = Order::query()
-                ->with(['items.product', 'courierAccount'])
-                ->whereIn('phone', $phoneVariants)
-                ->latest('id')
-                ->limit(20)
-                ->get();
+            $orders = $this->ordersByPhone($phone);
 
             return response()->json([
                 'message' => $orders->isEmpty()
@@ -97,8 +80,21 @@ class OrderTrackingController extends Controller
         }
 
         return redirect()
-            ->to(route('home') . '#order-track-section')
+            ->route('order.track')
             ->with('order_tracking_phone', $phone);
+    }
+
+    /** Lookups are bounded and keyed only by the validated phone number. */
+    private function ordersByPhone(string $phone): \Illuminate\Support\Collection
+    {
+        $phoneVariants = collect([
+            $phone,
+            '880' . substr($phone, 1),
+            '+880' . substr($phone, 1),
+        ])->unique()->values()->all();
+
+        return Order::query()->with(['items.product', 'courierAccount'])
+            ->whereIn('phone', $phoneVariants)->latest('id')->limit(20)->get();
     }
 
     private function normalizePhone(string $phone): string

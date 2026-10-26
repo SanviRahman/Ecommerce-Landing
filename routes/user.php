@@ -2,7 +2,8 @@
 
 use App\Http\Controllers\Admin\CampaignOrderController;
 use App\Http\Controllers\Admin\CampaignPageController;
-use App\Http\Controllers\Frontend\HomeController;
+use App\Http\Controllers\Frontend\StorefrontCatalogController;
+use App\Http\Middleware\P32LocalStorefrontCommerceMiddleware;
 use App\Http\Controllers\Frontend\OrderSuccessController;
 use App\Http\Controllers\Frontend\OrderTrackingController;
 use App\Http\Controllers\Webhook\PathaoWebhookController;
@@ -20,9 +21,11 @@ use Illuminate\View\Middleware\ShareErrorsFromSession;
 |--------------------------------------------------------------------------
 */
 
-Route::get('/', [HomeController::class, 'index'])->name('home');
+// Public storefront homepage: reads only the pinned published revision.
+Route::get('/', [StorefrontCatalogController::class, 'home'])
+    ->middleware(P32LocalStorefrontCommerceMiddleware::class)->name('home');
 
-/* Separate P07 browse-only storefront; root and existing campaigns stay untouched. */
+/* Public browsing needs no admin preview session or isolated QA server. */
 require __DIR__ . '/storefront.php';
 
 /*

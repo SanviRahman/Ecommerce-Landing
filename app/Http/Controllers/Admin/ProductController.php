@@ -74,10 +74,12 @@ class ProductController extends Controller
 
     private function activeCategories()
     {
-        return Category::query()
-            ->where('status', true)
-            ->orderBy('name')
-            ->get();
+        return Category::query()->where('status', true)
+            ->where(function ($query): void {
+                $query->whereNull('parent_id')->orWhereHas('parent', static function ($parent): void {
+                    $parent->where('status', true)->whereNull('parent_id');
+                });
+            })->orderBy('name')->get();
     }
 
     private function activeBrands()
@@ -159,11 +161,16 @@ class ProductController extends Controller
         $query = $this->applyFilters($query, $request);
 
         $products = $query->paginate(15)->withQueryString();
-        $variantAdminAvailable = app()->environment(['local', 'testing'])
-            && config('database.default') === 'mysql'
-            && config('database.connections.mysql.database') === 'p01_campaign_test'
-            && config('database.connections.mysql.username') === 'p01_tester'
-            && Schema::hasTable('product_variants');
+        $variantAdminAvailable = false;
+        if (auth()->check() && auth()->user()->isAdmin()) {
+            try {
+                \App\Support\P33CatalogAdminAccess::assertAllowed();
+                $variantAdminAvailable = true;
+            } catch (\Throwable) {
+                $variantAdminAvailable = false;
+            }
+        }
+
 
         $breadcrumb = [
             ['text' => 'Dashboard', 'url' => route('admin.dashboard')],

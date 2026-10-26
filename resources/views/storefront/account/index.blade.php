@@ -6,7 +6,8 @@
     <aside class="p19-account-sidebar"><div class="p19-account-avatar">{{ mb_strtoupper(mb_substr($customer->name,0,1)) }}</div>
         <strong>{{ $customer->name }}</strong><small>{{ $customer->email }}</small>
         <a href="#p19-account-overview">▦ Dashboard</a><a href="#p19-account-orders">▤ My Orders</a>
-        <a href="#p19-account-profile">♙ Profile Settings</a><a href="{{ route('order.track') }}">⌕ Track Order</a>
+        <a href="#p19-account-profile">♙ Profile Settings</a>
+        <a href="{{ route('storefront.wishlist') }}">♡ My Wishlist</a><a href="{{ route('order.track') }}">⌕ Track Order</a>
         <a href="{{ route('storefront.shop') }}">🛒 Continue Shopping</a>
         <form method="POST" action="{{ route('storefront.account.logout') }}">@csrf<button type="submit">Logout</button></form>
     </aside>

@@ -7,6 +7,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 const root = path.resolve(import.meta.dirname, '../..');
 const jobs = [
+  ['P26 local activation/readiness source', 'node', ['tools/qa/check-p26-local-activation.mjs']],
+  ['P26 isolated/local access context', 'php', ['tools/qa/check-p26-local-access-context.php']],
+  ['P25 local read-only showroom contracts', 'node', ['tools/qa/check-p25-storefront-readonly.mjs']],
+  ['P25 access context matrix', 'php', ['tools/qa/check-p25-local-browse-context.php']],
   ['P13 homepage UI gate', 'node', ['tools/qa/check-p13-homepage-gate.mjs']],
   ['P14 local Homepage source', 'node', ['tools/qa/check-p14-local-homepage.mjs']],
   ['P14 local permission matrix', 'php', ['tools/qa/check-p14-local-access.php']],

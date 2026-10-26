@@ -305,3 +305,40 @@ Not approved. Requires mandatory acceptance matrix, no unresolved P0/P1 blockers
 - Verified latest user ZIP `website_2(1).zip`: P11 manifest baseline 544/544 PASS; no admin `/storefront` entry route; public `/storefront/home` still isolated and default disabled. Screenshot 404 is a **missing admin shortcut**, not a missing published revision.
 - Added admin-only GET shortcut redirect, no-store; improved private section links (including mobile anchors), category image SVG fallback, image error fallback and safe footer using existing contact settings. No migration/seed/cutover/stock/cart writes; `AGENTS.md`, `rules.md`, `bugfix.md`, `constraints.md` observed.
 - P24 source regression fail-first and postchange QA results are in `P24-AUDIT-RESULTS-BN.md`. Actual Laravel HTTP, local MariaDB and visual browser acceptance remain **pending user verification** (no Composer vendor or pdo_mysql in authoring sandbox).
+
+### 2026-10-26 — P25 source-only local admin storefront browser fix
+
+- Uploaded `website(20261026-162247).zip` and user screenshot show `GET /storefront/home` 404 while the Admin staged Homepage Builder has a published revision. Root cause: deliberate P07 isolated `p01_campaign_test` read-only catalog gate on the owner's P14-approved `ecommerce_landing_db`; route itself exists.
+- Added P25 default-OFF read-only local admin consent and exact MySQL identity verification, route allowlist, GET-only preflight, explicit no-shopping notices, real navigation/footer in browsable templates. Customer/account/cart/checkout/published `/` untouched. Repaired P24 product image-error SVG fallback and updated reviewed source fingerprint.
+- Pure-PHP/static regression and old offline checks are authoring-environment evidence only. Actual local Laravel request, real database, media loading, and browser visual checks remain owner-run; public release NOT approved.
+
+### 2026-10-26 — P26 local browser 404 remediation and isolated functional QA (source)
+
+- Scoped P26 Admin readiness page + missing-permission GET redirect + session POST approval for real storefront browsing on the approved main *local* database; P25 remains read-only and denies guest, unsafe environment and cart/checkout.
+- Added isolated P26 commerce middleware for restricted MySQL test DB only, port 8088, local loopback and independent opt-in. Normal P03 core remains disabled at baseline and P02 transaction integrity checks unchanged. Synthetic checkout external sync suppressed in QA; separate guest cookie.
+- Added fail-first source/pure context checks, standalone isolated runner, reviewed schema/readiness preflight and Bangla installation instructions. **Do not claim functional checkout complete until Windows Laravel/MySQL/browser acceptance tests pass.**
+
+
+### P31 — Public storefront root and canonical campaigns (2026-10-27)
+
+- Updated `/` to a no-login published Storefront Homepage; old `/storefront/home` browse alias remains.
+- `PublicCatalog` now reads active catalog data on the current migrated database without P25 consent. The homepage publication reader is pinned to the published revision and cannot read draft content.
+- `GET/POST /campaign/{slug}` now applies to both standard and historically custom-route campaigns. Custom one-segment GET aliases redirect canonically; the legacy POST order endpoint is retained.
+- New standalone `/track-order` view handles former `/` anchor dependence.
+- Public navigation no longer advertises unapproved account/cart/order buttons, and page metadata does not force noindex outside previews.
+- P26 checkout + guest-cart/MySQL identity gates and P14 admin authorizations remain intact.
+- **Tests intentionally NOT EXECUTED at user request**; Windows/MySQL/browser runtime status: **MANUAL VERIFICATION PENDING**. No `.env`, schema migration, customer data or production DB modifications.
+
+### 2026-10-27 — P34 premium forest-green and mobile navigation polish
+
+- Re-audited uploaded `website(20261026-211451).zip` and repository rules. Root route and campaign URL remain unchanged.
+- Scoped green theme, icon partial, mobile top/bottom Account/Wishlist/Cart, responsive no-scrollbar auto product carousels, dark CTA buttons and polished footer/nav. Existing Cart/Checkout/Wishlist POST/API/state/CSRF untouched. Removed the duplicate Wishlist *link* from the desktop category navigation row, not the Wishlist page/function.
+- Added no migration, seeds, credentials, library installs or database writes. Product Buy Now submits only for an eligible checked-out SKU, and feature-disabled or variable items route to details/picker.
+- Tests: `node tools/qa/check-p34-responsive-contract.mjs` and P33 source checks; PHP/JS syntax. Browser screenshot attempt blocked by execution environment policy. Local/XAMPP runtime, real Cart/order and 320px visual acceptance remain pending operator verification.
+
+### 2026-10-27 — P35 responsive product-details and homepage reviews placement
+
+- **Input:** user `website_2(3).zip` and 7 annotated screenshots; followed `AGENTS.md`, `rules.md`, `bugfix.md`, `constraints.md`.
+- **Changes:** public published reviews are positioned after category shelves, private preview editor order preserved; mobile centered cart-peek uses real cart API and hides while genuine sticky product Buy Now displays; order tracking background matches the green newsletter; product quantity stepper, explicit availability messaging, same-form Buy Now and active-catalog related products after the description; desktop cart unchanged.
+- **Safety:** no migration, seed, `.env`, campaign route, cart/checkout service or stock-writer changes. Legacy products without approved managed default SKU remain non-orderable until stock/variant preparation; checkout disabled until existing readiness passes.
+- **Validation:** P35/P33/P34 offline source contracts, JS syntax and PHP controller lint; full Laravel/MySQL/browser & old P26 regression assumptions remain distinct acceptance gates. Installation guide: `P35-START-HERE-BN.md`.

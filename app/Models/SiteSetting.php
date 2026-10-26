@@ -35,6 +35,8 @@ class SiteSetting extends Model implements HasMedia
         $this->addMediaCollection('site_logo')->useDisk('public')->singleFile();
         $this->addMediaCollection('site_white_logo')->useDisk('public')->singleFile();
         $this->addMediaCollection('site_favicon')->useDisk('public')->singleFile();
+        // Multiple approved homepage banners; independently managed from site logo.
+        $this->addMediaCollection('storefront_hero_image')->useDisk('public');
     }
 
     public function getLogoAttribute(): string

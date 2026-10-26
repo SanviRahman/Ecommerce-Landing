@@ -119,7 +119,11 @@ final class CheckoutIdempotencyService
         if (config('storefront.p03_core_test_enabled', false) !== true) {
             throw new LogicException('P03 checkout idempotency is disabled pending MySQL integration approval.');
         }
-        P02MigrationSafety::assertIsolatedTestDatabase();
+        if (request()->attributes->get('p32_local_checkout', false) === true) {
+            app(\App\Support\P32LocalStorefrontAccess::class)->assertStorefrontCheckout();
+        } else {
+            P02MigrationSafety::assertIsolatedTestDatabase();
+        }
         if (DB::transactionLevel() < 1) {
             throw new LogicException('Checkout claim, order creation and completion must share one transaction.');
         }

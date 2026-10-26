@@ -5,7 +5,7 @@
 <div class="d-flex justify-content-between align-items-start flex-wrap">
     <div>
         <h1 class="h3 mb-1">Storefront Homepage Builder</h1>
-        <p class="text-muted mb-0">Draft, preview and publish safely. Your existing campaign homepage remains live.</p>
+        <p class="text-muted mb-0">Manage the public Storefront Homepage. Campaigns remain accessible at /campaign/{slug}.</p>
     </div>
     @if($state['draft'] || $state['published'])
         <a href="{{ route('admin.storefront.home.preview') }}" class="btn btn-outline-success mt-2" target="_blank" rel="noopener noreferrer">
@@ -33,13 +33,13 @@
     @else
         <strong>Isolated QA Homepage Builder.</strong> This editor uses the restricted test database.
     @endif
-    Publishing changes the builder's staged revision, <strong>not</strong> the existing public <code>/</code> campaign homepage.
+    Publishing a revision updates the public Storefront Homepage at <strong><code>/</code></strong>. Campaigns remain separate at <code>/campaign/{slug}</code>.
     Use the <strong>Preview homepage</strong> button to review the frontend before a separate public cutover.
     <span class="d-block mt-1">If another browser tab saves first, this page returns HTTP 409. Reload before editing.</span>
 </div>
 <div class="row">
     <div class="col-md-4"><div class="small-box bg-light border"><div class="inner"><small class="text-muted">Draft</small><h4>{{ $draft ? 'Revision #'.$draft['revision_number'] : 'None' }}</h4></div></div></div>
-    <div class="col-md-4"><div class="small-box bg-light border"><div class="inner"><small class="text-muted">Published (staged)</small><h4>{{ $published ? 'Revision #'.$published['revision_number'] : 'Not published' }}</h4></div></div></div>
+    <div class="col-md-4"><div class="small-box bg-light border"><div class="inner"><small class="text-muted">Published (public)</small><h4>{{ $published ? 'Revision #'.$published['revision_number'] : 'Not published' }}</h4></div></div></div>
     <div class="col-md-4"><div class="small-box bg-light border"><div class="inner"><small class="text-muted">Optimistic version</small><h4 id="p06-page-version">{{ $version }}</h4></div></div></div>
 </div>
 @if(!$draft)
@@ -210,11 +210,33 @@
             <button class="btn btn-success">Save Section</button>
         </form>
         @if(in_array($section['type'], ['hero_slider','image_text','reviews']))
+        @if($section['type'] === 'hero_slider')
+        <div class="card border-primary bg-light mt-3 mb-3" id="p33-upload-{{ $section['section_key'] }}">
+            <div class="card-body">
+                <h3 class="h5 mb-2"><i class="fas fa-images mr-1"></i> Add multiple hero images</h3>
+                <p class="small text-muted">Upload 1–6 JPG, PNG or WebP images (max 4 MB each). Each file becomes a separate slide in this <strong>draft</strong>. The public carousel auto-scrolls from right to left after publishing. You can also choose an existing approved image below.</p>
+                <form action="{{ route('admin.storefront.home.hero-images.store', $section['section_key']) }}" method="POST" enctype="multipart/form-data">
+                    @csrf<input type="hidden" name="expected_version" value="{{ $version }}">
+                    <div class="form-group">
+                        <label for="p33-images-{{ $section['section_key'] }}">Hero banner images</label>
+                        <input id="p33-images-{{ $section['section_key'] }}" type="file" name="hero_images[]" class="form-control-file" accept="image/jpeg,image/png,image/webp" multiple required>
+                    </div>
+                    <button class="btn btn-primary" type="submit"><i class="fas fa-upload mr-1"></i> Upload &amp; add slides</button>
+                    <small class="d-block mt-2 text-muted">Tip: use landscape banners (roughly 1600×700). Uploads cannot replace an immutable published revision. Remove from draft using the buttons below.</small>
+                </form>
+            </div>
+        </div>
+        @endif
         <hr><h3 class="h6">Section Items ({{ count($section['items']) }})</h3>
         @forelse($section['items'] as $item)
         <div class="d-flex justify-content-between align-items-center border-bottom py-2">
-            <div><strong>{{ $item['title'] ?: ($item['type']==='review' ? 'Review #'.$item['review_id'] : 'Image') }}</strong>
+            <div class="d-flex align-items-center" style="gap:12px">
+                @if($item['media_id'] && isset($mediaThumbnails[$item['media_id']]))
+                    <img src="{{ $mediaThumbnails[$item['media_id']]->getUrl() }}" alt="" loading="lazy" style="width:110px;height:55px;object-fit:cover;border-radius:7px">
+                @endif
+                <div><strong>{{ $item['title'] ?: ($item['type']==='review' ? 'Review #'.$item['review_id'] : 'Image') }}</strong>
                 <small class="text-muted d-block">{{ $item['type'] }} · {{ $item['media_id'] ? 'Media #'.$item['media_id'] : '' }}</small></div>
+            </div>
             <form method="POST" action="{{ route('admin.storefront.home.items.delete',[$section['section_key'],$item['item_key']]) }}">@csrf @method('DELETE')
                 <input type="hidden" name="expected_version" value="{{ $version }}">
                 <button class="btn btn-outline-danger btn-sm" aria-label="Remove item">Remove</button>
@@ -273,7 +295,7 @@
 @endforelse
 </div>
 <section class="card card-outline card-success"><div class="card-body d-flex justify-content-between align-items-center flex-wrap">
-    <div><h2 class="h5 mb-1">Publish this revision to staging</h2><p class="text-muted small mb-0">Checks active resources, image files and text contrast. Does not switch the campaign home route.</p></div>
+    <div><h2 class="h5 mb-1">Publish this revision to the live Storefront Homepage</h2><p class="text-muted small mb-0">Checks active resources, image files and contrast, then publishes at / without replacing campaign pages.</p></div>
     <form method="POST" action="{{ route('admin.storefront.home.publish') }}" class="mt-2">@csrf
         <input type="hidden" name="expected_version" value="{{ $version }}">
         <button class="btn btn-success">Validate &amp; Publish Staged Revision</button>

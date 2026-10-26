@@ -28,7 +28,11 @@ final class GuestCartService
     {
         $this->catalog->assertAvailable();
         abort_unless(config('storefront.p08_cart_test_enabled', false) === true, 404);
-        P02MigrationSafety::assertIsolatedTestDatabase();
+        if (request()->attributes->get('p32_local_commerce', false) === true) {
+            app(\App\Support\P32LocalStorefrontAccess::class)->assertActualMainDatabase();
+        } else {
+            P02MigrationSafety::assertIsolatedTestDatabase();
+        }
     }
 
     public function show(string $ownerHash): array

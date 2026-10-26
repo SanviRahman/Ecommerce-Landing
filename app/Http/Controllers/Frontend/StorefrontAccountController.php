@@ -22,7 +22,7 @@ final class StorefrontAccountController extends Controller
 {
     public function loginForm(PublicCatalog $catalog): Response|RedirectResponse
     {
-         $this->assertAccountReady($catalog);
+        $this->assertAccountReady($catalog);
         $current = Auth::guard('storefront')->user();
         if ($current && $current->is_active) return redirect()->route('storefront.account.index');
         if ($current) Auth::guard('storefront')->logout(); // inactive accounts must never loop between index/login
@@ -30,7 +30,7 @@ final class StorefrontAccountController extends Controller
     }
     public function registerForm(PublicCatalog $catalog): Response|RedirectResponse
     {
-         $this->assertAccountReady($catalog);
+        $this->assertAccountReady($catalog);
         $current = Auth::guard('storefront')->user();
         if ($current && $current->is_active) return redirect()->route('storefront.account.index');
         if ($current) Auth::guard('storefront')->logout(); // inactive accounts must never loop between index/login
@@ -38,7 +38,11 @@ final class StorefrontAccountController extends Controller
     }
     public function register(Request $request, PublicCatalog $catalog): RedirectResponse
     {
-         $this->assertAccountReady($catalog);
+        $this->assertAccountReady($catalog);
+        // Normalize before checking the unique index to avoid case/space collisions.
+        if (is_string($request->input('email'))) {
+            $request->merge(['email' => Str::lower(trim($request->input('email')))]);
+        }
         $data = $request->validate([
             'name' => ['required','string','min:2','max:160'],
             'email' => ['required','email:rfc','max:190','unique:storefront_accounts,email'],
@@ -55,7 +59,10 @@ final class StorefrontAccountController extends Controller
     }
     public function login(Request $request, PublicCatalog $catalog): RedirectResponse
     {
-         $this->assertAccountReady($catalog);
+        $this->assertAccountReady($catalog);
+        if (is_string($request->input('email'))) {
+            $request->merge(['email' => Str::lower(trim($request->input('email')))]);
+        }
         $data = $request->validate([
             'email' => ['required','email','max:190'],
             'password' => ['required','string'],
@@ -71,7 +78,7 @@ final class StorefrontAccountController extends Controller
     }
     public function index(PublicCatalog $catalog): Response|RedirectResponse
     {
-         $this->assertAccountReady($catalog);
+        $this->assertAccountReady($catalog);
         $customer = Auth::guard('storefront')->user();
         if (! $customer || ! $customer->is_active) return redirect()->route('storefront.account.login');
         // Full totals are computed on this authenticated relationship; only the visible list is paginated/bounded.
@@ -88,7 +95,7 @@ final class StorefrontAccountController extends Controller
     }
     public function updateProfile(Request $request, PublicCatalog $catalog): RedirectResponse
     {
-         $this->assertAccountReady($catalog);
+        $this->assertAccountReady($catalog);
         $customer = Auth::guard('storefront')->user();
         abort_unless($customer && $customer->is_active, 403);
         $data = $request->validate([
@@ -101,7 +108,7 @@ final class StorefrontAccountController extends Controller
     }
     public function logout(Request $request, PublicCatalog $catalog): RedirectResponse
     {
-         $this->assertAccountReady($catalog);
+        $this->assertAccountReady($catalog);
         Auth::guard('storefront')->logout();
         // Preserve any independent admin login in this browser while rotating the customer session ID.
         $request->session()->regenerate();
@@ -110,6 +117,13 @@ final class StorefrontAccountController extends Controller
     }
     private function assertAccountReady(PublicCatalog $catalog): void
     {
+        // Customer account writes have NOT been released to the main DB.
+        $request = request();
+        $local = $request->attributes->get('p32_local_commerce', false) === true;
+        abort_unless($local || $request->attributes->get('p26_isolated_commerce_qa', false) === true, 404);
+        if ($local) {
+            app(\App\Support\P32LocalStorefrontAccess::class)->assertActualMainDatabase($request);
+        }
         $catalog->assertAvailable();
         abort_unless(Schema::hasTable('storefront_accounts'), 503, 'Storefront account migration is not installed.');
     }

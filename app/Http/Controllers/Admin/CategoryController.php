@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Category;
-use App\Support\P02MigrationSafety;
+use App\Support\P33CatalogAdminAccess;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -34,7 +34,7 @@ class CategoryController extends Controller
         if (! $this->hierarchyAvailable()) {
             return collect();
         }
-        return Category::query()->where('status', true)
+        return Category::query()->where('status', true)->whereNull('parent_id')
             ->when($excludeId, fn ($query) => $query->where('id', '!=', $excludeId))
             ->orderBy('sort_order')->orderBy('name')->get();
     }
@@ -177,11 +177,11 @@ class CategoryController extends Controller
         return DB::transaction(function () use ($request) {
             $hierarchyData = [];
             if ($this->hierarchyAvailable()) {
-                P02MigrationSafety::assertIsolatedTestDatabase();
+                P33CatalogAdminAccess::assertAllowed();
                 $parentId = $request->filled('parent_id') ? (int) $request->input('parent_id') : null;
                 if ($parentId !== null) {
                     $parent = Category::query()->whereKey($parentId)->lockForUpdate()->first();
-                    if ($parent === null || $parent->trashed() || ! $parent->status) {
+                    if ($parent === null || $parent->trashed() || ! $parent->status || $parent->parent_id !== null) {
                         throw ValidationException::withMessages(['parent_id' => 'Invalid parent category.']);
                     }
                 }
@@ -272,13 +272,23 @@ class CategoryController extends Controller
         return DB::transaction(function () use ($request, $category) {
             $hierarchyData = [];
             if ($this->hierarchyAvailable()) {
-                P02MigrationSafety::assertIsolatedTestDatabase();
+                P33CatalogAdminAccess::assertAllowed();
                 // Lock the changed category and follow the parent chain under transaction.
                 Category::query()->whereKey($category->id)->lockForUpdate()->firstOrFail();
                 $parentId = $request->exists('parent_id')
                     ? ($request->filled('parent_id') ? (int) $request->input('parent_id') : null)
                     : ($category->parent_id === null ? null : (int) $category->parent_id);
                 $this->assertNoParentCycle((int) $category->id, $parentId);
+                if ($parentId !== null) {
+                    // Exactly two levels (root -> subcategory), never hide deeper descendants.
+                    $parent = Category::query()->whereKey($parentId)->lockForUpdate()->firstOrFail();
+                    if ($parent->parent_id !== null) {
+                        throw ValidationException::withMessages(['parent_id' => 'Choose a top-level parent category.']);
+                    }
+                    if (Category::query()->where('parent_id', $category->id)->exists()) {
+                        throw ValidationException::withMessages(['parent_id' => 'A category with sub-categories cannot be nested below another category.']);
+                    }
+                }
                 $hierarchyData = [
                     'parent_id' => $parentId,
                     'sort_order' => $request->exists('sort_order')

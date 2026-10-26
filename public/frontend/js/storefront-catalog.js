@@ -24,6 +24,17 @@
   const sku = document.getElementById('p07-variant-sku');
   const cartVariant = document.getElementById('p08-variant-id');
   const originalPrice = price?.textContent || '';
+  const qty = document.getElementById('p08-product-quantity');
+  const stickyPrice = document.querySelector('[data-p35-sticky-price]');
+  const syncPurchase = (canSubmit, stock = null) => {
+    document.querySelectorAll('[data-p35-variant-required]').forEach((button) => {
+      button.disabled = !canSubmit || picker.dataset.p35ManagedProduct !== '1';
+    });
+    if (qty) {
+      qty.max = String(stock === null ? 1000 : Math.max(1, Math.min(1000, stock)));
+      qty.dispatchEvent(new Event('p35-stock-changed'));
+    }
+  };
   const update = () => {
     const selected = {};
     if (cartVariant) cartVariant.value = ''; 
@@ -32,6 +43,8 @@
         if (status) status.textContent = 'Select all options to view exact price and stock.';
         if (price) price.textContent = originalPrice;
         if (sku) sku.textContent = '';
+        if (stickyPrice) stickyPrice.textContent = originalPrice;
+        syncPurchase(false);
         return;
       }
       selected[field.dataset.optionId] = Number(field.value);
@@ -43,6 +56,8 @@
       if (status) status.textContent = 'This combination is not available.';
       if (price) price.textContent = originalPrice;
       if (sku) sku.textContent = '';
+      if (stickyPrice) stickyPrice.textContent = originalPrice;
+      syncPurchase(false);
       return;
     }
     if (price) price.textContent = '৳' + Number(variant.price).toLocaleString('en-BD');
@@ -51,6 +66,8 @@
       : 'Currently out of stock';
     if (sku) sku.textContent = 'SKU: ' + variant.sku;
     if (cartVariant && Number(variant.stock) > 0) cartVariant.value = String(variant.id);
+    if (stickyPrice) stickyPrice.textContent = price?.textContent || originalPrice;
+    syncPurchase(Number(variant.stock) > 0, Number(variant.stock));
   };
   // Preserve the previously selected SKU after Laravel redirects back with
   // validation errors. Option picker remains the source of displayed price.

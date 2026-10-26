@@ -26,7 +26,8 @@ ok('Storefront catalog includes contact styling and widget', layout.includes('st
 ok('Published homepage includes same contact styling', home.includes('storefront-contact.css') && home.includes("'storefront.partials.contact-widget'"));
 ok('Private revision preview never renders contact widget', /@if\(\$isPreview \?\? false\)[\s\S]*?@else[\s\S]*?@include\('storefront.partials.contact-widget'\)/.test(home) && home.includes('Private staging preview'));
 ok('Cart shell and mobile action appear only with real cart feature flag',
-  nav.includes("$cartActive = config('storefront.p08_cart_test_enabled', false) === true")
+  nav.includes("$cartActive = ! $localReadOnly && config('storefront.p08_cart_test_enabled', false) === true")
+  && nav.includes("$localReadOnly = request()->attributes->get('p25_local_readonly_browse', false) === true")
   && nav.includes('@if($cartActive)') && nav.includes('data-cart-summary-url')
   && nav.includes("route('storefront.cart.summary')"));
 ok('Catalog footer has separate Quick Links, Customer Care, Contact Us',

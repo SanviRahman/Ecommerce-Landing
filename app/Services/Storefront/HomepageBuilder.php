@@ -24,7 +24,7 @@ final class HomepageBuilder
 {
     // Media collection is code-controlled, not selected through arbitrary model types.
     public const PUBLIC_IMAGE_COLLECTIONS = [
-        'hero_slider_images', 'banner_image', 'product_thumbnail', 'product_gallery',
+        'storefront_hero_image', 'hero_slider_images', 'banner_image', 'product_thumbnail', 'product_gallery',
         'category_image', 'image_one', 'image_two', 'image_three',
         'campaign_product_gallery', 'review_customer_image',
     ];
@@ -69,8 +69,32 @@ final class HomepageBuilder
         $this->assertTestSchema();
         $page = DB::table('storefront_pages')->where('slug', self::PAGE_SLUG)->first();
         abort_unless($page !== null, 404);
+
+        return $this->readRevision((int) $page->id, $id);
+    }
+
+    /** The public storefront can read ONLY the explicitly pinned published revision.
+     * Drafts, revision history and all write operations retain their Admin/P14 gates.
+     */
+    public function publishedRevision(): ?array
+    {
+        $page = DB::table('storefront_pages')->where('slug', self::PAGE_SLUG)
+            ->where('mode', 'storefront')->first();
+        if ($page === null || $page->published_revision_id === null) {
+            return null;
+        }
+
+        $revision = $this->readRevision((int) $page->id, (int) $page->published_revision_id);
+        abort_unless($revision['status'] === 'published', 503,
+            'The published storefront homepage is not ready.');
+
+        return $revision;
+    }
+
+    private function readRevision(int $pageId, int $id): array
+    {
         $revision = DB::table('storefront_revisions')
-            ->where('id', $id)->where('storefront_page_id', $page->id)->first();
+            ->where('id', $id)->where('storefront_page_id', $pageId)->first();
         abort_unless($revision !== null, 404);
         $sections = DB::table('homepage_sections')->where('storefront_revision_id', $id)
             ->orderBy('sort_order')->orderBy('id')->get();
@@ -274,6 +298,39 @@ final class HomepageBuilder
                 'settings' => '{}', 'created_at' => now(), 'updated_at' => now(),
             ]);
             return ['section_key' => $sectionKey, 'item_type' => $type];
+        });
+    }
+
+    /** One optimistic-version increment for a multiple-image hero upload. */
+    public function addHeroSlides(int $expectedVersion, int $actorId, string $sectionKey, array $mediaIds): void
+    {
+        if ($mediaIds === [] || count($mediaIds) > 6 || count(array_unique($mediaIds)) !== count($mediaIds)) {
+            $this->reject('Select between one and six unique hero images.', 'hero_images');
+        }
+        $this->mutate($expectedVersion, $actorId, 'hero_images_upload', function (object $page, object $draft) use ($sectionKey, $mediaIds): array {
+            $section = $this->draftSection((int) $draft->id, $sectionKey);
+            if ($section->type !== 'hero_slider') {
+                $this->reject('Images can only be uploaded to a Hero / Banner section.');
+            }
+            $count = (int) DB::table('homepage_section_items')->where('homepage_section_id', $section->id)->count();
+            if ($count + count($mediaIds) > 20) {
+                $this->reject('A hero section supports at most twenty images.');
+            }
+            foreach ($mediaIds as $index => $id) {
+                if (! is_int($id) || ! $this->eligibleMedia($id)) {
+                    $this->reject('Hero image is missing or not approved.');
+                }
+                DB::table('homepage_section_items')->insert([
+                    'homepage_section_id' => $section->id,
+                    'item_key' => (string) Str::uuid(), 'type' => 'hero_slide',
+                    'title' => $section->title, 'description' => null,
+                    'media_id' => $id, 'review_id' => null,
+                    'link_url' => null, 'link_label' => null,
+                    'is_enabled' => true, 'sort_order' => $count + $index,
+                    'settings' => '{}', 'created_at' => now(), 'updated_at' => now(),
+                ]);
+            }
+            return ['section_key' => $sectionKey, 'count' => count($mediaIds)];
         });
     }
 

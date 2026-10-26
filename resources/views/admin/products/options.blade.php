@@ -14,7 +14,7 @@
 
 @section('content')
 <div class="alert alert-info" role="note">
-    <strong>Isolated development schema only.</strong> Existing orders and published campaigns are not modified here.
+    <strong>Verified local / isolated catalog editing.</strong> Existing orders and published campaigns are not modified here.
     Labels can be updated later without changing a variant's recorded value IDs.
 </div>
 @if(session('success'))

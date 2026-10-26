@@ -6,7 +6,7 @@ use App\Models\Product;
 use App\Models\ProductOption;
 use App\Models\ProductOptionValue;
 use App\Models\ProductVariant;
-use App\Support\P02MigrationSafety;
+use App\Support\P33CatalogAdminAccess;
 use App\Support\VariantSignature;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -35,7 +35,7 @@ final class VariantCatalogManager
 
     public function assertTestSchema(): void
     {
-        P02MigrationSafety::assertIsolatedTestDatabase();
+        P33CatalogAdminAccess::assertAllowed();
         foreach (['product_options', 'product_option_values', 'product_variants',
             'product_variant_values', 'product_option_assignments', 'inventory_movements'] as $table) {
             if (! Schema::hasTable($table)) {
@@ -95,6 +95,17 @@ final class VariantCatalogManager
                 $this->reject('Product is already managed or contains variants.');
             }
             $stock = (int) $locked->stock;
+            // Local main DB contains real historical campaign inventory. Its opening
+            // quantities must never be silently treated as physically reconciled.
+            // Existing campaign products/history require a separate stock review.
+            if (\App\Support\P32LocalStorefrontAccess::matchesContext(
+                (string) config('app.env'), config('app.debug') === true,
+                (string) request()->ip(), (string) request()->getHost(), (int) request()->getPort()
+            ) && ($stock !== 0
+                || DB::table('order_items')->where('product_id', $locked->id)->exists()
+                || DB::table('campaign_product')->where('product_id', $locked->id)->exists())) {
+                $this->reject('On the local main database, only new zero-stock products with no campaign/order history can be converted. Reconcile legacy stock separately.');
+            }
             if ($stock < 0 || $stock > 2_147_483_647) {
                 $this->reject('Legacy stock is outside supported limits.');
             }

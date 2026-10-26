@@ -8,6 +8,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\Review;
+use App\Models\SiteSetting;
+use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use App\Services\Storefront\HomepageBuilder;
 use App\Services\Storefront\CategoryShelf;
 use App\Support\HomeSectionSchema;
@@ -17,7 +19,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 use RuntimeException;
 
-/** Staged authenticated P05 admin controls; no public homepage routing changes. */
+/** Authenticated Homepage Builder controls; published revision powers the public root. */
 final class HomepageBuilderController extends Controller
 {
     /**
@@ -51,6 +53,15 @@ final class HomepageBuilderController extends Controller
         }
         $selectedProducts = Product::query()->whereIn('id', array_unique($extraProducts))->where('status', true)->get(['id', 'name']);
         $selectedCategories = Category::query()->whereIn('id', array_unique($extraCategories))->where('status', true)->get(['id', 'name']);
+        $selectedMediaIds = [];
+        foreach ($state['draft']['sections'] ?? [] as $section) {
+            foreach ($section['items'] as $item) {
+                if ($item['media_id']) $selectedMediaIds[] = (int) $item['media_id'];
+            }
+        }
+        $mediaThumbnails = Media::query()->where('disk', 'public')
+            ->whereIn('id', array_unique($selectedMediaIds))->get()
+            ->filter(static fn (Media $item) => is_file($item->getPath()))->keyBy('id');
         $productChoices = Product::query()->where('status', true)->orderBy('name')->limit(200)->get(['id', 'name']);
         $categoryChoices = Category::query()->where('status', true)->orderBy('name')->limit(150)->get(['id', 'name']);
         return view('admin.storefront.homepage', [
@@ -62,6 +73,7 @@ final class HomepageBuilderController extends Controller
             'products' => $productChoices->merge($selectedProducts)->unique('id')->sortBy('name')->values(),
             'reviews' => Review::query()->whereNull('campaign_id')->where('status', true)->orderByDesc('id')
                 ->limit(50)->get(['id', 'customer_name']),
+            'mediaThumbnails' => $mediaThumbnails,
             'mediaChoices' => DB::table('media')->where('disk', 'public')
                 ->whereIn('collection_name', HomepageBuilder::PUBLIC_IMAGE_COLLECTIONS)->orderByDesc('id')
                 ->limit(80)->get(['id', 'file_name']),
@@ -185,6 +197,46 @@ final class HomepageBuilderController extends Controller
         return $this->back('Draft item added.');
     }
 
+    /** Admin upload + attach (one POST), no draft/public media deletion. */
+    public function uploadHeroImages(Request $request, string $sectionKey, HomepageBuilder $builder): RedirectResponse
+    {
+        $this->adminOnly($builder);
+        $data = $request->validate([
+            'expected_version' => ['required', 'integer', 'min:1'],
+            'hero_images' => ['required', 'array', 'min:1', 'max:6'],
+            'hero_images.*' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
+        ]);
+        $settings = SiteSetting::query()->latest()->first();
+        if (! $settings) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'hero_images' => 'Create Site Settings first to upload storefront banners.',
+            ]);
+        }
+        // Validate the version/section before writing media files.
+        $state = $builder->inspect();
+        $draft = $state['draft'];
+        if (! $draft || (int) ($state['page']['lock_version'] ?? 0) !== (int) $data['expected_version']
+            || ! collect($draft['sections'])->contains(fn ($section) => $section['section_key'] === $sectionKey
+                && $section['type'] === 'hero_slider')) {
+            abort(409, 'Hero section was changed in another tab; reload the editor.');
+        }
+        $newMedia = [];
+        try {
+            foreach ($request->file('hero_images') as $image) {
+                $newMedia[] = $settings->addMedia($image)->toMediaCollection('storefront_hero_image', 'public');
+            }
+            $builder->addHeroSlides((int) $data['expected_version'], (int) auth()->id(), $sectionKey,
+                array_map(static fn ($media): int => (int) $media->id, $newMedia));
+        } catch (\Throwable $error) {
+            // Only clean up media created by THIS failed request, never existing images.
+            foreach ($newMedia as $media) {
+                try { $media->delete(); } catch (\Throwable) {}
+            }
+            throw $error;
+        }
+        return $this->back(count($newMedia) . ' hero images added to the draft. Publish to show them publicly.');
+    }
+
     public function deleteItem(Request $request, string $sectionKey, string $itemKey,
         HomepageBuilder $builder): RedirectResponse
     {
@@ -210,7 +262,7 @@ final class HomepageBuilderController extends Controller
         $this->adminOnly($builder);
         $data = $request->validate(['expected_version' => ['required', 'integer', 'min:1']]);
         $builder->publish((int) $data['expected_version'], (int) auth()->id());
-        return $this->back('Revision published in Homepage Builder. The public / route remains the existing campaign homepage.');
+        return $this->back('Homepage published. Visitors now see the pinned revision at /. Campaigns remain at /campaign/{slug}.');
     }
 
     public function preview(Request $request, HomepageBuilder $builder, CategoryShelf $shelves): \Illuminate\Http\Response

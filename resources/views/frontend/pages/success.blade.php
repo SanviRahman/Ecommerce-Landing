@@ -188,6 +188,7 @@
             </div>
 
             <h1 class="success-title">অর্ডার সফল হয়েছে</h1>
+            <p><a href="{{ $order->campaign?->public_url ?? route('home') }}">← পণ্যের পেজে ফিরে যান</a></p>
 
             <p class="success-subtitle">
                 আপনার অর্ডারের জন্য ধন্যবাদ। আমাদের প্রতিনিধি খুব শীঘ্রই আপনার সাথে যোগাযোগ করবে।

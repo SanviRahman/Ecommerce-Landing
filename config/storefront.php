@@ -10,6 +10,19 @@ return [
     // The underlying P02 test guard remains unchanged for all other services.
     'p14_local_p02_migration_approval' => env('P14_LOCAL_P02_MIGRATION_APPROVED', ''),
 
+    // P25 local ADMIN READ-ONLY CATALOG PREVIEW. Requires P14 verified MySQL
+    // identity + active admin login; never enables cart, customer auth or orders.
+    // This flag has no public/production effect, even if accidentally enabled.
+    'p25_local_browse_enabled' => env('P25_LOCAL_STOREFRONT_BROWSE_ENABLED', false) === true
+        || env('P25_LOCAL_STOREFRONT_BROWSE_ENABLED', false) === 'true',
+
+    // P26: isolated local functional QA only. The request middleware also
+    // requires loopback port 8088, local environment, exact p01_campaign_test
+    // schema AND restricted p01_tester account before enabling P03/P07/P08.
+    // Never enable it in production or on ecommerce_landing_db.
+    'p26_isolated_commerce_qa_enabled' => env('P26_ISOLATED_COMMERCE_QA_ENABLED', false) === true
+        || env('P26_ISOLATED_COMMERCE_QA_ENABLED', false) === 'true',
+
     // Deliberately disabled. Turning this on alone still cannot bypass the
     // allocator's independent P02 isolated-test-DB identity guard.
     // Production release needs reconciled stock and a separately reviewed cutover.

@@ -13,25 +13,21 @@ use App\Services\Storefront\CategoryShelf;
 use App\Services\Storefront\PublicCatalog;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
-use Illuminate\Support\Facades\DB;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
-/** Separate staged, read-only P07 public pages; never handles orders or carts. */
+/** Public catalog and published storefront pages; never directly writes orders or carts. */
 final class StorefrontCatalogController extends Controller
 {
     public function home(PublicCatalog $catalog, HomepageBuilder $builder, CategoryShelf $shelves): Response
     {
         $catalog->assertAvailable();
-        $page = DB::table('storefront_pages')->where('slug', HomepageBuilder::PAGE_SLUG)
-            ->where('mode', 'storefront')->first();
-        if (! $page || ! $page->published_revision_id) {
-            // Safe public fallback; NEVER read the draft just to fill an empty home.
+        $revision = $builder->publishedRevision();
+        if ($revision === null) {
+            // The draft is never a public fallback.
             return $this->noStore(response()->view('storefront.pages.empty-home', [
                 'navigation' => $catalog->navigationCategories(),
             ]));
         }
-        $revision = $builder->revision((int) $page->published_revision_id);
-        abort_unless($revision['status'] === 'published', 404);
 
         $productIds = $categoryIds = $reviewIds = $mediaIds = [];
         foreach ($revision['sections'] as $section) {
@@ -62,12 +58,33 @@ final class StorefrontCatalogController extends Controller
                 $categoryShelves[$section['section_key']] = $shelves->productsFor($section);
             }
         }
+        $autoCategories = $catalog->eligibleCategories()->with('media')
+            ->whereNull('parent_id')->orderBy('sort_order')->orderBy('name')->limit(20)->get();
+        $autoShelves = [];
+        // Builder sections take precedence. Only fill missing category shelves automatically.
+        $configuredCategoryIds = collect($revision['sections'])
+            ->filter(static fn ($section) => $section['is_enabled'] && $section['type'] === 'category_products')
+            ->pluck('category_id')->map(static fn ($id): int => (int) $id)->all();
+        foreach ($autoCategories->take(12) as $parent) {
+            if (in_array((int) $parent->id, $configuredCategoryIds, true)) {
+                continue; // Keep the owner's explicitly configured category shelf in place.
+            }
+            $shelf = $shelves->productsFor([
+                'type' => 'category_products', 'is_enabled' => true, 'category_id' => $parent->id,
+                'include_descendants' => true, 'product_sort' => 'newest', 'product_limit' => 12,
+            ]);
+            if ($shelf->isNotEmpty()) {
+                $autoShelves[] = ['category' => $parent, 'products' => $shelf];
+            }
+        }
         $cartVersion = $this->cartVersion(request());
         return $this->noStore(response()->view('storefront.pages.home', [
             'revision' => $revision, 'products' => $products, 'categories' => $categories,
             'reviews' => $reviews, 'media' => $media, 'isPreview' => false,
             'catalog' => $catalog, 'navigation' => $catalog->navigationCategories(),
             'categoryShelves' => $categoryShelves, 'cartVersion' => $cartVersion,
+            'autoCategories' => $autoCategories, 'autoShelves' => $autoShelves,
+            'publicProductCount' => $catalog->eligibleProducts()->count(),
         ]));
     }
 
@@ -137,21 +154,39 @@ final class StorefrontCatalogController extends Controller
         $catalog->assertAvailable();
         $product = $catalog->product($slug);
         $cartVersion = null;
-        if (config('storefront.p08_cart_test_enabled', false) === true) {
+        if (($request->attributes->get('p26_isolated_commerce_qa', false) === true
+                || $request->attributes->get('p32_local_commerce', false) === true)
+            && config('storefront.p08_cart_test_enabled', false) === true) {
             $ownerHash = app(\App\Services\Cart\GuestCartOwner::class)->hash($request);
             $cartVersion = app(\App\Services\Cart\GuestCartService::class)->show($ownerHash)['version'];
+        }
+        // Catalog-only recommendations: never include inactive, deleted or hidden-category
+        // products; prefer this product's category, then use general collection items.
+        $relatedProducts = $catalog->sortedProducts($catalog->eligibleProducts()
+            ->where('products.id', '<>', $product->id)
+            ->where('products.category_id', $product->category_id), 'newest')
+            ->limit(8)->get();
+        if ($relatedProducts->count() < 4) {
+            $additional = $catalog->sortedProducts($catalog->eligibleProducts()
+                ->where('products.id', '<>', $product->id)
+                ->whereNotIn('products.id', $relatedProducts->pluck('id')->all()), 'newest')
+                ->limit(8 - $relatedProducts->count())->get();
+            $relatedProducts = $relatedProducts->concat($additional);
         }
         return $this->noStore(response()->view('storefront.pages.product', [
             'product' => $product, 'category' => $product->category,
             'catalog' => $catalog, 'selection' => $catalog->selectionData($product),
-            'cartVersion' => $cartVersion,
+            'cartVersion' => $cartVersion, 'relatedProducts' => $relatedProducts,
             'navigation' => $catalog->navigationCategories(),
         ]));
     }
 
     private function cartVersion(Request $request): ?int
     {
-        if (! config('storefront.p08_cart_test_enabled', false)) return null;
+        // Ordinary storefront GETs must NEVER read the isolated QA cart or owner.
+        if (($request->attributes->get('p26_isolated_commerce_qa', false) !== true
+                && $request->attributes->get('p32_local_commerce', false) !== true)
+            || config('storefront.p08_cart_test_enabled', false) !== true) return null;
         $owner = app(\App\Services\Cart\GuestCartOwner::class);
         return (int) app(\App\Services\Cart\GuestCartService::class)
             ->show($owner->hash($request))['version'];
@@ -160,7 +195,6 @@ final class StorefrontCatalogController extends Controller
     private function noStore(Response $response): Response
     {
         return $response->header('Cache-Control', 'private, no-store, max-age=0')
-            ->header('X-Robots-Tag', 'noindex, nofollow')
             ->header('Referrer-Policy', 'same-origin');
     }
 }

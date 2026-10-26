@@ -100,33 +100,20 @@ class Campaign extends Model implements HasMedia
             && filled($this->custom_route);
     }
 
+    /** Canonical public URL for both standard and historical custom-route campaigns. */
     public function getPublicUrlAttribute(): string
     {
-        if ($this->usesCustomRoute()) {
-            return route('campaign.custom.show', [
-                'customRoute' => $this->custom_route,
-            ]);
-        }
-
-        return route('campaign.show', $this->slug);
+        return route('campaign.show', ['campaign' => $this->slug]);
     }
 
     public function getOrderSubmitUrlAttribute(): string
     {
-        if ($this->usesCustomRoute()) {
-            return route('campaign.custom.order.store', [
-                'customRoute' => $this->custom_route,
-            ]);
-        }
-
-        return route('campaign.order.store', $this->slug);
+        return route('campaign.order.store', ['campaign' => $this->slug]);
     }
 
     public function getPublicPathAttribute(): string
     {
-        return $this->usesCustomRoute()
-            ? '/' . ltrim((string) $this->custom_route, '/')
-            : '/campaign/' . ltrim((string) $this->slug, '/');
+        return '/campaign/' . ltrim((string) $this->slug, '/');
     }
 
     public function registerMediaCollections(): void

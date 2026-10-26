@@ -14,6 +14,7 @@ use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\ExternalWebsiteController;
 use App\Http\Controllers\Admin\FaqController;
 use App\Http\Controllers\Admin\HomepageBuilderController;
+use App\Http\Controllers\Admin\StorefrontReadinessController;
 use App\Http\Controllers\Admin\MediaManagementController;
 use App\Http\Controllers\Admin\OrderController;
 use App\Http\Controllers\Admin\ProductController;
@@ -43,6 +44,15 @@ Route::middleware(['auth', 'role:admin,employee'])->group(function () {
     Route::get('/storefront', [HomepageBuilderController::class, 'entry'])
         ->middleware('role:admin')->name('storefront.entry');
 
+    // P26 local-only: explicit authenticated POST grants a read-only showroom
+    // in the current Admin browser session. No GET mutation or customer access.
+    Route::get('/storefront/readiness', [StorefrontReadinessController::class, 'index'])
+        ->middleware('role:admin')->name('storefront.readiness');
+    Route::post('/storefront/readiness/enable', [StorefrontReadinessController::class, 'enable'])
+        ->middleware('role:admin')->name('storefront.readiness.enable');
+    Route::post('/storefront/readiness/disable', [StorefrontReadinessController::class, 'disable'])
+        ->middleware('role:admin')->name('storefront.readiness.disable');
+
     /* P05 test-only homepage drafts. Admin authorization and MySQL isolation rechecked in controller/service. */
     Route::middleware('role:admin')->prefix('storefront/home')->as('storefront.home.')->group(function () {
         Route::get('/', [HomepageBuilderController::class, 'index'])->name('index');
@@ -53,6 +63,7 @@ Route::middleware(['auth', 'role:admin,employee'])->group(function () {
         Route::patch('/sections/{sectionKey}', [HomepageBuilderController::class, 'saveSection'])->whereUuid('sectionKey')->name('sections.update');
         Route::patch('/sections/{sectionKey}/move', [HomepageBuilderController::class, 'move'])->whereUuid('sectionKey')->name('sections.move');
         Route::delete('/sections/{sectionKey}', [HomepageBuilderController::class, 'deleteSection'])->whereUuid('sectionKey')->name('sections.delete');
+        Route::post('/sections/{sectionKey}/hero-images', [HomepageBuilderController::class, 'uploadHeroImages'])->whereUuid('sectionKey')->name('hero-images.store');
         Route::post('/sections/{sectionKey}/items', [HomepageBuilderController::class, 'addItem'])->whereUuid('sectionKey')->name('items.store');
         Route::delete('/sections/{sectionKey}/items/{itemKey}', [HomepageBuilderController::class, 'deleteItem'])
             ->whereUuid('sectionKey')->whereUuid('itemKey')->name('items.delete');
@@ -262,7 +273,7 @@ Route::middleware(['auth', 'role:admin,employee'])->group(function () {
         ->group(function () {
 
             Route::middleware(['role:admin'])->group(function () {
-                // P04 catalog administration (isolated P02 test DB only).
+                // P33 catalog admin: restricted isolated QA or verified loopback main DB; controller/service re-checks identity.
                 Route::get('/options/manage', [ProductOptionController::class, 'index'])->name('options.index');
                 Route::post('/options/bootstrap', [ProductOptionController::class, 'bootstrap'])->name('options.bootstrap');
                 Route::post('/options/{option}/values', [ProductOptionController::class, 'value'])->name('options.values.store');

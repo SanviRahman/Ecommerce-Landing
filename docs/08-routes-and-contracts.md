@@ -157,3 +157,28 @@ HTML form failures use validation errors/old inputs and no partial order. A redi
 ## Canonical route and UI source caveat (meeting PDF)
 
 The previous AI meeting report describes the demonstrated site's `/product/{slug}` and `/category/{slug}` and `/shop`; the uploaded ZIP may not implement these URLs. This merged specification uses **singular candidate routes** in the table above for closer UX correspondence. During P00/P01, resolve existing actual routes, links and root custom-campaign slug collisions; never create silent 301 redirects or overwrite known campaign paths without an approved mapping. All CTA requests resolve explicit valid variant: if mandatory options are unselected, return selection guidance rather than an arbitrary default. Details page scroll-sticky CTA uses the same server-owned quote state as primary Order Now.
+
+
+## P31: Approved public-root browse cutover (implementation, 2026-10-27)
+
+The previous routes above are a historic proposal, not the currently shipped path set.
+For the latest user-authorized local cutover, the actual routes are:
+
+| Method/path | Route name | Behavior |
+|---|---|---|
+| GET `/` | `home` | Publicly read the one pinned, published storefront homepage revision; no admin session |
+| GET `/storefront/home` | `storefront.home` | Compatibility alias to the same published homepage |
+| GET `/storefront/shop` | `storefront.shop` | Search/sort active products; no QA opt-in |
+| GET `/storefront/category/{slug}` | `storefront.category` | Active category and child products |
+| GET `/storefront/product/{slug}` | `storefront.product` | Product details, options and stock display |
+| GET `/storefront/help`, `/storefront/contact` | `storefront.help`, `storefront.contact` | Global FAQs and configured contacts |
+| GET `/campaign/{campaign:slug}` | `campaign.show` | Canonical URL for standard **and custom** campaigns |
+| POST `/campaign/{campaign:slug}/order` | `campaign.order.store` | Original validated campaign order handler (unchanged semantics) |
+| GET `/{customRoute}` | `campaign.custom.show` | Historical custom campaign bookmark redirects to canonical URL |
+| POST `/{customRoute}/order` | `campaign.custom.order.store` | Legacy campaign POST compatibility retained |
+| GET/POST `/track-order` | `order.track`, `order.track.search` | Standalone page, no dependency on former campaign root anchor |
+
+P26 isolated QA remains optional for account/cart/checkout on loopback 8088 only.
+Main database commerce writes are NOT enabled by this browse cutover; independent P02/P03/P08 gates remain.
+Admin builder mutation/preview authorization and immutable publication rules are unchanged.
+No new migrations or data writes are part of P31. Browser and database integration not verified on this uploaded copy (user opted for manual testing).

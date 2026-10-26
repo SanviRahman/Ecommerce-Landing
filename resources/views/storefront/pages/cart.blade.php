@@ -33,7 +33,7 @@
             @if($cart['can_checkout'] && config('storefront.p08_checkout_test_enabled', false) && config('storefront.p03_core_test_enabled', false))
                 <a class="p08-primary" href="{{ route('storefront.checkout') }}">Continue to Checkout</a>
             @else
-                <p class="p08-warning">Review all items, or wait until secure checkout is enabled.</p>
+                <p class="p08-warning">Review your items. Secure checkout requires reconciled product inventory, a published homepage and an active global delivery area.</p>
             @endif
         </div>
     @endif

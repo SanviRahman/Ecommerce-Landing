@@ -24,7 +24,7 @@
         </div>
     @endif
     <div class="p07-breadcrumb" aria-label="Breadcrumb">
-        <a href="{{ route('storefront.home') }}">Home</a><span aria-hidden="true">/</span>
+        <a href="{{ route('home') }}">Home</a><span aria-hidden="true">/</span>
         <a href="{{ route('storefront.shop') }}">Shop</a><span aria-hidden="true">/</span>
         <a href="{{ route('storefront.category', $category->slug) }}">{{ $category->name }}</a>
         <span aria-hidden="true">/</span><span>{{ $product->name }}</span>
@@ -49,7 +49,7 @@
 
 
             @if($product->has_variants)
-                <div id="p07-variant-picker" data-variant-matrix="{{ json_encode($selection, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_THROW_ON_ERROR) }}">
+                <div id="p07-variant-picker" data-variant-matrix="{{ json_encode($selection, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_THROW_ON_ERROR) }}" data-p35-managed-product="{{ (int) $product->inventory_version === 1 ? '1' : '0' }}">
                     @foreach($selection['options'] as $option)
                         <div class="p07-choice-group">
                             <label for="p07-option-{{ $option['id'] }}">{{ $option['name'] }}</label>
@@ -70,7 +70,16 @@
             @endif
             @if($cartVersion !== null)
                 @php
-                    $simpleDefault = $product->has_variants ? null : $product->variants()->where('is_default', true)->where('is_active', true)->first();
+                    // Cart is variant-owned. Legacy displayed stock is NOT sufficient for a safe order.
+                    $simpleDefault = !$product->has_variants && (int) $product->inventory_version === 1
+                        ? $product->variants()->where('is_default', true)->where('is_active', true)
+                            ->where('option_signature', 'default')->where('stock', '>', 0)->first()
+                        : null;
+                    $canSelectSku = (int) $product->inventory_version === 1 && ($product->has_variants
+                        ? $catalog->eligibleVariants($product)->contains(static fn ($v) => $v->stock > 0)
+                        : $simpleDefault !== null);
+                    $canCheckoutNow = config('storefront.p08_checkout_test_enabled', false) === true
+                        && config('storefront.p03_core_test_enabled', false) === true;
                 @endphp
                 <form id="p08-product-order-form" class="p08-product-order" method="POST" action="{{ route('storefront.cart.add') }}">
                     @csrf
@@ -89,37 +98,72 @@
                     @else
                         <input type="hidden" name="product_variant_id" value="{{ $simpleDefault?->id }}">
                     @endif
-                    <label for="p08-product-quantity">Quantity</label>
-                    <input type="number" name="quantity" id="p08-product-quantity" min="1" max="1000" value="{{ old('quantity', 1) }}" required>
-                    <div class="p08-product-actions" id="p19-primary-buy-actions">
-                        <button type="submit" name="intent" value="cart" class="p08-action-cart" @disabled(!$product->has_variants && (!$simpleDefault || $simpleDefault->stock < 1))>Add to Cart</button>
-                        @if(config('storefront.p08_checkout_test_enabled', false) && config('storefront.p03_core_test_enabled', false))
-                            <button type="submit" name="intent" value="checkout" class="p08-action-buy" @disabled(!$product->has_variants && (!$simpleDefault || $simpleDefault->stock < 1))>Order Now</button>
+                    <div class="p35-quantity-field">
+                        <label for="p08-product-quantity">Quantity</label>
+                        <div class="p35-quantity-stepper" data-p35-quantity-stepper>
+                            <button type="button" data-p35-qty-step="-1" aria-label="Decrease quantity" aria-controls="p08-product-quantity">−</button>
+                            <input type="number" name="quantity" id="p08-product-quantity" min="1"
+                                max="{{ $simpleDefault ? min(1000, (int) $simpleDefault->stock) : 1000 }}"
+                                value="{{ old('quantity', 1) }}" inputmode="numeric" required>
+                            <button type="button" data-p35-qty-step="1" aria-label="Increase quantity" aria-controls="p08-product-quantity">+</button>
+                        </div>
+                    </div>
+                    <div class="p08-product-actions p35-product-actions" id="p19-primary-buy-actions">
+                        <button type="submit" name="intent" value="cart" class="p08-action-cart"
+                            @if($product->has_variants) data-p35-variant-required @endif
+                            @disabled(!$canSelectSku)>
+                            @include('storefront.partials.icon', ['name'=>'cart-plus']) <span>Add to Cart</span>
+                        </button>
+                        @if($canCheckoutNow)
+                            <button type="submit" name="intent" value="checkout" class="p08-action-buy"
+                                @if($product->has_variants) data-p35-variant-required @endif
+                                @disabled(!$canSelectSku)>Buy Now @include('storefront.partials.icon', ['name'=>'arrow-right'])</button>
                         @else
-                            <a class="p08-action-buy" href="{{ route('storefront.cart') }}">View Cart</a>
+                            <button type="button" class="p08-action-buy" disabled aria-describedby="p35-checkout-availability"
+                                title="Checkout is not yet available">Buy Now @include('storefront.partials.icon', ['name'=>'arrow-right'])</button>
                         @endif
                     </div>
-                    <p class="p08-help">Cash on delivery. Prices and availability are checked again before confirmation.</p>
+                    <p class="p08-help">Cash on delivery. Prices and availability are verified again before confirming an order.</p>
+                    @unless($canSelectSku)
+                        <p class="p35-purchase-note" role="status">This product is not yet available to add to the online cart. Please contact us for ordering assistance.</p>
+                    @endunless
                 </form>
-                @if(config('storefront.p08_checkout_test_enabled', false) && config('storefront.p03_core_test_enabled', false))
-                    <div class="p10-mobile-buy" data-sticky-order hidden aria-label="Quick order action">
-                        <div class="p19-sticky-product">
-                            <img src="{{ $catalog->productImage($product) }}" alt="" loading="lazy" width="46" height="46">
-                            <span><strong>{{ \Illuminate\Support\Str::limit($product->name, 28) }}</strong>
-                                <small>{{ $product->has_variants ? 'From ' : '' }}৳{{ number_format($catalog->displayPrice($product)) }}</small></span>
-                        </div>
-                        <button form="p08-product-order-form" type="submit" name="intent" value="checkout"
-                            @disabled(!$product->has_variants && (!$simpleDefault || $simpleDefault->stock < 1))>
-                            Order Now · Cash on Delivery
-                        </button>
+                @unless($canCheckoutNow)
+                    <p class="p08-help p35-checkout-availability" id="p35-checkout-availability" role="status">
+                        Secure checkout is temporarily unavailable. You can still review your <a href="{{ route('storefront.cart') }}">shopping cart</a>.
+                    </p>
+                @endunless
+                {{-- Real checkout submit is only available after the existing stock/shipping readiness gates.
+                     The bar also shows checkout's disabled state clearly on small screens. --}}
+                <div class="p10-mobile-buy p35-sticky-buy" data-sticky-order hidden aria-label="Quick purchase action">
+                    <div class="p19-sticky-product">
+                        <img src="{{ $catalog->productImage($product) }}" alt="" loading="lazy" width="46" height="46">
+                        <span><strong>{{ \Illuminate\Support\Str::limit($product->name, 28) }}</strong>
+                            <small data-p35-sticky-price>{{ $product->has_variants ? 'From ' : '' }}৳{{ number_format($catalog->displayPrice($product)) }}</small></span>
                     </div>
-                @endif
+                    @if($canCheckoutNow)
+                        <button form="p08-product-order-form" type="submit" name="intent" value="checkout"
+                            @if($product->has_variants) data-p35-variant-required @endif
+                            @disabled(!$canSelectSku)>Buy Now @include('storefront.partials.icon', ['name'=>'arrow-right'])</button>
+                    @else
+                        <button type="button" disabled title="Checkout is temporarily unavailable">Buy Now</button>
+                    @endif
+                </div>
             @else
                 <div class="p07-checkout-notice" role="note">
-                    <strong>Browsing preview</strong>
-                    <span>Cart and Order Now will become available only after secure checkout is completed and verified.</span>
+                    <strong>Product information</strong>
+                    <span>Online ordering is unavailable for this server. Please contact us for assistance.</span>
                 </div>
             @endif
+            <form method="POST" action="{{ route('storefront.wishlist.toggle') }}" class="p32-wishlist-form">
+                @csrf
+                <input type="hidden" name="product_id" value="{{ $product->id }}">
+                <button type="submit" class="p32-wishlist-btn" aria-label="{{ in_array((int)$product->id, (array)session('storefront_wishlist_ids', []), true) ? 'Remove from' : 'Add to' }} wishlist">
+                    @include('storefront.partials.icon', ['name'=>in_array((int)$product->id, (array)session('storefront_wishlist_ids', []), true) ? 'heart-fill' : 'heart'])
+                    {{ in_array((int)$product->id, (array)session('storefront_wishlist_ids', []), true) ? 'Saved to Wishlist' : 'Save to Wishlist' }}
+                </button>
+                <a href="{{ route('storefront.wishlist') }}" class="p32-wishlist-view">View Wishlist</a>
+            </form>
             <a class="p07-back-to-shop" href="{{ route('storefront.shop') }}">Explore more products</a>
         </section>
     </div>
@@ -131,6 +175,20 @@
         <section class="p07-description" aria-labelledby="p07-description-heading">
             <h2 id="p07-description-heading">Product description</h2>
             <div class="p07-description-body">{{ $product->full_description }}</div>
+        </section>
+    @endif
+    @if(($relatedProducts ?? collect())->isNotEmpty())
+        <section class="p35-related-products" aria-labelledby="p35-related-heading" data-reveal>
+            <div class="p35-related-heading">
+                <div><span class="p07-eyebrow">DISCOVER MORE</span><h2 id="p35-related-heading">Related products</h2>
+                    <p>More items from our active collections.</p></div>
+                <a href="{{ route('storefront.shop') }}">Explore all products →</a>
+            </div>
+            <div class="p07-card-grid p35-related-grid" data-reveal-stagger>
+                @foreach($relatedProducts as $relatedProduct)
+                    @include('storefront.partials.product-card', ['product' => $relatedProduct])
+                @endforeach
+            </div>
         </section>
     @endif
 @endsection

@@ -16,51 +16,81 @@
     updateHeader();
   }
 
-  // Private/public Hero: 3 approved slides, focusable controls, no DOM injection.
+  // P33 hero track: every auto advance moves RIGHT -> LEFT, including seamless wrap.
+  // Native buttons + arrow keys + reduced-motion/manual fallback. No clone focus leaks.
   $$('[data-hero-carousel]').forEach((carousel) => {
-    const slides = $$('[data-hero-slide]', carousel);
+    const track = $('[data-hero-track]', carousel);
+    const slides = $$('[data-hero-slide]', track || carousel);
     const controls = $('[data-hero-controls]', carousel);
-    if (slides.length < 2 || !controls) return;
     const dotsContainer = $('[data-hero-dots]', carousel);
-    let active = 0;
-    let playing = false;
-    let timer = null;
-    const dots = slides.map((_, index) => {
-      const button = doc.createElement('button');
-      button.type = 'button';
-      button.setAttribute('aria-label', `Show banner ${index + 1} of ${slides.length}`);
-      button.addEventListener('click', () => show(index));
-      dotsContainer.append(button);
-      return button;
+    if (!track || !slides.length) return;
+    slides.forEach((slide, i) => slide.setAttribute('aria-label', `${i + 1} of ${slides.length}`));
+    if (slides.length < 2 || !controls || !dotsContainer) return;
+    const clone = slides[0].cloneNode(true);
+    clone.setAttribute('aria-hidden', 'true');
+    clone.inert = true;
+    clone.classList.add('p33-hero-clone');
+    track.append(clone);
+    let active = 0, transitioning = false, timer = null;
+    const dots = slides.map((_, i) => {
+      const dot = doc.createElement('button');
+      dot.type = 'button';
+      dot.setAttribute('aria-label', `Go to banner ${i + 1}`);
+      dot.addEventListener('click', () => go(i));
+      dotsContainer.append(dot);
+      return dot;
     });
-    const show = (index) => {
-      active = (index + slides.length) % slides.length;
+    const updateAccessibility = () => {
       slides.forEach((slide, i) => {
-        slide.hidden = i !== active;
-        slide.setAttribute('aria-label', `${i + 1} of ${slides.length}`);
+        const visible = i === (active % slides.length);
+        slide.inert = !visible;
+        slide.setAttribute('aria-hidden', visible ? 'false' : 'true');
       });
-      dots.forEach((dot, i) => dot.setAttribute('aria-current', i === active ? 'true' : 'false'));
+      dots.forEach((dot, i) => dot.setAttribute('aria-current', i === (active % slides.length) ? 'true' : 'false'));
     };
-    controls.hidden = false;
-    show(0);
-    $('[data-hero-prev]', carousel)?.addEventListener('click', () => show(active - 1));
-    $('[data-hero-next]', carousel)?.addEventListener('click', () => show(active + 1));
-    carousel.addEventListener('keydown', (event) => {
-      if (event.key === 'ArrowRight') show(active + 1);
-      if (event.key === 'ArrowLeft') show(active - 1);
+    const setPosition = (animate) => {
+      track.style.transition = !animate || reduced ? 'none' : '';
+      track.style.transform = `translate3d(-${active * 100}%, 0, 0)`;
+      updateAccessibility();
+    };
+    const go = (next) => {
+      if (transitioning) return;
+      const length = slides.length;
+      if (next === length && active === length - 1) active = length; // cloned first slide at the end
+      else active = (next % length + length) % length;
+      transitioning = !reduced;
+      setPosition(true);
+      if (reduced) transitioning = false;
+    };
+    track.addEventListener('transitionend', (event) => {
+      if (event.target !== track || event.propertyName !== 'transform') return;
+      transitioning = false;
+      if (active !== slides.length) return;
+      active = 0;
+      setPosition(false);
+      // Restore normal transitions only after the non-animated reset is painted.
+      requestAnimationFrame(() => requestAnimationFrame(() => {track.style.transition = '';}));
     });
-    const pause = () => { if (timer) clearInterval(timer); timer = null; playing = false; };
+    carousel.dataset.heroReady = 'true';
+    controls.hidden = false;
+    setPosition(false);
+    const prev = () => go(active - 1);
+    const next = () => go(active + 1);
+    $('[data-hero-prev]', carousel)?.addEventListener('click', prev);
+    $('[data-hero-next]', carousel)?.addEventListener('click', next);
+    carousel.addEventListener('keydown', (event) => {
+      if (event.key === 'ArrowRight') next();
+      if (event.key === 'ArrowLeft') prev();
+    });
+    const pause = () => { if (timer) clearInterval(timer); timer = null; };
     const resume = () => {
-      if (reduced || playing || doc.hidden) return;
-      playing = true;
-      timer = setInterval(() => show(active + 1), 6500);
+      if (reduced || doc.hidden || timer) return;
+      timer = setInterval(next, 5400);
     };
     carousel.addEventListener('mouseenter', pause);
     carousel.addEventListener('mouseleave', resume);
     carousel.addEventListener('focusin', pause);
-    carousel.addEventListener('focusout', (event) => {
-      if (!carousel.contains(event.relatedTarget)) resume();
-    });
+    carousel.addEventListener('focusout', (event) => {if (!carousel.contains(event.relatedTarget)) resume();});
     doc.addEventListener('visibilitychange', () => doc.hidden ? pause() : resume());
     resume();
   });
@@ -140,6 +170,11 @@
     $$('[data-cart-count]').forEach(el => {el.textContent = String(data.count);});
     $$('[data-cart-total]').forEach(el => {el.textContent = String(data.subtotal);});
     $$('form[data-async-cart] input[name="cart_version"]').forEach(el => {el.value = String(data.version);});
+    const miniTitle = $('[data-p35-cart-peek-title]');
+    const miniAction = $('[data-p35-cart-peek-action]');
+    if (miniTitle) miniTitle.textContent = data.lines?.length
+      ? String(data.lines[0].name).slice(0, 54) : 'Your shopping bag';
+    if (miniAction) miniAction.firstChild.textContent = data.lines?.length ? 'View cart ' : 'Open cart ';
     cartVersion = data.version;
   };
   const feedback = (message, error = false) => {
@@ -243,11 +278,22 @@
   // Sticky Order Now only after primary CTA has scrolled above the viewport.
   const sticky = $('[data-sticky-order]');
   const primary = $('#p19-primary-buy-actions');
-  if (sticky && primary && 'IntersectionObserver' in window) {
-    const observer = new IntersectionObserver(([entry]) => {
-      sticky.hidden = entry.isIntersecting || entry.boundingClientRect.top >= 0;
-    }, {threshold:0});
-    observer.observe(primary);
+  if (sticky && primary) {
+    const setStickyVisible = (visible) => {
+      sticky.hidden = !visible;
+      doc.body.classList.toggle('p35-sticky-buy-visible', visible);
+    };
+    if ('IntersectionObserver' in window) {
+      const observer = new IntersectionObserver(([entry]) => {
+        setStickyVisible(!entry.isIntersecting && entry.boundingClientRect.top < 0);
+      }, {threshold:0});
+      observer.observe(primary);
+    } else {
+      const update = () => setStickyVisible(primary.getBoundingClientRect().bottom <= 0);
+      window.addEventListener('scroll', update, {passive:true});
+      window.addEventListener('resize', update);
+      update();
+    }
   }
 
   // Checkout: 1 Shipping -> 2 COD Payment -> 3 Review -> 4 existing order success URL.

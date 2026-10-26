@@ -17,7 +17,7 @@
 
 @section('content')
 <div class="alert alert-info" role="note">
-    <strong>P04 isolated test-only administration.</strong> Variable products are not yet purchasable through the legacy campaign checkout.
+    <strong>Managed variants:</strong> Available on the restricted test DB and verified local development storefront only. On the local main database only a NEW zero-stock product without campaign/order history can be prepared. Legacy campaign checkout remains separate.
     A conversion automatically deactivates the product until variant-aware checkout is released.
     Every variant starts at zero stock. Never assume a 2-piece pack is the same as cart quantity 2.
 </div>

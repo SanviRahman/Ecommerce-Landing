@@ -17,6 +17,16 @@
     @method('PUT')
     @endif
 
+    <div class="alert alert-light border mb-3" role="note">
+        <strong>Category and variant setup:</strong> Select an existing parent/sub-category below.
+        <a href="{{ route('admin.categories.index') }}" target="_blank" rel="noopener">Manage sub-categories</a> ·
+        <a href="{{ route('admin.products.options.index') }}" target="_blank" rel="noopener">Color / Size / Weight values</a>.
+        @if($isEdit)
+            <a class="btn btn-sm btn-outline-success ml-2" href="{{ route('admin.products.variants.index', $product->id) }}">Set variant prices and stock</a>
+        @else
+            <span class="small d-block mt-1">For a NEW variable product set initial Stock to <b>0</b>, then save it, open <b>Variants</b>, prepare the default SKU, convert to Variable and assign exact Color/Size combinations, prices and audited stock. Existing campaign products need separate reconciliation.</span>
+        @endif
+    </div>
     <div class="row">
         <div class="col-md-6">
             <div class="form-group">
@@ -56,7 +66,7 @@
                     @foreach($categories as $category)
                     <option value="{{ $category->id }}" @selected(old('category_id', $product->category_id ?? '') ==
                         $category->id)>
-                        {{ $category->name }}
+                        {{ $category->parent_id ? '↳ ' : '' }}{{ $category->name }}
                     </option>
                     @endforeach
                 </select>

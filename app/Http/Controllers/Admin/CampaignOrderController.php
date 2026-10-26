@@ -160,8 +160,7 @@ class CampaignOrderController extends Controller
         CustomerIdentityService $customerIdentityService,
         OrderBlockService $orderBlockService
     ) {
-        abort_if($campaign->usesCustomRoute(), 404);
-
+        // A canonical /campaign/{slug}/order works for standard and custom-route campaigns.
         return $this->storeCampaignOrder(
             $request,
             $campaign,

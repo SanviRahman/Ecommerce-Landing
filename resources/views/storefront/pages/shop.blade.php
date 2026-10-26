@@ -12,7 +12,7 @@
     <section class="p07-page-heading">
         <span class="p07-eyebrow">Curated catalog</span>
         <h1>{{ $category?->name ?? 'Explore our products' }}</h1>
-        <p>Browse available products and their genuine options. Checkout is not enabled in this preview.</p>
+        <p>Browse available products and their genuine options. Browse verified options and stock. Add to Cart is shown when secure cart access is ready for this server.</p>
     </section>
 
     <section id="categories" class="p07-browse-categories" aria-label="Product categories">
@@ -46,7 +46,7 @@
         @if($products->isEmpty())
             <div class="p07-blank">No matching public products. <a href="{{ route('storefront.shop') }}">View all products</a></div>
         @else
-            <div class="p07-card-grid">
+            <div class="p07-card-grid" data-reveal-stagger>
                 @foreach($products as $product)
                     @include('storefront.partials.product-card', ['product' => $product])
                 @endforeach
