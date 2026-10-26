@@ -50,6 +50,7 @@ class Order extends Model
         'success_token',
         'campaign_id',
         'customer_id',
+        'storefront_account_id',
         'bulk_order_batch_id',
         'assigned_employee_id',
         'created_via',

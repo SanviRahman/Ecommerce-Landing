@@ -16,8 +16,21 @@
                 {{ $available > 0 ? 'In stock' : 'Out of stock' }}
             </span>
         </div>
-        <a class="p07-card-action" href="{{ route('storefront.product', $product->slug) }}">
-            {{ $product->has_variants ? 'View options' : 'View details' }}
-        </a>
+        <div class="p19-card-actions">
+            @php $defaultSku = $product->has_variants ? null : $product->variants->first(fn($v) => $v->is_default && $v->is_active && !$v->trashed() && $v->stock > 0 && (int)$product->inventory_version === 1); @endphp
+            @if(($cartVersion ?? null) !== null && $defaultSku)
+                <form action="{{ route('storefront.cart.add') }}" method="POST" data-async-cart class="p19-quickform">
+                    @csrf
+                    <input type="hidden" name="product_variant_id" value="{{ $defaultSku->id }}">
+                    <input type="hidden" name="quantity" value="1">
+                    <input type="hidden" name="cart_version" value="{{ $cartVersion }}">
+                    <button type="submit" name="intent" value="cart" class="p19-cart-action" aria-label="Add {{ $product->name }} to cart">🛒</button>
+                    <button type="submit" name="intent" value="checkout" class="p07-card-action">Order Now</button>
+                </form>
+            @else
+                <a class="p19-cart-action" href="{{ route('storefront.product', $product->slug) }}" aria-label="Choose {{ $product->name }} for cart">🛒</a>
+                <a class="p07-card-action" href="{{ route('storefront.product', $product->slug) }}">{{ $product->has_variants ? 'Choose Options' : 'Order Now' }}</a>
+            @endif
+        </div>
     </div>
 </article>

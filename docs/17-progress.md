@@ -291,3 +291,17 @@ Not approved. Requires mandatory acceptance matrix, no unresolved P0/P1 blockers
 - Existing `app`, `routes`, P02 migrations, `.env`, customer database, `public/storage`, inventory, campaigns, homepage permissions and public storefront flag are intentionally unchanged except the P15 files listed in the patch manifest.
 - Offline acceptance: P11 baseline gate 17/17, P15 CSV/private export check, view-ref resolution, PHP syntax and JavaScript syntax. These are **source-only checks** without Laravel vendor/MySQL/browser runtime and do not certify end-to-end security or deployment.
 - Legacy public exports remain a security follow-up on PHP dev server, Nginx, IIS and CDN; migrate existing files only after inventory/backup/owner review. **Production release remains NO-GO**.
+
+### 2026-10-26 — P19 staged e-commerce UI and source-level integration (release NOT approved)
+
+- **Source reviewed:** user `website(20261026-033819).zip`, user `shoppilot.zip`, screenshots of HT Bazar/ShopPilot, and user-provided AI-reported 14-minute meeting transcript + animation list. Actual meeting recording was not provided; do not claim verbatim verified audio/video.
+- **Implemented in clean separate copy:** typed `category_products` Builder section with safe active category/descendant/limit/sort; 3+-item hero slider; nested/offcanvas category menu; 4 desktop/2 mobile product cards, real server-sourced floating guest cart count and subtotal; two-column product detail, sticky Order Now; staged 4-step COD UI; customer-only auth guard/table and optional linked orders; authentic reviews, configured-only footer/contact, FAQ; JS/CSS scroll/hover/reduced-motion animations. No legacy `/` cutover.
+- **Architecture preserved:** route namespace `/storefront`, P14 access, P07/P08/P03 isolated-only MySQL gates, CSRF, stock, COD, immutable homepage revisions and AdminLTE. No source copying from reference website; no DB migration or seed run by the authoring environment.
+- **Review/test status:** See `P19_AUDIT_REPORT_BN.md` for exact offline outputs and Windows runtime blockers. P19 source contract is NOT a substitute for Laravel/MySQL/browser functional acceptance. Fresh/seed/reset not authorized on original local DB.
+- **Next:** apply only reviewed patch after backup; obtain P19 MySQL account migration approval, isolated feature testing, authenticated browser screenshots, mobile 320/375/768/desktop breakpoints, functional cart/checkout and Admin staged Preview evidence; separate owner approval required before public cutover.
+
+### 2026-10-26 — P24 scoped 404 / private preview UX fix (source only)
+
+- Verified latest user ZIP `website_2(1).zip`: P11 manifest baseline 544/544 PASS; no admin `/storefront` entry route; public `/storefront/home` still isolated and default disabled. Screenshot 404 is a **missing admin shortcut**, not a missing published revision.
+- Added admin-only GET shortcut redirect, no-store; improved private section links (including mobile anchors), category image SVG fallback, image error fallback and safe footer using existing contact settings. No migration/seed/cutover/stock/cart writes; `AGENTS.md`, `rules.md`, `bugfix.md`, `constraints.md` observed.
+- P24 source regression fail-first and postchange QA results are in `P24-AUDIT-RESULTS-BN.md`. Actual Laravel HTTP, local MariaDB and visual browser acceptance remain **pending user verification** (no Composer vendor or pdo_mysql in authoring sandbox).

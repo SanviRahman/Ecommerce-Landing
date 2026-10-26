@@ -128,6 +128,7 @@ final class StorefrontCheckout
                 'invoice_id' => $this->invoiceId(),
                 'success_token' => Str::random(40),
                 'campaign_id' => null, 'customer_id' => $customer->id,
+                'storefront_account_id' => \Illuminate\Support\Facades\Auth::guard('storefront')->id(),
                 'created_via' => Order::CREATED_VIA_FRONTEND,
                 'customer_name' => $customer->name, 'phone' => $customer->phone,
                 'address' => $address, 'delivery_area' => $shipping->area_name,

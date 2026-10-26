@@ -46,7 +46,7 @@
             <span class="p07-eyebrow">{{ $category->name }}</span>
             <h1 id="p07-product-name">{{ $product->name }}</h1>
             <div class="p07-detail-price" id="p07-selected-price">{{ $product->has_variants ? 'From ' : '' }}৳{{ number_format($catalog->displayPrice($product)) }}</div>
-            @if($product->short_description)<p class="p07-summary-description">{{ $product->short_description }}</p>@endif
+
 
             @if($product->has_variants)
                 <div id="p07-variant-picker" data-variant-matrix="{{ json_encode($selection, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_THROW_ON_ERROR) }}">
@@ -91,7 +91,7 @@
                     @endif
                     <label for="p08-product-quantity">Quantity</label>
                     <input type="number" name="quantity" id="p08-product-quantity" min="1" max="1000" value="{{ old('quantity', 1) }}" required>
-                    <div class="p08-product-actions">
+                    <div class="p08-product-actions" id="p19-primary-buy-actions">
                         <button type="submit" name="intent" value="cart" class="p08-action-cart" @disabled(!$product->has_variants && (!$simpleDefault || $simpleDefault->stock < 1))>Add to Cart</button>
                         @if(config('storefront.p08_checkout_test_enabled', false) && config('storefront.p03_core_test_enabled', false))
                             <button type="submit" name="intent" value="checkout" class="p08-action-buy" @disabled(!$product->has_variants && (!$simpleDefault || $simpleDefault->stock < 1))>Order Now</button>
@@ -102,7 +102,12 @@
                     <p class="p08-help">Cash on delivery. Prices and availability are checked again before confirmation.</p>
                 </form>
                 @if(config('storefront.p08_checkout_test_enabled', false) && config('storefront.p03_core_test_enabled', false))
-                    <div class="p10-mobile-buy" aria-label="Quick order action">
+                    <div class="p10-mobile-buy" data-sticky-order hidden aria-label="Quick order action">
+                        <div class="p19-sticky-product">
+                            <img src="{{ $catalog->productImage($product) }}" alt="" loading="lazy" width="46" height="46">
+                            <span><strong>{{ \Illuminate\Support\Str::limit($product->name, 28) }}</strong>
+                                <small>{{ $product->has_variants ? 'From ' : '' }}৳{{ number_format($catalog->displayPrice($product)) }}</small></span>
+                        </div>
                         <button form="p08-product-order-form" type="submit" name="intent" value="checkout"
                             @disabled(!$product->has_variants && (!$simpleDefault || $simpleDefault->stock < 1))>
                             Order Now · Cash on Delivery
@@ -119,6 +124,9 @@
         </section>
     </div>
 
+    @if($product->short_description)
+        <section class="p19-product-benefits" aria-label="Product highlights"><h2>Product highlights</h2><p>{{ $product->short_description }}</p></section>
+    @endif
     @if($product->full_description)
         <section class="p07-description" aria-labelledby="p07-description-heading">
             <h2 id="p07-description-heading">Product description</h2>

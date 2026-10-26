@@ -13,6 +13,7 @@ use App\Services\Storefront\PublicCatalog;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use DomainException;
@@ -31,7 +32,25 @@ final class StorefrontCartController extends Controller
         ]));
     }
 
-    public function add(Request $request, GuestCartOwner $owner, GuestCartService $cart): RedirectResponse
+    public function summary(Request $request, GuestCartOwner $owner, GuestCartService $cart): JsonResponse
+    {
+        $cart->assertEnabled();
+        $state = $cart->show($owner->hash($request));
+        return response()->json([
+            'version' => $state['version'],
+            'count' => array_sum(array_column($state['lines'], 'quantity')),
+            'subtotal' => $state['subtotal'],
+            'can_checkout' => $state['can_checkout'],
+            'lines' => array_map(static fn (array $line): array => [
+                'id' => $line['id'], 'name' => $line['name'], 'quantity' => $line['quantity'],
+                'unit_price' => $line['unit_price'], 'line_total' => $line['line_total'],
+                'option_label' => $line['option_label'], 'available' => $line['available'],
+                'sufficient' => $line['sufficient'], 'price_changed' => $line['price_changed'],
+            ], $state['lines']),
+        ])->header('Cache-Control', 'private, no-store, max-age=0');
+    }
+
+    public function add(Request $request, GuestCartOwner $owner, GuestCartService $cart): RedirectResponse|JsonResponse
     {
         $cart->assertEnabled();
         $data = $request->validate([
@@ -42,6 +61,18 @@ final class StorefrontCartController extends Controller
         ]);
         $cart->add($owner->hash($request), (int) $data['product_variant_id'],
             (int) $data['quantity'], (int) $data['cart_version']);
+        if ($request->expectsJson()) {
+            $state = $cart->show($owner->hash($request));
+            return response()->json([
+                'saved' => true, 'version' => $state['version'],
+                'count' => array_sum(array_column($state['lines'], 'quantity')),
+                'subtotal' => $state['subtotal'],
+                'redirect' => ($data['intent'] ?? 'cart') === 'checkout'
+                    && config('storefront.p08_checkout_test_enabled', false)
+                    && config('storefront.p03_core_test_enabled', false)
+                    ? route('storefront.checkout') : null,
+            ])->header('Cache-Control','private, no-store');
+        }
         if (($data['intent'] ?? 'cart') === 'checkout'
             && config('storefront.p08_checkout_test_enabled', false) === true
             && config('storefront.p03_core_test_enabled', false) === true) {
@@ -52,13 +83,18 @@ final class StorefrontCartController extends Controller
 
     public function change(
         Request $request, int $item, GuestCartOwner $owner, GuestCartService $cart
-    ): RedirectResponse {
+    ): RedirectResponse|JsonResponse {
         $cart->assertEnabled();
         $data = $request->validate([
             'quantity' => ['required', 'integer', 'min:0', 'max:1000'],
             'cart_version' => ['required', 'integer', 'min:1'],
         ]);
         $cart->change($owner->hash($request), $item, (int) $data['quantity'], (int) $data['cart_version']);
+        if ($request->expectsJson()) {
+            $state = $cart->show($owner->hash($request));
+            return response()->json(['saved'=>true, 'version'=>$state['version']])
+                ->header('Cache-Control','private, no-store');
+        }
         return redirect()->route('storefront.cart')->with('status', 'Cart updated.');
     }
 

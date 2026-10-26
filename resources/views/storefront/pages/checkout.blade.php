@@ -1,41 +1,88 @@
 @extends('storefront.layouts.catalog')
-@section('title', 'Checkout')
+@section('title', 'Secure Checkout')
 @section('content')
-    <div class="p08-heading"><h1>Cash on Delivery Checkout</h1><p>Your price and stock are verified again when you submit.</p></div>
-    @if($errors->any())<div class="p08-error" role="alert"><ul>@foreach($errors->all() as $message)<li>{{ $message }}</li>@endforeach</ul></div>@endif
-    <div class="p08-checkout-grid">
-        <form id="p08-checkout-form" method="POST" action="{{ route('storefront.checkout.place') }}" class="p08-checkout-form">
+    @php $shopper = \Illuminate\Support\Facades\Auth::guard('storefront')->user(); @endphp
+    <div class="p19-checkout-heading" data-reveal><p class="p19-caption">SECURE CASH ON DELIVERY CHECKOUT</p>
+        <h1>Complete Your <span>Order</span></h1><p>Enter shipping details, confirm payment method, review your order and place it securely.</p>
+    </div>
+    <ol class="p19-checkout-steps" aria-label="Checkout steps" data-step-indicator>
+        @foreach(['Shipping','Payment','Review','Order Placed'] as $name)
+            <li class="{{ $loop->first ? 'is-current' : '' }}" data-step-indicator-item="{{ $loop->iteration }}"
+                @if($loop->first) aria-current="step" @endif><span>{{ $loop->iteration }}</span>{{ $name }}</li>
+        @endforeach
+    </ol>
+    @if($errors->any())<div class="p08-error" role="alert"><strong>Please check these details:</strong>
+        <ul>@foreach($errors->all() as $message)<li>{{ $message }}</li>@endforeach</ul></div>@endif
+    <div class="p08-checkout-grid p19-checkout-grid">
+        <form id="p08-checkout-form" method="POST" action="{{ route('storefront.checkout.place') }}"
+            class="p08-checkout-form p19-checkout-form" data-checkout-stepper>
             @csrf
             <input type="hidden" name="checkout_key" value="{{ old('checkout_key', $checkoutKey) }}">
             <input type="hidden" name="cart_version" value="{{ $cart['version'] }}">
-            <label for="p08-customer-name">Full name</label>
-            <input id="p08-customer-name" name="customer_name" maxlength="255" value="{{ old('customer_name') }}" autocomplete="name" required>
-            <label for="p08-phone">Phone (11 digits)</label>
-            <input id="p08-phone" name="phone" inputmode="tel" pattern="01[0-9]{9}" maxlength="11" value="{{ old('phone') }}" autocomplete="tel" required>
-            <label for="p08-address">Complete delivery address</label>
-            <textarea id="p08-address" name="address" rows="3" maxlength="2000" required>{{ old('address') }}</textarea>
-            <label for="p08-area">Delivery area</label>
-            <select id="p08-area" name="shipping_area_id" required>
-                <option value="">Choose a delivery area</option>
-                @foreach($areas as $area)
-                    <option value="{{ $area->id }}" @selected((string) old('shipping_area_id') === (string) $area->id)>{{ $area->area_name }} — ৳{{ number_format($area->delivery_charge) }}</option>
-                @endforeach
-            </select>
-            <label for="p08-note">Order note (optional)</label>
-            <textarea id="p08-note" name="customer_note" rows="2" maxlength="1000">{{ old('customer_note') }}</textarea>
-            <p class="p08-help">Only cash on delivery is available. A changed product price or unavailable shipping area stops checkout.</p>
-            <button class="p08-primary p08-submit" type="submit" @disabled($areas->isEmpty())>Place COD Order</button>
-            @if($areas->isEmpty())<p class="p08-error">Delivery areas are not configured; checkout is unavailable.</p>@endif
+            <fieldset class="p19-step-panel" data-checkout-step="1"><legend>Shipping Information</legend>
+                <p class="p19-step-subtitle">Where should we deliver your order?</p>
+                <div class="p19-form-row">
+                    <div><label for="p08-customer-name">Full Name <span>*</span></label>
+                        <input id="p08-customer-name" name="customer_name" maxlength="255"
+                            value="{{ old('customer_name', $shopper?->name) }}" autocomplete="name" required></div>
+                    <div><label for="p08-phone">Phone Number <span>*</span></label>
+                        <input id="p08-phone" name="phone" inputmode="tel" pattern="01[0-9]{9}" maxlength="11"
+                            value="{{ old('phone', $shopper?->phone) }}" placeholder="01XXXXXXXXX" autocomplete="tel" required></div>
+                </div>
+                <label for="p08-address">Complete Delivery Address <span>*</span></label>
+                <textarea id="p08-address" name="address" rows="3" minlength="8" maxlength="2000"
+                    autocomplete="street-address" required>{{ old('address', $shopper?->address) }}</textarea>
+                <label for="p08-area">Delivery Area <span>*</span></label>
+                <select id="p08-area" name="shipping_area_id" data-shipping-area required>
+                    <option value="">Choose a delivery area</option>
+                    @foreach($areas as $area)
+                        <option value="{{ $area->id }}" data-shipping-cost="{{ $area->delivery_charge }}"
+                            @selected((string)old('shipping_area_id')===(string)$area->id)>
+                            {{ $area->area_name }} — ৳{{ number_format($area->delivery_charge) }}
+                        </option>
+                    @endforeach
+                </select>
+                <label for="p08-note">Order note (optional)</label>
+                <textarea id="p08-note" name="customer_note" rows="2" maxlength="1000">{{ old('customer_note') }}</textarea>
+                <p class="p08-help">The final price, stock and shipping charge are recalculated by the server before placing your order.</p>
+                <button type="button" class="p08-primary p19-next-btn" data-step-next="2" @disabled($areas->isEmpty())>Continue to Payment →</button>
+                @if($areas->isEmpty())<p class="p08-error">Delivery areas are not configured; checkout is unavailable.</p>@endif
+            </fieldset>
+            <fieldset class="p19-step-panel" data-checkout-step="2"><legend>Payment Method</legend>
+                <p class="p19-step-subtitle">Choose a payment method available at this store.</p>
+                <label class="p19-payment-choice"><input type="radio" name="payment_display" checked disabled>
+                    <span><strong>Cash on Delivery</strong><small>Pay when your order is delivered</small></span></label>
+                <p class="p19-note">Online cards, bKash and Nagad are not enabled for this protected checkout.</p>
+                <div class="p19-form-actions"><button type="button" data-step-back="1">← Shipping</button>
+                    <button type="button" class="p08-primary" data-step-next="3">Review Order →</button></div>
+            </fieldset>
+            <fieldset class="p19-step-panel" data-checkout-step="3"><legend>Review Your Order</legend>
+                <p class="p19-step-subtitle">Verify your shipping details and items before submitting.</p>
+                <div class="p19-review-shipping" data-review-shipping></div>
+                <div class="p19-review-lines">
+                    @foreach($cart['lines'] as $line)
+                        <p>{{ $line['name'] }} × {{ $line['quantity'] }} <strong>৳{{ $line['line_total'] }}</strong></p>
+                    @endforeach
+                </div>
+                <div class="p19-review-totals"><p>Subtotal <strong>৳{{ $cart['subtotal'] }}</strong></p>
+                    <p>Delivery <strong data-shipping-preview>Calculated by server</strong></p></div>
+                <p class="p08-help">By placing your order, you confirm that the information is correct. Inventory and price are checked again.</p>
+                <div class="p19-form-actions"><button type="button" data-step-back="2">← Payment</button>
+                    <button class="p08-primary p08-submit" type="submit" @disabled($areas->isEmpty())>Place COD Order</button>
+                </div>
+            </fieldset>
+            <noscript><p class="p19-noscript">JavaScript is disabled. The secure server form is fully usable; click Place COD Order below.</p>
+                <button class="p08-primary p08-submit" type="submit" @disabled($areas->isEmpty())>Place COD Order</button></noscript>
         </form>
-        <aside class="p08-summary p08-checkout-summary" aria-label="Order summary">
-            <h2>Order Summary</h2>
+        <aside class="p08-summary p08-checkout-summary p19-order-summary" aria-label="Order summary" data-reveal>
+            <h2>Order Summary <small>{{ count($cart['lines']) }} items</small></h2>
             @foreach($cart['lines'] as $line)
-                <p>{{ $line['name'] }} ({{ $line['quantity'] }}) <strong>৳{{ $line['line_total'] }}</strong></p>
+                <div class="p19-summary-product"><span>{{ $line['name'] }}<small>Qty: {{ $line['quantity'] }}</small></span><strong>৳{{ $line['line_total'] }}</strong></div>
             @endforeach
-            <hr>
-            <p>Subtotal <strong>৳{{ $cart['subtotal'] }}</strong></p>
-            <p>Delivery <strong>Calculated on submit</strong></p>
-            <a href="{{ route('storefront.cart') }}">Review cart</a>
+            <hr><p>Subtotal <strong>৳{{ $cart['subtotal'] }}</strong></p>
+            <p>Shipping <strong data-shipping-preview>Choose delivery area</strong></p>
+            <p class="p19-summary-total">Total <strong>Calculated on confirmation</strong></p>
+            <a href="{{ route('storefront.cart') }}">← Edit cart</a>
         </aside>
     </div>
 @endsection

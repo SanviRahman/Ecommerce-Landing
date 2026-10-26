@@ -6,7 +6,10 @@ namespace App\Http\Controllers\Frontend;
 
 use App\Http\Controllers\Controller;
 use App\Models\Review;
+use App\Models\Faq;
+use App\Support\StorefrontContactLinks;
 use App\Services\Storefront\HomepageBuilder;
+use App\Services\Storefront\CategoryShelf;
 use App\Services\Storefront\PublicCatalog;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -16,7 +19,7 @@ use Spatie\MediaLibrary\MediaCollections\Models\Media;
 /** Separate staged, read-only P07 public pages; never handles orders or carts. */
 final class StorefrontCatalogController extends Controller
 {
-    public function home(PublicCatalog $catalog, HomepageBuilder $builder): Response
+    public function home(PublicCatalog $catalog, HomepageBuilder $builder, CategoryShelf $shelves): Response
     {
         $catalog->assertAvailable();
         $page = DB::table('storefront_pages')->where('slug', HomepageBuilder::PAGE_SLUG)
@@ -53,10 +56,37 @@ final class StorefrontCatalogController extends Controller
             ->where('disk', 'public')->whereIn('collection_name', HomepageBuilder::PUBLIC_IMAGE_COLLECTIONS)
             ->get()->filter(static fn (Media $item) => is_file($item->getPath()))->keyBy('id');
 
+        $categoryShelves = [];
+        foreach ($revision['sections'] as $section) {
+            if ($section['type'] === 'category_products' && $section['is_enabled']) {
+                $categoryShelves[$section['section_key']] = $shelves->productsFor($section);
+            }
+        }
+        $cartVersion = $this->cartVersion(request());
         return $this->noStore(response()->view('storefront.pages.home', [
             'revision' => $revision, 'products' => $products, 'categories' => $categories,
             'reviews' => $reviews, 'media' => $media, 'isPreview' => false,
             'catalog' => $catalog, 'navigation' => $catalog->navigationCategories(),
+            'categoryShelves' => $categoryShelves, 'cartVersion' => $cartVersion,
+        ]));
+    }
+
+    /** Public global FAQs only: no campaign-owned Q&A leaks to a different storefront. */
+    public function help(PublicCatalog $catalog): Response
+    {
+        $catalog->assertAvailable();
+        $faqs = Faq::query()->whereNull('campaign_id')->active()->sorted()->limit(40)->get();
+        return $this->noStore(response()->view('storefront.pages.help', [
+            'navigation' => $catalog->navigationCategories(), 'faqs' => $faqs,
+        ]));
+    }
+
+    /** Contact links come only from validated existing site settings. */
+    public function contact(PublicCatalog $catalog, StorefrontContactLinks $contacts): Response
+    {
+        $catalog->assertAvailable();
+        return $this->noStore(response()->view('storefront.pages.contact', [
+            'navigation' => $catalog->navigationCategories(), 'contacts' => $contacts->active(),
         ]));
     }
 
@@ -73,9 +103,11 @@ final class StorefrontCatalogController extends Controller
             ->when($q !== '', static function ($builder) use ($q): void {
                 $builder->where('products.name', 'like', '%' . addcslashes($q, '%_\\') . '%');
             }), $sort)->paginate(16)->withQueryString();
+        $cartVersion = $this->cartVersion($request);
         return $this->noStore(response()->view('storefront.pages.shop', [
             'products' => $products, 'navigation' => $catalog->navigationCategories(),
             'catalog' => $catalog, 'q' => $q, 'sort' => $sort, 'category' => null,
+            'cartVersion' => $cartVersion,
         ]));
     }
 
@@ -92,9 +124,11 @@ final class StorefrontCatalogController extends Controller
         $sort = $data['sort'] ?? 'newest';
         $products = $catalog->sortedProducts($catalog->eligibleProducts()
             ->whereIn('products.category_id', $categoryIds), $sort)->paginate(16)->withQueryString();
+        $cartVersion = $this->cartVersion($request);
         return $this->noStore(response()->view('storefront.pages.shop', [
             'products' => $products, 'navigation' => $catalog->navigationCategories(),
             'catalog' => $catalog, 'q' => '', 'sort' => $sort, 'category' => $category,
+            'cartVersion' => $cartVersion,
         ]));
     }
 
@@ -113,6 +147,14 @@ final class StorefrontCatalogController extends Controller
             'cartVersion' => $cartVersion,
             'navigation' => $catalog->navigationCategories(),
         ]));
+    }
+
+    private function cartVersion(Request $request): ?int
+    {
+        if (! config('storefront.p08_cart_test_enabled', false)) return null;
+        $owner = app(\App\Services\Cart\GuestCartOwner::class);
+        return (int) app(\App\Services\Cart\GuestCartService::class)
+            ->show($owner->hash($request))['version'];
     }
 
     private function noStore(Response $response): Response

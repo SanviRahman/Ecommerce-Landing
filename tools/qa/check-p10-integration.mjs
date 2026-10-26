@@ -9,6 +9,7 @@ function ok(label, condition) {
 }
 const layout=file('resources/views/storefront/layouts/catalog.blade.php');
 const home=file('resources/views/storefront/pages/home.blade.php');
+const nav=file('resources/views/storefront/partials/navigation.blade.php');
 const footer=file('resources/views/storefront/partials/footer.blade.php');
 const product=file('resources/views/storefront/pages/product.blade.php');
 const widget=file('resources/views/storefront/partials/contact-widget.blade.php');
@@ -23,11 +24,17 @@ ok('Original root and campaign routes remain independent', userRoutes.includes("
 ok('Staging feature flags remain disabled by default', config.includes("'p03_core_test_enabled' => false") && config.includes("'p08_cart_test_enabled' => env('P08_CART_TEST_ENABLED', false)"));
 ok('Storefront catalog includes contact styling and widget', layout.includes('storefront-contact.css') && layout.includes("'storefront.partials.contact-widget'"));
 ok('Published homepage includes same contact styling', home.includes('storefront-contact.css') && home.includes("'storefront.partials.contact-widget'"));
-ok('Private revision preview never renders contact widget', home.includes("@unless($isPreview ?? false)") && /@if\(!\(\$isPreview \?\? false\)\)\s*@include\('storefront.partials.contact-widget'\)/.test(home));
-ok('Cart header and mobile links are gated by real feature', (home.match(/route\('storefront.cart'\)/g)||[]).length===2 && (home.match(/config\('storefront.p08_cart_test_enabled'/g)||[]).length===2);
-ok('Catalog footer describes checkout enabled state correctly', footer.includes('Cart and cash-on-delivery checkout are available') && footer.includes("config('storefront.p03_core_test_enabled'"));
-ok('Catalog footer describes cart-only state correctly', footer.includes('Cart review is available. Checkout is not enabled yet.'));
-ok('Catalog footer describes browsing-only state correctly', footer.includes('Orders and checkout are not enabled on this storefront yet.'));
+ok('Private revision preview never renders contact widget', /@if\(\$isPreview \?\? false\)[\s\S]*?@else[\s\S]*?@include\('storefront.partials.contact-widget'\)/.test(home) && home.includes('Private staging preview'));
+ok('Cart shell and mobile action appear only with real cart feature flag',
+  nav.includes("$cartActive = config('storefront.p08_cart_test_enabled', false) === true")
+  && nav.includes('@if($cartActive)') && nav.includes('data-cart-summary-url')
+  && nav.includes("route('storefront.cart.summary')"));
+ok('Catalog footer has separate Quick Links, Customer Care, Contact Us',
+  footer.includes('Quick Links') && footer.includes('Customer Care') && footer.includes('Contact Us'));
+ok('Footer uses configured validated contact links, not placeholder destinations',
+  footer.includes('StorefrontContactLinks::class') && !/href="#"|href="javascript:/.test(footer));
+ok('Footer never implies ungated checkout is live', footer.includes('where checkout is enabled') === false
+  && footer.includes('COD on supported orders'));
 ok('Configured-only contact widget has no placeholder destinations', widget.includes('count($storefrontContactLinks) > 0') && !/href="#"|href="javascript:/.test(widget));
 ok('Contact action URLs are escaped by Blade and external links isolated', widget.includes("{{ $contact['href'] }}") && widget.includes('noopener noreferrer'));
 ok('Only live/active admin SiteSetting rows feed contacts', contacts.includes("SiteSetting::query()->where('status', true)"));

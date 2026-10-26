@@ -1,0 +1,3 @@
+# P21 progress addendum (for merging into docs/17-progress.md)
+
+2026-10-26 — P21 exact P19 SHA-256 mismatch repaired in offline comparison: input 544 files, expected 543; one unreferenced `public/frontend/css/storefront-motion.css` preserved under `reports/p21-preserved-source/` and removed from public inventory after SHA verification. Reviewed P20 recovery tooling and compatible P16 sidebar checker restored. Reviewed 544-file manifest passes, P16 9/9, P17 16/16, P19 29/29, P11 17/17, PHP 502 and JS 42 syntax checks PASS. Unknown-change safety tests PASS. No database or runtime HTTP/browser testing performed; customer-account migration remains pending; public cutover unapproved.

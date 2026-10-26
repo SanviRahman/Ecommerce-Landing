@@ -9,6 +9,7 @@ use App\Models\Category;
 use App\Models\Product;
 use App\Models\Review;
 use App\Services\Storefront\HomepageBuilder;
+use App\Services\Storefront\CategoryShelf;
 use App\Support\HomeSectionSchema;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -19,6 +20,24 @@ use RuntimeException;
 /** Staged authenticated P05 admin controls; no public homepage routing changes. */
 final class HomepageBuilderController extends Controller
 {
+    /**
+     * A safe landing for the old /admin/storefront URL. Only an authorized
+     * admin on the reviewed database can reach the private staged preview.
+     * When nothing has been staged, show the editor rather than a 404.
+     * This deliberately does not enable the public storefront or checkout.
+     */
+    public function entry(HomepageBuilder $builder): RedirectResponse
+    {
+        $this->adminOnly($builder);
+        $state = $builder->inspect();
+        $destination = $state['draft'] || $state['published']
+            ? 'admin.storefront.home.preview'
+            : 'admin.storefront.home.index';
+
+        return redirect()->route($destination)
+            ->header('Cache-Control', 'private, no-store, max-age=0');
+    }
+
     public function index(HomepageBuilder $builder): View
     {
         $this->adminOnly($builder);
@@ -28,6 +47,7 @@ final class HomepageBuilderController extends Controller
         foreach ($state['draft']['sections'] ?? [] as $section) {
             $extraProducts = array_merge($extraProducts, $section['products']);
             $extraCategories = array_merge($extraCategories, $section['categories']);
+            if (! empty($section['category_id'])) $extraCategories[] = (int) $section['category_id'];
         }
         $selectedProducts = Product::query()->whereIn('id', array_unique($extraProducts))->where('status', true)->get(['id', 'name']);
         $selectedCategories = Category::query()->whereIn('id', array_unique($extraCategories))->where('status', true)->get(['id', 'name']);
@@ -90,6 +110,10 @@ final class HomepageBuilderController extends Controller
             'category_ids.*' => ['integer', 'min:1', 'distinct'],
             'product_ids' => ['sometimes', 'array', 'max:50'],
             'product_ids.*' => ['integer', 'min:1', 'distinct'],
+            'source_category_id' => ['nullable', 'integer', 'min:1'],
+            'include_descendants' => ['nullable', 'boolean'],
+            'product_sort' => ['nullable', 'in:newest,name,price_asc,price_desc'],
+            'product_limit' => ['nullable', 'integer', 'between:1,24'],
             'styles' => ['sometimes', 'array:' . implode(',', HomeSectionSchema::STYLE_KEYS)],
         ], $this->colorRules('styles')));
         $data['category_ids'] = array_map('intval', $data['category_ids'] ?? []);
@@ -189,7 +213,7 @@ final class HomepageBuilderController extends Controller
         return $this->back('Revision published in Homepage Builder. The public / route remains the existing campaign homepage.');
     }
 
-    public function preview(Request $request, HomepageBuilder $builder): \Illuminate\Http\Response
+    public function preview(Request $request, HomepageBuilder $builder, CategoryShelf $shelves): \Illuminate\Http\Response
     {
         $this->adminOnly($builder);
         $data = $request->validate(['revision' => ['nullable', 'integer', 'min:1']]);
@@ -218,7 +242,13 @@ final class HomepageBuilderController extends Controller
         $media = \Spatie\MediaLibrary\MediaCollections\Models\Media::query()->whereIn('id', array_unique($mediaIds))
             ->where('disk', 'public')->get()->filter(fn ($m) => is_file($m->getPath()))->keyBy('id');
 
-        return response()->view('storefront.preview.home', compact('revision', 'products', 'categories', 'reviews', 'media'))
+        $categoryShelves = [];
+        foreach ($revision['sections'] as $section) {
+            if ($section['type'] === 'category_products' && $section['is_enabled']) {
+                $categoryShelves[$section['section_key']] = $shelves->productsFor($section);
+            }
+        }
+        return response()->view('storefront.preview.home', compact('revision', 'products', 'categories', 'reviews', 'media', 'categoryShelves'))
             ->header('Cache-Control', 'private, no-store, max-age=0')
             ->header('X-Robots-Tag', 'noindex, nofollow')
             ->header('Referrer-Policy', 'same-origin');

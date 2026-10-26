@@ -151,3 +151,18 @@ The user-provided 32-page AI meeting report describes a different demonstrated s
 
 - **Reproduction:** report CSV/PDF writers wrote into `Storage::disk('public')` under `reports/`; `.htaccess` did not deny the report path. CSV dynamic cells lacked spreadsheet-formula escaping.
 - **Narrow fix:** private new exports, sanitized CSV cells, Apache deny for old URLs without deleting historical files, and optional title fallback. Pending cross-server security and download verification.
+
+### B-P19-UI-01 — Reference storefront gaps in staged pages (2026-10-26)
+
+- **Observed:** user's reference screenshots specify carousel Hero, category-wise shelves, mobile offcanvas, nested categories, real cart count/total, 4-step COD checkout, account and footer; existing source was largely a static catalog layout. The new source adds those controlled interfaces without unapproved public feature activation.
+- **Cause:** no typed `category_products` section; static Hero renderer, basic storefront header/footer and no separate customer guard. Existing cart/checkout services were intentionally DB-gated, not missing.
+- **Scoped changes:** `app/Services/Storefront/CategoryShelf.php`, builder/controller/Blade, native frontend CSS/JS, account guard/migration, authenticated customer controller, read-only cart summary and UX views, safe FAQ/contact. The compiled output is not yet verified in a Laravel browser runtime.
+- **QA:** P19 source contracts, P13/P07 legacy route checks, P11 gate and PHP/JS lint to be verified; no public cutover and no customer legacy data import. See P19 audit report.
+
+### B-P24-01 — `/admin/storefront` unexpectedly 404 and private preview navigation/media incomplete (2026-10-26)
+
+- **Observed:** screenshot URL `127.0.0.1:8000/admin/storefront` returns a literal 404. In uploaded `website_2(1).zip`, `routes/admin.php` declares `/admin/storefront/home` and `/preview` but **does not declare** `/admin/storefront`. `routes/storefront.php` contains `/storefront/home`, not `/storefront`, and `PublicCatalog::assertAvailable()` deliberately restricts public browsing to isolated approved test database.
+- **Reproduction:** offline P24 source check 6/12 before fix. Baseline P11 fingerprint 544/544 PASS, confirming this was not caused by corrupted existing routes; no Laravel vendor or runtime MySQL in authoring sandbox.
+- **Narrow fix:** `GET /admin/storefront` now resolves through existing `auth`, `role:admin,employee`, and extra `role:admin` middleware, then `HomepageBuilderController::entry()` re-runs the real database/admin guard and redirects to the existing private Preview if a draft/published revision exists, or the editor otherwise. No new public commerce route was registered. Preview's formerly inert Home/Shop/Categories labels now scroll to its actual sections; mobile section links and authentic read-only Quick Links/Customer Care/Contact footer added. Category preview uses project's known SVG placeholder rather than the legacy AdminLTE image attribute fallback; failed public product/media URLs use existing `image-fallback.js`.
+- **Intentionally NOT changed:** `/`, campaign catch-all routes, original public `/storefront/home` independent P07 gate, P08 cart/checkout authorization/CSRF, customer DB, variants, inventory, migrations, published revision content. Product details and add-to-cart remain **inaccessible from private design preview** by policy; a safe separate functional browse/commerce release requires independent MySQL/browser test/approval.
+- **Regression:** `node tools/qa/check-p24-admin-preview-route.mjs` (fail first -> 12/12 PASS). P11/P19/P13 regression + PHP/JS lint and view references reported in `P24-AUDIT-RESULTS-BN.md`. HTTP browser/runtime testing remains PENDING.

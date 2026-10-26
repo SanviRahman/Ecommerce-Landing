@@ -201,6 +201,30 @@ final class HomepageBuilder
             } elseif ($section->type === 'product_list') {
                 $this->syncSelection('homepage_section_products', 'product_id', (int) $section->id,
                     $data['product_ids'] ?? [], 50, 'products');
+            } elseif ($section->type === 'category_products') {
+                $categoryId = (int) ($data['source_category_id'] ?? 0);
+                if ($categoryId < 1 || ! DB::table('categories')->where('id', $categoryId)
+                    ->where('status', true)->whereNull('deleted_at')->where(function ($query): void {
+                        $query->whereNull('parent_id')->orWhereIn('parent_id',
+                            DB::table('categories')->where('status', true)->whereNull('deleted_at')->whereNull('parent_id')->select('id'));
+                    })->exists()) {
+                    $this->reject('Select one active source category.', 'source_category_id');
+                }
+                $limit = (int) ($data['product_limit'] ?? 8);
+                if ($limit < 1 || $limit > 24) {
+                    $this->reject('Select between 1 and 24 products.', 'product_limit');
+                }
+                $sort = (string) ($data['product_sort'] ?? 'newest');
+                if (! in_array($sort, ['newest', 'name', 'price_asc', 'price_desc'], true)) {
+                    $this->reject('Unsupported product sorting.', 'product_sort');
+                }
+                DB::table('homepage_sections')->where('id', $section->id)->update([
+                    'category_id' => $categoryId,
+                    'include_descendants' => (bool) ($data['include_descendants'] ?? false),
+                    'product_limit' => $limit,
+                    'product_sort' => $sort,
+                    'source_type' => 'category', 'updated_at' => now(),
+                ]);
             }
             return ['section_key' => $key];
         });
@@ -401,7 +425,16 @@ final class HomepageBuilder
             } catch (InvalidArgumentException $e) {
                 $this->reject('Section ' . $section->section_key . ': ' . $e->getMessage());
             }
-            if ($section->type === 'category_grid' || $section->type === 'product_list') {
+            if ($section->type === 'category_products') {
+                $category = DB::table('categories')->where('id', $section->category_id)
+                    ->where('status', true)->whereNull('deleted_at')->first();
+                if (! $category || ($category->parent_id !== null && ! DB::table('categories')->where('id', $category->parent_id)
+                    ->where('status', true)->whereNull('deleted_at')->whereNull('parent_id')->exists())
+                    || (int) $section->product_limit < 1 || (int) $section->product_limit > 24
+                    || ! in_array($section->product_sort, ['newest', 'name', 'price_asc', 'price_desc'], true)) {
+                    $this->reject('Category product section needs an active category and valid limit/sort.');
+                }
+            } elseif ($section->type === 'category_grid' || $section->type === 'product_list') {
                 $table = $section->type === 'category_grid' ? 'homepage_section_categories' : 'homepage_section_products';
                 $column = $section->type === 'category_grid' ? 'category_id' : 'product_id';
                 $base = $section->type === 'category_grid' ? 'categories' : 'products';
@@ -489,7 +522,7 @@ final class HomepageBuilder
             'storefront_revision_id' => $revisionId, 'section_key' => $key, 'type' => $type,
             'title' => HomeSectionSchema::TYPES[$type], 'is_enabled' => false,
             'show_desktop' => true, 'show_mobile' => true, 'sort_order' => $order,
-            'source_type' => in_array($type, ['product_list', 'category_grid'], true) ? 'manual' : 'none',
+            'source_type' => $type === 'category_products' ? 'category' : (in_array($type, ['product_list', 'category_grid'], true) ? 'manual' : 'none'),
             'product_sort' => 'manual', 'product_limit' => 8,
             'layout' => json_encode(['desktop_columns' => 4, 'mobile_columns' => 2], JSON_THROW_ON_ERROR),
             'styles' => '{}', 'settings' => '{}', 'created_at' => now(), 'updated_at' => now(),

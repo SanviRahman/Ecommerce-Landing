@@ -12,6 +12,7 @@ final class HomeSectionSchema
     public const TYPES = [
         'hero_slider' => 'Hero / Banner',
         'category_grid' => 'Shop by Category',
+        'category_products' => 'Category-wise Products',
         'product_list' => 'Product Collection',
         'image_text' => 'Image & Text',
         'reviews' => 'Customer Reviews',

@@ -5,8 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     {{-- Stage catalog only; public promotion waits for the P09 release gate. --}}
     <meta name="robots" content="noindex,nofollow">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ config('app.name', 'Storefront') }} — Homepage</title>
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-preview.css') }}">
+    <link rel="stylesheet" href="{{ asset('frontend/css/storefront-catalog.css') }}">
+    <link rel="stylesheet" href="{{ asset('frontend/css/storefront-next.css') }}">
     @unless($isPreview ?? false)
         <link rel="stylesheet" href="{{ asset('frontend/css/storefront-contact.css') }}">
     @endunless
@@ -31,26 +34,33 @@
     <a href="{{ route('admin.storefront.home.index') }}">Back to admin editor</a>
 </div>
 @endif
+@if($isPreview ?? false)
+    @php
+        // Preview section links scroll inside this private page. They never route
+        // to the gated public catalog, cart or checkout.
+        $previewCategoriesSection = collect($revision['sections'])->first(static fn ($s) =>
+            $s['is_enabled'] && $s['type'] === 'category_grid');
+        $previewProductSection = collect($revision['sections'])->first(static fn ($s) =>
+            $s['is_enabled'] && in_array($s['type'], ['category_products', 'product_list'], true));
+        $previewCategoriesAnchor = $previewCategoriesSection ? '#sf-section-'.$previewCategoriesSection['section_key'] : '#main';
+        $previewProductsAnchor = $previewProductSection ? '#sf-section-'.$previewProductSection['section_key'] : '#main';
+    @endphp
 <header class="sf-header"><div class="sf-wrapper sf-header-inner">
-    @if($isPreview ?? false)
-        <div class="sf-brand"><span class="sf-mark" aria-hidden="true">S</span> {{ config('app.name', 'Storefront') }}</div>
-        <nav aria-label="Preview navigation"><span>Home</span><span>Shop</span><span>Categories</span></nav>
-    @else
-        <a class="sf-brand sf-brand-link" href="{{ route('storefront.home') }}"><span class="sf-mark" aria-hidden="true">S</span> {{ config('app.name', 'Storefront') }}</a>
-        <nav aria-label="Shop navigation">
-            <a href="{{ route('storefront.home') }}" aria-current="page">Home</a>
-            <a href="{{ route('storefront.shop') }}">Shop</a>
-            <a href="{{ route('storefront.shop') }}#categories">Categories</a>
-            @if(config('storefront.p08_cart_test_enabled', false))
-                <a href="{{ route('storefront.cart') }}">Cart</a>
-            @endif
-        </nav>
-    @endif
-    @if($isPreview ?? false)<span class="sf-preview-tag">Design preview · Not accepting orders</span>@endif
+    <a class="sf-brand sf-brand-link" href="#main"><span class="sf-mark" aria-hidden="true">S</span> {{ config('app.name', 'Storefront') }}</a>
+    <nav aria-label="Preview section navigation">
+        <a href="#main">Home</a>
+        <a href="{{ $previewProductsAnchor }}">Shop section</a>
+        <a href="{{ $previewCategoriesAnchor }}">Categories section</a>
+    </nav>
+    <span class="sf-preview-tag">Design preview · Not accepting orders</span>
 </div></header>
+@else
+    @include('storefront.partials.navigation', ['navigation' => $navigation])
+@endif
 <main id="main">
     @forelse($revision['sections'] as $section)
         @continue(!$section['is_enabled'])
+        @continue($section['type'] === 'category_products' && !($isPreview ?? false) && ($categoryShelves[$section['section_key']] ?? collect())->isEmpty())
         @php
             $palette = array_merge($global, $valid($section['styles']));
             // Constant, reviewed CSS variable names; values are strictly validated #RRGGBB tokens.
@@ -70,12 +80,13 @@
                 array_keys($cssTokens), array_values($cssTokens))).';';
             $visibleClass = !$section['show_mobile'] ? 'sf-hide-mobile' : (!$section['show_desktop'] ? 'sf-hide-desktop' : '');
         @endphp
-        <section class="sf-section {{ $visibleClass }} {{ $section['type']==='hero_slider' ? 'sf-section-hero' : '' }}" style="{{ $style }}" aria-label="{{ $section['title'] ?: ucfirst($section['type']) }}">
+        <section id="sf-section-{{ $section['section_key'] }}" class="sf-section {{ $visibleClass }} {{ $section['type']==='hero_slider' ? 'sf-section-hero' : '' }}" style="{{ $style }}" aria-label="{{ $section['title'] ?: ucfirst($section['type']) }}">
             <div class="sf-wrapper">
                 @if($section['type']==='hero_slider')
+                    <div class="sf-hero-carousel" data-hero-carousel aria-roledescription="carousel" aria-label="Homepage featured banners">
                     @foreach($section['items'] as $item)
                         @continue(!$item['is_enabled'] || !$item['media_id'] || !$media->has($item['media_id']))
-                        <div class="sf-hero-panel">
+                        <div class="sf-hero-panel" data-hero-slide role="group" aria-roledescription="slide">
                             <div class="sf-hero-copy">
                                 <span class="sf-eyebrow">Featured Collection</span>
                                 <h1>{{ $item['title'] ?: $section['title'] }}</h1>
@@ -91,6 +102,12 @@
                             <img src="{{ $media[$item['media_id']]->getUrl() }}" alt="{{ $item['title'] ?: 'Featured collection' }}" loading="{{ $loop->first ? 'eager' : 'lazy' }}">
                         </div>
                     @endforeach
+                        <div class="sf-carousel-controls" data-hero-controls hidden>
+                            <button type="button" data-hero-prev aria-label="Previous banner">‹</button>
+                            <div class="sf-carousel-dots" data-hero-dots aria-label="Choose banner"></div>
+                            <button type="button" data-hero-next aria-label="Next banner">›</button>
+                        </div>
+                    </div>
                 @else
                     @if($section['subtitle'])<p class="sf-kicker">{{ $section['subtitle'] }}</p>@endif
                     <div class="sf-title-line"><h2>{{ $section['title'] }}</h2><span class="sf-title-decoration" aria-hidden="true"></span></div>
@@ -101,7 +118,7 @@
                                 @if($categories->has($catId))
                                     @php $cat = $categories[$catId]; @endphp
                                     <article class="sf-tile">
-                                        <div class="sf-square"><img src="{{ ($isPreview ?? false) ? $cat->image : $catalog->categoryImage($cat) }}" alt="" loading="lazy"></div>
+                                        <div class="sf-square"><img src="{{ ($isPreview ?? false) ? ($cat->getFirstMediaUrl('category_image') ?: asset('frontend/images/no-image.svg')) : $catalog->categoryImage($cat) }}" data-image-fallback="{{ asset('frontend/images/no-image.svg') }}" alt="" loading="lazy"></div>
                                         @if($isPreview ?? false)
                                             <h3>{{ $cat->name }}</h3>
                                             <span class="sf-meta">Browse category</span>
@@ -113,24 +130,25 @@
                                 @endif
                             @endforeach
                         </div>
+                    @elseif($section['type']==='category_products')
+                        @php $shelf = $categoryShelves[$section['section_key']] ?? collect(); @endphp
+                        @if($shelf->isNotEmpty())
+                            <div class="sf-grid sf-grid-products sf-dynamic-category" data-reveal-stagger>
+                                @foreach($shelf as $product)
+                                    @include('storefront.partials.home-product-card', ['product'=>$product, 'isPreview'=>($isPreview ?? false)])
+                                @endforeach
+                            </div>
+                        @else
+                            @if($isPreview ?? false)
+                                <div class="sf-empty-section-note">No eligible products in this category yet. Add active products or choose a different source category.</div>
+                            @endif
+                        @endif
                     @elseif($section['type']==='product_list')
                         <div class="sf-grid sf-grid-products">
                             @foreach($section['products'] as $productId)
                                 @if($products->has($productId))
                                     @php $product = $products[$productId]; @endphp
-                                    <article class="sf-tile sf-product">
-                                        <div class="sf-product-image"><img src="{{ ($isPreview ?? false) ? $product->thumbnail : $catalog->productImage($product) }}" alt="{{ $product->name }}" loading="lazy"></div>
-                                        <div class="sf-product-copy">
-                                            <h3>{{ $product->name }}</h3>
-                                            @if($isPreview ?? false)
-                                                <div class="sf-price">৳{{ number_format((float) $product->new_price, 0) }}</div>
-                                                <div class="sf-product-actions"><span class="sf-secondary sf-inert">Cart</span><span class="sf-cta sf-inert">Buy</span></div>
-                                            @else
-                                                <div class="sf-price">{{ $product->has_variants ? 'From ' : '' }}৳{{ number_format($catalog->displayPrice($product)) }}</div>
-                                                <a class="sf-cta sf-p07-browse" href="{{ route('storefront.product', $product->slug) }}">{{ $product->has_variants ? 'View options' : 'View details' }}</a>
-                                            @endif
-                                        </div>
-                                    </article>
+                                    @include('storefront.partials.home-product-card', ['product'=>$product, 'isPreview'=>($isPreview ?? false)])
                                 @endif
                             @endforeach
                         </div>
@@ -151,16 +169,21 @@
                             </div>
                         @endforeach
                     @elseif($section['type']==='reviews')
-                        <div class="sf-grid sf-grid-reviews">
+                        <div class="sf-reviews-shell" data-review-carousel><div class="sf-grid sf-grid-reviews" data-review-track>
                             @foreach($section['items'] as $item)
                                 @if($item['is_enabled'] && $item['review_id'] && $reviews->has($item['review_id']))
                                     @php $review=$reviews[$item['review_id']]; @endphp
-                                    <figure class="sf-review"><div class="sf-rating">★★★★★</div>
+                                    <figure class="sf-review"><div class="sf-rating" aria-label="{{ (int)$review->rating }} out of 5 stars">{{ str_repeat("★", max(0, min(5, (int)$review->rating))) }}{{ str_repeat("☆", max(0, 5 - (int)$review->rating)) }}</div>
                                         <blockquote>{{ $review->review_text }}</blockquote>
                                         <figcaption>{{ $review->customer_name }}</figcaption>
                                     </figure>
                                 @endif
                             @endforeach
+                        </div>
+                            <div class="sf-review-controls" data-review-controls hidden>
+                                <button type="button" data-review-prev aria-label="Previous review">←</button>
+                                <button type="button" data-review-next aria-label="Next review">→</button>
+                            </div>
                         </div>
                     @endif
                 @endif
@@ -170,18 +193,25 @@
         <section class="sf-empty sf-wrapper"><h1>Build your storefront homepage</h1><p>No homepage sections have been configured in this revision.</p></section>
     @endforelse
 </main>
-<footer class="sf-footer"><div class="sf-wrapper">
-    {{ config('app.name', 'Storefront') }} @if($isPreview ?? false)<span>·</span> Storefront staging preview — existing campaign pages are unaffected @endif
-</div></footer>
-@if(!($isPreview ?? false))
-@include('storefront.partials.contact-widget')
-<nav class="sf-mobile-nav" aria-label="Mobile shop navigation">
-    <a href="{{ route('storefront.home') }}" aria-current="page">Home</a>
-    <a href="{{ route('storefront.shop') }}">Shop</a>
-    <a href="{{ route('storefront.shop') }}#categories">Categories</a>
-    @if(config('storefront.p08_cart_test_enabled', false))
-        <a href="{{ route('storefront.cart') }}">Cart</a>
-    @endif
-</nav>
+@if($isPreview ?? false)
+    <p class="sf-preview-release-status">Private staging preview — public campaign homepage remains unchanged.</p>
+    @include('storefront.preview.footer', [
+        'previewProductsAnchor' => $previewProductsAnchor,
+        'previewCategoriesAnchor' => $previewCategoriesAnchor,
+    ])
+    <nav class="sf-mobile-nav" aria-label="Preview mobile section navigation">
+        <a href="#main">Home</a>
+        <a href="{{ $previewCategoriesAnchor }}">Categories</a>
+        <a href="{{ $previewProductsAnchor }}">Products</a>
+        <a href="{{ route('admin.storefront.home.index') }}">Editor</a>
+    </nav>
+@else
+    @include('storefront.partials.footer')
+    @include('storefront.partials.contact-widget')
 @endif
+<script src="{{ asset('frontend/js/image-fallback.js') }}" defer></script>
+<script src="{{ asset('frontend/js/storefront-next.js') }}" defer></script>
+@unless($isPreview ?? false)
+    <script src="{{ asset('frontend/js/storefront-catalog.js') }}" defer></script>
+@endunless
 </body></html>

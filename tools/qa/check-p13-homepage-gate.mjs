@@ -23,11 +23,11 @@ const unittest = read('tests/Unit/P13HomepageMenuGateTest.php');
 const sync = read('tools/qa/p13-sync-source-to-test.ps1');
 const routeFiles = ['admin.php', 'api.php', 'command.php', 'console.php', 'storefront.php', 'user.php', 'web.php'];
 const approvedRouteHashes = {
-  'admin.php': '95033a3124467166d88ae6ff55c9a979043f76429f1be552a5077737c8c93270',
+  'admin.php': '2f68278de6efe46ec66225a057209b4e155505bd524471b355d3d6b31b398254', // P24: reviewed active-admin-only preview shortcut
   'api.php': '3144a774cccb127f0881e7d34ce43e963356dad03bf29bc59885cee7a548fdbf',
   'command.php': '2f66d33c8fb0436ee246c822e7799d13a9cca4789ffdeb0469ef81255a0fd02c',
   'console.php': 'd0ef5e225aed6e5a558dcf7c6a2cb76f109534d2e70b6f3d98c960ee557c12b8',
-  'storefront.php': 'd29cb321ad4af54e3d0309ada0d8d39c984974da3c4eccabc13266f84d15f0e4',
+  'storefront.php': 'c5a07336f86270178be73ec7c551832e89cf06805923233dc35b3412b8c9a6a2',
   'user.php': 'a0897fdf9df2e0e17a7be4833ab2b33e3489a4640dd3b62b60a85b0ea44102b5',
   'web.php': 'c3819a296e7965d5a4bf3ebdd887264759dbacc121c1d15c635fe536974163ea',
 };
@@ -56,7 +56,7 @@ check('Read-only test-admin presence check', readiness.includes('P02TestSchemaGa
 check('Unit regression covers original DB and inactive/employee access', unittest.includes('ecommerce_landing_db') && unittest.includes("'employee'") && unittest.includes("'admin', false"));
 check('All seven historical route files exist in the actual website',
   routeFiles.every((file) => fs.statSync(path.join(root, 'routes', file), { throwIfNoEntry: false })?.isFile()));
-check('All original route files retain their approved SHA256', routeFiles.every((file) => {
+check('Reviewed seven route files retain approved SHA256 (storefront extension P19)', routeFiles.every((file) => {
   const target = path.join(root, 'routes', file);
   return fs.existsSync(target) && createHash('sha256').update(fs.readFileSync(target)).digest('hex') === approvedRouteHashes[file];
 }));

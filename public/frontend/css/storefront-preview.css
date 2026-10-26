@@ -78,3 +78,20 @@ body{margin:0}img{max-width:100%;display:block}button,input,select{font:inherit}
     .sf-mobile-nav{display:flex;position:fixed;bottom:0;inset-inline:0;z-index:15;justify-content:space-around;align-items:center;background:#fff;border-top:1px solid #dae6dc;padding:10px 8px calc(10px + env(safe-area-inset-bottom))}
     .sf-mobile-nav a{text-decoration:none;color:#21653f;font-size:12px;font-weight:720;padding:9px;min-width:60px;text-align:center}
 }
+
+/* P24 private-only preview navigation and realistic footer; public theme unaffected. */
+.sf-header nav a:focus-visible,.sf-preview-footer a:focus-visible,.sf-mobile-nav a:focus-visible{
+  outline:3px solid #21653f;outline-offset:3px;border-radius:3px
+}
+.sf-section[id]{scroll-margin-top:90px}
+.sf-preview-footer{padding:44px 0 36px;line-height:1.65}
+.sf-preview-footer-grid{display:grid;grid-template-columns:1.4fr repeat(3,minmax(0,1fr));gap:34px}
+.sf-preview-footer-grid h2{font-size:15px;font-weight:750;color:#fff;margin:0 0 14px}
+.sf-preview-footer-grid a{display:block;color:#cee4d3;text-decoration:none;margin:7px 0}
+.sf-preview-footer-grid a:hover{text-decoration:underline;text-underline-offset:3px}
+.sf-preview-footer-grid p{margin:8px 0}
+.sf-preview-footer-note{font-size:12px;color:#a6d6b5}
+@media(max-width:900px){.sf-preview-footer-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:580px){.sf-preview-footer-grid{grid-template-columns:1fr;gap:17px}.sf-preview-footer{padding-bottom:108px}}
+
+.sf-preview-release-status{margin:0;padding:14px 20px;background:#eaf5ed;text-align:center;color:#22563a;font-size:12px}

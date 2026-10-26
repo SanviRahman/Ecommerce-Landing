@@ -1,0 +1,83 @@
+/* P19: optional, scoped motion for the staged storefront only.
+   All content stays readable without JS. No campaign/AdminLTE stylesheet changes. */
+.sf-hero-slider{position:relative}
+.sf-hero-controls{display:none;align-items:center;justify-content:center;gap:18px;margin:14px 0 0}
+.sf-hero-slider[data-sf-ready="true"] .sf-hero-controls{display:flex}
+.sf-slider-dots{display:flex;align-items:center;gap:9px}
+.sf-slider-arrow,.sf-slider-dot,.sf-review-controls button{cursor:pointer;background:#fff;color:#21653f;border:1px solid #c8dacd}
+.sf-slider-arrow{width:38px;height:38px;border-radius:50%;font-size:26px;line-height:1}
+.sf-slider-dot{height:12px;width:12px;border-radius:100%;padding:0}
+.sf-slider-dot[aria-current="true"]{background:#21653f;border-color:#21653f}
+.sf-slider-arrow:focus-visible,.sf-slider-dot:focus-visible,.sf-review-controls button:focus-visible,
+.sf-review-slider [data-sf-review-track]:focus-visible{outline:3px solid #21653f;outline-offset:3px}
+/* Stack only after JS enables carousel; without JS the original banner stack remains visible. */
+.sf-hero-slider[data-sf-ready="true"] .sf-hero-track{display:grid}
+.sf-hero-slider[data-sf-ready="true"] .sf-hero-panel{
+    grid-area:1/1;margin:0;opacity:0;visibility:hidden;pointer-events:none;min-width:0
+}
+.sf-hero-slider[data-sf-ready="true"] .sf-hero-panel.is-active{
+    opacity:1;visibility:visible;pointer-events:auto;z-index:1
+}
+.sf-review-controls{display:none;justify-content:flex-end;gap:9px;margin-top:16px}
+.sf-review-slider[data-sf-ready="true"] .sf-review-controls{display:flex}
+.sf-review-controls button{border-radius:8px;padding:9px 16px;font-size:12px;font-weight:700}
+.sf-review-slider[data-sf-ready="true"] .sf-grid-reviews{
+    display:flex;align-items:stretch;gap:22px;overflow-x:auto;scroll-snap-type:x mandatory;
+    scrollbar-width:none;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch
+}
+.sf-review-slider[data-sf-ready="true"] .sf-grid-reviews::-webkit-scrollbar{display:none}
+.sf-review-slider[data-sf-ready="true"] .sf-review{
+    flex:0 0 calc((100% - 44px) / 3);scroll-snap-align:start;min-width:0
+}
+@media(max-width:900px){
+    .sf-review-slider[data-sf-ready="true"] .sf-review{flex-basis:calc((100% - 22px) / 2)}
+}
+@media(max-width:580px){
+    .sf-review-slider[data-sf-ready="true"] .sf-review{flex-basis:100%}
+    .sf-slider-arrow{width:34px;height:34px}
+}
+@media(prefers-reduced-motion:no-preference){
+    .sf-header,.p07-header{transition:background-color .25s ease,box-shadow .25s ease}
+    .sf-header.sf-is-scrolled,.p07-header.sf-is-scrolled{
+        background:#fff;box-shadow:0 5px 22px rgba(19,51,30,.12)
+    }
+    .sf-hero-slider[data-sf-ready="true"] .sf-hero-panel{
+        transition:opacity .55s ease,visibility .55s ease
+    }
+    .sf-hero-slider[data-sf-ready="true"] .sf-hero-panel.is-active .sf-hero-copy > *{
+        animation:sf-text-enter .58s both
+    }
+    .sf-hero-slider[data-sf-ready="true"] .sf-hero-panel.is-active .sf-hero-copy > :nth-child(2){animation-delay:.1s}
+    .sf-hero-slider[data-sf-ready="true"] .sf-hero-panel.is-active .sf-hero-copy > :nth-child(3){animation-delay:.18s}
+    .sf-hero-slider[data-sf-ready="true"] .sf-hero-panel.is-active .sf-hero-copy > :nth-child(4){animation-delay:.24s}
+    @keyframes sf-text-enter{from{opacity:0;transform:translateY(15px)}to{opacity:1;transform:translateY(0)}}
+    /* Reveal applies only after JS installs an IntersectionObserver. */
+    body[data-sf-motion="on"] .sf-reveal{opacity:0;transform:translateY(22px)}
+    body[data-sf-motion="on"] .sf-reveal.is-visible{
+        opacity:1;transform:translateY(0);transition:opacity .62s ease,transform .62s ease
+    }
+    body[data-sf-motion="on"] .sf-tile.sf-reveal:nth-child(4n+2),
+    body[data-sf-motion="on"] .p07-card.sf-reveal:nth-child(4n+2){transition-delay:.07s}
+    body[data-sf-motion="on"] .sf-tile.sf-reveal:nth-child(4n+3),
+    body[data-sf-motion="on"] .p07-card.sf-reveal:nth-child(4n+3){transition-delay:.13s}
+    body[data-sf-motion="on"] .sf-tile.sf-reveal:nth-child(4n+4),
+    body[data-sf-motion="on"] .p07-card.sf-reveal:nth-child(4n+4){transition-delay:.19s}
+    .sf-cta,.sf-secondary,.p07-card-action,.p07-back-to-shop,.p07-search button,
+    .sf-slider-arrow,.sf-slider-dot,.sf-review-controls button{
+        transition:background-color .2s ease,box-shadow .2s ease,transform .2s ease,border-color .2s ease
+    }
+    .p07-search:focus-within{box-shadow:0 0 0 3px rgba(33,101,63,.17);border-color:#21653f}
+}
+@media(hover:hover) and (pointer:fine) and (prefers-reduced-motion:no-preference){
+    .sf-tile,.p07-card,.sf-review{transition:transform .26s ease,box-shadow .26s ease}
+    .sf-tile:hover,.p07-card:hover,.sf-review:hover{transform:translateY(-4px);box-shadow:0 13px 28px rgba(14,41,21,.10)}
+    .sf-tile img,.p07-card-image,.sf-image-text > img{transition:transform .48s ease}
+    .sf-tile:hover img,.p07-card:hover .p07-card-image,.sf-image-text:hover > img{transform:scale(1.045)}
+    .sf-cta:hover,.p07-card-action:hover,.p07-back-to-shop:hover,.sf-review-controls button:hover{
+        transform:translateY(-2px);box-shadow:0 6px 18px rgba(24,60,34,.15)
+    }
+}
+/* Reduced motion keeps controls and content, but disables autoplay/animation via JS too. */
+@media(prefers-reduced-motion:reduce){
+    .sf-hero-slider *,.sf-review-slider *,.sf-reveal{animation:none!important;transition:none!important;scroll-behavior:auto!important}
+}

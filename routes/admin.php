@@ -39,6 +39,10 @@ Route::middleware(['auth', 'role:admin,employee'])->group(function () {
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard.index');
 
+    /* P24: The short /admin/storefront URL is an admin-only entrance, not a public shop. */
+    Route::get('/storefront', [HomepageBuilderController::class, 'entry'])
+        ->middleware('role:admin')->name('storefront.entry');
+
     /* P05 test-only homepage drafts. Admin authorization and MySQL isolation rechecked in controller/service. */
     Route::middleware('role:admin')->prefix('storefront/home')->as('storefront.home.')->group(function () {
         Route::get('/', [HomepageBuilderController::class, 'index'])->name('index');

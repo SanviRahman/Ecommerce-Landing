@@ -155,6 +155,29 @@
                     @forelse($categories as $cat)<label class="col-sm-6 col-lg-3 small mb-2"><input type="checkbox" name="category_ids[]" value="{{ $cat->id }}" @checked(in_array($cat->id,$section['categories']))> {{ $cat->name }}</label>
                     @empty <p class="text-muted ml-3">No active categories available.</p>@endforelse
                 </div></fieldset>
+            @elseif($section['type']==='category_products')
+                <fieldset><legend class="h6">Category-wise product shelf</legend>
+                    <p class="text-muted small">Create one section per category (e.g. Wholesale, Kitchen). Products load automatically from active inventory, including eligible subcategories if selected.</p>
+                    <div class="row"><div class="form-group col-lg-5">
+                        <label for="category-source-{{ $section['section_key'] }}">Source category</label>
+                        <select class="form-control" required name="source_category_id" id="category-source-{{ $section['section_key'] }}">
+                            <option value="">Choose active category</option>
+                            @foreach($categories as $cat)
+                                <option value="{{ $cat->id }}" @selected((int)($section['category_id'] ?? 0)===(int)$cat->id)>{{ $cat->name }}</option>
+                            @endforeach
+                        </select>
+                    </div><div class="form-group col-lg-3">
+                        <label>Products to show</label>
+                        <input class="form-control" type="number" name="product_limit" min="1" max="24" value="{{ $section['product_limit'] ?: 8 }}">
+                    </div><div class="form-group col-lg-4"><label>Sort products</label>
+                        <select name="product_sort" class="form-control">
+                            @foreach(['newest'=>'Newest', 'name'=>'Name', 'price_asc'=>'Price: low to high', 'price_desc'=>'Price: high to low'] as $sortKey=>$sortTitle)
+                                <option value="{{ $sortKey }}" @selected($section['product_sort']===$sortKey)>{{ $sortTitle }}</option>
+                            @endforeach
+                        </select>
+                    </div></div>
+                    <label><input type="checkbox" name="include_descendants" value="1" @checked($section['include_descendants'])> Include direct subcategory products</label>
+                </fieldset>
             @elseif($section['type']==='product_list')
                 <fieldset><legend class="h6">Select curated products (max 50)</legend>
                     <div style="max-height:250px;overflow-y:auto" class="border rounded p-2"><div class="row">
