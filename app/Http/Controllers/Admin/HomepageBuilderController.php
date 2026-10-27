@@ -88,6 +88,15 @@ final class HomepageBuilderController extends Controller
         return $this->back('Homepage draft is ready. Public homepage was not changed.');
     }
 
+    /** Discards only the active draft; immutable published revisions are never deleted. */
+    public function discardDraft(Request $request, HomepageBuilder $builder): RedirectResponse
+    {
+        $this->adminOnly($builder);
+        $data = $request->validate(['expected_version' => ['required', 'integer', 'min:1']]);
+        $builder->discardDraft((int) $data['expected_version'], (int) auth()->id());
+        return $this->back('Draft discarded. The published homepage and revision history are unchanged.');
+    }
+
     public function restore(Request $request, int $revision, HomepageBuilder $builder): RedirectResponse
     {
         $this->adminOnly($builder);
@@ -195,6 +204,24 @@ final class HomepageBuilderController extends Controller
         }
         $builder->addItem((int) $data['expected_version'], (int) auth()->id(), $sectionKey, $data);
         return $this->back('Draft item added.');
+    }
+
+    /** Draft-only item edits; enabled state, media and CTA URLs are reviewed and audited. */
+    public function updateItem(Request $request, string $sectionKey, string $itemKey,
+        HomepageBuilder $builder): RedirectResponse
+    {
+        $this->adminOnly($builder);
+        $data = $request->validate([
+            'expected_version' => ['required', 'integer', 'min:1'],
+            'title' => ['nullable', 'string', 'max:160'],
+            'description' => ['nullable', 'string', 'max:2000'],
+            'link_url' => ['nullable', 'string', 'max:2048'],
+            'link_label' => ['nullable', 'string', 'max:80'],
+            'media_id' => ['nullable', 'integer', 'min:1'],
+            'is_enabled' => ['nullable', 'boolean'],
+        ]);
+        $builder->updateItem((int) $data['expected_version'], (int) auth()->id(), $sectionKey, $itemKey, $data);
+        return $this->back('Draft item updated. Publish the draft when ready.');
     }
 
     /** Admin upload + attach (one POST), no draft/public media deletion. */

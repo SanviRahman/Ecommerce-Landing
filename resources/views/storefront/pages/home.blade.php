@@ -14,7 +14,7 @@
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-preview.css') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-catalog.css') }}">
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-next.css') }}">
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-premium.css') }}">
@@ -26,6 +26,7 @@
     @endunless
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p34.css') }}">
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p35.css') }}">
+    <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p36.css') }}">
 </head>
 <body class="p34-storefront">
 @php
@@ -110,7 +111,14 @@
                     <div class="sf-hero-track" data-hero-track>
                     @foreach($section['items'] as $item)
                         @continue(!$item['is_enabled'] || !$item['media_id'] || !$media->has($item['media_id']))
-                        <div class="sf-hero-panel" data-hero-slide role="group" aria-roledescription="slide">
+                        @php
+                            // Uploaded banners carry the section title for identification. They are
+                            // image-only unless the editor supplied separate text or a CTA.
+                            $hasBannerCopy = filled($item['description']) || filled($item['link_label'])
+                                || (filled($item['title']) && trim((string) $item['title']) !== trim((string) $section['title']));
+                        @endphp
+                        <div class="sf-hero-panel {{ $hasBannerCopy ? 'p36-hero-with-copy' : 'p36-hero-image-only' }}" data-hero-slide role="group" aria-roledescription="slide">
+                            @if($hasBannerCopy)
                             <div class="sf-hero-copy">
                                 <span class="sf-eyebrow">Featured Collection</span>
                                 <h1>{{ $item['title'] ?: $section['title'] }}</h1>
@@ -123,7 +131,8 @@
                                     @endif
                                 @endif
                             </div>
-                            <img src="{{ $media[$item['media_id']]->getUrl() }}" alt="{{ $item['title'] ?: 'Featured collection' }}" loading="{{ $loop->first ? 'eager' : 'lazy' }}">
+                            @endif
+                            <img class="p36-hero-banner" src="{{ $media[$item['media_id']]->getUrl() }}" alt="{{ $item['title'] ?: 'Featured collection' }}" loading="{{ $loop->first ? 'eager' : 'lazy' }}" decoding="async">
                         </div>
                     @endforeach
                     </div>
@@ -293,6 +302,7 @@
 @endif
 <script src="{{ asset('frontend/js/image-fallback.js') }}" defer></script>
 <script src="{{ asset('frontend/js/storefront-next.js') }}" defer></script>
+<script src="{{ asset('frontend/js/storefront-p36.js') }}" defer></script>
 <script src="{{ asset('frontend/js/storefront-premium.js') }}" defer></script>
 @unless($isPreview ?? false)
     <script src="{{ asset('frontend/js/storefront-catalog.js') }}" defer></script>

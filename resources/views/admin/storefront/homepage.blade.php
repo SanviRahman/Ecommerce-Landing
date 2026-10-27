@@ -44,15 +44,23 @@
 </div>
 @if(!$draft)
 <section class="card card-outline card-success"><div class="card-body">
-    <h2 class="h5">{{ $published ? 'Create a new draft from the publication' : 'Start your first storefront homepage' }}</h2>
-    <p class="text-muted">No public content will change until the separate storefront release is approved.</p>
+    <h2 class="h5">{{ $published ? 'Edit / Update Published Homepage' : 'Start your first storefront homepage' }}</h2>
+    <p class="text-muted">The live published version stays unchanged until you save a new draft and click Publish. All edits are version-checked.</p>
     <form method="POST" action="{{ route('admin.storefront.home.draft') }}">@csrf
         <input type="hidden" name="expected_version" value="{{ $version }}">
-        <button class="btn btn-success"><i class="fas fa-pen mr-1"></i> Create Draft</button>
+        <button class="btn btn-success"><i class="fas fa-pen mr-1"></i> {{ $published ? 'Edit Published Homepage (Create Draft)' : 'Create First Draft' }}</button>
     </form>
 </div></section>
 @else
 <section class="card card-outline card-success" aria-label="Draft controls">
+    <div class="card-header"><h2 class="card-title">Edit / Update Draft · Revision #{{ $draft['revision_number'] }}</h2></div>
+    <div class="card-body border-bottom d-flex justify-content-between align-items-center flex-wrap">
+        <p class="text-muted small mb-2 mb-md-0">Edit section fields, images or slides below. Click <strong>Save</strong>, then <strong>Validate & Publish</strong> to make changes live. Draft deletion never removes a published revision.</p>
+        <form method="POST" action="{{ route('admin.storefront.home.draft.discard') }}" onsubmit="return confirm('Discard this editable draft? The published homepage will stay unchanged. This draft stays in revision history.');">
+            @csrf<input type="hidden" name="expected_version" value="{{ $version }}">
+            <button type="submit" class="btn btn-outline-danger btn-sm"><i class="fas fa-trash-alt mr-1"></i> Discard Draft</button>
+        </form>
+    </div>
     <div class="card-header"><h2 class="card-title">Add a typed section</h2></div>
     <div class="card-body">
         <form method="POST" action="{{ route('admin.storefront.home.sections.store') }}" class="form-inline">
@@ -237,10 +245,32 @@
                 <div><strong>{{ $item['title'] ?: ($item['type']==='review' ? 'Review #'.$item['review_id'] : 'Image') }}</strong>
                 <small class="text-muted d-block">{{ $item['type'] }} · {{ $item['media_id'] ? 'Media #'.$item['media_id'] : '' }}</small></div>
             </div>
+            <div class="d-flex align-items-center flex-wrap" style="gap:8px">
+                <details class="p36-item-editor">
+                    <summary class="btn btn-outline-success btn-sm">Edit Item</summary>
+                    <form method="POST" class="p-3 mt-2 border rounded bg-light" action="{{ route('admin.storefront.home.items.update',[$section['section_key'],$item['item_key']]) }}">
+                        @csrf @method('PATCH')
+                        <input type="hidden" name="expected_version" value="{{ $version }}">
+                        @if($section['type'] !== 'reviews')
+                        <div class="form-group"><label>Title</label><input class="form-control form-control-sm" name="title" maxlength="160" value="{{ $item['title'] }}"></div>
+                        <div class="form-group"><label>Description</label><textarea class="form-control form-control-sm" name="description" maxlength="2000" rows="2">{{ $item['description'] }}</textarea></div>
+                        <div class="form-group"><label>Replace image (optional)</label>
+                            <select class="form-control form-control-sm" name="media_id"><option value="">Keep current image</option>
+                                @foreach($mediaChoices as $choice)<option value="{{ $choice->id }}">#{{ $choice->id }} — {{ $choice->file_name }}</option>@endforeach
+                            </select>
+                        </div>
+                        <div class="row"><div class="form-group col-md-5"><label>Button label</label><input class="form-control form-control-sm" name="link_label" maxlength="80" value="{{ $item['link_label'] }}"></div>
+                        <div class="form-group col-md-7"><label>Button link</label><input class="form-control form-control-sm" name="link_url" maxlength="2048" value="{{ $item['link_url'] }}" placeholder="/storefront/shop or https://..."></div></div>
+                        @endif
+                        <label class="d-block mb-2"><input type="checkbox" name="is_enabled" value="1" @checked($item['is_enabled'])> Show this item</label>
+                        <button type="submit" class="btn btn-success btn-sm">Save Item Changes</button>
+                    </form>
+                </details>
             <form method="POST" action="{{ route('admin.storefront.home.items.delete',[$section['section_key'],$item['item_key']]) }}">@csrf @method('DELETE')
                 <input type="hidden" name="expected_version" value="{{ $version }}">
-                <button class="btn btn-outline-danger btn-sm" aria-label="Remove item">Remove</button>
+                <button class="btn btn-outline-danger btn-sm" aria-label="Remove draft item" onclick="return confirm('Remove this item from the editable draft?');">Remove</button>
             </form>
+            </div>
         </div>
         @empty <p class="text-muted small">No items yet.</p> @endforelse
         <form method="POST" action="{{ route('admin.storefront.home.items.store',$section['section_key']) }}" class="mt-3">

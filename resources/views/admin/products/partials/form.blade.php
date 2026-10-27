@@ -24,9 +24,31 @@
         @if($isEdit)
             <a class="btn btn-sm btn-outline-success ml-2" href="{{ route('admin.products.variants.index', $product->id) }}">Set variant prices and stock</a>
         @else
-            <span class="small d-block mt-1">For a NEW variable product set initial Stock to <b>0</b>, then save it, open <b>Variants</b>, prepare the default SKU, convert to Variable and assign exact Color/Size combinations, prices and audited stock. Existing campaign products need separate reconciliation.</span>
+            <span class="small d-block mt-1">For a NEW variable product select Color and/or Size below and set initial Stock to <b>0</b>. A draft SKU will be created automatically. More combinations and their prices can be managed under <b>Variants</b>. Variable-product checkout is not released yet; the product remains inactive. Existing campaign inventory is never converted automatically.</span>
         @endif
     </div>
+    @if(!$isEdit && !empty($initialVariationOptions))
+        <section class="card border-success mb-3" aria-labelledby="p36-initial-variant-heading">
+            <div class="card-body">
+                <h2 class="h6 font-weight-bold text-success" id="p36-initial-variant-heading">Initial Color / Size Variation (optional)</h2>
+                <p class="small text-muted">Choose Color and/or Size while creating the product. A managed zero-stock SKU is created without changing any existing product. The variable product remains <strong>inactive / not purchasable</strong> until variant-aware checkout is separately approved. Review combinations and prices in Variant Manager.</p>
+                <div class="row">
+                    @foreach(['color' => 'Color', 'size' => 'Size'] as $optionCode => $optionLabel)
+                        <div class="col-sm-6 form-group">
+                            <label for="p36-option-{{ $optionCode }}">{{ $optionLabel }}</label>
+                            <select id="p36-option-{{ $optionCode }}" name="initial_variation[{{ $optionCode }}]" class="form-control @error('initial_variation.'.$optionCode) is-invalid @enderror">
+                                <option value="">No {{ strtolower($optionLabel) }} variation</option>
+                                @foreach(($initialVariationOptions[$optionCode]->values ?? []) as $value)
+                                    <option value="{{ $value->id }}" @selected((string) old('initial_variation.'.$optionCode) === (string) $value->id)>{{ $value->label }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    @endforeach
+                </div>
+                <small class="text-muted">For multiple combinations and separate prices use <a href="{{ route('admin.products.options.index') }}" target="_blank" rel="noopener">Option Values</a> and Variant Manager after creation.</small>
+            </div>
+        </section>
+    @endif
     <div class="row">
         <div class="col-md-6">
             <div class="form-group">

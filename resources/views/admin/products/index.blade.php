@@ -422,6 +422,10 @@ $(document).ready(function () {
                     $('#ajaxModal').modal('hide');
                     reloadTable();
                     showToast('success', res.message || 'Product saved successfully.');
+                    if (res.variant_url) {
+                        // Server-issued same-origin route; opened only for initial variant setup.
+                        window.location.assign(res.variant_url);
+                    }
                 } else {
                     btn.prop('disabled', false).html(oldHtml);
                     showToast('error', res.message || 'Product save failed.');

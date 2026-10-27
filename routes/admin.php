@@ -57,6 +57,7 @@ Route::middleware(['auth', 'role:admin,employee'])->group(function () {
     Route::middleware('role:admin')->prefix('storefront/home')->as('storefront.home.')->group(function () {
         Route::get('/', [HomepageBuilderController::class, 'index'])->name('index');
         Route::post('/draft', [HomepageBuilderController::class, 'start'])->name('draft');
+        Route::post('/draft/discard', [HomepageBuilderController::class, 'discardDraft'])->name('draft.discard');
         Route::post('/restore/{revision}', [HomepageBuilderController::class, 'restore'])->whereNumber('revision')->name('restore');
         Route::post('/sections', [HomepageBuilderController::class, 'addSection'])->name('sections.store');
         Route::patch('/sections/reorder', [HomepageBuilderController::class, 'reorder'])->name('sections.reorder');
@@ -65,6 +66,8 @@ Route::middleware(['auth', 'role:admin,employee'])->group(function () {
         Route::delete('/sections/{sectionKey}', [HomepageBuilderController::class, 'deleteSection'])->whereUuid('sectionKey')->name('sections.delete');
         Route::post('/sections/{sectionKey}/hero-images', [HomepageBuilderController::class, 'uploadHeroImages'])->whereUuid('sectionKey')->name('hero-images.store');
         Route::post('/sections/{sectionKey}/items', [HomepageBuilderController::class, 'addItem'])->whereUuid('sectionKey')->name('items.store');
+        Route::patch('/sections/{sectionKey}/items/{itemKey}', [HomepageBuilderController::class, 'updateItem'])
+            ->whereUuid('sectionKey')->whereUuid('itemKey')->name('items.update');
         Route::delete('/sections/{sectionKey}/items/{itemKey}', [HomepageBuilderController::class, 'deleteItem'])
             ->whereUuid('sectionKey')->whereUuid('itemKey')->name('items.delete');
         Route::patch('/theme', [HomepageBuilderController::class, 'theme'])->name('theme');

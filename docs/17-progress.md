@@ -342,3 +342,12 @@ Not approved. Requires mandatory acceptance matrix, no unresolved P0/P1 blockers
 - **Changes:** public published reviews are positioned after category shelves, private preview editor order preserved; mobile centered cart-peek uses real cart API and hides while genuine sticky product Buy Now displays; order tracking background matches the green newsletter; product quantity stepper, explicit availability messaging, same-form Buy Now and active-catalog related products after the description; desktop cart unchanged.
 - **Safety:** no migration, seed, `.env`, campaign route, cart/checkout service or stock-writer changes. Legacy products without approved managed default SKU remain non-orderable until stock/variant preparation; checkout disabled until existing readiness passes.
 - **Validation:** P35/P33/P34 offline source contracts, JS syntax and PHP controller lint; full Laravel/MySQL/browser & old P26 regression assumptions remain distinct acceptance gates. Installation guide: `P35-START-HERE-BN.md`.
+
+### 2026-10-27 - P36 hero/media, create option and Builder UX refinement
+
+- Source basis: uploaded `website(20261027-031542).zip`, 7 annotated screenshots, `/rules`, `/bugfix`, `/constraints`.
+- Desktop 3:1 image-first hero, mobile edge-to-edge image with dynamic aspect height; full product/category photo, responsive typography. P36 CSS/JS opt-in storefront-only, existing carousel mechanics retained.
+- Admin Product Create shows existing active Color/Size values; selected zero-stock SKU created via reviewed manager within transaction; variable product kept inactive until variant-aware checkout release. Existing main-DB stock, orders/campaign untouched.
+- Homepage Builder edit/discard draft UX, guarded item PATCH and audit, no edits to immutable published revisions.
+- Mobile cart right-centered; existing Checkout sticky Buy Now stays above bottom bar, respecting readiness.
+- P36/P33/P34/P35 source checks and lint run in extracted source. Full Laravel/MySQL/browser integration unavailable due missing vendor dependencies. P26 baseline obsolete route-contract FAIL unchanged; no claim of full regression PASS.

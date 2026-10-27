@@ -13,7 +13,7 @@
     <title>@yield('title', 'Shop') — {{ config('app.name', 'Storefront') }}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-catalog.css') }}">
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-contact.css') }}">
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-next.css') }}">
@@ -24,6 +24,7 @@
     @endif
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p34.css') }}">
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p35.css') }}">
+    <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p36.css') }}">
 </head>
 <body class="p34-storefront">
     <a class="p07-skip" href="#main">Skip to content</a>

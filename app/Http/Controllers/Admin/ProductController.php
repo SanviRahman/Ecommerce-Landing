@@ -7,6 +7,8 @@ use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\ProductVariant;
+use App\Models\ProductOption;
+use App\Services\Catalog\VariantCatalogManager;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -253,6 +255,7 @@ class ProductController extends Controller
             'categories' => $this->activeCategories(),
             'brands'     => $this->activeBrands(),
             'isEdit'     => false,
+            'initialVariationOptions' => $this->initialVariationOptions(),
             'action'     => route('admin.products.store'),
             'title'      => 'Product Create',
             'breadcrumb' => [
@@ -272,7 +275,21 @@ class ProductController extends Controller
         return view('admin.products.create', $data);
     }
 
-    public function store(Request $request)
+    /** Only reviewed, active Color/Size values are selectable during new product creation. */
+    private function initialVariationOptions(): array
+    {
+        try {
+            \App\Support\P33CatalogAdminAccess::assertAllowed();
+            return ProductOption::query()->whereIn('code', ['color', 'size'])
+                ->where('is_active', true)
+                ->with(['values' => static fn ($query) => $query->where('is_active', true)])
+                ->get()->keyBy('code')->all();
+        } catch (\Throwable) {
+            return [];
+        }
+    }
+
+    public function store(Request $request, VariantCatalogManager $catalog)
     {
         $this->adminOnly();
 
@@ -291,6 +308,9 @@ class ProductController extends Controller
             'stock'             => ['nullable', 'integer', 'min:0'],
             'sold_quantity'     => ['nullable', 'integer', 'min:0'],
             'weight_size'       => ['nullable', 'string', 'max:255'],
+            'initial_variation' => ['nullable', 'array:color,size'],
+            'initial_variation.color' => ['nullable', 'integer', 'min:1'],
+            'initial_variation.size' => ['nullable', 'integer', 'min:1'],
 
             'short_description' => ['nullable', 'string'],
             'full_description'  => ['nullable', 'string'],
@@ -309,7 +329,22 @@ class ProductController extends Controller
             'product_gallery.*' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
         ]);
 
-        return DB::transaction(function () use ($request) {
+        $selected = array_filter([
+            'color' => $request->input('initial_variation.color'),
+            'size' => $request->input('initial_variation.size'),
+        ], static fn ($value) => $value !== null && $value !== '');
+        $hasNewVariation = $selected !== [];
+        // No implicit stock split: a newly optioned product starts at zero.
+        if ($hasNewVariation) {
+            $catalog->assertTestSchema();
+            if ((int) $request->input('stock', 0) !== 0) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'stock' => 'Set Stock to 0 for a new Color/Size variation. Its SKU stays a non-sellable draft until variant-aware checkout is approved.',
+                ]);
+            }
+        }
+
+        return DB::transaction(function () use ($request, $catalog, $selected, $hasNewVariation) {
             $product = Product::create([
                 'category_id'       => $request->category_id,
                 'brand_id'          => $request->brand_id,
@@ -342,18 +377,31 @@ class ProductController extends Controller
                 'meta_description'  => $request->meta_description,
             ]);
 
+            // Reuse the ledger-backed P04 transitions; no historical product is touched.
+            // prepareSimple creates a zero-stock default; conversion retires it; the
+            // selected Color/Size SKU starts with its own zero-stock opening ledger.
+            if ($hasNewVariation) {
+                $catalog->prepareSimple($product);
+                $catalog->convertToVariable($product);
+                $catalog->createVariant($product, 'P' . $product->id . '-V' . implode('-', array_values($selected)),
+                    array_map('intval', $selected), null, null, true);
+            }
             $this->uploadProductMedia($product, $request);
 
             if ($request->ajax()) {
                 return response()->json([
                     'status'  => true,
-                    'message' => 'Product created successfully.',
+                    'message' => $hasNewVariation
+                        ? 'Color/Size variation saved as a zero-stock, inactive product. You can review SKU and pricing in Variant Manager; sales remain blocked until variant-aware checkout is released.'
+                        : 'Product created successfully.',
+                    'variant_url' => $hasNewVariation ? route('admin.products.variants.index', $product->id) : null,
                 ]);
             }
 
-            return redirect()
-                ->route('admin.products.index')
-                ->with('success', 'Product created successfully.');
+            return $hasNewVariation
+                ? redirect()->route('admin.products.variants.index', $product->id)
+                    ->with('success', 'Initial Color/Size SKU saved with zero stock; this product remains inactive until variant-aware checkout is released.')
+                : redirect()->route('admin.products.index')->with('success', 'Product created successfully.');
         });
     }
 

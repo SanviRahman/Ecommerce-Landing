@@ -179,6 +179,22 @@ final class HomepageBuilder
         }, 3);
     }
 
+    /** Safe "delete" action for an unpublished draft: archive it, retain the audit trail. */
+    public function discardDraft(int $expectedVersion, int $actorId): void
+    {
+        $this->assertTestSchema();
+        DB::transaction(function () use ($expectedVersion, $actorId): void {
+            [$page, $draft] = $this->lockedDraft($expectedVersion);
+            if ((int) ($page->published_revision_id ?? 0) === (int) $draft->id) {
+                $this->reject('A published revision cannot be discarded.');
+            }
+            DB::table('storefront_revisions')->where('id', $draft->id)
+                ->where('status', 'draft')->update(['status' => 'archived', 'updated_by' => $actorId, 'updated_at' => now()]);
+            $this->bump($page, (int) $draft->id, $actorId, 'draft_discard', ['draft_id' => $draft->id],
+                ['draft_revision_id' => null]);
+        }, 3);
+    }
+
     public function addSection(int $expectedVersion, int $actorId, string $type): void
     {
         if (! array_key_exists($type, HomeSectionSchema::TYPES)) {
@@ -331,6 +347,39 @@ final class HomepageBuilder
                 ]);
             }
             return ['section_key' => $sectionKey, 'count' => count($mediaIds)];
+        });
+    }
+
+    /** Edit a typed draft item; media references stay immutable until explicitly replaced. */
+    public function updateItem(int $expectedVersion, int $actorId, string $sectionKey, string $itemKey, array $data): void
+    {
+        $this->mutate($expectedVersion, $actorId, 'item_update', function (object $page, object $draft) use ($sectionKey, $itemKey, $data): array {
+            $section = $this->draftSection((int) $draft->id, $sectionKey);
+            $item = DB::table('homepage_section_items')->where('homepage_section_id', $section->id)
+                ->where('item_key', $itemKey)->first();
+            if ($item === null || ! in_array($section->type, ['hero_slider', 'image_text', 'reviews'], true)) {
+                $this->reject('Item does not belong to a supported draft section.');
+            }
+            $newData = ['is_enabled' => (bool) ($data['is_enabled'] ?? false), 'updated_at' => now()];
+            if ($section->type !== 'reviews') {
+                $replacement = $data['media_id'] ?? null;
+                if ($replacement !== null) {
+                    if (! is_int($replacement) || ! $this->eligibleMedia($replacement)) {
+                        $this->reject('Choose an approved, existing public image.', 'media_id');
+                    }
+                    $newData['media_id'] = $replacement;
+                }
+                try {
+                    $newData['link_url'] = HomeSectionSchema::normalizeUrl($data['link_url'] ?? null);
+                } catch (InvalidArgumentException $error) {
+                    $this->reject($error->getMessage(), 'link_url');
+                }
+                $newData['title'] = $data['title'] ?? null;
+                $newData['description'] = $data['description'] ?? null;
+                $newData['link_label'] = $data['link_label'] ?? null;
+            }
+            DB::table('homepage_section_items')->where('id', $item->id)->update($newData);
+            return ['section_key' => $sectionKey, 'item_key' => $itemKey];
         });
     }
 
