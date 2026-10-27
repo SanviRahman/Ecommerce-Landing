@@ -616,6 +616,24 @@ return [
             'can'    => 'admin-only',
             'active' => ['admin/reviews*'],
         ],
+        [
+            'header' => 'STOREFRONT CUSTOMER CARE',
+            'can'    => 'admin-only',
+        ],
+        [
+            'text'   => 'Storefront FAQs',
+            'url'    => 'admin/storefront-faqs',
+            'icon'   => 'fas fa-fw fa-question-circle',
+            'can'    => 'admin-only',
+            'active' => ['admin/storefront-faqs*'],
+        ],
+        [
+            'text'   => 'Contact Messages',
+            'url'    => 'admin/storefront-messages',
+            'icon'   => 'fas fa-fw fa-envelope-open-text',
+            'can'    => 'admin-only',
+            'active' => ['admin/storefront-messages*'],
+        ],
 
         /*
     |--------------------------------------------------------------------------

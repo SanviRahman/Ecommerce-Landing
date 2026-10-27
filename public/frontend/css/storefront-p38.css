@@ -1,0 +1,27 @@
+/* P38: contact shortcuts beside the existing cart; never disable the actual mini cart. */
+.p38-contact-dock{position:fixed!important;top:calc(50% + 93px)!important;bottom:auto!important;right:10px!important;z-index:25!important;font-family:inherit}
+.p38-contact-menu{position:relative;display:block}
+.p38-contact-menu>summary{background:linear-gradient(145deg,#147a53,#0a4030);color:#fff;min-width:104px;min-height:43px;padding:8px 11px;border-radius:12px;display:flex;align-items:center;justify-content:center;gap:5px;list-style:none;cursor:pointer;font-weight:750;font-size:12px;box-shadow:0 12px 30px #042d2045;transition:transform .23s ease,box-shadow .23s ease,background .23s ease}
+.p38-contact-menu>summary:hover{transform:translateX(-3px);box-shadow:0 15px 32px #042d2060;background:#0e6044}
+.p38-contact-menu>summary::-webkit-details-marker{display:none}
+.p38-contact-menu>summary .p34-icon{width:18px;height:18px;flex:none}
+.p38-contact-menu>summary .p38-contact-plus{margin-left:2px;font-size:21px;line-height:1;transition:transform .23s ease}
+.p38-contact-menu[open]>summary .p38-contact-plus{transform:rotate(45deg)}
+.p38-contact-list{position:absolute;bottom:auto!important;top:50%;right:calc(100% + 9px);transform:translateY(-50%);padding:7px;min-width:155px;max-width:calc(100vw - 125px);border-radius:15px;border:1px solid #cbded2;background:#fff;box-shadow:0 16px 40px #133e3140;display:flex;flex-direction:column;gap:4px;animation:p38-in .23s ease both}
+.p38-contact-method{display:flex;align-items:center;gap:10px;border-radius:10px;padding:7px 10px!important;min-height:41px;font-weight:700;font-size:12px;color:#12442e!important;text-decoration:none!important}
+.p38-contact-method:hover{background:#eff9f3!important;transform:translateX(-2px)}
+.p38-contact-method-icon{display:grid;place-items:center;width:29px;height:29px;border-radius:50%;color:#fff;background:#1b6045;flex:none}
+.p38-contact-whatsapp .p38-contact-method-icon{background:#159c5b}
+.p38-contact-email .p38-contact-method-icon{background:#226fa9}
+.p38-contact-call .p38-contact-method-icon{background:#0d5943}
+.p38-contact-method-icon .p34-icon{width:17px;height:17px}
+.p38-contact-menu>summary:focus-visible,.p38-contact-method:focus-visible{outline:3px solid #eab95b;outline-offset:3px}
+@keyframes p38-in{from{opacity:0;translate:7px 0}to{opacity:1;translate:0 0}}
+@media(max-width:650px){
+    .p38-contact-dock{right:5px!important;top:calc(50% + 87px)!important;bottom:auto!important}
+    .p38-contact-menu>summary{min-width:49px;min-height:46px;padding:9px 6px;border-radius:13px;gap:2px}
+    .p38-contact-menu>summary .p38-contact-label{position:absolute;width:1px;height:1px;clip-path:inset(50%);overflow:hidden}
+    .p38-contact-menu>summary .p38-contact-plus{font-size:17px}
+    .p38-contact-list{right:calc(100% + 5px);min-width:138px;max-width:calc(100vw - 62px)}
+}
+@media(prefers-reduced-motion:reduce){.p38-contact-menu>summary,.p38-contact-method,.p38-contact-list,.p38-contact-plus{animation:none!important;transition:none!important}}

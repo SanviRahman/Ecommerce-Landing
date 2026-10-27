@@ -27,6 +27,8 @@
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p34.css') }}">
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p35.css') }}">
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p36.css') }}">
+    <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p37.css') }}">
+    <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p38.css') }}">
 </head>
 <body class="p34-storefront">
 @php
@@ -244,14 +246,15 @@
         @endif
         {{-- Reviews appear immediately after category-wise shelves in the public storefront.
              Existing draft/preview order and each section's enabled/device/style flags are unchanged. --}}
+        @php $publicReviewsRendered = false; @endphp
         @foreach($revision['sections'] as $section)
-            @continue(!$section['is_enabled'] || $section['type'] !== 'reviews')
+            @continue(!$section['is_enabled'] || $section['type'] !== 'reviews' || $publicReviewsRendered)
             @php
-                $visibleReviews = collect($section['items'])->contains(static fn ($item) =>
-                    $item['is_enabled'] && $item['review_id'] && $reviews->has($item['review_id']));
+                $visibleReviews = collect($publicReviews ?? [])->isNotEmpty();
                 $reviewVisibility = !$section['show_mobile'] ? 'sf-hide-mobile' : (!$section['show_desktop'] ? 'sf-hide-desktop' : '');
             @endphp
             @if($visibleReviews)
+                @php $publicReviewsRendered = true; @endphp
                 <section id="sf-section-{{ $section['section_key'] }}" class="sf-section p35-home-reviews {{ $reviewVisibility }}"
                     style="{{ $styleForSection($section) }}" aria-label="{{ $section['title'] ?: 'Customer reviews' }}">
                     <div class="sf-wrapper" data-reveal>
@@ -263,6 +266,18 @@
                 </section>
             @endif
         @endforeach
+        {{-- If an older published homepage has no Reviews section at all, show its
+             active global store reviews after the product shelves. An explicitly
+             disabled Reviews section remains hidden, respecting owner controls. --}}
+        @if(!$publicReviewsRendered && collect($revision['sections'])->where('type', 'reviews')->isEmpty() && collect($publicReviews ?? [])->isNotEmpty())
+            <section class="sf-section p35-home-reviews p37-auto-reviews" aria-label="Customer reviews">
+                <div class="sf-wrapper" data-reveal>
+                    <p class="sf-kicker">REAL FEEDBACK</p>
+                    <div class="sf-title-line"><h2>What our customers say</h2><span class="sf-title-decoration" aria-hidden="true"></span></div>
+                    @include('storefront.partials.home-reviews', ['section' => ['items' => []], 'reviews' => $reviews])
+                </div>
+            </section>
+        @endif
         <section class="p33-stats sf-wrapper" aria-label="Our product collections" data-reveal>
             <div class="p33-stats-label"><span class="p33-overline">WHY SHOP WITH US</span><h2>Better shopping, every day.</h2></div>
             <div><strong data-count-up="{{ (int) ($publicProductCount ?? 0) }}">{{ number_format((int) ($publicProductCount ?? 0)) }}</strong><span>Active products</span></div>
@@ -307,4 +322,5 @@
 @unless($isPreview ?? false)
     <script src="{{ asset('frontend/js/storefront-catalog.js') }}" defer></script>
 @endunless
+<script src="{{ asset('frontend/js/storefront-p38.js') }}" defer></script>
 </body></html>

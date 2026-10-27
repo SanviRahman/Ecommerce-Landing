@@ -32,12 +32,14 @@ final class StorefrontBranding
 
     public function logo(): ?string
     {
-        return $this->settings()?->getFirstMediaUrl('site_logo') ?: null;
+        return $this->settings()?->getFirstMediaUrl('storefront_logo')
+            ?: ($this->settings()?->getFirstMediaUrl('site_logo') ?: null);
     }
 
     public function favicon(): ?string
     {
-        return $this->settings()?->getFirstMediaUrl('site_favicon') ?: null;
+        return $this->settings()?->getFirstMediaUrl('storefront_favicon')
+            ?: ($this->settings()?->getFirstMediaUrl('site_favicon') ?: null);
     }
 
     public function socialLinks(): Collection

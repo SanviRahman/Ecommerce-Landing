@@ -105,6 +105,14 @@ final class HomepageBuilderController extends Controller
         return $this->back('A NEW editable draft was cloned from that revision. Published data is unchanged.');
     }
 
+    public function hideArchived(Request $request, int $revision, HomepageBuilder $builder): RedirectResponse
+    {
+        $this->adminOnly($builder);
+        $data = $request->validate(['expected_version' => ['required', 'integer', 'min:1']]);
+        $builder->hideArchivedRevision($revision, (int) $data['expected_version'], (int) auth()->id());
+        return $this->back('Archived revision removed from visible history. Audit record and content are preserved.');
+    }
+
     public function addSection(Request $request, HomepageBuilder $builder): RedirectResponse
     {
         $this->adminOnly($builder);

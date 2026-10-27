@@ -284,3 +284,16 @@ See [migration sequence](docs/04-migrations-and-backfill.md), [inventory](docs/0
 ## Meeting F-006: quantity, weight and package semantics
 
 The PDF-reported meeting provides e.g. 1 kg=1499 BDT and 2 kg=1800 BDT, and separately references 1/2 piece choices. Model each as a **selected variant option value** with its own price; cart `quantity` counts purchased units of that variant and is a distinct field. A `2-piece pack` variant may represent one pack sold; whether its stock is counted in packs or underlying pieces is **G03 pending**. Do not publish available-"pieces" labels until approved inventory units are reconciled. Any migration to normalized unit conversion, consumption of child pieces, or variant-specific campaign overrides requires its own approved schema decision and tests. See docs/21, docs/23 and docs/25.
+
+
+### P37 storefront_contact_messages (new forward-only table)
+
+Columns: `id` PK, `name` TEXT (Laravel encrypted), `email` TEXT (encrypted), `phone` TEXT nullable (encrypted), `subject` VARCHAR(32), `message` LONGTEXT (encrypted), `status` VARCHAR(16) indexed (`new`, `read`, `replied`, `archived`), `admin_note` TEXT nullable (encrypted), `read_at` TIMESTAMP nullable, timestamps, `deleted_at` (soft delete). Admin-only access; POST Contact Us is CSRF + throttle protected. Public footer contact data reuses existing `site_settings` columns (no migration for contact settings). Do not rollback without customer-message preservation review.
+
+### P38 Separate storefront FAQ and revision archive visibility
+
+`storefront_faqs`: `id BIGINT PK`, `question VARCHAR(300)`, `answer TEXT`, `sort_order UNSIGNED INT`, `is_active BOOLEAN default false`, timestamps, `deleted_at`. Public `/storefront/help` reads only active, non-deleted rows of this new table. Campaign `faqs` remains an independent table and existing campaign-owned entries are unchanged. All admin writes require authenticated admin and CSRF.
+
+`storefront_revisions.deleted_at` is nullable. Only archived records can receive this hide marker; `storefront_pages.draft_revision_id` and `published_revision_id` must not reference a hidden revision. This is **visibility-only archive deletion**: no hard deletion of linked content, child sections/items, or audit rows. `homepage_audit_events` records the action. Existing unique `revision_number` and foreign keys stay unchanged.
+
+SiteSetting branding uses existing Spatie `media` rows with three independent storefront collection names (`storefront_logo`, `storefront_white_logo`, `storefront_favicon`); legacy campaign `site_logo`, `site_white_logo` and `site_favicon` remain unchanged. No schema change for images.

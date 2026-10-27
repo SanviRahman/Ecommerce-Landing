@@ -6,7 +6,7 @@ namespace App\Http\Controllers\Frontend;
 
 use App\Http\Controllers\Controller;
 use App\Models\Review;
-use App\Models\Faq;
+use App\Models\StorefrontFaq;
 use App\Support\StorefrontContactLinks;
 use App\Services\Storefront\HomepageBuilder;
 use App\Services\Storefront\CategoryShelf;
@@ -80,7 +80,9 @@ final class StorefrontCatalogController extends Controller
         $cartVersion = $this->cartVersion(request());
         return $this->noStore(response()->view('storefront.pages.home', [
             'revision' => $revision, 'products' => $products, 'categories' => $categories,
-            'reviews' => $reviews, 'media' => $media, 'isPreview' => false,
+            'reviews' => $reviews, 'publicReviews' => Review::query()->where('status', true)
+                ->whereNull('campaign_id')->with('media')->latest('id')->get(),
+            'media' => $media, 'isPreview' => false,
             'catalog' => $catalog, 'navigation' => $catalog->navigationCategories(),
             'categoryShelves' => $categoryShelves, 'cartVersion' => $cartVersion,
             'autoCategories' => $autoCategories, 'autoShelves' => $autoShelves,
@@ -88,11 +90,11 @@ final class StorefrontCatalogController extends Controller
         ]));
     }
 
-    /** Public global FAQs only: no campaign-owned Q&A leaks to a different storefront. */
+    /** Separate public storefront FAQ table: campaign-owned FAQs stay unchanged. */
     public function help(PublicCatalog $catalog): Response
     {
         $catalog->assertAvailable();
-        $faqs = Faq::query()->whereNull('campaign_id')->active()->sorted()->limit(40)->get();
+        $faqs = StorefrontFaq::query()->published()->limit(40)->get();
         return $this->noStore(response()->view('storefront.pages.help', [
             'navigation' => $catalog->navigationCategories(), 'faqs' => $faqs,
         ]));
@@ -104,6 +106,7 @@ final class StorefrontCatalogController extends Controller
         $catalog->assertAvailable();
         return $this->noStore(response()->view('storefront.pages.contact', [
             'navigation' => $catalog->navigationCategories(), 'contacts' => $contacts->active(),
+            'contactDetails' => app(\App\Support\StorefrontContactDetails::class)->get(),
         ]));
     }
 

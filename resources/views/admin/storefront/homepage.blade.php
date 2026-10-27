@@ -334,7 +334,7 @@
 @endif
 @if(count($history)>0)
 <section class="card"><div class="card-header"><h2 class="card-title">Revision History (immutable content)</h2></div>
-<div class="card-body table-responsive"><table class="table table-sm"><thead><tr><th>Revision</th><th>Status</th><th>Published</th><th>Preview</th><th>Restore as New Draft</th></tr></thead><tbody>
+<div class="card-body table-responsive"><table class="table table-sm"><thead><tr><th>Revision</th><th>Status</th><th>Published</th><th>Preview</th><th>Edit as Draft</th><th>Actions</th></tr></thead><tbody>
 @foreach($history as $entry)<tr>
     <td>#{{ $entry['revision_number'] }}</td><td>{{ strtoupper($entry['status']) }}</td>
     <td>{{ $entry['published_at'] ?? '—' }}</td>
@@ -342,9 +342,20 @@
     <td>@if(!$draft && in_array($entry['status'], ['published','archived']))
         <form method="POST" action="{{ route('admin.storefront.home.restore',$entry['id']) }}">@csrf
             <input type="hidden" name="expected_version" value="{{ $version }}">
-            <button class="btn btn-outline-secondary btn-sm">Restore a Copy</button>
+            <button class="btn btn-outline-primary btn-sm"><i class="fas fa-pen mr-1"></i>Edit Copy</button>
         </form>
     @else <span class="text-muted small">{{ $draft ? 'Finish draft first' : '—' }}</span> @endif</td>
+    <td>
+        @if($entry['status'] === 'archived')
+            <form method="POST" action="{{ route('admin.storefront.home.history.hide',$entry['id']) }}" class="d-inline-block mb-1"
+                  onsubmit="return confirm('Hide archived revision #{{ $entry['revision_number'] }} from history? This cannot be undone in the UI. Audit and linked records will be retained.');">
+                @csrf @method('DELETE') <input type="hidden" name="expected_version" value="{{ $version }}">
+                <button class="btn btn-outline-danger btn-sm" type="submit"><i class="fas fa-trash mr-1"></i>Delete Archive</button>
+            </form>
+        @else
+            <span class="small text-muted">{{ $entry['status'] === 'published' ? 'Published: protected' : 'Active draft' }}</span>
+        @endif
+    </td>
 </tr>@endforeach
 </tbody></table></div></section>
 @endif

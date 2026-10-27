@@ -4,6 +4,7 @@ use App\Http\Controllers\Frontend\StorefrontAccountController;
 use App\Http\Controllers\Frontend\StorefrontCartController;
 use App\Http\Controllers\Frontend\StorefrontWishlistController;
 use App\Http\Controllers\Frontend\StorefrontCatalogController;
+use App\Http\Controllers\Frontend\StorefrontContactController;
 use App\Http\Middleware\P26IsolatedCommerceQaMiddleware;
 use App\Http\Middleware\P32LocalStorefrontCommerceMiddleware;
 use Illuminate\Support\Facades\Route;
@@ -17,6 +18,8 @@ Route::prefix('storefront')->name('storefront.')->middleware([P26IsolatedCommerc
         Route::get('/shop', [StorefrontCatalogController::class, 'shop'])->name('shop');
         Route::get('/help', [StorefrontCatalogController::class, 'help'])->name('help');
         Route::get('/contact', [StorefrontCatalogController::class, 'contact'])->name('contact');
+        Route::post('/contact', [StorefrontContactController::class, 'store'])
+            ->middleware('throttle:5,1')->name('contact.submit');
         Route::get('/category/{slug}', [StorefrontCatalogController::class, 'category'])
             ->where('slug', '[a-zA-Z0-9][a-zA-Z0-9_-]*')->name('category');
         Route::get('/product/{slug}', [StorefrontCatalogController::class, 'product'])

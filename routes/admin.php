@@ -15,6 +15,8 @@ use App\Http\Controllers\Admin\ExternalWebsiteController;
 use App\Http\Controllers\Admin\FaqController;
 use App\Http\Controllers\Admin\HomepageBuilderController;
 use App\Http\Controllers\Admin\StorefrontReadinessController;
+use App\Http\Controllers\Admin\StorefrontMessageController;
+use App\Http\Controllers\Admin\StorefrontFaqController;
 use App\Http\Controllers\Admin\MediaManagementController;
 use App\Http\Controllers\Admin\OrderController;
 use App\Http\Controllers\Admin\ProductController;
@@ -59,6 +61,7 @@ Route::middleware(['auth', 'role:admin,employee'])->group(function () {
         Route::post('/draft', [HomepageBuilderController::class, 'start'])->name('draft');
         Route::post('/draft/discard', [HomepageBuilderController::class, 'discardDraft'])->name('draft.discard');
         Route::post('/restore/{revision}', [HomepageBuilderController::class, 'restore'])->whereNumber('revision')->name('restore');
+        Route::delete('/history/{revision}', [HomepageBuilderController::class, 'hideArchived'])->whereNumber('revision')->name('history.hide');
         Route::post('/sections', [HomepageBuilderController::class, 'addSection'])->name('sections.store');
         Route::patch('/sections/reorder', [HomepageBuilderController::class, 'reorder'])->name('sections.reorder');
         Route::patch('/sections/{sectionKey}', [HomepageBuilderController::class, 'saveSection'])->whereUuid('sectionKey')->name('sections.update');
@@ -73,6 +76,24 @@ Route::middleware(['auth', 'role:admin,employee'])->group(function () {
         Route::patch('/theme', [HomepageBuilderController::class, 'theme'])->name('theme');
         Route::post('/publish', [HomepageBuilderController::class, 'publish'])->name('publish');
         Route::get('/preview', [HomepageBuilderController::class, 'preview'])->name('preview');
+    });
+
+    // Storefront questions are NOT campaign FAQs. Admin-only CRUD.
+    Route::prefix('storefront-faqs')->as('storefront-faqs.')->middleware('role:admin')->group(function (): void {
+        Route::get('/', [StorefrontFaqController::class, 'index'])->name('index');
+        Route::get('/create', [StorefrontFaqController::class, 'create'])->name('create');
+        Route::post('/', [StorefrontFaqController::class, 'store'])->name('store');
+        Route::get('/{faq}/edit', [StorefrontFaqController::class, 'edit'])->whereNumber('faq')->name('edit');
+        Route::put('/{faq}', [StorefrontFaqController::class, 'update'])->whereNumber('faq')->name('update');
+        Route::delete('/{faq}', [StorefrontFaqController::class, 'destroy'])->whereNumber('faq')->name('destroy');
+    });
+
+    // Customer correspondence is private; only active admins may view or mutate it.
+    Route::prefix('storefront-messages')->as('storefront-messages.')->middleware('role:admin')->group(function (): void {
+        Route::get('/', [StorefrontMessageController::class, 'index'])->name('index');
+        Route::get('/{message}', [StorefrontMessageController::class, 'show'])->whereNumber('message')->name('show');
+        Route::patch('/{message}', [StorefrontMessageController::class, 'update'])->whereNumber('message')->name('update');
+        Route::delete('/{message}', [StorefrontMessageController::class, 'destroy'])->whereNumber('message')->name('destroy');
     });
 
     Route::get('/profile', [ProfileController::class, 'profile'])->name('profile');

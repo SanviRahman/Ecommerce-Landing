@@ -94,7 +94,7 @@ final class HomepageBuilder
     private function readRevision(int $pageId, int $id): array
     {
         $revision = DB::table('storefront_revisions')
-            ->where('id', $id)->where('storefront_page_id', $pageId)->first();
+            ->where('id', $id)->where('storefront_page_id', $pageId)->whereNull('deleted_at')->first();
         abort_unless($revision !== null, 404);
         $sections = DB::table('homepage_sections')->where('storefront_revision_id', $id)
             ->orderBy('sort_order')->orderBy('id')->get();
@@ -127,6 +127,7 @@ final class HomepageBuilder
         $this->assertTestSchema();
         $page = DB::table('storefront_pages')->where('slug', self::PAGE_SLUG)->first();
         return $page ? DB::table('storefront_revisions')->where('storefront_page_id', $page->id)
+            ->whereNull('deleted_at')
             ->orderByDesc('revision_number')->limit(30)->get()->map(fn ($r) => (array) $r)->all() : [];
     }
 
@@ -163,7 +164,7 @@ final class HomepageBuilder
             $parent = $restoreFrom ?? ($page->published_revision_id ? (int) $page->published_revision_id : null);
             if ($parent !== null) {
                 $exists = DB::table('storefront_revisions')->where('id', $parent)
-                    ->where('storefront_page_id', $page->id)->exists();
+                    ->where('storefront_page_id', $page->id)->whereNull('deleted_at')->exists();
                 if (! $exists) {
                     $this->reject('This historical revision does not belong to the homepage.');
                 }
@@ -192,6 +193,28 @@ final class HomepageBuilder
                 ->where('status', 'draft')->update(['status' => 'archived', 'updated_by' => $actorId, 'updated_at' => now()]);
             $this->bump($page, (int) $draft->id, $actorId, 'draft_discard', ['draft_id' => $draft->id],
                 ['draft_revision_id' => null]);
+        }, 3);
+    }
+
+    /** Remove an ARCHIVED revision from visible history without deleting immutable content/audit records. */
+    public function hideArchivedRevision(int $revisionId, int $expectedVersion, int $actorId): void
+    {
+        $this->assertTestSchema();
+        DB::transaction(function () use ($revisionId, $expectedVersion, $actorId): void {
+            $page = $this->lockedPage();
+            if ($page === null) $this->reject('Homepage does not exist.');
+            $this->assertVersion($expectedVersion, (int) $page->lock_version);
+            $revision = DB::table('storefront_revisions')->where('id', $revisionId)
+                ->where('storefront_page_id', $page->id)->lockForUpdate()->first();
+            if ($revision === null || $revision->status !== 'archived' || $revision->deleted_at !== null
+                || (int) ($page->draft_revision_id ?? 0) === $revisionId
+                || (int) ($page->published_revision_id ?? 0) === $revisionId) {
+                $this->reject('Only an unlinked, visible ARCHIVED revision can be removed from history.');
+            }
+            DB::table('storefront_revisions')->where('id', $revisionId)
+                ->update(['deleted_at' => now(), 'updated_by' => $actorId, 'updated_at' => now()]);
+            $this->bump($page, $revisionId, $actorId, 'revision_hide_archived',
+                ['hidden_revision' => $revisionId, 'revision_number' => (int) $revision->revision_number]);
         }, 3);
     }
 

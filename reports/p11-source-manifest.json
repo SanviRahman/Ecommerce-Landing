@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "scope": "allowlisted-code-only",
-  "count": 578,
-  "sha256": "4cce67c29e7f5c8d64e97082a847764f57ee00b4ec85787b5b40e7687a62d7da",
+  "count": 596,
+  "sha256": "b2c80bd4315a5cfee72e35c015176c25ad8cb983995cc8baa2396aab46b2f737",
   "files": [
     {
       "path": "app/Console/Commands/BackfillDefaultProductVariants.php",
@@ -131,13 +131,13 @@
     },
     {
       "path": "app/Http/Controllers/Admin/HomepageBuilderController.php",
-      "bytes": 18608,
-      "sha256": "9767d5a4d04d5a9bbe541d7b9d88e01c5e518396301ca6ce882521d0cc0f365d"
+      "bytes": 19084,
+      "sha256": "81089fa5a5c616faffdcf199afd012a66404b44167f9b14f163e303f5e4de5a4"
     },
     {
       "path": "app/Http/Controllers/Admin/MediaManagementController.php",
-      "bytes": 38409,
-      "sha256": "6a585dcfc74195ab0c1cd83ca2a538875d6ead5b73d8ae0d1e817494094c4911"
+      "bytes": 38709,
+      "sha256": "a1d54b20bbb978fef19a7f4ee3987737c951dc432c6c33bba3e8d6e514fe6274"
     },
     {
       "path": "app/Http/Controllers/Admin/OrderController.php",
@@ -176,13 +176,23 @@
     },
     {
       "path": "app/Http/Controllers/Admin/SiteSettingController.php",
-      "bytes": 4240,
-      "sha256": "7b916c9a540ec461bd1df13ca55f7ed5fd7aa3e8dca87ca31cec6e553e618515"
+      "bytes": 6058,
+      "sha256": "2519df34e417115039bcdbecf568435130956ff6c07d3893c22534c5d5f31ddc"
     },
     {
       "path": "app/Http/Controllers/Admin/SocialMediaController.php",
       "bytes": 8355,
       "sha256": "7eace71eb65cfd36026e847a0d74e9a0cc2bc17befb601540320f989e2b62953"
+    },
+    {
+      "path": "app/Http/Controllers/Admin/StorefrontFaqController.php",
+      "bytes": 2312,
+      "sha256": "7df5b26ece0561d1cca335f5640a4b7026f949205971a2bf711b31bf90a729d0"
+    },
+    {
+      "path": "app/Http/Controllers/Admin/StorefrontMessageController.php",
+      "bytes": 2460,
+      "sha256": "495697fbb2df849787e63e6171e29933d7d6492a302b522a535ef9a9b77b6b12"
     },
     {
       "path": "app/Http/Controllers/Admin/StorefrontReadinessController.php",
@@ -266,8 +276,13 @@
     },
     {
       "path": "app/Http/Controllers/Frontend/StorefrontCatalogController.php",
-      "bytes": 10406,
-      "sha256": "7e778e416f4de205f9c91d76fdf2f2ba0e3f0a4d8d7b5bc1e36946fb0dc7a55e"
+      "bytes": 10627,
+      "sha256": "1384749051c74d92194906a006909e4efab98c3d08b6d4e9d19454109992a09a"
+    },
+    {
+      "path": "app/Http/Controllers/Frontend/StorefrontContactController.php",
+      "bytes": 1601,
+      "sha256": "f2ce2cc92d99147cfe0fa37cce01d0764a19e920e9aa582849aebe47763280a5"
     },
     {
       "path": "app/Http/Controllers/Frontend/StorefrontWishlistController.php",
@@ -486,8 +501,8 @@
     },
     {
       "path": "app/Models/SiteSetting.php",
-      "bytes": 1590,
-      "sha256": "0380ecc9ff8d56b2fa1c1172a28f0914168d80d1e96fc3928f868748a4564210"
+      "bytes": 1941,
+      "sha256": "31ac8f89f210600575ca4bfbae6780ed1bf5af04aea721bf2395d964757badbb"
     },
     {
       "path": "app/Models/SocialMedia.php",
@@ -498,6 +513,16 @@
       "path": "app/Models/StorefrontAccount.php",
       "bytes": 675,
       "sha256": "397c18520a808dbc83ccb3acf367799cf8846b1cd2b5e0644cab685525a730db"
+    },
+    {
+      "path": "app/Models/StorefrontContactMessage.php",
+      "bytes": 647,
+      "sha256": "6c4cfb937675a96b043b2b535916b9be219db87403a146c8958bce3caa13f0bc"
+    },
+    {
+      "path": "app/Models/StorefrontFaq.php",
+      "bytes": 647,
+      "sha256": "7daf720e71f35992caacba48e315184e1ac0135147839620a2bd888251e6579d"
     },
     {
       "path": "app/Models/TrackingPixel.php",
@@ -691,8 +716,8 @@
     },
     {
       "path": "app/Services/Storefront/HomepageBuilder.php",
-      "bytes": 38761,
-      "sha256": "55867296d023f0769c0fde9d201298c5b6274ac31b8a9977fc2f53c9b37cad26"
+      "bytes": 40314,
+      "sha256": "c752d33f27879169f558aba48b202bac1d8aa3d7abe0cf23395bd71c7e83fcc0"
     },
     {
       "path": "app/Services/Storefront/PublicCatalog.php",
@@ -756,8 +781,13 @@
     },
     {
       "path": "app/Support/StorefrontBranding.php",
-      "bytes": 2239,
-      "sha256": "22ac2753252ccffcb5994c6048d3bb7ae245076c319d09093bd69b5953fcbb94"
+      "bytes": 2388,
+      "sha256": "d0fec5d553417d9e9169b74bd0513bf9cb6c38ef168289636bb9cd32b34c36b1"
+    },
+    {
+      "path": "app/Support/StorefrontContactDetails.php",
+      "bytes": 1808,
+      "sha256": "6326eb0f4320af711fa1e27e503223abb263057f65a0e39844ff7d51391fe8ca"
     },
     {
       "path": "app/Support/StorefrontContactLinks.php",
@@ -806,8 +836,8 @@
     },
     {
       "path": "config/adminlte.php",
-      "bytes": 43156,
-      "sha256": "80cecb50ac09c29a24c865d2a39739d06fade112047f91e4b075a73b1eb4b631"
+      "bytes": 43797,
+      "sha256": "9382ed30d9f25e0bc68f5e6c586e28e8dc68af32683420538f2b3ca28c6933f8"
     },
     {
       "path": "config/app.php",
@@ -1315,6 +1345,21 @@
       "sha256": "c4cf5cb96bf3f019fa04ef96cdc816bd3a517ce54b4e084dcd40f1a884464efb"
     },
     {
+      "path": "database/migrations/2026_10_27_100001_create_storefront_contact_messages.php",
+      "bytes": 1559,
+      "sha256": "44ac24669792559944dfe9a1b4b29df58bbf8fad4b8068f8261b9817788adb94"
+    },
+    {
+      "path": "database/migrations/2026_10_27_110001_create_storefront_faqs.php",
+      "bytes": 1222,
+      "sha256": "b582df410d7cfda176c39b6e63332f1604669db63718d77c922827d04b01c34a"
+    },
+    {
+      "path": "database/migrations/2026_10_27_110002_add_archived_revision_visibility.php",
+      "bytes": 960,
+      "sha256": "19656c6eebe9837c6269c196a492e5ad54206d909fad0b9f910c1d8fcd59bd80"
+    },
+    {
       "path": "package-lock.json",
       "bytes": 80112,
       "sha256": "db97566bc0e70d8e4a8a63f0e3ab4a0e005f925d62e3a9aa7df72926f1b17b68"
@@ -1385,6 +1430,16 @@
       "sha256": "7004a2cac0da4154106d84e97a8d22ebc3252e098fadbe1b60044b0268339d2d"
     },
     {
+      "path": "public/frontend/css/storefront-p37.css",
+      "bytes": 12087,
+      "sha256": "d0d6f7d7602f22d829703738ffaa493d2fc999f54a4d4184566a9e725c39d034"
+    },
+    {
+      "path": "public/frontend/css/storefront-p38.css",
+      "bytes": 3039,
+      "sha256": "0e74704b0a7eb25c2e4eb37a9e07ab425c1122c7316311dbd0bfe73acb0e128b"
+    },
+    {
       "path": "public/frontend/css/storefront-premium.css",
       "bytes": 18680,
       "sha256": "1fa2923b017dc272dd11a0cca6727ddd1f48dd311744a4d1bc1fa0321fc6bfe7"
@@ -1453,6 +1508,11 @@
       "path": "public/frontend/js/storefront-p36.js",
       "bytes": 1621,
       "sha256": "208c9c7c6bd7022fd9a4931da9de2176eccb0aa29084cac16c160594cde71487"
+    },
+    {
+      "path": "public/frontend/js/storefront-p38.js",
+      "bytes": 520,
+      "sha256": "d9238b8639b5d07fd91e87d43329e670fe2e82de3046b5b2402af8c1439f8a95"
     },
     {
       "path": "public/frontend/js/storefront-premium.js",
@@ -1881,8 +1941,8 @@
     },
     {
       "path": "resources/views/admin/site-settings/index.blade.php",
-      "bytes": 18287,
-      "sha256": "19d2e5f84ec637e0e73827cff94ae175638bfa7f97a956eb839f4a8c77e2abc2"
+      "bytes": 26004,
+      "sha256": "d84eb51f3850cba88661cf300e202ad0c49981ed8566a86a762d887f5ed011cc"
     },
     {
       "path": "resources/views/admin/social-media/index.blade.php",
@@ -1905,9 +1965,29 @@
       "sha256": "d188d7077f8682a4d276f84aa298c844f5877dfda54347da8d2f3e66b79c6454"
     },
     {
+      "path": "resources/views/admin/storefront-faqs/form.blade.php",
+      "bytes": 2338,
+      "sha256": "a8766a7b93af1eac44996442b975d7914b68e9e4c1d1c6d149ab4c62fefcc214"
+    },
+    {
+      "path": "resources/views/admin/storefront-faqs/index.blade.php",
+      "bytes": 1965,
+      "sha256": "aed1034bdedf9401c46eafb896ced7be7a5813d4a8dc5c8182b657f650b17ade"
+    },
+    {
+      "path": "resources/views/admin/storefront-messages/index.blade.php",
+      "bytes": 1944,
+      "sha256": "a648671dc9b3c40a6df2ab2a7fed593eb1eddb59da3a80e1d1dd0388f347f7c9"
+    },
+    {
+      "path": "resources/views/admin/storefront-messages/show.blade.php",
+      "bytes": 2631,
+      "sha256": "9362d171b28797448a1ca6f6f4e929e54bca0e09e4f4edb0d54951c223647b84"
+    },
+    {
       "path": "resources/views/admin/storefront/homepage.blade.php",
-      "bytes": 28180,
-      "sha256": "2a5b55f6da980baf2f7a4e34efe6fcabe59064da09c8f4daf3bdd650e4e03cba"
+      "bytes": 29026,
+      "sha256": "c789722e7add8df595da0820edaa9e11083bac452aafa5fa1665845620ba57fa"
     },
     {
       "path": "resources/views/admin/storefront/readiness.blade.php",
@@ -2041,8 +2121,8 @@
     },
     {
       "path": "resources/views/storefront/layouts/catalog.blade.php",
-      "bytes": 2719,
-      "sha256": "536fd8d9fc42627cab6ea3daf2e47eca9dd9da0aecefdfc44cd16c5f6c179da2"
+      "bytes": 2958,
+      "sha256": "04330e19125d3e99b6e54f189e02dc913337a2360eb758c39d6173891ac1d29d"
     },
     {
       "path": "resources/views/storefront/pages/cart.blade.php",
@@ -2056,8 +2136,8 @@
     },
     {
       "path": "resources/views/storefront/pages/contact.blade.php",
-      "bytes": 788,
-      "sha256": "4af20cbe6719d51a87e73769ed79c352fecd83aa6d1202a05ddb3afde54afbee"
+      "bytes": 5829,
+      "sha256": "1c6a7b4bec99ea781920903b86b21b7175635eed2af8f7f8f9dbba411503d8c4"
     },
     {
       "path": "resources/views/storefront/pages/empty-home.blade.php",
@@ -2066,13 +2146,13 @@
     },
     {
       "path": "resources/views/storefront/pages/help.blade.php",
-      "bytes": 899,
-      "sha256": "ac71e5e57db17dcbea1d4b99e3f0ce22f633d8a2e432e83cd89802a5f9f0351e"
+      "bytes": 931,
+      "sha256": "e30616da3b0a9932bf70c573de7b103e7e5626cdb3b824c3d46eec9f05bf3a1c"
     },
     {
       "path": "resources/views/storefront/pages/home.blade.php",
-      "bytes": 23044,
-      "sha256": "bef5a138c454668767f01c5b265e9d1105284ae217931c0e4a0a93ebbb0fbd29"
+      "bytes": 24258,
+      "sha256": "ca7d260f62d3628fe97861d5ef7e7e8ebf5c4140aa5c4a4dd93a1f6bc9a3272c"
     },
     {
       "path": "resources/views/storefront/pages/product.blade.php",
@@ -2096,13 +2176,13 @@
     },
     {
       "path": "resources/views/storefront/partials/contact-widget.blade.php",
-      "bytes": 885,
-      "sha256": "016238a9f86169a9595846afad857289660bb7dba00e82ce7ba779fec20301fe"
+      "bytes": 2263,
+      "sha256": "7a5e890c78fc7c7c790e7a19549b86fa6ae7380df51ff4f823d5574adec26d75"
     },
     {
       "path": "resources/views/storefront/partials/footer.blade.php",
-      "bytes": 4105,
-      "sha256": "cc0f8396e48e4490a1f48c759388525c80f1b56e12b30998bb809af957a57f4f"
+      "bytes": 5013,
+      "sha256": "1f3d0c8c6bffe2fd9c36c7e76459219ea2d416d2b6637a9b5c17ae9703922cd5"
     },
     {
       "path": "resources/views/storefront/partials/home-product-card.blade.php",
@@ -2111,13 +2191,13 @@
     },
     {
       "path": "resources/views/storefront/partials/home-reviews.blade.php",
-      "bytes": 1070,
-      "sha256": "c219ba561d34a95d01576f6a002824b767bb2c065cbe230a7f2d27a18e78f663"
+      "bytes": 2254,
+      "sha256": "5c1139e5ec2bee1ff9dc1c3b39d863fb0a822b0658bd423bbe1b5ff86c9b59eb"
     },
     {
       "path": "resources/views/storefront/partials/icon.blade.php",
-      "bytes": 3067,
-      "sha256": "505ae464d8cd2c93f284dbab0acf193865f838a625feb7635abf93577f3ec92d"
+      "bytes": 4309,
+      "sha256": "392d356bd6f0381221de8f6a1cbc6ea57ac754e990cc4f85d91d3f7eb21a8fdf"
     },
     {
       "path": "resources/views/storefront/partials/navigation.blade.php",
@@ -2336,8 +2416,8 @@
     },
     {
       "path": "routes/admin.php",
-      "bytes": 47638,
-      "sha256": "c995f5e20f43f02ca16a3ac8ccf39c2841cd85054b8cfcebdda3c1ea4b67f962"
+      "bytes": 49356,
+      "sha256": "d0c9aae8eb36cf11758670b673fbb90486d3bf6b293365bf3594c3d23c209075"
     },
     {
       "path": "routes/api.php",
@@ -2356,8 +2436,8 @@
     },
     {
       "path": "routes/storefront.php",
-      "bytes": 3734,
-      "sha256": "3e3adebca20b9f39bfa83022ff1f1f6e4f8fb930de0b6a143d69036b820d266e"
+      "bytes": 3942,
+      "sha256": "30923ff934c45a80df901f513d849d5ec185ef1601bdc89eb9b44bc88f302354"
     },
     {
       "path": "routes/user.php",
@@ -2698,6 +2778,16 @@
       "path": "tools/qa/check-p36-premium-editor.mjs",
       "bytes": 9933,
       "sha256": "f16b972b33d14b9373c201fe9f05943177b2dc813574d85305d26ee61bfb1331"
+    },
+    {
+      "path": "tools/qa/check-p37-storefront-contact.mjs",
+      "bytes": 2991,
+      "sha256": "95b0e96cf812856ed3a394da4b56183a0ddc787f519ee5ae00716511866c85ef"
+    },
+    {
+      "path": "tools/qa/check-p38-source-contract.mjs",
+      "bytes": 3175,
+      "sha256": "85963061ed96672f55b7c6aadd8e406c636e9a4777023a134b017c8cd1fe3162"
     },
     {
       "path": "tools/qa/check-summary-html.mjs",

@@ -351,3 +351,15 @@ Not approved. Requires mandatory acceptance matrix, no unresolved P0/P1 blockers
 - Homepage Builder edit/discard draft UX, guarded item PATCH and audit, no edits to immutable published revisions.
 - Mobile cart right-centered; existing Checkout sticky Buy Now stays above bottom bar, respecting readiness.
 - P36/P33/P34/P35 source checks and lint run in extracted source. Full Laravel/MySQL/browser integration unavailable due missing vendor dependencies. P26 baseline obsolete route-contract FAIL unchanged; no claim of full regression PASS.
+
+
+## P37 - Storefront reviews/footer/contact (2026-10-27)
+
+Prepared changed-files patch for user-provided `website(20261027-040404).zip`: active global reviews and images in public homepage, premium footer contact/social, Site Settings contact CRUD, customer Contact Us submit + private Admin inbox, one forward-only guarded migration. No database migration executed, no MySQL/browser integration evidence in this environment; local verification pending.
+
+### 2026-10-27 - P38 Storefront FAQs, separate branding and revision history actions
+
+- Source: `website(20261027-052826).zip`; user screenshots plus `/rules`, `/bugfix`, `/constraints`.
+- Implemented independent storefront FAQ admin create/edit/soft-delete and public Help query; campaign FAQ unchanged. Separate Storefront logo, white logo/favicon media collections and Site Settings upload forms; campaign branding retains original collections. Validated floating Contact+ beside intact cart, with accessible WhatsApp/Call/Email links from saved settings. Admin history clone-to-edit and audited archived hide; published revision cannot be deleted.
+- Two forward-only, local-guarded migrations; main/local production DB not modified. No checkout, stock, order, campaign route, or customer data changed.
+- PHP/JS lint and isolated source checks only; Windows MySQL, Blade rendering and browser acceptance pending the operator's manual verification.

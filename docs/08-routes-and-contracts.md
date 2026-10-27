@@ -182,3 +182,16 @@ P26 isolated QA remains optional for account/cart/checkout on loopback 8088 only
 Main database commerce writes are NOT enabled by this browse cutover; independent P02/P03/P08 gates remain.
 Admin builder mutation/preview authorization and immutable publication rules are unchanged.
 No new migrations or data writes are part of P31. Browser and database integration not verified on this uploaded copy (user opted for manual testing).
+
+### P38 - Independent Storefront FAQ and archive visibility
+
+| Method/Path | Route name | Scope |
+|---|---|---|
+| GET `/storefront/help` | `storefront.help` | Reads `storefront_faqs` where `is_active=1` and `deleted_at IS NULL`; no campaign FAQ mixing |
+| GET `/admin/storefront-faqs` | `admin.storefront-faqs.index` | Authenticated active admin list |
+| GET `/admin/storefront-faqs/create`, POST `/admin/storefront-faqs` | `.create`, `.store` | Admin CSRF + validation; creates FAQ |
+| GET `/admin/storefront-faqs/{faq}/edit`, PUT `/admin/storefront-faqs/{faq}` | `.edit`, `.update` | Admin edit; no campaign FAQ writes |
+| DELETE `/admin/storefront-faqs/{faq}` | `.destroy` | Admin CSRF; soft-deletes a storefront FAQ |
+| DELETE `/admin/storefront/home/history/{revision}` | `admin.storefront.home.history.hide` | Only `archived` history entries, optimistic version lock, retained audit and content |
+
+Published and archived revision editing is **clone-to-draft**, using existing `admin.storefront.home.restore` POST route. Published revision and current draft can never be deleted by history action. Site branding uses existing Site Settings update route, with `storefront_logo`, `storefront_white_logo`, `storefront_favicon` media collections separate from the legacy campaign collections. Contact float links use only validated Site Settings values.

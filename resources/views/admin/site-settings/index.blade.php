@@ -50,11 +50,11 @@
             <div class="card-header bg-white">
                 <h5 class="mb-0 font-weight-bold">
                     <i class="fas fa-cogs text-primary mr-1"></i>
-                    Website Branding
+                    Campaign & Storefront Settings
                 </h5>
 
                 <small class="text-muted">
-                    Website name, site logo, white logo and favicon manage করুন। Contact/footer information Campaign form থেকে manage হবে।
+                    Contact details are shared; campaign and storefront branding images are independent. Existing campaign pages and footer controls remain unchanged.
                 </small>
             </div>
 
@@ -83,10 +83,28 @@
                         @enderror
                     </div>
 
+                    <div class="card border-success mb-4">
+                        <div class="card-header bg-light"><h6 class="mb-0 font-weight-bold"><i class="fas fa-address-card text-success mr-2"></i>Storefront Footer & Contact Us</h6></div>
+                        <div class="card-body">
+                            <p class="text-muted small">These existing Site Settings fields feed the public footer and Contact Us page. Leave a field blank to hide it.</p>
+                            <div class="row">
+                                <div class="form-group col-md-6"><label for="sfContactPhone">Phone</label><input id="sfContactPhone" type="tel" name="phone" maxlength="25" class="form-control @error('phone') is-invalid @enderror" value="{{ old('phone', $siteSetting->phone ?? '') }}" placeholder="01XXXXXXXXX">@error('phone')<span class="invalid-feedback">{{ $message }}</span>@enderror</div>
+                                <div class="form-group col-md-6"><label for="sfContactHotline">Hotline (optional)</label><input id="sfContactHotline" type="tel" name="hotline" maxlength="25" class="form-control @error('hotline') is-invalid @enderror" value="{{ old('hotline', $siteSetting->hotline ?? '') }}">@error('hotline')<span class="invalid-feedback">{{ $message }}</span>@enderror</div>
+                                <div class="form-group col-md-6"><label for="sfContactEmail">Email</label><input id="sfContactEmail" type="email" name="email" maxlength="190" class="form-control @error('email') is-invalid @enderror" value="{{ old('email', $siteSetting->email ?? '') }}" placeholder="support@example.com">@error('email')<span class="invalid-feedback">{{ $message }}</span>@enderror</div>
+                                <div class="form-group col-md-6"><label for="sfWorkingHours">Working Hours</label><input id="sfWorkingHours" type="text" name="working_hours" maxlength="120" class="form-control @error('working_hours') is-invalid @enderror" value="{{ old('working_hours', $siteSetting->working_hours ?? '') }}" placeholder="Sat - Thu · 9 AM - 7 PM">@error('working_hours')<span class="invalid-feedback">{{ $message }}</span>@enderror</div>
+                                <div class="form-group col-12"><label for="sfAddress">Business Address (also used for Google Maps)</label><textarea id="sfAddress" name="address" rows="3" maxlength="1500" class="form-control @error('address') is-invalid @enderror" placeholder="Your actual store location">{{ old('address', $siteSetting->address ?? '') }}</textarea>@error('address')<span class="invalid-feedback">{{ $message }}</span>@enderror</div>
+                                <div class="form-group col-12"><label for="sfAbout">Footer Description</label><textarea id="sfAbout" name="business_short_description" rows="2" maxlength="500" class="form-control @error('business_short_description') is-invalid @enderror">{{ old('business_short_description', $siteSetting->business_short_description ?? '') }}</textarea>@error('business_short_description')<span class="invalid-feedback">{{ $message }}</span>@enderror</div>
+                                <div class="form-group col-md-6"><label for="sfWhatsApp">WhatsApp Number</label><input id="sfWhatsApp" type="tel" maxlength="25" name="whatsapp_number" class="form-control @error('whatsapp_number') is-invalid @enderror" value="{{ old('whatsapp_number', $siteSetting->whatsapp_number ?? '') }}">@error('whatsapp_number')<span class="invalid-feedback">{{ $message }}</span>@enderror</div>
+                                <div class="form-group col-md-6"><label for="sfMessenger">Messenger HTTPS Link</label><input id="sfMessenger" type="url" maxlength="255" name="messenger_link" class="form-control @error('messenger_link') is-invalid @enderror" value="{{ old('messenger_link', $siteSetting->messenger_link ?? '') }}">@error('messenger_link')<span class="invalid-feedback">{{ $message }}</span>@enderror</div>
+                                <div class="col-12"><input type="hidden" name="status" value="0"><label><input type="checkbox" name="status" value="1" @checked((bool) old('status', $siteSetting->status ?? true))> Enable active public Site Settings</label></div>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="card bg-light border-0 mb-4">
                         <div class="card-header bg-light">
                             <h6 class="mb-0 font-weight-bold">
-                                <i class="fas fa-images mr-1"></i> Branding Images
+                                <i class="fas fa-images mr-1"></i> Campaign Branding — Existing Logo, White Logo &amp; Favicon
                             </h6>
                         </div>
 
@@ -196,9 +214,39 @@
                             </div>
 
                             <small class="text-muted">
-                                Recommended: Logo PNG/WebP, White Logo transparent PNG/WebP, Favicon 64x64 or 128x128.
+                                Campaign logos and favicon (existing images). Storefront has separate upload fields below.
                             </small>
                         </div>
+                    </div>
+
+                    <div class="card border-success mb-4">
+                        <div class="card-header bg-light">
+                            <h6 class="mb-1 font-weight-bold"><i class="fas fa-store text-success mr-2"></i>Storefront Branding — Separate Logo &amp; Favicon</h6>
+                            <small class="text-muted">Uploads here change only the public Storefront. Campaign logos/favicon above remain unchanged. PNG, JPG or WebP only.</small>
+                        </div>
+                        <div class="card-body"><div class="row">
+                            @foreach([
+                                'storefront_logo' => 'Storefront Logo',
+                                'storefront_white_logo' => 'Storefront White Logo',
+                                'storefront_favicon' => 'Storefront Favicon',
+                            ] as $collection => $label)
+                            <div class="col-md-4"><div class="form-group">
+                                <label for="{{ $collection }}">{{ $label }}</label>
+                                <input type="file" id="{{ $collection }}" name="{{ $collection }}" accept="image/jpeg,image/png,image/webp"
+                                    class="form-control @error($collection) is-invalid @enderror">
+                                @error($collection)<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                                @if($isEdit && ($currentMedia = $siteSetting?->getFirstMedia($collection)))
+                                <div class="media-preview-box mt-3 {{ $collection === 'storefront_white_logo' ? 'dark-preview' : '' }}">
+                                    <img class="img-fluid img-thumbnail" src="{{ $siteSetting->getFirstMediaUrl($collection) }}" alt="{{ $label }}">
+                                    <button type="button" class="btn btn-sm btn-danger btnDeleteMedia mt-2"
+                                        data-url="{{ route('admin.site-settings.delete_media', $currentMedia->id) }}">
+                                        <i class="fas fa-trash mr-1"></i>Remove
+                                    </button>
+                                </div>
+                                @endif
+                            </div></div>
+                            @endforeach
+                        </div><p class="small text-muted mb-0">No new database columns are required: existing Spatie media table keeps each collection separate. Only upload the images you want to change.</p></div>
                     </div>
 
                     <div class="border-top pt-3">
@@ -222,7 +270,7 @@
             <div class="card-header bg-white">
                 <h5 class="mb-0 font-weight-bold">
                     <i class="fas fa-eye text-primary mr-1"></i>
-                    Current Preview
+                    Campaign Branding Preview
                 </h5>
             </div>
 
@@ -283,6 +331,26 @@
         </div>
 
         <div class="card border-0 shadow-sm setting-card">
+            <div class="card-header bg-white"><h5 class="mb-0 font-weight-bold"><i class="fas fa-store text-success mr-1"></i> Storefront Branding Preview</h5></div>
+            <div class="card-body"><div class="branding-preview-grid">
+                @foreach([
+                    'storefront_logo' => 'Storefront Logo',
+                    'storefront_white_logo' => 'Storefront White Logo',
+                    'storefront_favicon' => 'Storefront Favicon',
+                ] as $collection => $label)
+                <div class="branding-preview-item {{ $collection === 'storefront_white_logo' ? 'dark-preview' : '' }}">
+                    <strong class="{{ $collection === 'storefront_white_logo' ? 'text-white' : '' }}">{{ $label }}</strong>
+                    @if($siteSetting?->getFirstMedia($collection))
+                        <img src="{{ $siteSetting->getFirstMediaUrl($collection) }}" alt="{{ $label }}">
+                    @else
+                        <span class="{{ $collection === 'storefront_white_logo' ? 'text-light' : 'text-muted' }}">Not uploaded</span>
+                    @endif
+                </div>
+                @endforeach
+            </div></div>
+        </div>
+
+        <div class="card border-0 shadow-sm setting-card">
             <div class="card-header bg-white">
                 <h5 class="mb-0 font-weight-bold">
                     <i class="fas fa-info-circle text-info mr-1"></i>
@@ -292,7 +360,7 @@
 
             <div class="card-body">
                 <p class="text-muted mb-0">
-                    Contact information, footer content এবং related status Campaign form থেকে manage হবে।
+                    Global storefront contact details above are saved in Site Settings. Campaign pages retain their campaign-specific footer controls.
                 </p>
             </div>
         </div>

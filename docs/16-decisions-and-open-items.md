@@ -216,3 +216,22 @@ Open: browser-level preview/CSRF QA, image file reference tests, real MariaDB 20
 - **Admin decision:** Published revisions remain immutable. `Edit Published` creates a new draft using the original version lock; PATCH updates only owned draft items, POST discards only an editable draft by archiving it and retaining audit/published references. Admin role and CSRF mandatory; reviewed media/link allowlists retained.
 - **Catalog decision:** On create only, active option values are selectable. New optioned product is automatically prepared/converted through existing `VariantCatalogManager`, default SKU zero stock, new Color/Size SKU zero stock, product remains **inactive**. No synthetic active stock and no bypass of the existing variable-checkout release hold. More combinations/prices remain editable under Variant Manager.
 - **Pending gates:** Real MySQL transaction test (including rollback on invalid value), concurrent draft-version conflict, live banner media, 320px/360px/390px mobile, cart/checkout/inventory QA, manual sign-off. No migration, seed or `.env` modifications.
+
+
+## ADR P37 - Storefront customer contact and review publishing (2026-10-27)
+
+- Live public homepage shows all **active global** (`campaign_id IS NULL`) reviews with their existing Spatie `review_customer_image`. Disabled Review sections remain hidden; editor previews keep pinned revision items. Campaign-specific reviews are never promoted to the storefront.
+- Existing `site_settings` fields are the single source of public phone, email, address, working hours and business description; Admin Site Settings now edits these columns. No duplicate contact-settings table. Existing campaign-specific site-setting controls are not removed.
+- New forward-only `storefront_contact_messages` table stores encrypted customer name/email/phone/message/admin notes. Public CSRF + throttled submission and admin-only message CRUD; no external email sending or production migration claimed.
+- Map URLs originate only from the configured address and fixed Google Maps hosts. No address, credentials, or example business data are seeded.
+- Keep campaign landing, checkout, inventory, order and previously published homepage history unchanged.
+
+### ADR P38 - Separate FAQ, media branding, contact dock and audit-safe history actions (2026-10-27)
+
+**Evidence:** User screenshots and `website(20261027-052826).zip` show Contact+ as a text menu separate from the floating cart, campaign logo/favicons shared with storefront, public FAQ reading `Faq` without a separate admin workflow, and Revision History without a delete action. Existing `storefront_revisions` has `restrictOnDelete` references from page, audit and section tables.
+
+**Decisions:** Keep the functional mini-cart. Move validated contact links into a right-side accessible compact `Contact+` dock alongside it. Introduce independent `storefront_faqs` table/Model/Admin role-gated CRUD, and update only `/storefront/help` to use it; do not change legacy Campaign FAQs. Use existing SiteSetting + Spatie media model, but separate storefront logo, white logo and favicon collections from campaign images. Existing Campaign brand accessors and media paths remain unchanged.
+
+**Archive:** Do NOT physically delete immutable revision rows or audit references. New nullable `deleted_at` hides an **archived** revision from UI and preview; published/draft are forbidden. Admin action locks the homepage row and checks `expected_version`, writes a homepage audit event, increments version, and retains child records/media. History edit works by cloning the selected visible revision to a draft using existing authenticated POST. A future explicit recovery UI could clear the marker after reviewed ownership checks. No public draft mutations.
+
+**Release:** Two forward-only migration files, guarded by P02 migration identity. No migration/seed or DB writes executed in the delivered workspace. Native Laravel/MySQL/browser acceptance remains manual on the user's Windows installation. Local backup required before migration, and no production release implied.

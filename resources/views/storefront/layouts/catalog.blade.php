@@ -25,6 +25,8 @@
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p34.css') }}">
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p35.css') }}">
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p36.css') }}">
+    <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p37.css') }}">
+    <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p38.css') }}">
 </head>
 <body class="p34-storefront">
     <a class="p07-skip" href="#main">Skip to content</a>
@@ -42,5 +44,6 @@
     <script src="{{ asset('frontend/js/storefront-p35.js') }}" defer></script>
     <script src="{{ asset('frontend/js/storefront-next.js') }}" defer></script>
     <script src="{{ asset('frontend/js/storefront-premium.js') }}" defer></script>
+<script src="{{ asset('frontend/js/storefront-p38.js') }}" defer></script>
 </body>
 </html>

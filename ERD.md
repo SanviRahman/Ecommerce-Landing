@@ -201,3 +201,14 @@ Cart ownership and checkout ownership share a server-derived guest-token hash, n
 ## Meeting-aligned catalog note
 
 The `product_options` -> `product_option_values` -> `product_variant_values` graph supports **size, color, weight (`1 kg`/`2 kg`) and piece-count/pack values (`1 piece`/`2 pieces`)**, not only size/color. Each concrete combination remains a single `product_variants` row with its own price/stock; the shopping cart `quantity` is different from the option's labeled amount. Until business gate G03 is approved, the meaning of pack stock vs underlying pieces remains conditional. No new redundant table is needed solely for these option names.
+
+
+### P37 Contact message isolation
+
+`storefront_contact_messages (id PK, encrypted name/email/phone/message/admin_note, subject, status, read_at, created_at, updated_at, deleted_at)`. Standalone private customer correspondence, with no foreign key to `orders` or campaigns. Public contact data continues to be read from the existing one-row active `site_settings` resource.
+
+### P38 isolated additions
+
+- `storefront_faqs` is stand-alone. `faqs` -> `campaigns` relationship stays untouched.
+- `site_settings` -> `media` (existing polymorphic Media Library) now uses additional `storefront_logo`, `storefront_white_logo` and `storefront_favicon` collection names; no new FK or column.
+- `storefront_revisions` gets nullable `deleted_at` for hidden *archived* histories only; all `storefront_pages` pointers, `homepage_sections` children, and `homepage_audit_events` references are retained.
