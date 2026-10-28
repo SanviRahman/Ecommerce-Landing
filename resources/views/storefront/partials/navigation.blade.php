@@ -63,6 +63,7 @@
         <details class="p19-mega-menu" data-categories-menu>
             <summary>@include('storefront.partials.icon', ['name'=>'grid']) <span>All Categories</span>@include('storefront.partials.icon', ['name'=>'chevron-down', 'class'=>'p34-mega-chevron'])</summary>
             <div class="p19-mega-panel">
+                <div class="p52-menu-intro"><span>EXPLORE COLLECTIONS</span><strong>Find your next favorite</strong></div>
                 @forelse($navigation as $parent)
                     @php
                         // Visual-only icons; never infer category or product data from the label.

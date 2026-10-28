@@ -31,8 +31,18 @@
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p38.css') }}">
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p39.css') }}">
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p41.css') }}">
+    <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p42.css') }}">
+    <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p43.css') }}">
+    <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p44.css') }}">
+    <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p46.css') }}">
+    <link rel="stylesheet" href="{{ asset('frontend/css/back-to-top.css') }}">
+    <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p50.css') }}">
+    <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p51.css') }}?v=p51">
+    <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p52.css') }}?v=p52">
+    <script src="{{ asset('frontend/js/storefront-p51-loader.js') }}?v=p52"></script>
 </head>
 <body class="p34-storefront">
+@include('storefront.partials.page-loader')
 @php
     $defaultTheme = \App\Support\HomeSectionSchema::DEFAULT_THEME;
     $valid = static function ($colors): array {
@@ -107,7 +117,7 @@
             $style = $styleForSection($section);
             $visibleClass = !$section['show_mobile'] ? 'sf-hide-mobile' : (!$section['show_desktop'] ? 'sf-hide-desktop' : '');
         @endphp
-        <section id="sf-section-{{ $section['section_key'] }}" class="sf-section {{ $visibleClass }} {{ $section['type']==='hero_slider' ? 'sf-section-hero' : ($section['type']==='reviews' ? 'p35-home-reviews' : '') }}" style="{{ $style }}" aria-label="{{ $section['title'] ?: ucfirst($section['type']) }}">
+        <section id="sf-section-{{ $section['section_key'] }}" class="sf-section {{ $visibleClass }} {{ $section['type']==='hero_slider' ? 'sf-section-hero' : ($section['type']==='reviews' ? 'p35-home-reviews' : '') }} {{ $section['type']==='image_text' ? 'p46-image-text' : '' }}" style="{{ $style }}" aria-label="{{ $section['title'] ?: ucfirst($section['type']) }}">
             <div class="sf-wrapper" data-reveal>
                 @if($section['type']==='reviews')
                     <div class="p39-review-intro">
@@ -160,9 +170,11 @@
                         </div>
                     </div>
                 @else
-                    @if($section['subtitle'])<p class="sf-kicker">{{ $section['subtitle'] }}</p>@endif
-                    <div class="sf-title-line"><h2>{{ $section['title'] }}</h2><span class="sf-title-decoration" aria-hidden="true"></span></div>
-                    @if($section['description'])<p class="sf-lead">{{ $section['description'] }}</p>@endif
+                    @if($section['type'] !== 'image_text')
+                        @if($section['subtitle'])<p class="sf-kicker">{{ $section['subtitle'] }}</p>@endif
+                        <div class="sf-title-line"><h2>{{ $section['title'] }}</h2><span class="sf-title-decoration" aria-hidden="true"></span></div>
+                        @if($section['description'])<p class="sf-lead">{{ $section['description'] }}</p>@endif
+                    @endif
                     @if($section['type']==='category_grid')
                         <span id="categories" class="p07-visually-hidden" aria-hidden="true"></span>
                         <div class="sf-grid sf-grid-categories" data-reveal-stagger>
@@ -205,30 +217,65 @@
                             @endif
                         @endif
                     @elseif($section['type']==='product_list')
-                        <div class="sf-grid sf-grid-products" data-reveal-stagger>
-                            @foreach($section['products'] as $productId)
-                                @if($products->has($productId))
-                                    @php $product = $products[$productId]; @endphp
-                                    @include('storefront.partials.home-product-card', ['product'=>$product, 'isPreview'=>($isPreview ?? false)])
-                                @endif
+                        @php
+                            // Cap *eligible* curated products, preserving the editor's selected
+                            // order. Unavailable items must not consume one of the eight slots.
+                            $featuredProducts = collect($section['products'])
+                                ->filter(static fn ($productId) => $products->has($productId))
+                                ->unique()
+                                ->take(8);
+                        @endphp
+                        <div class="sf-grid sf-grid-products p46-featured-grid" data-reveal-stagger>
+                            @foreach($featuredProducts as $productId)
+                                @php $product = $products[$productId]; @endphp
+                                @include('storefront.partials.home-product-card', ['product'=>$product, 'isPreview'=>($isPreview ?? false)])
                             @endforeach
                         </div>
+                        <div class="p46-view-all-wrap">
+                            @if($isPreview ?? false)
+                                {{-- Preview never navigates to the gated public catalog. --}}
+                                <span class="p46-view-all p46-view-all--preview sf-inert" aria-disabled="true">View All Products <span aria-hidden="true">&rarr;</span></span>
+                            @else
+                                <a class="p46-view-all" href="{{ route('storefront.shop') }}">View All Products <span aria-hidden="true">&rarr;</span></a>
+                            @endif
+                        </div>
                     @elseif($section['type']==='image_text')
-                        @foreach($section['items'] as $item)
-                            @continue(!$item['is_enabled'] || !$item['media_id'] || !$media->has($item['media_id']))
-                            <div class="sf-image-text">
-                                <img src="{{ $media[$item['media_id']]->getUrl() }}" alt="{{ $item['title'] ?: 'Collection image' }}" loading="lazy">
-                                <div><span class="sf-kicker">Discover More</span><h3>{{ $item['title'] }}</h3>
-                                <p>{{ $item['description'] }}</p>
-                                @if($item['link_label'])
-                                    @if(!($isPreview ?? false) && $item['link_url'])
-                                        <a class="sf-cta" href="{{ $item['link_url'] }}" rel="noopener noreferrer">{{ $item['link_label'] }}</a>
-                                    @else
-                                        <span class="sf-cta sf-inert">{{ $item['link_label'] }}</span>
-                                    @endif
-                                @endif</div>
-                            </div>
-                        @endforeach
+                        @php
+                            // Share one image-backed composition between public and draft preview;
+                            // preserve the editor's selected media, copy and CTA for every item.
+                            $imageTextItems = collect($section['items'])->filter(static fn ($item) =>
+                                $item['is_enabled'] && $item['media_id'] && $media->has($item['media_id']));
+                        @endphp
+                        <div class="p46-image-intro">
+                            @if($section['subtitle'])<p class="sf-kicker">{{ $section['subtitle'] }}</p>@endif
+                            <div class="sf-title-line"><h2>{{ $section['title'] }}</h2><span class="sf-title-decoration" aria-hidden="true"></span></div>
+                            @if($section['description'])<p class="sf-lead">{{ $section['description'] }}</p>@endif
+                        </div>
+                        @forelse($imageTextItems as $item)
+                            <article class="p44-image-banner" aria-label="{{ $item['title'] ?: $section['title'] }}">
+                                <img class="p44-image-banner__image"
+                                     src="{{ $media[$item['media_id']]->getUrl() }}"
+                                     alt="{{ $item['title'] ?: 'Collection image' }}" loading="lazy" decoding="async">
+                                <div class="p44-image-banner__content">
+                                    <div class="p44-image-banner__detail">
+                                        <span class="p44-image-banner__eyebrow">Discover More</span>
+                                        @if($item['title'])<h3>{{ $item['title'] }}</h3>@endif
+                                        @if($item['description'])<p>{{ $item['description'] }}</p>@endif
+                                        @if($item['link_label'])
+                                            @if(!($isPreview ?? false) && $item['link_url'])
+                                                <a class="sf-cta" href="{{ $item['link_url'] }}" rel="noopener noreferrer">{{ $item['link_label'] }} <span aria-hidden="true">&rarr;</span></a>
+                                            @else
+                                                <span class="sf-cta sf-inert">{{ $item['link_label'] }} <span aria-hidden="true">&rarr;</span></span>
+                                            @endif
+                                        @endif
+                                    </div>
+                                </div>
+                            </article>
+                        @empty
+                            @if($isPreview ?? false)
+                                <div class="sf-empty-section-note">No approved image is selected for this section yet.</div>
+                            @endif
+                        @endforelse
                     @endif
                 @endif
             </div>
@@ -257,11 +304,13 @@
 @endif
 <script src="{{ asset('frontend/js/image-fallback.js') }}" defer></script>
 <script src="{{ asset('frontend/js/storefront-next.js') }}" defer></script>
-<script src="{{ asset('frontend/js/storefront-p36.js') }}" defer></script>
+<script src="{{ asset('frontend/js/storefront-p36.js') }}?v=p43" defer></script>
 <script src="{{ asset('frontend/js/storefront-premium.js') }}" defer></script>
 @unless($isPreview ?? false)
     <script src="{{ asset('frontend/js/storefront-catalog.js') }}" defer></script>
 @endunless
 <script src="{{ asset('frontend/js/storefront-p38.js') }}" defer></script>
 <script src="{{ asset('frontend/js/storefront-p39.js') }}" defer></script>
+<script src="{{ asset('frontend/js/back-to-top.js') }}" defer></script>
+    <script src="{{ asset('frontend/js/storefront-p52.js') }}?v=p52" defer></script>
 </body></html>

@@ -30,9 +30,16 @@
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p39.css') }}">
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p40.css') }}">
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p41.css') }}">
+    <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p44.css') }}">
+    <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p47.css') }}">
     <link rel="stylesheet" href="{{ asset('frontend/css/back-to-top.css') }}">
+    <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p50.css') }}">
+    <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p51.css') }}?v=p51">
+    <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p52.css') }}?v=p52">
+    <script src="{{ asset('frontend/js/storefront-p51-loader.js') }}?v=p52"></script>
 </head>
 <body class="p34-storefront">
+    @include('storefront.partials.page-loader')
     <a class="p07-skip" href="#main">Skip to content</a>
     @if(request()->attributes->get('p25_local_readonly_browse', false))
         <div class="p25-readonly-notice" role="status">
@@ -51,5 +58,6 @@
 <script src="{{ asset('frontend/js/storefront-p38.js') }}" defer></script>
     <script src="{{ asset('frontend/js/storefront-p39.js') }}" defer></script>
     <script src="{{ asset('frontend/js/back-to-top.js') }}" defer></script>
+    <script src="{{ asset('frontend/js/storefront-p52.js') }}?v=p52" defer></script>
 </body>
 </html>

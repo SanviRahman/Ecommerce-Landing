@@ -1,0 +1,112 @@
+/* P43: restore the desktop-style image + text OVERLAY on mobile hero slides.
+   Scoped to the builder's text-bearing storefront hero only. P42's stacked
+   mobile layout remains in the historic stylesheet but is overridden here.
+   The active slide's required height is calculated by storefront-p36.js. */
+@media (max-width: 760px) {
+    .p34-storefront .sf-hero-carousel {
+        /* A safe first-paint fallback before the banner and font have loaded. */
+        height: var(--p36-mobile-height, clamp(350px, 110vw, 480px)) !important;
+    }
+
+    .p34-storefront .sf-hero-carousel .sf-hero-track {
+        height: 100% !important;
+        align-items: stretch !important;
+    }
+
+    .p34-storefront .sf-hero-track > .sf-hero-panel.p36-hero-with-copy {
+        display: block !important;
+        position: relative !important;
+        height: 100% !important;
+        min-height: 0 !important;
+        overflow: hidden !important;
+        background: #0b332a !important;
+    }
+
+    .p34-storefront .sf-hero-panel.p36-hero-with-copy > .p36-hero-banner {
+        display: block !important;
+        position: absolute !important;
+        inset: 0 !important;
+        width: 100% !important;
+        height: 100% !important;
+        max-height: none !important;
+        object-fit: cover !important;
+        object-position: center !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    .p34-storefront .sf-hero-panel.p36-hero-with-copy > .sf-hero-copy {
+        box-sizing: border-box;
+        position: absolute !important;
+        inset: 0 !important;
+        z-index: 1;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: center !important;
+        align-items: flex-start !important;
+        width: 100% !important;
+        height: 100% !important;
+        min-height: 0 !important;
+        max-width: none !important;
+        max-height: none !important;
+        overflow: visible !important;
+        margin: 0 !important;
+        padding: 18px 18px 62px !important;
+        gap: 7px;
+        color: #fff;
+        background:
+            linear-gradient(90deg, rgba(4, 40, 31, .93) 0%, rgba(5, 46, 36, .78) 56%, rgba(7, 56, 49, .23) 100%),
+            linear-gradient(0deg, rgba(4, 40, 31, .39), transparent 68%) !important;
+    }
+
+    /* Keep text away from the fixed mobile mini-cart on the right. */
+    .p34-storefront .sf-hero-panel.p36-hero-with-copy .sf-hero-copy > :is(.sf-eyebrow, h1, p, .sf-cta, .sf-inert) {
+        max-width: min(470px, calc(100% - 74px));
+        flex-shrink: 0 !important;
+        overflow-wrap: anywhere;
+    }
+
+    .p34-storefront .sf-hero-panel.p36-hero-with-copy .sf-eyebrow {
+        display: inline-flex;
+        align-items: center;
+        width: auto;
+        padding: 4px 9px;
+        border: 1px solid rgba(192, 253, 213, .48);
+        border-radius: 999px;
+        background: rgba(5, 32, 25, .42);
+        color: #ddffe7 !important;
+        font-size: 10px !important;
+        font-weight: 800;
+        line-height: 1.45;
+        letter-spacing: .09em;
+        white-space: normal;
+    }
+
+    .p34-storefront .sf-hero-panel.p36-hero-with-copy .sf-hero-copy h1 {
+        margin: 1px 0 !important;
+        font-size: clamp(19px, 5.1vw, 26px) !important;
+        line-height: 1.19 !important;
+        font-weight: 850;
+        text-wrap: balance;
+        color: #fff !important;
+    }
+
+    .p34-storefront .sf-hero-panel.p36-hero-with-copy .sf-hero-copy p {
+        margin: 0 !important;
+        font-size: clamp(11px, 2.95vw, 13px) !important;
+        line-height: 1.48 !important;
+        color: #f0fff7 !important;
+    }
+
+    .p34-storefront .sf-hero-panel.p36-hero-with-copy .sf-hero-copy .sf-cta {
+        margin: 5px 0 0 !important;
+        padding: 9px 13px !important;
+        font-size: 11px !important;
+        line-height: 1.3;
+    }
+
+    /* Slider controls stay below the CTA and do not hide text. */
+    .p34-storefront .sf-hero-carousel .sf-carousel-controls {
+        bottom: 9px !important;
+    }
+}

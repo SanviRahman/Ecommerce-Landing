@@ -79,6 +79,17 @@
       });
     }
   }
+  // A single in-stock combination needs no extra user choice. Selecting it
+  // automatically keeps the exact SKU, price and available quantity coherent.
+  // Multiple choices still require an explicit customer selection.
+  if (cartVariant && selectors.length && selectors.every((field) => !field.value)) {
+    const available = data.variants.filter((row) => Number(row.stock) > 0 && Number(row.price) > 0);
+    if (available.length === 1) {
+      selectors.forEach((field) => {
+        field.value = String(available[0].selected?.[field.dataset.optionId] ?? '');
+      });
+    }
+  }
   update();
   selectors.forEach((field) => field.addEventListener('change', update));
   cartVariant?.addEventListener('change', () => {

@@ -308,7 +308,7 @@
       const fee = shipping?.selectedOptions?.[0]?.dataset.shippingCost;
       $$('[data-shipping-preview]').forEach(el => {el.textContent = fee === undefined ? 'Choose delivery area' : `Est. ৳${Number(fee).toLocaleString('en-BD')} (confirmed on submit)`;});
     };
-    const show = (index) => {
+    const show = (index, {scroll = true, focus = true} = {}) => {
       panels.forEach(panel => { panel.hidden = Number(panel.dataset.checkoutStep) !== index; });
       indicators.forEach(item => {
         const i = Number(item.dataset.stepIndicatorItem);
@@ -324,9 +324,22 @@
             .filter(Boolean).join('\n');
         }
       }
-      getStep(index)?.querySelector('legend')?.setAttribute('tabindex','-1');
-      getStep(index)?.querySelector('legend')?.focus({preventScroll:true});
-      window.scrollTo({top:Math.max(0,checkout.getBoundingClientRect().top+window.scrollY-140),behavior:reduced?'auto':'smooth'});
+      const legend = getStep(index)?.querySelector('legend');
+      if (legend && focus) {
+        legend.setAttribute('tabindex', '-1');
+        legend.focus({preventScroll: true});
+      }
+      if (scroll) {
+        // Follow the real sticky header height rather than a fixed 140px offset.
+        // Keep the progress indicator visible above the newly opened panel.
+        const indicator = $('[data-step-indicator]');
+        const stickyHeight = header?.getBoundingClientRect().height || 0;
+        const target = indicator || checkout;
+        window.scrollTo({
+          top: Math.max(0, target.getBoundingClientRect().top + window.scrollY - stickyHeight - 20),
+          behavior: reduced ? 'auto' : 'smooth'
+        });
+      }
     };
     shipping?.addEventListener('change', updateEstimate);
     updateEstimate();
@@ -341,7 +354,9 @@
     }));
     $$('[data-step-back]', checkout).forEach(button => button.addEventListener('click', () => show(Number(button.dataset.stepBack))));
     // Form still submits only to the existing server-validated COD endpoint.
-    show(1);
+    // Never force-scroll on initial load: the heading, instructions and steps
+    // must remain visible, including after Buy Now navigation to Checkout.
+    show(1, {scroll: false, focus: false});
   }
 
   // Low-impact scroll reveal, with a complete no-JS and reduced-motion fallback.

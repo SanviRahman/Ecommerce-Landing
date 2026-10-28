@@ -205,3 +205,28 @@ Published and archived revision editing is **clone-to-draft**, using existing `a
 | `DELETE /admin/products/options/{option}/values/{value}` | `admin.products.options.values.destroy` | CSRF/admin, nested ownership; forbidden if any historical/current variant refers to value |
 
 Existing product, campaign, catalog and checkout URLs are unchanged. Site Settings uses original `PUT /admin/site-settings/{siteSetting}` with four new optional social fields and managed flag, after the forward-only migration.
+
+### P48 local-only admin variant release routes
+
+- `POST /admin/products/{product}/variants/activate` (`admin.products.variants.activate`): admin + CSRF + verified local main DB or restricted isolated QA, transactional SKU/checkout readiness; redirect on success, session validation errors on failed preflight.
+- `POST /admin/products/{product}/variants/pause` (`admin.products.variants.pause`): admin + CSRF + same guards, sets variable product inactive without stock or order mutation.
+
+The public cart/checkout URLs and request payloads are unchanged. Do not treat these admin routes as a production release toggle.
+
+## P49 implementation — Homepage Shipping Charges (2026-10-28)
+
+These are **implemented fixed admin routes** and do not alter campaign URLs:
+
+| Method / path | Route name | Scope / behavior |
+|---|---|---|
+| GET `/admin/homepage-shipping-charges` | `admin.homepage-shipping-charges.index` | Admin-only global (`campaign_id IS NULL`) list/creator |
+| POST `/admin/homepage-shipping-charges` | `admin.homepage-shipping-charges.store` | Validate and create a global shipping area; owner id forced NULL |
+| PATCH `/admin/homepage-shipping-charges/{charge}` | `admin.homepage-shipping-charges.update` | Update only a global row; a campaign row ID yields 404 |
+| DELETE `/admin/homepage-shipping-charges/{charge}` | `admin.homepage-shipping-charges.destroy` | Soft-delete only a global row; a campaign row ID yields 404 |
+
+All mutations require Laravel CSRF, authenticated active Admin, required area/BDT/status validation; duplicate active/non-deleted global area names are rejected. Last active global area cannot be removed/deactivated. No campaign edit form, campaign charge or order snapshot is modified by this page.
+
+### P52 Storefront Account / Cart navigation contract
+- Existing `PATCH /storefront/account/profile` requires an authenticated active storefront customer and CSRF. Multipart `_method=PATCH` validates optional profile fields and JPG/PNG/WebP photo <= 2 MB. Email stays read-only. Only the current authenticated account is updated. Only five personal/address columns are introduced in a gated, additive local migration. Profile photos reuse the existing Spatie `media` table and `StorefrontAccount::profile_photo` single-file collection; no photo-path column or new media migration.
+- Existing `GET /storefront/checkout` without a purchasable owned cart **redirects** to `storefront.cart` with a visible status flash instead of exposing a generic 409 exception screen. Checkout POST validation remains fail-closed.
+- Floating WhatsApp UI is an in-page progressive enhancement on validated Site Settings links; no stored contact URLs or routes are altered.

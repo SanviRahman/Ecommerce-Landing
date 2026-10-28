@@ -1,0 +1,20 @@
+/** P43 regression: mobile hero content overlays the SAME image (not stacked). */
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+const root = resolve(import.meta.dirname, '../..');
+const read = (file) => readFileSync(resolve(root, file), 'utf8');
+let count = 0;
+const check = (value, title) => { assert.ok(value, title); count++; console.log('PASS', title); };
+const home = read('resources/views/storefront/pages/home.blade.php');
+const css = read('public/frontend/css/storefront-p43.css');
+const js = read('public/frontend/js/storefront-p36.js');
+check(home.indexOf('storefront-p43.css') > home.indexOf('storefront-p42.css'), 'new mobile overlay overrides the P42 stack');
+check(home.includes('storefront-p36.js') && home.includes('v=p43'), 'hero height script cache-busted');
+check(css.includes('@media (max-width: 760px)') && css.includes('p36-hero-with-copy'), 'styles target mobile text-bearing heroes only');
+check(css.includes('position: absolute !important') && css.includes('object-fit: cover !important'), 'banner remains behind overlay and fills full panel');
+check(css.includes('linear-gradient') && css.includes('overflow: visible !important'), 'readable contrast and no clipped text');
+check(js.includes('getBoundingClientRect().height') && js.includes('paddingBottom') && js.includes('rowGap'), 'height calculated from visible text + padding + flex gap');
+check(js.includes("attributeFilter:['aria-hidden']") && js.includes("'resize', sync"), 'height resynced for active slide and viewport');
+check(!css.includes('column-reverse'), 'no new stacked mobile layout');
+console.log(`P43 source checks: ${count}/${count} passed`);

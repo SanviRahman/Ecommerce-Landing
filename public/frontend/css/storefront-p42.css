@@ -1,0 +1,83 @@
+/* P42: only the mobile storefront homepage's text-bearing hero slides.
+   The original image keeps its intrinsic ratio; copy flows below the image
+   rather than being clipped inside a 72%-height scrollable overlay. Desktop,
+   image-only slides, builder theme tokens and the rest of the site are unchanged. */
+@media (max-width: 760px) {
+    .p34-storefront .sf-hero-track > .sf-hero-panel.p36-hero-with-copy {
+        display: flex !important;
+        flex-direction: column-reverse !important;
+        align-items: stretch;
+        justify-content: flex-end;
+        background: #093c30 !important;
+    }
+
+    .p34-storefront .sf-hero-panel.p36-hero-with-copy > .p36-hero-banner {
+        flex: 0 0 auto;
+        position: static !important;
+        width: 100% !important;
+        height: auto !important;
+        max-height: none !important;
+        object-fit: contain !important;
+    }
+
+    .p34-storefront .sf-hero-panel.p36-hero-with-copy > .sf-hero-copy {
+        position: relative !important;
+        inset: auto !important;
+        z-index: 1;
+        flex: 0 0 auto;
+        display: flex !important;
+        flex-direction: column;
+        align-items: flex-start;
+        justify-content: flex-start !important;
+        width: 100%;
+        max-width: 100% !important;
+        min-height: 0 !important;
+        max-height: none !important;
+        overflow: visible !important;
+        gap: 7px;
+        margin: 0 !important;
+        padding: 17px 18px 54px !important;
+        background: linear-gradient(135deg, #104c3b, #092e26) !important;
+        color: #fff;
+    }
+
+    .p34-storefront .sf-hero-panel.p36-hero-with-copy .sf-eyebrow {
+        display: inline-flex;
+        align-items: center;
+        width: auto;
+        max-width: 100%;
+        padding: 5px 10px;
+        border: 1px solid rgba(198, 255, 216, .35);
+        border-radius: 999px;
+        background: rgba(5, 30, 23, .4);
+        color: #ccfbd9 !important;
+        font-size: 10px;
+        line-height: 1.5;
+        font-weight: 800;
+        letter-spacing: .12em;
+        text-transform: uppercase;
+        white-space: normal;
+    }
+
+    .p34-storefront .sf-hero-panel.p36-hero-with-copy .sf-hero-copy h1 {
+        margin: 2px 0 0 !important;
+        font-size: clamp(20px, 5.3vw, 26px) !important;
+        line-height: 1.23 !important;
+        overflow-wrap: anywhere;
+    }
+
+    .p34-storefront .sf-hero-panel.p36-hero-with-copy .sf-hero-copy p {
+        margin: 0 !important;
+        font-size: clamp(11px, 3vw, 13px);
+        line-height: 1.55;
+    }
+
+    .p34-storefront .sf-hero-panel.p36-hero-with-copy .sf-hero-copy .sf-cta {
+        margin-top: 8px;
+    }
+
+    /* Controls float in the reserved bottom padding, never over the CTA. */
+    .p34-storefront .sf-hero-carousel .sf-carousel-controls {
+        bottom: 10px;
+    }
+}

@@ -390,3 +390,74 @@ Prepared changed-files patch for user-provided `website(20261027-040404).zip`: a
 - Added P41 CSS for 57%-height fixed desktop cart and companion Contact, mobile Contact safe-area bottom; restored builder category-shelf manual carousel arrows and missing P40 AdminLTE placeholder asset. No migration or dependency change.
 - Added guarded `P41HomepageOrderLiveMySqlTest.php` integration cases for public order, preview order, archived revision immutability, fallback Up/Down, invalid-draft non-publication. Test execution **BLOCKED** without `vendor/autoload.php` and isolated MariaDB.
 - **Offline results:** P33 26/26, P34 25/25, P35 22/22, P36 30/30, P37 13/13, P38 17/17, P39 29/29, P40 23/23, P41 11/11 source contracts. PHP/Node lint and ZIP integrity performed; real browser/DB acceptance is still pending. Legacy source assertions updated for this owner's new builder-only section policy rather than removed.
+
+
+### 2026-10-28 - P42 responsive homepage Hero and global Back-to-Top bugfix (source-only)
+
+- **Root cause:** Homepage bypassed the shared back-to-top assets. Mobile hero set its carousel height to intrinsic image height while the overlay copy was capped at 72% and centered, clipping the Featured Collection label/title. Latest user ZIP `website(20261028-053823).zip` inspected.
+- **Fix:** Shared arrow linked on homepage/public preview and local readiness page; mobile-only text-hero CSS flows photo above high-contrast copy and P36 JS recalculates selected panel height using intrinsic photo ratio plus copy height; desktop/image-only presentation and application feature logic unchanged. Restored referenced but missing AdminLTE fallback `no-image.png` asset. No database migration or destructive changes.
+- **Test evidence:** P42 15/15 source checks, desktop/mobile synthetic Chromium checks at 5 widths with arrow show/click, slide switch, visible label, accessible CTA. Existing P33-P41 offline source checks pass. These do NOT validate the actual Windows Laravel/MySQL runtime, which is pending; final test counts and instructions in `P42-MOBILE-HERO-UP-ARROW-FIX-BN.md`.
+
+### 2026-10-28 - P43 Mobile Hero image/text overlay (scoped override)
+
+- Source: owner-uploaded `P42-CHANGED-FILES-PATCH(1).zip`, desktop/mobile screenshots. Verified patch against the previous P42 working directory (all 11 entries identical); the owner's next requested behavior supersedes only P42's mobile stacked presentation.
+- Changed the standalone homepage to load a mobile-only P43 overlay stylesheet after P42 and cache-bust the updated P36 hero-height script. Text-bearing images remain behind text on <=760px; gradient/eyebrow/title/body/CTA stay visible and clear of carousel controls/mini-cart. Image-only slides and desktop remain unchanged.
+- P36 script now measures actual visible copy + margins/gaps/padding and uses the larger of content height and intrinsic image ratio for the same full-panel overlay. No routes/controllers/models/migrations/order/cart/checkout/customer data edits.
+- Updated superseded P42 offline test assertion without disabling any safety checks; added dedicated P43 source and isolated Chromium tests. Offline P33-P43 source suites pass. Chromium synthetic tests cover 320/360/390/430/560/760/761/1024/1366px, two text slides, an image-only slide, and 320px long-copy stress. Actual Laravel/MySQL/on-device acceptance remains pending.
+
+### 2026-10-28 - P44 mobile Contact popup and Image/Text hero overlay (scoped source patch)
+
+- Input: user mobile/desktop screenshots, P42/P43 uploaded patches, verified matching P43 safe source; repository rules, bugfix and constraints reviewed. No git metadata in ZIP.
+- Root causes: P38 contact list vertically centered next to bottom nav; Image/Text Blade/CSS rendered media and text in adjacent columns instead of inside a single banner.
+- Scoped source fix: new `storefront-p44.css` loaded only by public homepage and catalog layout; mobile Contact fixed higher with upward list, desktop unchanged. Homepage `image_text` branch now overlays section/item content on each approved image, retaining CTA and preview safety. No migration, DB writes or customer data changes.
+- New source assertions: `tools/qa/check-p44-contact-image-overlay.mjs` (11/11 PASS). Synthetic Chromium `tools/qa/p44-overlay-contact-browser-smoke.py` checked 8 viewport sizes (320..1366), configured-method click visibility, scroll-fixed location, Escape/outside close, image text/CTA containment, no horizontal overflow and long-copy stress. P33-P43 source checks remain passing. CSS parsed without syntax errors; JavaScript syntax checked separately. Actual Windows Laravel/MySQL/physical device tests PENDING.
+- Install guide: `P44-START-HERE.md`; changed-files patch must be applied to the owner's P43 project, not an older project or live environment without backup and test.
+
+### 2026-10-28 — P46 homepage collection cap and Image/Text introduction (source patch)
+
+- Inspected owner ZIP `website(20261028-065803).zip` and 3 screenshots, plus AGENTS.md, rules.md, bugfix.md, constraints.md and current homepage Blade, assets and named shop route. No Git metadata in uploaded ZIP; user project database was not accessed.
+- Implemented 8 eligible/unique saved-selection Product Collection cards, 4 desktop / 2 responsive columns; View All Products below cards navigates public `/storefront/shop`, is inert in private preview.
+- Section-level introduction moved above Image/Text media; approved item title/text/CTA remain in hero-like photo overlay. No mutation to models, migrations, controllers, routes, cart/checkout, or campaign rendering. Existing AdminLTE missing fallback restored without replacing real images.
+- Offline P46 source contracts and synthetic Chromium viewport checks passed (see `P46-START-HERE-BN.md`). Prior P44 test assertion updated to match new client-requested override. Full local Windows Laravel/MySQL and live device verification **PENDING**. No deployment was performed.
+
+## P48 (2026-10-28) — Local managed variable-product release
+
+- Added explicit CSRF-protected local activation/pause workflow with audits and fail-closed readiness verification.
+- Preserved independent checkout guards, existing cart/order/stock allocator and campaign behavior.
+- Fixed Product Edit after activation and automatically selects the only in-stock variant on product detail.
+- Added isolated-MySQL integration test source and offline checks; real MySQL tests remain BLOCKED in sandbox without vendor/driver/database.
+- **Status: code implemented and syntax/offline tests passed; local HTTP/MySQL acceptance and production release remain pending.**
+
+### 2026-10-28 — P49 Homepage shipping charges administration (source-level)
+
+- Input: `website(20261028-094543).zip`; user screenshot confirms `active_global_shipping=0` (global shipping readiness missing).
+- Added AdminLTE Settings > **Shipping Charge for Homepage** with admin-only GET/POST/PATCH/DELETE; existing `ShippingCharge` model/table `campaign_id=NULL`; soft-delete, scoped validation, CSRF, last-active safeguard. No migrations and **no default shipping amount inferred/seeded**. Campaign shipping remains scoped by existing campaign ID.
+- New QA: P49 dependency-free source checks **13/13**, existing baseline **14/14**, P46 **17/17**, P44 **11/11**. PHP syntax **364/364**, JS syntax **62/62** PASS, CSS parser 0 errors, isolated synthetic Chromium at 320/390/768/1366px PASS.
+- PHPUnit feature tests are authored but **not run** (vendor and MySQL driver/isolated DB unavailable). Real checkout readiness, shipping selection and campaign isolation await local/staging validation. Production not approved.
+
+### 2026-10-28 - P50 checkout viewport and desktop storefront presentation
+
+- Input: `website(20261028-102520).zip`, four screenshots (local checkout and external reference homepage/checkout).
+- Runtime paths changed: checkout Blade, shared catalog layout Blade, standalone home Blade, `storefront-next.js`, new `storefront-p50.css`. Added offline source-contract test and deployment guide.
+- Bug reproduced statically: checkout initialization invoked `show(1)` which unconditionally scrolled to a fixed 140px offset. Fixed with initial no-scroll and height-aware user-stage scrolling.
+- Visual scope: connected step labels, wider desktop containers, proportional checkout form/summary, roomier desktop card typography; no new buttons/fake commercial capabilities.
+- Verified source syntax and synthetic Chromium viewport checks. PHP/vendor-backed Laravel HTTP, MySQL order, concurrency and production behavior remain BLOCKED/NOT RUN. No release sign-off.
+
+## P51 — Mobile UI Comfort + Site-Settings Branded Page Loader (2026-10-28)
+
+- User provided the P50 changed-files patch and mobile reference screenshots; source matched the verified P50 safe snapshot for the key changed runtime files.
+- Implemented storefront-only responsive typography/tap-target/search improvements and a dynamic, short-lived branded loading screen; checkout/cart/campaign/Admin business logic untouched.
+- Source tests: P51 5/5, P50 5/5, P47 7/7, P48 5/5; PHP 511-file lint; JS 16-file syntax; CSS 29-file parse.
+- Browser verification: synthetic Chromium at 9 widths including 320 and 390; loader visible/hidden/no-JS, responsive grid/tap target/hero clipping and document overflow assertions pass.
+- BLOCKED for live: uploaded snapshot lacks vendor and DB; real Laravel/MySQL integration and customer device QA remain to be done.
+
+### P52 local patch (2026-10-28)
+- Implemented: guarded additive migration for five optional personal/address fields, richer profile form, Spatie Media Library customer photo upload/replacement/removal (existing `media` table; no new photo column), desktop compact Profile/Cart buttons, empty-cart checkout redirect, responsive WhatsApp local fallback, premium category dropdown, 5.5-second branded loader.
+- Kept: original route names, order/cart/price/stock/campaign logic, authenticated profile ownership, CSRF and publication gates.
+- Offline source regression and browser-visual tests recorded in `P52-QA-REPORT-BN.md`; actual customer profile upload, MySQL migration and checkout HTTP tests remain **pending** until run in approved local environment.
+
+### P52 revised (2026-10-28) — Spatie customer profile correction
+- Owner confirmed old P52 code/migration not installed. Revised patch is intended to REPLACE old P52 patch and install directly onto last verified baseline.
+- Customer avatar is stored through existing Spatie Media Library `media` table, on `StorefrontAccount::profile_photo` (`public` / singleFile). No separate file path column or custom directory.
+- Revised additive guarded migration only adds `gender`, `date_of_birth`, `division`, `district`, `upazila`; no data migration for photographs.
+- Offline contract tests reproduce former implementation's mismatch and pass after refactor. Live MySQL, media upload and local customer HTTP checks remain pending.

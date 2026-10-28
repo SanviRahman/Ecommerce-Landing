@@ -1,0 +1,77 @@
+/* P47: scoped customer account tab navigation and account return links.
+   These styles never modify the campaign, cart, product or checkout components. */
+.p34-storefront .p47-account-menu {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.p34-storefront .p19-account-sidebar .p47-account-menu a {
+    display: block;
+    padding: 12px;
+    border-radius: 8px;
+    background: #f5f9f5;
+    color: #28503a;
+    font-size: 13px;
+    text-decoration: none;
+    transition: background-color .16s ease, color .16s ease;
+}
+.p34-storefront .p19-account-sidebar .p47-account-menu a[aria-current="page"] {
+    background: #e1f3e9;
+    color: #0d593e;
+    font-weight: 800;
+    box-shadow: inset 3px 0 0 #18734a;
+}
+.p34-storefront .p19-account-sidebar .p47-account-menu a:hover {
+    background: #d9efe2;
+}
+.p34-storefront .p19-account-sidebar a:focus-visible,
+.p34-storefront .p47-dashboard-return a:focus-visible {
+    outline: 3px solid #287d59;
+    outline-offset: 3px;
+}
+.p34-storefront .p19-account-main { min-width: 0; }
+.p34-storefront .p19-account-main .p19-account-panel > h1 {
+    margin: 2px 0 22px;
+}
+.p34-storefront .p47-dashboard-return { margin: 16px 0 10px; }
+.p34-storefront .p47-dashboard-return a {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 40px;
+    padding: 9px 15px;
+    border: 1px solid #c4e0ce;
+    border-radius: 999px;
+    background: #f5fbf7;
+    color: #145d3e;
+    font-size: 13px;
+    font-weight: 800;
+    line-height: 1.4;
+    text-decoration: none;
+    box-shadow: 0 4px 14px rgba(17, 83, 52, .06);
+    transition: background-color .16s ease, border-color .16s ease;
+}
+.p34-storefront .p47-dashboard-return a:hover {
+    background: #e6f5eb;
+    border-color: #9ccdac;
+}
+.p34-storefront .p33-track-page .p47-dashboard-return { margin: 12px 0 22px; }
+@media (max-width: 760px) {
+    .p34-storefront .p19-account-layout { gap: 18px; }
+    .p34-storefront .p47-dashboard-return a { min-height: 44px; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .p34-storefront .p47-account-menu a,
+    .p34-storefront .p47-dashboard-return a { transition: none; }
+}
+
+/* With a long mobile account sidebar, hash navigation lands on actual content,
+   below the sticky header instead of behind it. */
+.p34-storefront #p19-account-overview,
+.p34-storefront #p19-account-profile {
+    scroll-margin-top: 118px;
+}
+@media (max-width: 760px) {
+    .p34-storefront #p19-account-overview,
+    .p34-storefront #p19-account-profile { scroll-margin-top: 112px; }
+}

@@ -2,6 +2,7 @@
 @section('title', 'My Wishlist')
 @section('content')
     <div class="p07-breadcrumb" aria-label="Breadcrumb"><a href="{{ route('home') }}">Home</a><span>/</span><span>Wishlist</span></div>
+    <div class="p47-dashboard-return"><a href="{{ route('storefront.account.index', ['tab' => 'dashboard']) }}#p19-account-overview">← Back to Dashboard</a></div>
     <section class="p32-wishlist-heading">
         <p class="p19-caption">YOUR FAVOURITES</p>
         <h1>My Wishlist <span aria-hidden="true">@include('storefront.partials.icon', ['name'=>'heart'])</span></h1>

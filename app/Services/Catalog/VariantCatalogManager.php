@@ -254,6 +254,23 @@ final class VariantCatalogManager
                 }
                 $byOption[(int) $option->id] = $valueId;
             }
+            // Adding a NEW dimension to a live product would instantly make
+            // every existing combination incomplete and revoke checkout globally.
+            // Require the admin to pause the product before changing its option schema.
+            if ($locked->status) {
+                $assigned = DB::table('product_option_assignments')
+                    ->where('product_id', $locked->id)
+                    ->pluck('product_option_id')->map(static fn ($id) => (int) $id)->all();
+                $chosenOptionIds = array_map('intval', array_keys($byOption));
+                sort($assigned, SORT_NUMERIC);
+                sort($chosenOptionIds, SORT_NUMERIC);
+                if ($assigned !== $chosenOptionIds) {
+                    $this->reject('Pause this variable product before changing its assigned option dimensions.', 'options');
+                }
+                if ($active && (int) ($price ?? $locked->new_price) < 1) {
+                    $this->reject('Active storefront combinations must have a positive price.', 'price_override');
+                }
+            }
             try {
                 $signature = VariantSignature::fromOptionValues($byOption);
             } catch (InvalidArgumentException $exception) {

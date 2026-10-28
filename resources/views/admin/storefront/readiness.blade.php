@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex,nofollow">
     <title>Local Storefront Readiness</title>
+    <link rel="stylesheet" href="{{ asset('frontend/css/back-to-top.css') }}">
     <style>
         :root { color-scheme: light; font-family: system-ui, sans-serif; }
         body { margin: 0; background: #f2f6f3; color: #132b20; }
@@ -62,4 +63,4 @@
         <a class="secondary" href="{{ route('admin.storefront.home.index') }}">Homepage Builder</a>
     </div>
     <p class="hint">For functional Guest Cart, Customer Login and COD Checkout testing, use the <strong>separate restricted P26 sandbox</strong> (127.0.0.1:8088). This main database preview stays read-only.</p>
-</div></main></body></html>
+</div></main><script src="{{ asset('frontend/js/back-to-top.js') }}" defer></script></body></html>

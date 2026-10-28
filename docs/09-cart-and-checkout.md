@@ -60,3 +60,7 @@ Product cards: 25% cart / 75% primary Buy/Order action. Product sticky detail CT
 ## P08 implementation note (2026-10-25, staged)
 
 See `P08-START-HERE.md` for actual code paths, opt-in flags, rollback-only test command, and currently unverified real-browser/concurrency gates. Cart IDs and owner hashes cannot be submitted from the public form. Storefront variation/order snapshots are allocated by `InventoryAllocator::allocateStorefrontOrder()` under the same P03 inventory ledger and transaction as the original managed orders.
+
+## P49 Homepage shipping configuration (2026-10-28)
+
+Homepage Shipping Charge admin CRUD manages existing `shipping_charges` rows with `campaign_id IS NULL`. It reuses `ShippingCharge::resolvedForCampaign(null)` already used by Storefront checkout, and the existing P32 global shipping readiness gate. Each delivery-area charge is computed server-side at checkout. Existing campaign-scoped charges (`campaign_id IS NOT NULL`) are unchanged. Historical checkout orders keep their stored delivery name and shipping amount. Configuring one active global area **satisfies only the shipping part** of readiness; other product/variant/homepage checks and local test access gates remain active. No new migration or automatic shipping rows/amounts are created.

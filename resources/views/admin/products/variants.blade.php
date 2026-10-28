@@ -18,7 +18,7 @@
 @section('content')
 <div class="alert alert-info" role="note">
     <strong>Managed variants:</strong> Available on the restricted test DB and verified local development storefront only. On the local main database only a NEW zero-stock product without campaign/order history can be prepared. Legacy campaign checkout remains separate.
-    A conversion automatically deactivates the product until variant-aware checkout is released.
+    Conversion temporarily deactivates the product. After verifying a complete, stocked combination, use the explicit local Storefront Activation control below. Production checkout is not unlocked by this page.
     Every variant starts at zero stock. Never assume a 2-piece pack is the same as cart quantity 2.
 </div>
 @if(session('success'))
@@ -42,6 +42,24 @@
                     <dt class="col-6">Total stock</dt><dd class="col-6">{{ number_format($product->stock) }}</dd>
                     <dt class="col-6">Base BDT</dt><dd class="col-6">{{ number_format($product->new_price) }}</dd>
                 </dl>
+                @if($product->has_variants && (int) $product->inventory_version === 1)
+                    <div class="border-top mt-3 pt-3">
+                        <h3 class="h6 font-weight-bold">Storefront availability</h3>
+                        <p class="small mb-2">Product: <span class="badge {{ $product->status ? 'badge-success' : 'badge-warning' }}">{{ $product->status ? 'Active' : 'Inactive' }}</span></p>
+                        @if($product->status)
+                            <form method="POST" action="{{ route('admin.products.variants.pause', $product->id) }}">
+                                @csrf
+                                <button class="btn btn-outline-warning btn-block" type="submit">Pause Variable Product</button>
+                            </form>
+                        @else
+                            <form method="POST" action="{{ route('admin.products.variants.activate', $product->id) }}">
+                                @csrf
+                                <button class="btn btn-success btn-block" type="submit">Validate &amp; Activate for Local Storefront</button>
+                            </form>
+                        @endif
+                        <p class="small text-muted mt-2 mb-0">Requires a valid category, complete active options, positive audited SKU stock, and an active local checkout readiness gate. This does not release production commerce.</p>
+                    </div>
+                @endif
                 @if((int) $product->inventory_version === 0)
                     <form method="POST" action="{{ route('admin.products.variants.prepare', $product->id) }}">
                         @csrf

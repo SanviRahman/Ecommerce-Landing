@@ -2,15 +2,17 @@
 @section('title', 'Secure Checkout')
 @section('content')
     @php $shopper = \Illuminate\Support\Facades\Auth::guard('storefront')->user(); @endphp
+    <div class="p50-checkout-intro">
     <div class="p19-checkout-heading" data-reveal><p class="p19-caption">SECURE CASH ON DELIVERY CHECKOUT</p>
         <h1>Complete Your <span>Order</span></h1><p>Enter shipping details, confirm payment method, review your order and place it securely.</p>
     </div>
     <ol class="p19-checkout-steps" aria-label="Checkout steps" data-step-indicator>
         @foreach(['Shipping','Payment','Review','Order Placed'] as $name)
             <li class="{{ $loop->first ? 'is-current' : '' }}" data-step-indicator-item="{{ $loop->iteration }}"
-                @if($loop->first) aria-current="step" @endif><span>{{ $loop->iteration }}</span>{{ $name }}</li>
+                @if($loop->first) aria-current="step" @endif><span class="p50-step-number">{{ $loop->iteration }}</span><span class="p50-step-label">{{ $name }}</span></li>
         @endforeach
     </ol>
+    </div>
     @if($errors->any())<div class="p08-error" role="alert"><strong>Please check these details:</strong>
         <ul>@foreach($errors->all() as $message)<li>{{ $message }}</li>@endforeach</ul></div>@endif
     <div class="p08-checkout-grid p19-checkout-grid">
@@ -19,7 +21,7 @@
             @csrf
             <input type="hidden" name="checkout_key" value="{{ old('checkout_key', $checkoutKey) }}">
             <input type="hidden" name="cart_version" value="{{ $cart['version'] }}">
-            <fieldset class="p19-step-panel" data-checkout-step="1"><legend>Shipping Information</legend>
+            <fieldset class="p19-step-panel" data-checkout-step="1"><legend><span class="p50-step-legend-inner"><span class="p50-step-legend-icon">@include('storefront.partials.icon', ['name'=>'truck'])</span>Shipping Information</span></legend>
                 <p class="p19-step-subtitle">Where should we deliver your order?</p>
                 <div class="p19-form-row">
                     <div><label for="p08-customer-name">Full Name <span>*</span></label>
@@ -48,7 +50,7 @@
                 <button type="button" class="p08-primary p19-next-btn" data-step-next="2" @disabled($areas->isEmpty())>Continue to Payment →</button>
                 @if($areas->isEmpty())<p class="p08-error">Delivery areas are not configured; checkout is unavailable.</p>@endif
             </fieldset>
-            <fieldset class="p19-step-panel" data-checkout-step="2"><legend>Payment Method</legend>
+            <fieldset class="p19-step-panel" data-checkout-step="2"><legend><span class="p50-step-legend-inner"><span class="p50-step-legend-icon">@include('storefront.partials.icon', ['name'=>'shield'])</span>Payment Method</span></legend>
                 <p class="p19-step-subtitle">Choose a payment method available at this store.</p>
                 <label class="p19-payment-choice"><input type="radio" name="payment_display" checked disabled>
                     <span><strong>Cash on Delivery</strong><small>Pay when your order is delivered</small></span></label>
@@ -56,7 +58,7 @@
                 <div class="p19-form-actions"><button type="button" data-step-back="1">← Shipping</button>
                     <button type="button" class="p08-primary" data-step-next="3">Review Order →</button></div>
             </fieldset>
-            <fieldset class="p19-step-panel" data-checkout-step="3"><legend>Review Your Order</legend>
+            <fieldset class="p19-step-panel" data-checkout-step="3"><legend><span class="p50-step-legend-inner"><span class="p50-step-legend-icon">@include('storefront.partials.icon', ['name'=>'check'])</span>Review Your Order</span></legend>
                 <p class="p19-step-subtitle">Verify your shipping details and items before submitting.</p>
                 <div class="p19-review-shipping" data-review-shipping></div>
                 <div class="p19-review-lines">

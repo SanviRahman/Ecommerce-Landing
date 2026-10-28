@@ -14,6 +14,7 @@ use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\ExternalWebsiteController;
 use App\Http\Controllers\Admin\FaqController;
 use App\Http\Controllers\Admin\HomepageBuilderController;
+use App\Http\Controllers\Admin\HomepageShippingChargeController;
 use App\Http\Controllers\Admin\StorefrontReadinessController;
 use App\Http\Controllers\Admin\StorefrontMessageController;
 use App\Http\Controllers\Admin\StorefrontFaqController;
@@ -77,6 +78,16 @@ Route::middleware(['auth', 'role:admin,employee'])->group(function () {
         Route::post('/publish', [HomepageBuilderController::class, 'publish'])->name('publish');
         Route::get('/preview', [HomepageBuilderController::class, 'preview'])->name('preview');
     });
+
+    // Homepage/global delivery areas share the existing shipping_charges model,
+    // but never edit campaign_id-scoped shipping records.
+    Route::middleware('role:admin')->prefix('homepage-shipping-charges')
+        ->as('homepage-shipping-charges.')->group(function (): void {
+            Route::get('/', [HomepageShippingChargeController::class, 'index'])->name('index');
+            Route::post('/', [HomepageShippingChargeController::class, 'store'])->name('store');
+            Route::patch('/{charge}', [HomepageShippingChargeController::class, 'update'])->whereNumber('charge')->name('update');
+            Route::delete('/{charge}', [HomepageShippingChargeController::class, 'destroy'])->whereNumber('charge')->name('destroy');
+        });
 
     // Storefront questions are NOT campaign FAQs. Admin-only CRUD.
     Route::prefix('storefront-faqs')->as('storefront-faqs.')->middleware('role:admin')->group(function (): void {
@@ -306,6 +317,8 @@ Route::middleware(['auth', 'role:admin,employee'])->group(function () {
                 Route::get('/{product}/variants', [ProductVariantController::class, 'index'])->name('variants.index');
                 Route::post('/{product}/variants/prepare', [ProductVariantController::class, 'prepare'])->name('variants.prepare');
                 Route::post('/{product}/variants/convert', [ProductVariantController::class, 'convert'])->name('variants.convert');
+                Route::post('/{product}/variants/activate', [ProductVariantController::class, 'activate'])->name('variants.activate');
+                Route::post('/{product}/variants/pause', [ProductVariantController::class, 'pause'])->name('variants.pause');
                 Route::post('/{product}/variants', [ProductVariantController::class, 'store'])->name('variants.store');
                 Route::patch('/{product}/variants/{variant}', [ProductVariantController::class, 'update'])->name('variants.update');
                 Route::post('/{product}/variants/{variant}/stock', [ProductVariantController::class, 'stock'])->name('variants.stock');

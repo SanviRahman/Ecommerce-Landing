@@ -710,6 +710,13 @@ return [
             'active' => ['admin/site-settings*'],
         ],
         [
+            'text'   => 'Shipping Charge for Homepage',
+            'url'    => 'admin/homepage-shipping-charges',
+            'icon'   => 'fas fa-fw fa-shipping-fast',
+            'can'    => 'admin-only',
+            'active' => ['admin/homepage-shipping-charges*'],
+        ],
+        [
             'text'   => 'Blocked Customers',
             'url'    => 'admin/blocked-customers',
             'icon'   => 'fas fa-user-slash',

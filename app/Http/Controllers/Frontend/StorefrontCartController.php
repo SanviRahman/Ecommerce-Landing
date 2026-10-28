@@ -101,11 +101,16 @@ final class StorefrontCartController extends Controller
     public function checkout(
         Request $request, GuestCartOwner $owner, GuestCartService $cart,
         StorefrontCheckout $checkout, PublicCatalog $catalog
-    ): Response {
+    ): Response|RedirectResponse {
         $checkout->assertEnabled();
         $summary = $cart->show($owner->hash($request));
         if (! $summary['can_checkout']) {
-            abort(409, 'Please review your cart before checkout.');
+            // GET checkout is a navigational link, not a mutation. An empty/stale
+            // cart should never expose an exception screen to a customer.
+            $message = empty($summary['lines'])
+                ? 'Your cart is empty. Add a product before checkout.'
+                : 'Please review current product availability, prices or quantity before checkout.';
+            return redirect()->route('storefront.cart')->with('status', $message);
         }
         return $this->noStore(response()->view('storefront.pages.checkout', [
             'cart' => $summary, 'areas' => ShippingCharge::resolvedForCampaign(null),

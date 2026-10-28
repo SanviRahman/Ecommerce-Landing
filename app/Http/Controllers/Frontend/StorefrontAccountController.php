@@ -13,6 +13,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Arr;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Str;
@@ -76,7 +77,7 @@ final class StorefrontAccountController extends Controller
         $request->session()->regenerate();
         return redirect()->route('storefront.account.index');
     }
-    public function index(PublicCatalog $catalog): Response|RedirectResponse
+    public function index(Request $request, PublicCatalog $catalog): Response|RedirectResponse
     {
         $this->assertAccountReady($catalog);
         $customer = Auth::guard('storefront')->user();
@@ -91,20 +92,78 @@ final class StorefrontAccountController extends Controller
             'completed' => (clone $ownedOrders)->where('order_status', Order::STATUS_DELIVERED)->count(),
         ];
         $orders = $ownedOrders->orderByDesc('id')->limit(30)->get();
-        return $this->view('storefront.account.index', $catalog, compact('customer', 'orders', 'orderStats'));
+        // Section navigation is an allowlisted GET view, not a scroll anchor. In particular,
+        // an empty orders list must not land the user in the Profile Settings form.
+        $requestedTab = $request->query('tab', 'dashboard');
+        $activeTab = in_array($requestedTab, ['dashboard', 'orders', 'profile'], true)
+            ? $requestedTab
+            : 'dashboard';
+
+        return $this->view('storefront.account.index', $catalog, compact('customer', 'orders', 'orderStats', 'activeTab'));
     }
     public function updateProfile(Request $request, PublicCatalog $catalog): RedirectResponse
     {
         $this->assertAccountReady($catalog);
         $customer = Auth::guard('storefront')->user();
         abort_unless($customer && $customer->is_active, 403);
+        abort_unless(Schema::hasColumns('storefront_accounts', [
+            'gender', 'date_of_birth', 'division', 'district', 'upazila',
+        ]), 503, 'Customer profile migration has not been installed.');
+
         $data = $request->validate([
-            'name' => ['required','string','min:2','max:160'],
-            'phone' => ['nullable','regex:/^01[0-9]{9}$/'],
-            'address' => ['nullable','string','max:2000'],
+            'name' => ['required', 'string', 'min:2', 'max:160'],
+            'phone' => ['nullable', 'regex:/^01[0-9]{9}$/'],
+            'gender' => ['nullable', 'in:male,female,other,prefer_not_to_say'],
+            'date_of_birth' => ['nullable', 'date_format:Y-m-d', 'before_or_equal:today'],
+            'division' => ['nullable', 'in:Barishal,Chattogram,Dhaka,Khulna,Mymensingh,Rajshahi,Rangpur,Sylhet'],
+            'district' => ['nullable', 'string', 'max:100'],
+            'upazila' => ['nullable', 'string', 'max:100'],
+            'address' => ['nullable', 'string', 'max:2000'],
+            'profile_photo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            'remove_photo' => ['sometimes', 'boolean'],
         ]);
-        $customer->update($data);
-        return back()->with('status','Your profile was saved.');
+        $attributes = Arr::only($data, [
+            'name', 'phone', 'gender', 'date_of_birth', 'division', 'district', 'upazila', 'address',
+        ]);
+        // Convert cleared optional inputs to NULL instead of keeping stale information.
+        foreach (['phone', 'gender', 'date_of_birth', 'division', 'district', 'upazila', 'address'] as $field) {
+            $attributes[$field] = ($attributes[$field] ?? null) ?: null;
+        }
+
+        // Validate MIME-derived extension before touching the profile or Media Library.
+        $photoExtension = null;
+        if ($request->hasFile('profile_photo')) {
+            $photoExtension = (string) $request->file('profile_photo')->guessExtension();
+            if (! in_array($photoExtension, ['jpg', 'jpeg', 'png', 'webp'], true)) {
+                throw ValidationException::withMessages([
+                    'profile_photo' => 'Please upload a JPG, PNG or WebP image.',
+                ]);
+            }
+        }
+
+        // An existing Spatie media table is required for photo operations. We never
+        // create another avatar column or write to a hand-managed public directory.
+        if ($photoExtension !== null || $request->boolean('remove_photo')) {
+            abort_unless(Schema::hasTable('media'), 503, 'Spatie Media Library table is not installed.');
+        }
+
+        // Only the logged-in storefront customer can be modified; never accept a
+        // submitted account ID or upload path. Other profile fields remain unchanged.
+        $customer->update($attributes);
+
+        if ($photoExtension !== null) {
+            // The collection is singleFile(): replacing a photo removes the former
+            // photo through Spatie's storage and media-record lifecycle.
+            $customer->addMediaFromRequest('profile_photo')
+                ->usingName('Customer profile photo')
+                ->usingFileName(Str::uuid()->toString() . '.' . $photoExtension)
+                ->toMediaCollection('profile_photo', 'public');
+        } elseif ($request->boolean('remove_photo')) {
+            $customer->clearMediaCollection('profile_photo');
+        }
+
+        return redirect()->route('storefront.account.index', ['tab' => 'profile'])
+            ->with('status', 'Your profile was saved.');
     }
     public function logout(Request $request, PublicCatalog $catalog): RedirectResponse
     {

@@ -1,0 +1,24 @@
+/** P44 source regression: floating contact clearance and image-text overlay. */
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {resolve} from 'node:path';
+const root = resolve(import.meta.dirname, '../..');
+const read = p => readFileSync(resolve(root,p),'utf8');
+const home = read('resources/views/storefront/pages/home.blade.php');
+const catalog = read('resources/views/storefront/layouts/catalog.blade.php');
+const contact = read('resources/views/storefront/partials/contact-widget.blade.php');
+const stylesheet = read('public/frontend/css/storefront-p44.css');
+let count=0;
+const check = (predicate,desc) => {assert.ok(predicate,desc); console.log('PASS',desc); count++;};
+check(home.includes('storefront-p44.css') && catalog.includes('storefront-p44.css'),'P44 CSS loaded in both homepage and shared catalog layout');
+check(home.includes('p44-image-banner') && home.includes('p44-image-banner__image') && home.includes('p44-image-banner__content'),'image and copy render in same banner');
+check(home.includes('p46-image-intro') && home.includes('p44-image-banner__detail'),'P46 keeps image-backed item title/text/CTA while moving section introduction outside the image');
+check(home.includes("$section['type'] !== 'image_text'") && home.includes('p46-image-intro'), 'P46 intentionally restores a single external heading for image-text sections');
+check(home.includes("$item['link_url']") && home.includes("$item['link_label']") && home.includes('$isPreview'),'existing item CTA and preview semantics intact');
+check(stylesheet.includes('p44-image-banner__image') && stylesheet.includes('position: absolute') && stylesheet.includes('object-fit: cover'),'image covers responsive banner');
+check(stylesheet.includes('linear-gradient') && stylesheet.includes('min-height') && stylesheet.includes('overflow-wrap'),'contrast + flexible text layout');
+check(stylesheet.includes('p38-contact-dock') && stylesheet.includes('bottom: calc(clamp('),'mobile contact dock raised above bottom navigation');
+check(stylesheet.includes('.p38-contact-list') && stylesheet.includes('bottom: 0 !important') && stylesheet.includes('top: auto !important'),'mobile contact popup opens upward beside summary');
+check(contact.includes('StorefrontContactLinks::class') && contact.includes('p38-contact-list'),'site-configured links remain unchanged');
+check(!home.includes("@elseif($section['type']==='image_text')\n                        @foreach"),'old side-by-side item not used');
+console.log(`P44: ${count}/${count} checks passed (not runtime/MySQL)`);

@@ -7,6 +7,7 @@ use App\Models\Product;
 use App\Models\ProductOption;
 use App\Models\ProductVariant;
 use App\Services\Catalog\VariantCatalogManager;
+use App\Services\Catalog\VariableStorefrontActivation;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -100,6 +101,21 @@ class ProductVariantController extends Controller
         $catalog->adjustStock($product, $variant, (int) $validated['delta'],
             (int) $validated['expected_stock'], $validated['reason'], (int) auth()->id());
         return back()->with('success', 'Audited stock adjustment saved.');
+    }
+
+    /** Explicit local/test-only storefront release. Never silently flip status. */
+    public function activate(Product $product, VariableStorefrontActivation $release): RedirectResponse
+    {
+        $this->adminOnly();
+        $release->activate($product);
+        return back()->with('success', 'Variant inventory approved. This product is now active for the verified local storefront.');
+    }
+
+    public function pause(Product $product, VariableStorefrontActivation $release): RedirectResponse
+    {
+        $this->adminOnly();
+        $release->pause($product);
+        return back()->with('success', 'Variable product paused. Its cart history and audited SKU stock remain unchanged.');
     }
 
     private function adminOnly(): void

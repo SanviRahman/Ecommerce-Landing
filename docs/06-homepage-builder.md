@@ -77,3 +77,28 @@ Client report requests category-product sections with adjustable top-to-bottom s
 The editor's **enabled, typed sections** are the entire editable homepage body. Do not implicitly append category shelves, category grids, customer reviews, statistics, tracking forms or promotional strips outside the published revision. Render each eligible section once and only once in stored `sort_order`; no special review relocation. Preview uses the same content renderer and eligible public catalog/review/media criteria as live (the private preview's navigation and administrative notice may differ). Header/footer and existing floating cart/contact controls are page chrome, not homepage sections.
 
 **Admin-only live reorder:** The P41 editor opts into `publish_after_sort=1` for mouse/touch drag, keyboard arrow ordering and fallback Up/Down PATCH forms. The reorder is saved, validated and automatically published atomically, archiving the old immutable publication and cloning the new publication as a fresh draft. Other draft save actions still remain private. A reorder without this flag (e.g. existing integration clients) is still draft-only. On invalid incomplete draft sections, keep the new private order but refuse public publication and provide an explicit message; stale version or invalid ordering rejects the entire operation. The editor must clearly warn that successful live reorder publishes **all previously saved draft changes**, not merely section positions. A success reload refreshes the revision number/history.
+
+
+## P42 mobile hero and global scroll compatibility note (2026-10-28)
+
+The published and private preview homepage share the standalone `resources/views/storefront/pages/home.blade.php` template; it now loads the same accessible `back-to-top.css/js` as the catalog/campaign/admin layouts. The arrow appears only after page scrolling, is fixed left on storefront routes to avoid the cart/contact docks and respects reduced-motion preferences.
+
+For mobile devices <=760px, text-bearing hero slides stack their un-cropped image and natural-height text panel to prevent the Featured Collection eyebrow and heading from clipping. Image-only slides and desktop overlay remain unchanged. `storefront-p36.js` measures the active image plus text on image load, slide change, font readiness and resize, keeping preview and public behavior consistent. No changes to revision storage, order, permissions or publication isolation.
+
+## P43 mobile Hero overlay supersedes the P42 stacked presentation (2026-10-28)
+
+Following the owner's newer screenshots and explicit instruction, text-bearing `hero_slider` slides on narrow devices must use the same **image-behind-copy** composition as desktop, not P42's image-above-copy stack. This is a visual-only change: the image now uses cover cropping within the responsive overlay (intentional tradeoff); the Featured Collection eyebrow, title, description and CTA remain legible in front of a scoped dark gradient. Text reserves space for fixed mobile mini-cart and carousel controls.
+
+`public/frontend/css/storefront-p43.css` overrides P42 **only for** `.p34-storefront .p36-hero-with-copy` at `max-width:760px`. `storefront-p36.js` calculates the active slide height as `max(image intrinsic-ratio height, visible text + gaps + padding)` rather than the sum of image and copy heights. It resyncs after image load, slider activation, window resize and font readiness. No homepage content schema, controller, route, campaign, publishing, product, checkout, customer data or image-only/desktop style change is involved. Both preview and published pages share the same Blade and assets.
+
+See `P43-MOBILE-HERO-OVERLAY-BN.md` and `tools/qa/p43-overlay-browser-smoke.py` for installation and synthetic visual acceptance. Real deployment browser/MySQL acceptance remains pending.
+
+### P44 Image/Text as an image-backed hero
+
+Without changing the saved `image_text` schema, the storefront homepage and its draft preview now render each approved enabled Image/Text item in a full-width image-backed banner. Section subtitle/title/description appear inside the first banner; item-specific title, description and CTA appear in the matching banner. Existing asset selection, item enable flags, CTA URL validation, section order/visibility and preview's non-clickable CTA remain authoritative. The text participates in document flow so exceptionally long content increases banner height; the background image is absolutely positioned with `object-fit:cover`. P44 CSS is deliberately storefront-only; no campaign/admin rules are changed. See `P44-START-HERE.md` and QA checks.
+
+### 2026-10-28 — P46 Product Collection card cap and Image/Text intro contract
+
+- A published or preview `product_list` homepage section renders the first **8 unique, eligible** products in its saved selection order. This is a **display cap** only: no selected product IDs or other catalog records are removed or altered. Desktop is 4 columns × 2 rows when eight eligible products exist; mobile/tablet up to 900px is 2 columns. The CTA below the grid links to `storefront.shop` in public mode, while private preview displays an inert CTA.
+- An `image_text` section now renders its section-level subtitle, heading and description **outside/above** media using standard theme-aware heading components. Only each selected item's title, text and approved CTA remain inside the image overlay. Multiple selected media items retain their order and individual overlays. Section visibility, theme inheritance, revision and publication contracts remain unchanged.
+- CSS lives in `public/frontend/css/storefront-p46.css`, loaded only from the homepage Blade. No new migrations, routes or database fields.

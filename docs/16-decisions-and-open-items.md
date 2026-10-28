@@ -262,3 +262,75 @@ Open: browser-level preview/CSRF QA, image file reference tests, real MariaDB 20
 - **Compatibility/security:** API requests without `publish_after_sort` keep pre-P41 draft-only behavior; existing P06 regression tests remain valid. Active-admin authorization, CSRF, optimistic version 409, exact UUID list validation, HTML Up/Down fallback, allowed theme tokens and publication media checks remain unchanged. No migrations, data resets, media deletion, changes to campaign/checkout/courier or new dependencies.
 - **Presentation:** Restore manual carousel arrows within configured category shelves; shift viewport-fixed desktop cart and Contact dock from midpoint toward 57% without changing actions and use mobile safe-area offset for Contact. Add a missing static AdminLTE fallback PNG to match the existing P40 placeholder contract.
 - **Verification limits:** P33–P41 updated offline source checks and PHP/JS lint run. Owner's actual MySQL, Laravel HTTP, private draft Preview and desktop/mobile browser acceptance are unverified because `vendor/` and live DB are unavailable here. Added isolated MySQL P41 HTTP tests; MUST run on the user's dedicated test database before production release.
+
+
+### ADR P42 - Keep mobile banner media uncropped and show all configured copy (2026-10-28)
+
+- **Evidence:** User-uploaded `website(20261028-053823).zip` and four screenshots. The standalone `resources/views/storefront/pages/home.blade.php` lacks back-to-top CSS/JS included by every other main layout. P36 mobile hero has `max-height:72%;overflow:auto` within image-ratio-controlled carousel; content is centered in a smaller scroll container, cutting off the top `Featured Collection` eyebrow and parts of the heading. The product detail route already displays the shared arrow correctly.
+- **Decision:** Include the existing `back-to-top.css/js` in the standalone homepage (public and private preview) and the special local readiness HTML page; reuse its accessible animated scroll button unchanged in other layouts. Do not add duplicate controls.
+- **Mobile hero decision:** Only text-bearing `p36-hero-with-copy` slides on <=760px stack the original uncropped banner above their dark-green copy area. Dynamic carousel height is image intrinsic height **plus** natural text height; no fixed-height crop or text hiding. The Featured Collection eyebrow becomes an explicit high-contrast pill. Desktop hero and image-only mobile slides continue their existing arrangement. Autoplay, preview, section settings, CTA destinations and cart/contact behavior are unchanged.
+- **Evidence / release limits:** Offline existing P33-P41 source regression, P42 source checks, and Chromium synthetic visual/interaction checks at 320,390,760,1024,1366px. Actual Laravel Blade rendering/MySQL integration and on-device iOS/Android UI require owner testing; no production changes, migrations, DB operations or `.env` modifications.
+
+### ADR P43 - Restore mobile hero image/text overlay while preserving full copy (2026-10-28)
+
+- **Evidence:** Owner's new desktop/mobile screenshots after P42 show an unintended split: the image occupies the upper mobile block while the title/description/CTA occupy a separate green block. The owner explicitly requested desktop-like overlay, with all fields visible at mobile sizes. Uploaded `P42-CHANGED-FILES-PATCH(1).zip` was byte-compared with the P42 working source for provenance.
+- **Decision:** Add `storefront-p43.css` after the historic P42 stylesheet. At <=760px, only text-bearing homepage hero slides position the approved banner behind a full-panel readable gradient and copy; image-only slides and desktop are untouched. Use `object-fit:cover` for this **specific** overlay so a mobile image may be cropped; this replaces P42's "always un-cropped" decision for text-bearing mobile slides. Do not remove any media or modify database content.
+- **Height/overlap:** Revise `storefront-p36.js` to size the overlay by the maximum of image intrinsic ratio and actual visible text/padding/gap. Keep Featured Collection, CTA and carousel controls fully inside the panel. Reserve copy width away from the existing fixed mobile mini-cart. Do not modify the cart or other layout rules.
+- **Compatibility/security:** Include the new CSS via existing shared `home.blade.php` in private preview and public homepage; cache-bust only the edited hero-height JS. Preserve builder revision/CSRF/auth, other routes/layouts, carousel navigation, reduced-motion behavior and old source/test fixtures. P42 static checks were updated only where its no-longer-current stacked layout expectation conflicted with the new owner directive.
+- **Verification/limits:** 9 Chromium synthetic viewport sizes, two text slides + image-only, exceptionally long text at 320px; P33-P43 source contracts. Laravel/XAMPP/MySQL/live media, iOS/Android and staging acceptance not tested here. No migration, reset, key change or production action.
+
+## P44-ADR-01 (2026-10-28) - Image Text hero overlay + mobile Contact clearance
+
+- **Decision:** Preserve typed builder section and media IDs. Render all Image/Text section and item copy on top of the selected item's approved image with a high-contrast responsive gradient, no additional fields or data migration. For multiple items repeat the full image-backed card and show the section header only once in the first visible item. If there is no visible approved item, do not fabricate an image; private Preview explains the missing item.
+- **Contact behavior:** On bottom-nav viewports up to 760px move the existing fixed contact dock farther up, open methods upward along its left side, support short viewports with a constrained scrolling list, preserve desktop positioning and P38 JS keyboard/outside-close behavior. Do not change configured contact method targets or mini-cart behavior.
+- **Safety:** No changes to other sections, routes, models, controllers, DB, migrations, cart/checkout, campaign, site media, publication semantics or authentication. Local browser with owner's runtime and real media remains an explicit acceptance requirement.
+
+### P46-ADR-01 (2026-10-28) — Cap homepage Product Collection and split Image/Text heading
+
+- **Client evidence:** latest `website(20261028-065803).zip` and screenshots showing more than eight curated cards plus the section intro inside the Why Choose image.
+- **Decision:** enforce an 8-**eligible**-product display cap at rendering, after filtering nonpublic items, preserving selected ID order, duplicate rejection and stored selection. Do not change product CRUD, pagination, published revisions, commerce or Admin form contract. `View All Products` uses existing `storefront.shop` route; preview has an inert matching CTA to preserve private isolation.
+- **Design:** title/subtitle/description outside the image, approved item title/text/CTA overlay inside; only the homepage image_text section uses P46 overrides. Existing responsive media and theme system remain the authority.
+- **Data/backfill:** none. **Campaign/order compatibility:** untouched. **Testing/rollout:** source contracts + synthetic Chromium; real Laravel/MySQL and device acceptance still required.
+- **Additional baseline hygiene:** the user's ZIP omitted referenced AdminLTE `no-image.png`, so the already-used neutral placeholder was copied to that missing asset path. No upload was modified.
+
+## P48 ADR — verified-local variable SKU activation (2026-10-28)
+
+Decision: Do not bypass `P32LocalStorefrontAccess`, `P02MigrationSafety` or the allocator in order to turn buttons on. A new admin POST on the existing Variant Manager validates option signatures, category, audited ledger, stock mirror, positive price and global checkout readiness within a transaction before activating the product. An explicit Pause action preserves stock/orders. Single in-stock SKU is auto-selected in the public picker. Legacy campaign paths and production release gates remain unchanged. New option dimensions cannot be added to an active product without pausing first.
+
+Open item: Execute real MySQL transaction, duplicate checkout, last-unit concurrency, shipping, session ownership and order cancellation tests before approving production. No production release is claimed by this patch.
+
+## P49 ADR — Scoped Homepage Shipping Charge settings (2026-10-28)
+
+**Decision:** Reuse the existing `shipping_charges` table and `ShippingCharge` model. New admin-only Sidebar > Settings > **Shipping Charge for Homepage** provides an inline, validated area/BDT/status form plus edit and soft-delete actions. Scope strictly to `campaign_id=NULL`, with checks at HTTP and query layers, not just the UI; campaign charges remain independently owned by CampaignController. Disable/soft-delete of the last active homepage area is blocked to protect Checkout readiness. No schema migration, rate seed, campaign copying, feature-flag bypass or other storefront/business logic update.
+
+**Known constraint:** No runtime MySQL/HTTP tests are possible from the ZIP alone without vendor and an isolated verified test DB. The existing historical campaign global-shipping backfill migration should not be re-run to copy newly created Homepage rows into campaigns. Rate amounts and locations must be entered/approved by the site operator; none are assumed.
+
+### P50-ADR-01 (2026-10-28) - Preserve checkout introduction and scale only storefront desktop
+
+- Scope: the existing catalog/home Blade templates, `storefront-next.js` and a new `storefront-p50.css`. This is a UI/source fix, not an expansion of checkout permission or a payment-system change.
+- Cause: initialization `show(1)` performed unconditional scroll; the 140px header offset did not match sticky header height. Suppress initial scroll and measure the header for user-triggered stage changes.
+- UI: keep four real step-indicator states, use CSS connectors, display checkout instructions beside the steps on large desktop. Shared store views widen modestly only at >=1100px; color tokens, section publication and mobile layout are preserved.
+- Security/operations: do not alter server-validated shipping, COD, order/stock transactions, CSRF, payment gateways, campaigns or admin settings. No DB change. Actual local Laravel/MySQL and production QA remain unverified.
+
+## P51 ADR: Mobile-first sizing and branded storefront loader (2026-10-28)
+
+- **Decision:** Add a scoped P51 CSS layer to the two existing storefront entrypoints (standalone homepage and shared catalog layout) rather than editing AdminLTE or legacy campaign pages. Preserve the documented 2-mobile/4-desktop grids and P43 hero-image overlay.
+- **Brand authority:** reuse `StorefrontBranding::name()` and `logo()`, backed by Site Settings; do not copy media or invent a second branding table.
+- **Loader policy:** reveal only when JavaScript has initialized, hide at DOM ready, cap wait to avoid inaccessible/stuck screens; tolerate JavaScript disabled, BFCache and reduced-motion preferences.
+- **Scope/rollback:** no database/schema/route/auth/cart/order changes; three new loader/UI files and two changed Blade entrypoints. Restore P50 Blade versions and remove P51 assets to roll back.
+- **Open gate:** Test actual logo loading, mobile navigation/checkout and touch behavior on the user's Windows/XAMPP DB and mobile browsers before production sign-off.
+
+### P52 (2026-10-28): Customer account profile extension and safe navigation UX
+- Scope: existing storefront account, empty-cart GET checkout, branded loader, floating WhatsApp contact, category dropdown presentation. No campaign/admin/order/payment/stock mutations.
+- Decision: optional profile fields (`gender`, `date_of_birth`, `division`, `district`, `upazila`) are additive, with an explicit approved local-DB migration gate. Existing `name`, read-only login `email`, `phone`, and delivery `address` remain authoritative.
+- Profile images: reuse the already-installed Spatie Media Library `media` table with a dedicated `StorefrontAccount::profile_photo` collection (`public` disk, `singleFile()`). Validate JPEG/PNG/WebP <=2MB and use UUID filenames; Spatie manages replacements/removals. No `profile_photo_path` column or separate manual upload folder.
+- Empty checkout: redirect to Cart with a visible status message instead of returning HTTP 409 on a safe GET. A genuinely rejected purchase/cart POST still uses its existing server validation.
+- Mobile WhatsApp: keep validated Site Settings link as progressive fallback; open an in-page dialog first with an explicit external WhatsApp action and copy-number alternative. The third-party destination cannot be guaranteed available.
+- Loader: requested ~5.5s branded experience on normal navigation; reduced-motion skips prolonged animation/hold; 8-second watchdog + BFCache release avoids stuck overlays. This intentionally delays perceived page readiness and should be reviewed against mobile performance requirements.
+- Remaining gate: protected local schema migration, real MySQL account/profile/photo upload and Cart/Checkout HTTP tests; production rollout requires explicit separate approval.
+
+### ADR P52-R — Adopt existing Spatie media for customer avatars (2026-10-28)
+- **Reason:** Customer already has Spatie Media Library installed; first P52 draft proposed redundant `profile_photo_path`/manual storage. Owner reports that first P52 was not installed or migrated.
+- **Decision:** Replace original P52 draft in the shipped revised patch. `StorefrontAccount` implements `HasMedia`, registers a dedicated single-file `profile_photo` collection on existing public disk, accepts validated JPG/PNG/WebP <= 2 MB, and uses Spatie-managed replacement/removal. Existing User, Product and Campaign collections remain independent.
+- **Schema:** Only five optional non-image storefront account fields require the pre-existing P02-guarded additive migration; `media` table is reused. No photo-path column or new media-table migration.
+- **Release gate:** Validate disk/URL configuration and real authorized profile HTTP upload, replace and delete on approved local MySQL before deployment. Never remove unrelated media or bypass current DB approval.

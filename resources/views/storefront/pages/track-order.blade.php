@@ -3,6 +3,9 @@
 @section('content')
     <section class="p33-track-page" aria-labelledby="p33-track-page-title">
         <div class="p07-breadcrumb"><a href="{{ route('home') }}">Home</a> / Track Order</div>
+        @if(\Illuminate\Support\Facades\Auth::guard('storefront')->user()?->is_active)
+            <div class="p47-dashboard-return"><a href="{{ route('storefront.account.index', ['tab' => 'dashboard']) }}#p19-account-overview">← Back to Dashboard</a></div>
+        @endif
         <span class="p33-overline">DELIVERY UPDATES</span>
         <h1 id="p33-track-page-title">Track Your Order</h1>
         <p>Check the latest status using the 11-digit phone number on your order.</p>

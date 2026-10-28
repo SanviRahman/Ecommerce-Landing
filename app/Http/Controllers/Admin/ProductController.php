@@ -339,7 +339,7 @@ class ProductController extends Controller
             $catalog->assertTestSchema();
             if ((int) $request->input('stock', 0) !== 0) {
                 throw \Illuminate\Validation\ValidationException::withMessages([
-                    'stock' => 'Set Stock to 0 for a new Color/Size variation. Its SKU stays a non-sellable draft until variant-aware checkout is approved.',
+                    'stock' => 'Set Stock to 0 for a new Color/Size variation. After stock is audited, use Variants > Validate & Activate for Local Storefront.',
                 ]);
             }
         }
@@ -392,7 +392,7 @@ class ProductController extends Controller
                 return response()->json([
                     'status'  => true,
                     'message' => $hasNewVariation
-                        ? 'Color/Size variation saved as a zero-stock, inactive product. You can review SKU and pricing in Variant Manager; sales remain blocked until variant-aware checkout is released.'
+                        ? 'Color/Size variation saved as a zero-stock, inactive product. You can review SKU and pricing in Variant Manager; use Variants > Validate & Activate for Local Storefront after audited stock is ready.'
                         : 'Product created successfully.',
                     'variant_url' => $hasNewVariation ? route('admin.products.variants.index', $product->id) : null,
                 ]);
@@ -400,7 +400,7 @@ class ProductController extends Controller
 
             return $hasNewVariation
                 ? redirect()->route('admin.products.variants.index', $product->id)
-                    ->with('success', 'Initial Color/Size SKU saved with zero stock; this product remains inactive until variant-aware checkout is released.')
+                    ->with('success', 'Initial Color/Size SKU saved with zero stock; activate from Variants after SKU and checkout readiness checks.')
                 : redirect()->route('admin.products.index')->with('success', 'Product created successfully.');
         });
     }
@@ -501,9 +501,9 @@ class ProductController extends Controller
             // never overwrite a newer stock balance from a checkout or adjustment.
             $locked = Product::query()->whereKey($product->id)->lockForUpdate()->firstOrFail();
             $managed = (int) ($locked->inventory_version ?? 0) === 1;
-            if ((bool) ($locked->has_variants ?? false) && $request->boolean('status')) {
+            if ((bool) ($locked->has_variants ?? false) && ! $locked->status && $request->boolean('status')) {
                 throw ValidationException::withMessages([
-                    'status' => 'Variable products cannot be activated before variant-aware checkout is released.',
+                    'status' => 'Use Variants > Validate & Activate for Local Storefront to verify options, price, inventory and checkout readiness first.',
                 ]);
             }
             if ($managed && $request->has('stock')
@@ -543,6 +543,13 @@ class ProductController extends Controller
                 'meta_title'        => $request->meta_title,
                 'meta_description'  => $request->meta_description,
             ]);
+
+            // Once explicitly released, normal Product Edit must remain usable,
+            // but cannot break a sellable variant, active category or checkout.
+            if ($managed && $locked->has_variants && $locked->status) {
+                app(\App\Services\Catalog\VariableStorefrontActivation::class)
+                    ->verifyActive($locked);
+            }
 
             $product->refresh();
             $this->uploadProductMedia($product, $request);
@@ -677,7 +684,7 @@ class ProductController extends Controller
             && Product::whereIn('id', $ids)->where('has_variants', true)->exists()) {
             return response()->json([
                 'status' => false,
-                'message' => 'Variable products cannot be activated until variant-aware checkout is available.',
+                'message' => 'Use the verified Variants > Validate & Activate for Local Storefront action instead of bulk activation.',
             ], 422);
         }
 

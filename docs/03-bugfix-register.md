@@ -187,3 +187,15 @@ The user-provided 32-page AI meeting report describes a different demonstrated s
 - **Confirmed source cause:** `RandomNumberGenerator.Fill(byte[])` is a modern .NET API not available under Windows PowerShell 5.1 / .NET Framework. This is unrelated to MySQL readiness or Laravel routes.
 - **Scoped fix:** retain a fresh cryptographically random 32-byte temporary APP_KEY, but use `RandomNumberGenerator.Create().GetBytes(byte[])` in try/finally with provider disposal. No database, credentials, environment flag, endpoint, cart/checkout gate, migration, or seed change.
 - **Validation:** P11 fingerprint refreshed against this exact audited code, P26/P11 offline regressions rerun. Real Windows PowerShell 5.1 execution and isolated MySQL readiness are **pending user's run**; any later preflight error is a separate issue.
+
+### B-P44-01 - Mobile contact Email hidden behind sticky bottom navigation (2026-10-28)
+
+- **Source reproduction:** Existing `p38-contact-list` was vertically centered (`top:50%; transform:translateY(-50%)`) but the P41 fixed dock sat only 94px above the bottom safe area on <=650px. Screenshot shows Email under the mobile navigation.
+- **Repair:** New versioned P44 stylesheet, limited to public `.p34-storefront`, raises the fixed dock on <=760px and aligns the contact list bottom to the summary bottom, so it expands upward. Narrow height/width constraints, scrollable popup and reduced-motion handling preserve access to all configured methods. Desktop position and P38 close-by-Escape/outside behavior unchanged.
+- **Evidence:** `node tools/qa/check-p44-contact-image-overlay.mjs` and `python tools/qa/p44-overlay-contact-browser-smoke.py` with the actual source CSS and P38 JS. Actual owner-configured Windows browser/local MySQL acceptance pending.
+
+### B-P44-02 - Image/Text section is side-by-side instead of hero-overlay (2026-10-28)
+
+- **Source reproduction:** Homepage Blade's `image_text` branch emitted generic header above `sf-image-text` and a separate image and text column; P39 CSS retained `grid-template-columns` on desktop.
+- **Repair:** Same typed section and existing image, section/item copy, link and enabled flag, but one image-backed card per approved visible item with contained text and contrast overlay. Header appears inside the first image-backed card, not above it. Image fills the full card as it grows with content. Private preview links remain inert; unrelated category/hero/review/order sections unchanged.
+- **Evidence:** Source contract + 8-viewport synthetic Chromium geometry, clipping and long-copy tests. Laravel/MySQL integration, real approved images and device accessibility still require local verification.
