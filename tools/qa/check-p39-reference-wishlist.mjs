@@ -26,7 +26,7 @@ const checks = [
   ['Review autoplay pauses appropriately', ['prefers-reduced-motion','visibilitychange','mouseenter','focusin','touchstart'].every((t) => reviewJS.includes(t))],
   ['Review dots mark current position', reviewJS.includes("dot.setAttribute('aria-current'")],
   ['Reviews do not duplicate old handlers', read('public/frontend/js/storefront-next.js').includes("hasAttribute('data-p39-review-carousel')")],
-  ['Reference composition leaves backend review read path', home.includes('p39-review-intro') && read('resources/views/storefront/partials/home-reviews.blade.php').includes('publicReviews')],
+  ['Reference composition leaves backend review read path', home.includes('p39-review-intro') && read('resources/views/storefront/partials/home-reviews.blade.php').includes("$section['items']")],
   ['Discover image has compact border and proper crop', contactCSS.includes('.sf-image-text>img') && contactCSS.includes('object-fit:cover')],
   ['Premium type scales without touching admin CSS', contactCSS.includes('.p34-storefront .sf-section h2') && contactCSS.includes('font-size:clamp')],
   ['Customer guard is independent of admin', accountState.includes("Auth::guard('storefront')") && !accountState.includes("Auth::guard('web')")],

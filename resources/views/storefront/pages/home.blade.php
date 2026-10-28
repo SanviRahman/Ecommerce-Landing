@@ -30,6 +30,7 @@
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p37.css') }}">
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p38.css') }}">
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p39.css') }}">
+    <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p41.css') }}">
 </head>
 <body class="p34-storefront">
 @php
@@ -100,16 +101,22 @@
 <main id="main">
     @forelse($revision['sections'] as $section)
         @continue(!$section['is_enabled'])
-        {{-- The public reviews follow category shelves, but the private preview keeps editor order. --}}
-        @continue(!($isPreview ?? false) && $section['type'] === 'reviews')
-        @continue($section['type'] === 'category_products' && !($isPreview ?? false) && ($categoryShelves[$section['section_key']] ?? collect())->isEmpty())
+        {{-- Render saved sort_order identically in preview and on the published homepage. --}}
+        @continue($section['type'] === 'category_products' && ($categoryShelves[$section['section_key']] ?? collect())->isEmpty())
         @php
             $style = $styleForSection($section);
             $visibleClass = !$section['show_mobile'] ? 'sf-hide-mobile' : (!$section['show_desktop'] ? 'sf-hide-desktop' : '');
         @endphp
-        <section id="sf-section-{{ $section['section_key'] }}" class="sf-section {{ $visibleClass }} {{ $section['type']==='hero_slider' ? 'sf-section-hero' : '' }}" style="{{ $style }}" aria-label="{{ $section['title'] ?: ucfirst($section['type']) }}">
+        <section id="sf-section-{{ $section['section_key'] }}" class="sf-section {{ $visibleClass }} {{ $section['type']==='hero_slider' ? 'sf-section-hero' : ($section['type']==='reviews' ? 'p35-home-reviews' : '') }}" style="{{ $style }}" aria-label="{{ $section['title'] ?: ucfirst($section['type']) }}">
             <div class="sf-wrapper" data-reveal>
-                @if($section['type']==='hero_slider')
+                @if($section['type']==='reviews')
+                    <div class="p39-review-intro">
+                        @if($section['subtitle'])<p class="sf-kicker">{{ $section['subtitle'] }}</p>@endif
+                        <div class="sf-title-line"><h2>{{ $section['title'] ?: 'Customer reviews' }}</h2><span class="sf-title-decoration" aria-hidden="true"></span></div>
+                        @if($section['description'])<p class="sf-lead">{{ $section['description'] }}</p>@endif
+                    </div>
+                    @include('storefront.partials.home-reviews', ['section' => $section, 'reviews' => $reviews])
+                @elseif($section['type']==='hero_slider')
                     <div class="sf-hero-carousel" data-hero-carousel aria-roledescription="carousel" aria-label="Homepage featured banners">
                     <div class="sf-hero-track" data-hero-track>
                     @foreach($section['items'] as $item)
@@ -178,6 +185,14 @@
                     @elseif($section['type']==='category_products')
                         @php $shelf = $categoryShelves[$section['section_key']] ?? collect(); @endphp
                         @if($shelf->isNotEmpty())
+                            @if(!($isPreview ?? false) && $shelf->count() > 4)
+                                <div class="p41-shelf-toolbar">
+                                    <div class="p33-shelf-buttons" aria-label="Browse {{ $section['title'] }} products">
+                                        <button type="button" data-carousel-prev aria-label="Previous products">@include('storefront.partials.icon', ['name'=>'chevron-left'])</button>
+                                        <button type="button" data-carousel-next aria-label="Next products">@include('storefront.partials.icon', ['name'=>'chevron-right'])</button>
+                                    </div>
+                                </div>
+                            @endif
                             <div class="sf-grid sf-grid-products sf-dynamic-category {{ ($isPreview ?? false) ? '' : 'p33-products-carousel' }}"
                                 @unless($isPreview ?? false) data-product-carousel @endunless data-reveal-stagger>
                                 @foreach($shelf as $product)
@@ -214,8 +229,6 @@
                                 @endif</div>
                             </div>
                         @endforeach
-                    @elseif($section['type']==='reviews')
-                        @include('storefront.partials.home-reviews', ['section' => $section, 'reviews' => $reviews])
                     @endif
                 @endif
             </div>
@@ -223,94 +236,8 @@
     @empty
         <section class="sf-empty sf-wrapper"><h1>Build your storefront homepage</h1><p>No homepage sections have been configured in this revision.</p></section>
     @endforelse
-    @unless($isPreview ?? false)
-        <aside class="p33-trust-strip sf-wrapper" aria-label="Shopping benefits" data-reveal>
-            <div><span class="p33-trust-icon" aria-hidden="true">@include('storefront.partials.icon', ['name'=>'shield'])</span><span><strong>Quality Products</strong><small>Carefully selected items</small></span></div>
-            <div><span class="p33-trust-icon" aria-hidden="true">@include('storefront.partials.icon', ['name'=>'check'])</span><span><strong>Trusted Shopping</strong><small>Browse clear product details</small></span></div>
-            <div><span class="p33-trust-icon" aria-hidden="true">@include('storefront.partials.icon', ['name'=>'truck'])</span><span><strong>Order Updates</strong><small>Track delivery status</small></span></div>
-            <div><span class="p33-trust-icon" aria-hidden="true">@include('storefront.partials.icon', ['name'=>'headphones'])</span><span><strong>Customer Support</strong><small>Contact our team</small></span></div>
-        </aside>
-        @if(($autoCategories ?? collect())->isNotEmpty() && ! collect($revision['sections'])->contains(fn ($s) => $s['is_enabled'] && $s['type'] === 'category_grid'))
-            <section class="p33-auto-section sf-wrapper" id="categories" aria-labelledby="p33-categories-title" data-reveal>
-                <div class="p33-section-heading"><div><span class="p33-overline">BROWSE YOUR FAVOURITES</span><h2 id="p33-categories-title">Shop by Category</h2><p>Explore our collections and find exactly what you need.</p></div><a href="{{ route('storefront.shop') }}">View all products →</a></div>
-                <div class="sf-grid sf-grid-categories p33-category-grid" data-reveal-stagger>
-                    @foreach($autoCategories as $cat)
-                        <a class="sf-tile p33-category-tile" href="{{ route('storefront.category', $cat->slug) }}"><span class="sf-square"><img src="{{ $catalog->categoryImage($cat) }}" data-image-fallback="{{ asset('frontend/images/no-image.svg') }}" alt="" loading="lazy"></span><strong>{{ $cat->name }}</strong><small>Explore collection →</small></a>
-                    @endforeach
-                </div>
-            </section>
-        @endif
-        @if(!empty($autoShelves))
-            @foreach($autoShelves as $autoShelf)
-                <section class="p33-auto-section sf-wrapper" aria-labelledby="p33-shelf-{{ $autoShelf['category']->id }}" data-reveal>
-                    <div class="p33-section-heading"><div><span class="p33-overline">HANDPICKED FOR YOU</span><h2 id="p33-shelf-{{ $autoShelf['category']->id }}">{{ $autoShelf['category']->name }}</h2><p>Shop quality products from this collection.</p></div><div class="p33-heading-tools"><a href="{{ route('storefront.category', $autoShelf['category']->slug) }}">See collection →</a><div class="p33-shelf-buttons"><button type="button" data-carousel-prev aria-label="Previous products">@include('storefront.partials.icon', ['name'=>'chevron-left'])</button><button type="button" data-carousel-next aria-label="Next products">@include('storefront.partials.icon', ['name'=>'chevron-right'])</button></div></div></div>
-                    <div class="sf-grid sf-grid-products p33-products-carousel" data-product-carousel data-reveal-stagger>
-                        @foreach($autoShelf['products'] as $product)
-                            @include('storefront.partials.home-product-card', ['product' => $product, 'isPreview' => false])
-                        @endforeach
-                    </div>
-                </section>
-            @endforeach
-        @endif
-        {{-- Reviews appear immediately after category-wise shelves in the public storefront.
-             Existing draft/preview order and each section's enabled/device/style flags are unchanged. --}}
-        @php $publicReviewsRendered = false; @endphp
-        @foreach($revision['sections'] as $section)
-            @continue(!$section['is_enabled'] || $section['type'] !== 'reviews' || $publicReviewsRendered)
-            @php
-                $visibleReviews = collect($publicReviews ?? [])->isNotEmpty();
-                $reviewVisibility = !$section['show_mobile'] ? 'sf-hide-mobile' : (!$section['show_desktop'] ? 'sf-hide-desktop' : '');
-            @endphp
-            @if($visibleReviews)
-                @php $publicReviewsRendered = true; @endphp
-                <section id="sf-section-{{ $section['section_key'] }}" class="sf-section p35-home-reviews {{ $reviewVisibility }}"
-                    style="{{ $styleForSection($section) }}" aria-label="{{ $section['title'] ?: 'Customer reviews' }}">
-                    <div class="sf-wrapper" data-reveal>
-                        <div class="p39-review-intro">
-                            @if($section['subtitle'])<p class="sf-kicker">{{ $section['subtitle'] }}</p>@endif
-                            <div class="sf-title-line"><h2>{{ $section['title'] ?: 'Customer reviews' }}</h2><span class="sf-title-decoration" aria-hidden="true"></span></div>
-                            @if($section['description'])<p class="sf-lead">{{ $section['description'] }}</p>@endif
-                        </div>
-                        @include('storefront.partials.home-reviews', ['section' => $section, 'reviews' => $reviews])
-                    </div>
-                </section>
-            @endif
-        @endforeach
-        {{-- If an older published homepage has no Reviews section at all, show its
-             active global store reviews after the product shelves. An explicitly
-             disabled Reviews section remains hidden, respecting owner controls. --}}
-        @if(!$publicReviewsRendered && collect($revision['sections'])->where('type', 'reviews')->isEmpty() && collect($publicReviews ?? [])->isNotEmpty())
-            <section class="sf-section p35-home-reviews p37-auto-reviews" aria-label="Customer reviews">
-                <div class="sf-wrapper" data-reveal>
-                    <div class="p39-review-intro">
-                        <p class="sf-kicker">CUSTOMER LOVE</p>
-                        <div class="sf-title-line"><h2>What Our Customers Say</h2><span class="sf-title-decoration" aria-hidden="true"></span></div>
-                        <p class="sf-lead">Reviews shared by our customers.</p>
-                    </div>
-                    @include('storefront.partials.home-reviews', ['section' => ['items' => []], 'reviews' => $reviews])
-                </div>
-            </section>
-        @endif
-        <section class="p33-stats sf-wrapper" aria-label="Our product collections" data-reveal>
-            <div class="p33-stats-label"><span class="p33-overline">WHY SHOP WITH US</span><h2>Better shopping, every day.</h2></div>
-            <div><strong data-count-up="{{ (int) ($publicProductCount ?? 0) }}">{{ number_format((int) ($publicProductCount ?? 0)) }}</strong><span>Active products</span></div>
-            <div><strong data-count-up="{{ ($autoCategories ?? collect())->count() }}">{{ ($autoCategories ?? collect())->count() }}</strong><span>Collections</span></div>
-            <div><strong>24/7</strong><span>Browse online</span></div>
-        </section>
-        <section class="p33-track-section" id="track-order" aria-labelledby="p33-track-title" data-reveal>
-            <div class="sf-wrapper p33-track-inner">
-                <div><span class="p33-overline">ORDER UPDATES</span><h2 id="p33-track-title">Track your order</h2><p>Enter the phone number used at checkout. See delivery progress without leaving the storefront.</p></div>
-                <div>
-                    <form method="POST" action="{{ route('order.track.search') }}" data-storefront-track>
-                        @csrf
-                        <label for="p33-track-phone">Order phone number</label>
-                        <div class="p33-track-controls"><input id="p33-track-phone" type="tel" name="tracking_phone" pattern="01[0-9]{9}" maxlength="11" inputmode="numeric" placeholder="01XXXXXXXXX" autocomplete="tel" required><button type="submit">Track Order →</button></div>
-                    </form>
-                    <div class="p33-track-results" data-track-results role="status" aria-live="polite"></div>
-                </div>
-            </div>
-        </section>
-    @endunless
+    {{-- Only enabled sections in the pinned revision may appear here; no automatic
+         category shelves, reviews, trust tiles or other unconfigured page sections. --}}
 </main>
 @if($isPreview ?? false)
     <p class="sf-preview-release-status">Private draft preview — changes become public only after publishing.</p>

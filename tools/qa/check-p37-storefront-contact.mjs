@@ -10,9 +10,9 @@ const check = (label, p, patterns) => {
   }
   console.log('PASS ' + label);
 };
-check('Public reviews stay global/active and include media', 'app/Http/Controllers/Frontend/StorefrontCatalogController.php', [/whereNull\('campaign_id'\)/, /with\('media'\)->latest\('id'\)->get\(\)/]);
-check('Public review photos and preview pinning', 'resources/views/storefront/partials/home-reviews.blade.php', [/publicReviews/, /review_customer_image/, /isPreview/]);
-check('Enabled/disabled review sections remain respected', 'resources/views/storefront/pages/home.blade.php', [/publicReviewsRendered/, /p35-home-reviews/, /where\('type', 'reviews'\)->isEmpty\(\)/]);
+check('Public reviews are selected and active with media', 'app/Http/Controllers/Frontend/StorefrontCatalogController.php', [/whereNull\('campaign_id'\)/, /with\('media'\)->whereIn\('id', array_unique\(\$reviewIds\)\)/]);
+check('Public and preview reviews share pinned IDs and photos', 'resources/views/storefront/partials/home-reviews.blade.php', [/\$section\['items'\]/, /review_customer_image/, /\$reviews->has/]);
+check('Review sections obey builder visibility and revision order', 'resources/views/storefront/pages/home.blade.php', [/@forelse\(\$revision\['sections'\] as \$section\)/, /p35-home-reviews/, /@continue\(!\$section\['is_enabled'\]\)/]);
 check('Site settings update uses existing contact fields', 'app/Http/Controllers/Admin/SiteSettingController.php', [/settingsPayload/, /business_short_description/, /email:rfc/, /address/]);
 check('Customer fields are encrypted', 'app/Models/StorefrontContactMessage.php', [/SoftDeletes/, /'email' => 'encrypted'/, /'message' => 'encrypted'/]);
 check('Local approved forward migration only', 'database/migrations/2026_10_27_100001_create_storefront_contact_messages.php', [/P02MigrationSafety::assertApprovedP02Up\(\)/, /Schema::create\('storefront_contact_messages'/, /throw new RuntimeException\('Contact messages rollback/]);

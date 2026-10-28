@@ -29,6 +29,7 @@
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p38.css') }}">
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p39.css') }}">
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p40.css') }}">
+    <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p41.css') }}">
     <link rel="stylesheet" href="{{ asset('frontend/css/back-to-top.css') }}">
 </head>
 <body class="p34-storefront">

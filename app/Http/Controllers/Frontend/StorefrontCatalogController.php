@@ -47,7 +47,7 @@ final class StorefrontCatalogController extends Controller
         $categories = $catalog->eligibleCategories()->with('media')
             ->whereIn('id', array_unique($categoryIds))->get()->keyBy('id');
         $reviews = Review::query()->where('status', true)->whereNull('campaign_id')
-            ->whereIn('id', array_unique($reviewIds))->get()->keyBy('id');
+            ->with('media')->whereIn('id', array_unique($reviewIds))->get()->keyBy('id');
         $media = Media::query()->whereIn('id', array_unique($mediaIds))
             ->where('disk', 'public')->whereIn('collection_name', HomepageBuilder::PUBLIC_IMAGE_COLLECTIONS)
             ->get()->filter(static fn (Media $item) => is_file($item->getPath()))->keyBy('id');
@@ -58,35 +58,13 @@ final class StorefrontCatalogController extends Controller
                 $categoryShelves[$section['section_key']] = $shelves->productsFor($section);
             }
         }
-        $autoCategories = $catalog->eligibleCategories()->with('media')
-            ->whereNull('parent_id')->orderBy('sort_order')->orderBy('name')->limit(20)->get();
-        $autoShelves = [];
-        // Builder sections take precedence. Only fill missing category shelves automatically.
-        $configuredCategoryIds = collect($revision['sections'])
-            ->filter(static fn ($section) => $section['is_enabled'] && $section['type'] === 'category_products')
-            ->pluck('category_id')->map(static fn ($id): int => (int) $id)->all();
-        foreach ($autoCategories->take(12) as $parent) {
-            if (in_array((int) $parent->id, $configuredCategoryIds, true)) {
-                continue; // Keep the owner's explicitly configured category shelf in place.
-            }
-            $shelf = $shelves->productsFor([
-                'type' => 'category_products', 'is_enabled' => true, 'category_id' => $parent->id,
-                'include_descendants' => true, 'product_sort' => 'newest', 'product_limit' => 12,
-            ]);
-            if ($shelf->isNotEmpty()) {
-                $autoShelves[] = ['category' => $parent, 'products' => $shelf];
-            }
-        }
         $cartVersion = $this->cartVersion(request());
         return $this->noStore(response()->view('storefront.pages.home', [
             'revision' => $revision, 'products' => $products, 'categories' => $categories,
-            'reviews' => $reviews, 'publicReviews' => Review::query()->where('status', true)
-                ->whereNull('campaign_id')->with('media')->latest('id')->get(),
+            'reviews' => $reviews,
             'media' => $media, 'isPreview' => false,
             'catalog' => $catalog, 'navigation' => $catalog->navigationCategories(),
             'categoryShelves' => $categoryShelves, 'cartVersion' => $cartVersion,
-            'autoCategories' => $autoCategories, 'autoShelves' => $autoShelves,
-            'publicProductCount' => $catalog->eligibleProducts()->count(),
         ]));
     }
 

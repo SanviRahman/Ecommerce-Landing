@@ -107,7 +107,7 @@
                 return;
             }
             setBusy(true);
-            say('Saving the new draft section order...', 'info');
+            say('Saving and validating the new homepage order...', 'info');
             const version = Number(list.dataset.version);
             try {
                 const response = await fetch(url, {
@@ -116,7 +116,7 @@
                         'Accept': 'application/json', 'Content-Type': 'application/json',
                         'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': csrf,
                     },
-                    body: JSON.stringify({ expected_version: version, section_keys: changed }),
+                    body: JSON.stringify({ expected_version: version, section_keys: changed, publish_after_sort: true }),
                 });
                 if (!response.ok) {
                     throw new Error(response.status === 409 ? 'Another tab changed this draft. Reload before moving sections.'
@@ -124,7 +124,7 @@
                             : 'Server rejected this section order (' + response.status + ').');
                 }
                 const answer = await response.json();
-                if (answer.saved !== true || answer.lock_version !== version + 1
+                if (answer.saved !== true || answer.lock_version !== version + (answer.published === true ? 3 : 1)
                     || !Array.isArray(answer.section_keys)
                     || answer.section_keys.join('|') !== changed.join('|')) {
                     throw new Error('The saved order could not be confirmed. Reload before further changes.');
@@ -132,7 +132,14 @@
                 syncVersion(answer.lock_version);
                 syncCards(changed);
                 showPositions();
-                say('Section order saved to the private draft. Published homepage was not changed.', 'success');
+                say(answer.notice || 'Homepage order saved.', answer.published === true ? 'success' : 'error');
+                if (answer.published === true) {
+                    // New immutable published revision and a new draft now exist.
+                    // Reload the editor for accurate revision history/controls; the
+                    // server flashed a visible success notification for that load.
+                    window.location.reload();
+                    return;
+                }
                 if (trigger && typeof trigger.focus === 'function' && trigger.isConnected) {
                     trigger.focus({ preventScroll: true });
                 }

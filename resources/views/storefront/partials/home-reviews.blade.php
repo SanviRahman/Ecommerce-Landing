@@ -1,10 +1,9 @@
 @php
-    // Private builder preview retains revision-pinned IDs. Public homepage renders
-    // live active global reviews, so newly approved Admin reviews appear immediately.
-    $visibleReviews = ($isPreview ?? false)
-        ? collect($section['items'])->filter(static fn ($item) => $item['is_enabled'] && $item['review_id'] && $reviews->has($item['review_id']))
-            ->map(static fn ($item) => $reviews[$item['review_id']])->values()
-        : collect($publicReviews ?? [])->values();
+    // Use only approved, enabled reviews chosen in this published/draft section.
+    // This keeps the private preview and live homepage identical and ordered.
+    $visibleReviews = collect($section['items'] ?? [])
+        ->filter(static fn ($item) => $item['is_enabled'] && $item['review_id'] && $reviews->has($item['review_id']))
+        ->map(static fn ($item) => $reviews[$item['review_id']])->values();
 @endphp
 <div class="sf-reviews-shell p37-review-shell p39-review-shell" data-review-carousel data-p39-review-carousel
      role="region" aria-roledescription="carousel" aria-label="Customer reviews">

@@ -24,6 +24,7 @@
     $colors = $draft['settings']['theme'] ?? $themeDefaults;
 @endphp
 @if(session('success'))<div class="alert alert-success" role="status">{{ session('success') }}</div>@endif
+@if(session('warning'))<div class="alert alert-warning" role="alert">{{ session('warning') }}</div>@endif
 @if($errors->any())
 <div class="alert alert-danger" role="alert"><strong>Changes were not saved:</strong><ul class="mb-0">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>
 @endif
@@ -108,9 +109,14 @@
             Drag the handle with mouse or touch. Keyboard: focus a handle and press ↑ or ↓.
             The order saves automatically. The Up/Down buttons on each section work without JavaScript.
         </p>
+        <div class="alert alert-warning py-2 px-3 small mb-2" role="note">
+            <strong>Live sorting enabled:</strong> Reordering also validates and publishes all <em>saved</em> draft changes,
+            then opens a fresh editable draft. Save form fields before dragging. If validation fails,
+            the order is still saved privately; the live homepage remains unchanged until you fix and publish it.
+        </div>
         <ol id="p06-sort-list" class="p06-sort-list" aria-label="Draft section order"
             data-reorder-url="{{ route('admin.storefront.home.sections.reorder') }}"
-            data-csrf-token="{{ csrf_token() }}" data-version="{{ $version }}">
+            data-csrf-token="{{ csrf_token() }}" data-version="{{ $version }}" data-publish-after-sort="1">
             @foreach($draft['sections'] as $position=>$entry)
                 <li class="p06-sort-item" data-section-key="{{ $entry['section_key'] }}">
                     <button class="p06-drag-handle" type="button" aria-describedby="p06-sort-help"
@@ -123,7 +129,7 @@
             @endforeach
         </ol>
         <p id="p06-sort-feedback" role="status" aria-live="polite" aria-atomic="true" class="small mb-0 text-muted">
-            {{ count($draft['sections']) < 2 ? 'Add two or more sections to reorder.' : 'Current draft order is saved.' }}
+            {{ count($draft['sections']) < 2 ? 'Add two or more sections to reorder.' : 'Current draft order is saved. Move a section to publish the new order.' }}
         </p>
         <noscript><p class="text-muted small">Use each section's Up/Down controls below to save its position.</p></noscript>
     </div>
@@ -135,11 +141,11 @@
         <h2 class="h5 mb-0"><span class="p06-card-number">{{ $idx+1 }}</span>. {{ $types[$section['type']] ?? 'Unknown Section' }} <small class="text-muted">{{ $section['is_enabled'] ? 'Enabled' : 'Draft only / disabled' }}</small></h2>
         <div class="btn-group btn-group-sm" aria-label="Reorder section {{ $idx + 1 }}">
             <form method="POST" action="{{ route('admin.storefront.home.sections.move',$section['section_key']) }}">@csrf @method('PATCH')
-                <input type="hidden" name="expected_version" value="{{ $version }}"><input type="hidden" name="direction" value="up">
+                <input type="hidden" name="expected_version" value="{{ $version }}"><input type="hidden" name="direction" value="up"><input type="hidden" name="publish_after_sort" value="1">
                 <button class="btn btn-outline-secondary" data-p06-direction="up" title="Move up" @disabled($idx === 0)>↑ Up</button>
             </form>
             <form method="POST" action="{{ route('admin.storefront.home.sections.move',$section['section_key']) }}">@csrf @method('PATCH')
-                <input type="hidden" name="expected_version" value="{{ $version }}"><input type="hidden" name="direction" value="down">
+                <input type="hidden" name="expected_version" value="{{ $version }}"><input type="hidden" name="direction" value="down"><input type="hidden" name="publish_after_sort" value="1">
                 <button class="btn btn-outline-secondary" data-p06-direction="down" title="Move down" @disabled($idx === count($draft['sections'])-1)>↓ Down</button>
             </form>
         </div>

@@ -12,11 +12,13 @@ use App\Models\SiteSetting;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use App\Services\Storefront\HomepageBuilder;
 use App\Services\Storefront\CategoryShelf;
+use App\Services\Storefront\PublicCatalog;
 use App\Support\HomeSectionSchema;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
+use Illuminate\Validation\ValidationException;
 use RuntimeException;
 
 /** Authenticated Homepage Builder controls; published revision powers the public root. */
@@ -151,18 +153,29 @@ final class HomepageBuilderController extends Controller
         return $this->back('Draft section saved. Public publication is unchanged.');
     }
 
+    /** Accessible no-JS move follows the same validated live-sort flow as drag-and-drop. */
     public function move(Request $request, string $sectionKey, HomepageBuilder $builder): RedirectResponse
     {
         $this->adminOnly($builder);
         $data = $request->validate([
             'expected_version' => ['required', 'integer', 'min:1'],
             'direction' => ['required', 'in:up,down'],
+            'publish_after_sort' => ['sometimes', 'boolean'],
         ]);
-        $builder->move((int) $data['expected_version'], (int) auth()->id(), $sectionKey, $data['direction']);
-        return $this->back('Section order saved.');
+        $version = (int) $data['expected_version'];
+        $actor = (int) auth()->id();
+        $result = $this->saveOrderAndMaybePublish($builder, $version, $actor,
+            static fn () => $builder->move($version, $actor, $sectionKey, $data['direction']),
+            (bool) ($data['publish_after_sort'] ?? false));
+
+        return redirect()->route('admin.storefront.home.index')
+            ->with($result['published'] || ! ($data['publish_after_sort'] ?? false) ? 'success' : 'warning', $result['notice']);
     }
 
-    /** P06: Same protected, draft-only endpoint for HTML fallback and drag UI. */
+    /** Same revision ordering in admin preview and public page; publication is opt-in per request.
+     * The editor explicitly sends publish_after_sort=1. API clients without the flag retain
+     * the original private-draft semantics and optimistic version contract.
+     */
     public function reorder(Request $request, HomepageBuilder $builder): RedirectResponse|\Illuminate\Http\JsonResponse
     {
         $this->adminOnly($builder);
@@ -170,19 +183,61 @@ final class HomepageBuilderController extends Controller
             'expected_version' => ['required', 'integer', 'min:1'],
             'section_keys' => ['required', 'array', 'max:30'],
             'section_keys.*' => ['required', 'uuid', 'distinct'],
+            'publish_after_sort' => ['sometimes', 'boolean'],
         ]);
-        $builder->reorder((int) $data['expected_version'], (int) auth()->id(), $data['section_keys']);
+        $version = (int) $data['expected_version'];
+        $actor = (int) auth()->id();
+        $result = $this->saveOrderAndMaybePublish($builder, $version, $actor,
+            static fn () => $builder->reorder($version, $actor, $data['section_keys']),
+            (bool) ($data['publish_after_sort'] ?? false));
 
         if ($request->expectsJson()) {
-            // HomepageBuilder bumps the optimistic version exactly once on success.
+            // A successful publication + cloned draft bumps version three times.
+            // A draft-only reorder bumps it once; both outcomes are audited.
+            if ($result['published']) {
+                $request->session()->flash('success', $result['notice']);
+            }
             return response()->json([
                 'saved' => true,
-                'lock_version' => (int) $data['expected_version'] + 1,
+                'published' => $result['published'],
+                'lock_version' => $result['lock_version'],
                 'section_keys' => array_values($data['section_keys']),
+                'notice' => $result['notice'],
             ])->header('Cache-Control', 'no-store');
         }
 
-        return $this->back('Exact section order persisted.');
+        return redirect()->route('admin.storefront.home.index')
+            ->with($result['published'] || ! ($data['publish_after_sort'] ?? false) ? 'success' : 'warning', $result['notice']);
+    }
+
+    /**
+     * Save order, validate+publish an immutable revision, and recreate the editable draft
+     * atomically. If publication validation fails, keep the sorted private draft and
+     * explain why public visibility is unchanged. Unauthorized/stale writes still fail.
+     * @return array{published:bool,lock_version:int,notice:string}
+     */
+    private function saveOrderAndMaybePublish(HomepageBuilder $builder, int $version, int $actor,
+        callable $reorder, bool $publishAfterSort): array
+    {
+        return DB::transaction(static function () use ($builder, $version, $actor, $reorder, $publishAfterSort): array {
+            $reorder();
+            if (! $publishAfterSort) {
+                return ['published' => false, 'lock_version' => $version + 1,
+                    'notice' => 'Section order saved in the private draft. Publish to update the live homepage.'];
+            }
+            try {
+                $builder->publish($version + 1, $actor);
+            } catch (ValidationException $exception) {
+                $errors = $exception->errors();
+                $first = $errors === [] ? 'Check enabled sections and their media.' : (string) (reset($errors)[0] ?? 'Review the draft.');
+                return ['published' => false, 'lock_version' => $version + 1,
+                    'notice' => 'Order saved in draft only; live publication was blocked: ' . $first];
+            }
+            // Never continue editing a published revision. Clone it for the next edit.
+            $builder->startDraft($version + 2, $actor);
+            return ['published' => true, 'lock_version' => $version + 3,
+                'notice' => 'Section order published successfully. Preview and live homepage now use this order. A new editable draft is ready.'];
+        }, 3);
     }
 
     public function deleteSection(Request $request, string $sectionKey, HomepageBuilder $builder): RedirectResponse
@@ -300,7 +355,7 @@ final class HomepageBuilderController extends Controller
         return $this->back('Homepage published. Visitors now see the pinned revision at /. Campaigns remain at /campaign/{slug}.');
     }
 
-    public function preview(Request $request, HomepageBuilder $builder, CategoryShelf $shelves): \Illuminate\Http\Response
+    public function preview(Request $request, HomepageBuilder $builder, CategoryShelf $shelves, PublicCatalog $catalog): \Illuminate\Http\Response
     {
         $this->adminOnly($builder);
         $data = $request->validate(['revision' => ['nullable', 'integer', 'min:1']]);
@@ -322,12 +377,15 @@ final class HomepageBuilderController extends Controller
                 if ($item['media_id']) $mediaIds[] = (int) $item['media_id'];
             }
         }
-        $products = Product::query()->whereIn('id', array_unique($productIds))->where('status', true)->get()->keyBy('id');
-        $categories = Category::query()->whereIn('id', array_unique($categoryIds))->where('status', true)->get()->keyBy('id');
+        $products = $catalog->eligibleProducts()->with('media', 'variants.optionValues.option')
+            ->whereIn('products.id', array_unique($productIds))->get()->keyBy('id');
+        $categories = $catalog->eligibleCategories()->with('media')
+            ->whereIn('id', array_unique($categoryIds))->get()->keyBy('id');
         $reviews = Review::query()->whereIn('id', array_unique($reviewIds))->where('status', true)
-            ->whereNull('campaign_id')->get()->keyBy('id');
+            ->whereNull('campaign_id')->with('media')->get()->keyBy('id');
         $media = \Spatie\MediaLibrary\MediaCollections\Models\Media::query()->whereIn('id', array_unique($mediaIds))
-            ->where('disk', 'public')->get()->filter(fn ($m) => is_file($m->getPath()))->keyBy('id');
+            ->where('disk', 'public')->whereIn('collection_name', HomepageBuilder::PUBLIC_IMAGE_COLLECTIONS)
+            ->get()->filter(fn ($m) => is_file($m->getPath()))->keyBy('id');
 
         $categoryShelves = [];
         foreach ($revision['sections'] as $section) {
