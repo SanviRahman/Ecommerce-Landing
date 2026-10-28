@@ -46,6 +46,7 @@
                                 <option value="{{ $parent->id }}" @selected(old('parent_id', $category->parent_id ?? '') == $parent->id)>{{ $parent->name }}</option>
                                 @endforeach
                             </select>
+                            <small class="form-text text-muted">Choose a parent to create a subcategory. Leave blank for a main category. Maximum two levels.</small>
                         </div>
                         <div class="form-group col-md-4">
                             <label class="font-weight-bold small text-uppercase text-muted" for="category_order">Sort Order</label>

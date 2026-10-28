@@ -73,6 +73,7 @@
     <link rel="stylesheet" href="{{ asset('frontend/css/layout.css') }}?v=20261024-frontend2">
 
     <link rel="stylesheet" href="{{ asset('frontend/css/footer.css') }}?v=20261024-frontend2">
+    <link rel="stylesheet" href="{{ asset('frontend/css/back-to-top.css') }}">
 
     @stack('css')
 
@@ -100,5 +101,6 @@
     @includeIf('frontend.partials.datalayer-events')
 
     @stack('js')
+    <script src="{{ asset('frontend/js/back-to-top.js') }}" defer></script>
 </body>
 </html>

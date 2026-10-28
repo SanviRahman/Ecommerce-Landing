@@ -1018,6 +1018,14 @@ return [
     */
 
     'plugins'                                 => [
+        // Shared scroll control for all AdminLTE pages, including admin product/settings screens.
+        'StorefrontBackToTop' => [
+            'active' => true,
+            'files' => [
+                ['type' => 'css', 'asset' => true, 'location' => 'frontend/css/back-to-top.css'],
+                ['type' => 'js', 'asset' => true, 'location' => 'frontend/js/back-to-top.js'],
+            ],
+        ],
         'Datatables'  => [
             'active' => false,
             'files'  => [

@@ -155,15 +155,30 @@
                     <span>Online ordering is unavailable for this server. Please contact us for assistance.</span>
                 </div>
             @endif
-            <form method="POST" action="{{ route('storefront.wishlist.toggle') }}" class="p32-wishlist-form">
-                @csrf
-                <input type="hidden" name="product_id" value="{{ $product->id }}">
-                <button type="submit" class="p32-wishlist-btn" aria-label="{{ in_array((int)$product->id, (array)session('storefront_wishlist_ids', []), true) ? 'Remove from' : 'Add to' }} wishlist">
-                    @include('storefront.partials.icon', ['name'=>in_array((int)$product->id, (array)session('storefront_wishlist_ids', []), true) ? 'heart-fill' : 'heart'])
-                    {{ in_array((int)$product->id, (array)session('storefront_wishlist_ids', []), true) ? 'Saved to Wishlist' : 'Save to Wishlist' }}
-                </button>
-                <a href="{{ route('storefront.wishlist') }}" class="p32-wishlist-view">View Wishlist</a>
-            </form>
+            @php
+                $wishlistState = app(\App\Support\StorefrontWishlistState::class);
+                $wishSignedIn = $wishlistState->authenticated();
+                $isSaved = $wishSignedIn && $wishlistState->contains((int) $product->id);
+            @endphp
+            <div class="p32-wishlist-form">
+                @if($wishSignedIn)
+                    <form method="POST" action="{{ route('storefront.wishlist.toggle') }}">
+                        @csrf
+                        <input type="hidden" name="product_id" value="{{ $product->id }}">
+                        <button type="submit" class="p32-wishlist-btn" aria-label="{{ $isSaved ? 'Remove from' : 'Add to' }} wishlist">
+                            @include('storefront.partials.icon', ['name'=>$isSaved ? 'heart-fill' : 'heart'])
+                            {{ $isSaved ? 'Saved to Wishlist' : 'Save to Wishlist' }}
+                        </button>
+                    </form>
+                    <a href="{{ route('storefront.wishlist') }}" class="p32-wishlist-view">View Wishlist</a>
+                @else
+                    <a href="{{ route('storefront.account.login') }}" class="p32-wishlist-btn p39-login-wishlist"
+                       aria-label="Log in or register to save this product">
+                        @include('storefront.partials.icon', ['name'=>'heart']) Sign in to Save
+                    </a>
+                    <a href="{{ route('storefront.account.register') }}" class="p32-wishlist-view">Create account</a>
+                @endif
+            </div>
             <a class="p07-back-to-shop" href="{{ route('storefront.shop') }}">Explore more products</a>
         </section>
     </div>

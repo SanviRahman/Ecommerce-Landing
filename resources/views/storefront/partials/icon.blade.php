@@ -9,6 +9,18 @@
         @case('menu')
             <path d="M4 7h16M4 12h16M4 17h16"/>
             @break
+        @case('leaf')
+            <path d="M20 4c-11 1-15 5-15 11a5 5 0 0 0 5 5c6 0 10-4 10-16Z"/><path d="M5 19c3-5 6-8 11-11"/>
+            @break
+        @case('shirt')
+            <path d="M7 3 3 6l-2 5 5 2 1-2v10h10V11l1 2 5-2-2-5-4-3-3 2h-4L7 3Z"/>
+            @break
+        @case('monitor')
+            <rect x="3" y="4" width="18" height="13" rx="2"/><path d="M12 17v4M8 21h8"/>
+            @break
+        @case('sparkles')
+            <path d="m12 2 2.2 6.8L21 11l-6.8 2.2L12 20l-2.2-6.8L3 11l6.8-2.2L12 2Z"/><path d="m19 18 .6 1.4L21 20l-1.4.6L19 22l-.6-1.4L17 20l1.4-.6L19 18Z"/>
+            @break
         @case('grid')
             <rect x="3" y="3" width="7" height="7" rx="1.4"/><rect x="14" y="3" width="7" height="7" rx="1.4"/>
             <rect x="3" y="14" width="7" height="7" rx="1.4"/><rect x="14" y="14" width="7" height="7" rx="1.4"/>

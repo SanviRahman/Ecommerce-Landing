@@ -272,4 +272,57 @@ final class P04VariantCatalogMySqlTest extends TestCase
         $this->actingAs($user)->get(route('admin.products.variants.index', $product->id))
             ->assertOk()->assertSee('Variants:');
     }
+
+    public function test_unused_color_value_can_be_edited_and_deleted(): void
+    {
+        $this->catalog->bootstrapOptions();
+        $option = ProductOption::where('code', 'color')->firstOrFail();
+        $code = 'p40-' . Str::lower(Str::random(10));
+        $this->catalog->addOptionValue($option, ['code' => $code, 'label' => 'Before']);
+        $value = ProductOptionValue::where('product_option_id', $option->id)->where('code', $code)->firstOrFail();
+        $this->catalog->updateOptionValue($option, $value, [
+            'code' => $code, 'label' => 'Forest Green', 'swatch_hex' => '#187449',
+            'sort_order' => 2, 'is_active' => true,
+        ]);
+        self::assertSame('Forest Green', $value->fresh()->label);
+        self::assertSame('#187449', $value->fresh()->swatch_hex);
+        $this->catalog->deleteOptionValue($option, $value);
+        self::assertFalse(ProductOptionValue::whereKey($value->id)->exists());
+    }
+
+    public function test_referenced_color_value_cannot_change_code_or_be_deleted(): void
+    {
+        $product = $this->variableProduct();
+        $code = 'p40-' . Str::lower(Str::random(10));
+        $id = $this->option('color', $code, 'Blue');
+        $this->catalog->createVariant($product, 'P40-C-' . Str::random(8), ['color' => $id], null, null, true);
+        $option = ProductOption::where('code', 'color')->firstOrFail();
+        $value = ProductOptionValue::findOrFail($id);
+        try {
+            $this->catalog->updateOptionValue($option, $value, [
+                'code' => 'different', 'label' => 'Blue', 'swatch_hex' => '#2222FF',
+                'sort_order' => 0, 'is_active' => true,
+            ]);
+            self::fail('A used option code must remain immutable.');
+        } catch (ValidationException $expected) {
+            self::assertSame($code, $value->fresh()->code);
+        }
+        $this->expectException(ValidationException::class);
+        $this->catalog->deleteOptionValue($option, $value);
+    }
+
+    public function test_value_used_by_active_variant_cannot_be_disabled(): void
+    {
+        $product = $this->variableProduct();
+        $code = 'p40-' . Str::lower(Str::random(10));
+        $id = $this->option('size', $code, 'XL');
+        $this->catalog->createVariant($product, 'P40-S-' . Str::random(8), ['size' => $id], null, null, true);
+        $option = ProductOption::where('code', 'size')->firstOrFail();
+        $value = ProductOptionValue::findOrFail($id);
+        $this->expectException(ValidationException::class);
+        $this->catalog->updateOptionValue($option, $value, [
+            'code' => $code, 'label' => 'XL', 'swatch_hex' => null,
+            'sort_order' => 0, 'is_active' => false,
+        ]);
+    }
 }

@@ -1,0 +1,116 @@
+/* P39: screenshot-reference presentation, scoped to storefront only. No admin/campaign overrides.
+   Existing per-section allowlisted builder themes remain the color authority. */
+.p34-storefront {
+    --p39-ink:#0a392b;
+    --p39-forest:#064431;
+    --p39-mint:#eef8f1;
+    font-size:16px;
+    line-height:1.65;
+    text-rendering:optimizeLegibility;
+}
+.p34-storefront .p07-container,.p34-storefront .sf-wrapper {width:min(1250px,calc(100% - 42px))}
+.p34-storefront .p19-desktop-nav a {font-size:14px}
+.p34-storefront .p33-brand-name {font-size:clamp(18px,1.6vw,22px)}
+.p34-storefront .sf-section h2,.p34-storefront .p33-section-heading h2 {font-size:clamp(30px,3vw,43px);line-height:1.16;letter-spacing:-.045em}
+.p34-storefront .sf-section .sf-lead,.p34-storefront .p33-section-heading p {font-size:clamp(15px,1.15vw,17px);line-height:1.75}
+.p34-storefront .p07-card-body h3,.p34-storefront .sf-product-copy h3 {font-size:clamp(15px,1.35vw,18px);line-height:1.42}
+.p34-storefront .p07-card-prices strong,.p34-storefront .sf-price {font-size:clamp(18px,1.8vw,23px)}
+.p34-storefront :is(.p07-card,.sf-product,.sf-tile) {box-shadow:0 10px 27px #053b2410;transition:box-shadow .27s ease,transform .27s ease,border-color .27s ease}
+.p34-storefront :is(.p07-card,.sf-product,.sf-tile):hover {box-shadow:0 16px 34px #053b241c;border-color:#c0dec9}
+.p34-storefront .p07-card-body,.p34-storefront .sf-product-copy {padding:16px 16px 19px}
+.p34-storefront :is(.sf-cta,.p34-buy-button,.p07-card-action,.p07-back-to-shop):not(:disabled) {transition:background .25s,box-shadow .25s,transform .25s}
+.p34-storefront :is(.sf-cta,.p34-buy-button,.p07-card-action,.p07-back-to-shop):not(:disabled):hover {transform:translateY(-3px);box-shadow:0 12px 24px #053a2728}
+/* Reference-like clean category menu: active selections retain strong text contrast. */
+.p34-storefront .p19-mega-panel {background:#fff;border-radius:18px;padding:10px;box-shadow:0 20px 45px #05372626}
+.p34-storefront .p19-parent-category > summary {min-height:43px;gap:8px;padding:11px 13px;font-weight:750;color:#153c2c!important}
+.p34-storefront .p19-parent-category > summary:hover {background:#eaf5ed!important;color:#07462f!important}
+.p34-storefront .p19-parent-category[open] > summary,
+.p34-storefront .p19-parent-category[open] > summary:hover {background:linear-gradient(120deg,#137450,#075035)!important;color:#fff!important}
+.p34-storefront .p19-parent-category[open] > summary :is(svg,.p34-icon) {color:#fff!important;stroke:currentColor}
+.p34-storefront .p19-category-children a {display:block;min-height:37px;padding:10px 12px;color:#244f3d!important;border-radius:9px;font-size:13px}
+.p34-storefront .p19-category-children a:hover {background:#e7f3eb;color:#06472f!important}
+.p34-storefront .p19-category-children a[aria-current="page"] {background:#e1f0e6;color:#07583c!important;font-weight:800}
+/* Contact: legacy .p10-contact-menu[open] summary span rule rotated the LABEL too. */
+.p34-storefront .p38-contact-dock {right:14px!important;isolation:isolate}
+.p34-storefront .p38-contact-menu>summary {min-width:122px;gap:9px;border-radius:12px;padding:11px 15px;font-size:13px;box-shadow:0 10px 24px #012c1c40;transform:none;transition:background .25s,box-shadow .25s,translate .25s}
+.p34-storefront .p38-contact-menu>summary:hover {transform:none;translate:-3px 0;background:#0a6545;box-shadow:0 16px 29px #012c1c50}
+.p34-storefront .p38-contact-menu>summary .p38-contact-label,
+.p34-storefront .p38-contact-menu[open]>summary .p38-contact-label {transform:none!important;rotate:none!important;writing-mode:horizontal-tb!important;white-space:nowrap;display:inline-block;color:#fff;line-height:1.2;letter-spacing:0}
+.p34-storefront .p38-contact-menu>summary .p38-contact-plus {display:inline-block;transform:none!important;font-size:19px;line-height:1;transition:rotate .26s ease}
+.p34-storefront .p38-contact-menu[open]>summary .p38-contact-plus {transform:none!important;rotate:45deg}
+.p34-storefront .p38-contact-menu>summary .p34-icon {transform:none!important;rotate:none!important}
+.p34-storefront .p38-contact-menu[open]>summary {background:linear-gradient(130deg,#006e49,#074532)}
+.p34-storefront .p38-contact-list {border:1px solid #d5e5db;border-radius:17px;min-width:174px;gap:4px;padding:10px;box-shadow:0 19px 40px #07352126;animation:p39-contact-pop .28s cubic-bezier(.2,.8,.2,1) both}
+.p34-storefront .p38-contact-method {font-size:13px;min-height:43px;transition:background .2s,translate .2s}
+.p34-storefront .p38-contact-method:hover {transform:none;translate:-3px 0}
+@keyframes p39-contact-pop{from{opacity:0;transform:translate(12px,-50%) scale(.96)}to{opacity:1;transform:translate(0,-50%) scale(1)}}
+/* Reference composition: pale mint review zone, editorial heading to the left. */
+.p34-storefront .p35-home-reviews>.sf-wrapper {display:grid;grid-template-columns:minmax(200px,.8fr) minmax(0,2.25fr);gap:clamp(18px,3vw,38px);align-items:center;background:linear-gradient(115deg,#eff8f2,#f5faf7 64%,#eaf6ef);border:1px solid #e3f0e8;border-radius:28px;padding:clamp(24px,3vw,38px);max-width:1250px}
+.p34-storefront .p39-review-intro {min-width:0}
+.p34-storefront .p39-review-intro .sf-kicker {color:#0e7650;font-size:12px;letter-spacing:.13em}
+.p34-storefront .p39-review-intro h2 {font-size:clamp(28px,3.3vw,39px);line-height:1.16;margin:8px 0 14px;color:var(--sf-heading,#0d392a)}
+.p34-storefront .p39-review-intro .sf-title-decoration {display:none}
+.p34-storefront .p39-review-intro .sf-lead {margin:0;color:var(--sf-text,#527263);font-size:15px}
+.p34-storefront .p39-review-shell {min-width:0;position:relative;padding:0 0 37px}
+.p34-storefront .p39-review-shell .sf-grid-reviews {display:flex!important;grid-template-columns:none!important;align-items:stretch;gap:16px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;scroll-snap-type:x mandatory;scroll-padding:0 2px;padding:7px 2px 13px;max-width:100%;touch-action:pan-x pan-y;overscroll-behavior-x:contain;scroll-behavior:smooth}
+.p34-storefront .p39-review-shell .sf-grid-reviews::-webkit-scrollbar {display:none}
+.p34-storefront .p39-review-shell .sf-review {flex:0 0 43%!important;min-width:0;max-width:43%!important;min-height:255px!important;scroll-snap-align:start;border-radius:18px;display:flex;flex-direction:column;padding:20px;box-shadow:0 9px 25px #0740210d}
+.p34-storefront .p39-review-shell .sf-review blockquote {font-size:clamp(14px,1.06vw,16px);line-height:1.7;flex:1}
+.p34-storefront .p39-review-shell .sf-review figcaption {margin-top:auto}
+.p34-storefront .p39-review-shell .sf-review-controls {position:absolute;inset:44% -18px auto;display:flex;justify-content:space-between;pointer-events:none;z-index:2}
+.p34-storefront .p39-review-shell .sf-review-controls[hidden]{display:none}
+.p34-storefront .p39-review-shell .sf-review-controls button {pointer-events:auto;width:39px;height:39px;border:1px solid #d7e8dc;border-radius:50%;background:#fff;color:#0c5238;cursor:pointer;font-size:19px;box-shadow:0 8px 20px #053c2122;transition:transform .2s,background .2s}
+.p34-storefront .p39-review-shell .sf-review-controls button:hover{transform:scale(1.07);background:#e5f6e9}
+.p34-storefront .p39-review-dots {display:flex;justify-content:center;align-items:center;gap:10px;position:absolute;bottom:0;left:0;right:0;min-height:26px}
+.p34-storefront .p39-review-dots[hidden]{display:none}
+.p34-storefront .p39-review-dots button {width:10px;height:10px;border:0;border-radius:50%;padding:0;background:#bfd3c7;cursor:pointer;transition:width .25s,background .25s,transform .25s}
+.p34-storefront .p39-review-dots button[aria-current="true"]{width:26px;border-radius:7px;background:#08583b}
+.p34-storefront .p39-review-dots button:focus-visible{outline:3px solid #09784a;outline-offset:3px}
+/* Discover More: photographic editorial split, intentionally reduced borders and frame. */
+.p34-storefront .sf-image-text {gap:clamp(22px,4vw,58px);grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);margin:20px 0 0;align-items:center}
+.p34-storefront .sf-image-text>img {width:100%;height:auto;aspect-ratio:1.36/1;object-fit:cover;object-position:50% 30%;border:0;border-radius:22px;box-shadow:0 12px 33px #0d3c2320;transition:transform .45s ease,box-shadow .45s ease}
+.p34-storefront .sf-image-text>img:hover {transform:scale(1.012);box-shadow:0 19px 40px #0d3c2329}
+.p34-storefront .sf-image-text>div {padding:clamp(12px,1.8vw,28px) 0;min-width:0}
+.p34-storefront .sf-image-text h3 {font-size:clamp(29px,3.35vw,44px);font-weight:850;line-height:1.2}
+.p34-storefront .sf-image-text p {font-size:clamp(15px,1.25vw,17px);line-height:1.82}
+/* Guests have navigable, accessible heart controls; forms only for signed-in customers. */
+.p34-storefront a.p39-guest-heart {display:grid;place-items:center;position:absolute;top:12px;right:12px;z-index:3;width:42px;height:42px;border:1px solid #d4e7da;border-radius:50%;color:#126344;background:#fff;box-shadow:0 5px 18px #0b34221d;text-decoration:none;transition:transform .2s,background .2s}
+.p34-storefront a.p39-guest-heart:hover {transform:scale(1.08);background:#eaf7ef}
+.p34-storefront a.p39-guest-heart svg {width:22px;height:22px}
+.p34-storefront .p39-login-wishlist {display:inline-flex;align-items:center;gap:8px;text-decoration:none}
+.p34-storefront .p39-wishlist-signin-note {background:#eaf7ef;border:1px solid #c8e5d1;padding:12px 15px;border-radius:11px;color:#0b553b;font-weight:700}
+/* Tablet/mobile responsive scaling; no sideways scrollbar, larger tap targets. */
+@media(max-width:900px){
+ .p34-storefront .p35-home-reviews>.sf-wrapper {grid-template-columns:1fr;gap:16px}
+ .p34-storefront .p39-review-shell .sf-review {flex-basis:46%!important;max-width:46%!important;min-height:235px!important}
+ .p34-storefront .sf-image-text {grid-template-columns:1fr;gap:16px}
+ .p34-storefront .sf-image-text>img {aspect-ratio:1.5/1}
+}
+@media(max-width:650px){
+ .p34-storefront .p07-container,.p34-storefront .sf-wrapper {width:calc(100% - 26px)}
+ .p34-storefront .sf-section h2 {font-size:clamp(25px,7.1vw,34px)}
+ .p34-storefront .sf-section .sf-lead {font-size:14px}
+ .p34-storefront .p07-card-body,.p34-storefront .sf-product-copy{padding:12px 11px 15px}
+ .p34-storefront .p07-card-body h3,.p34-storefront .sf-product-copy h3{font-size:14px}
+ .p34-storefront .p35-home-reviews>.sf-wrapper {padding:20px 14px 23px;border-radius:20px}
+ .p34-storefront .p39-review-shell .sf-review {flex-basis:86%!important;max-width:86%!important;min-height:230px!important;padding:19px}
+ .p34-storefront .p39-review-shell .sf-review-controls {inset:40% -7px auto}
+ .p34-storefront .p39-review-shell .sf-review-controls button {width:35px;height:35px}
+ .p34-storefront .sf-image-text>img {aspect-ratio:1.18/1;border-radius:16px}
+ .p34-storefront .p38-contact-dock {right:5px!important}
+ .p34-storefront .p38-contact-menu>summary {min-width:48px;padding:9px 6px}
+ .p34-storefront a.p39-guest-heart {width:35px;height:35px;top:8px;right:8px}
+}
+@media(prefers-reduced-motion:reduce){
+ .p34-storefront :is(.p39-review-shell .sf-grid-reviews,.p38-contact-list,.p38-contact-menu>summary,.p38-contact-method,.sf-image-text>img,.p39-review-dots button){scroll-behavior:auto!important;animation:none!important;transition:none!important}
+}
+
+/* Reference hero trust micro-row; never added to image-only banner or draft preview. */
+.p34-storefront .p39-hero-benefits {display:flex;flex-wrap:wrap;align-items:center;gap:clamp(8px,1.8vw,20px);margin-top:clamp(12px,2vw,28px);color:#edfff2;font-size:12px;font-weight:750}
+.p34-storefront .p39-hero-benefits span {display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
+.p34-storefront .p39-hero-benefits svg {width:18px;height:18px;flex:none}
+.p34-storefront .sf-hero-copy .sf-eyebrow {color:#a4f0bf;font-size:12px;letter-spacing:.16em}
+.p34-storefront .p39-category-label {display:inline-flex;align-items:center;gap:10px;min-width:0}
+.p34-storefront .p39-category-label svg {width:18px;height:18px;flex:none;color:inherit}
+@media(max-width:900px){.p34-storefront .p39-hero-benefits {font-size:10px;gap:7px}.p34-storefront .p39-hero-benefits svg{width:14px;height:14px}}
+@media(max-width:760px){.p34-storefront .p39-hero-benefits {display:none}}

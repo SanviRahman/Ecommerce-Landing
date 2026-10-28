@@ -15,6 +15,7 @@
 
     <!-- Scripts -->
     @vite(['resources/sass/app.scss', 'resources/js/app.js'])
+    <link rel="stylesheet" href="{{ asset('frontend/css/back-to-top.css') }}">
 </head>
 <body>
     <div id="app">
@@ -76,5 +77,6 @@
             @yield('content')
         </main>
     </div>
+    <script src="{{ asset('frontend/js/back-to-top.js') }}" defer></script>
 </body>
 </html>

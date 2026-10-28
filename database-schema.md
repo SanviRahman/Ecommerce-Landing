@@ -297,3 +297,19 @@ Columns: `id` PK, `name` TEXT (Laravel encrypted), `email` TEXT (encrypted), `ph
 `storefront_revisions.deleted_at` is nullable. Only archived records can receive this hide marker; `storefront_pages.draft_revision_id` and `published_revision_id` must not reference a hidden revision. This is **visibility-only archive deletion**: no hard deletion of linked content, child sections/items, or audit rows. `homepage_audit_events` records the action. Existing unique `revision_number` and foreign keys stay unchanged.
 
 SiteSetting branding uses existing Spatie `media` rows with three independent storefront collection names (`storefront_logo`, `storefront_white_logo`, `storefront_favicon`); legacy campaign `site_logo`, `site_white_logo` and `site_favicon` remain unchanged. No schema change for images.
+
+### P40 site_settings — Public footer social profiles (2026-10-27)
+
+The existing `site_settings.phone`, `hotline`, `whatsapp_number`, `email`, `address`,
+`business_short_description` and `working_hours` continue to control the storefront
+footer and Contact Us page. P40 adds only these columns to the existing table:
+
+| Column | Type / default | Meaning |
+|---|---|---|
+| `footer_youtube_url` | nullable VARCHAR(255) | HTTPS profile URL |
+| `footer_facebook_url` | nullable VARCHAR(255) | HTTPS profile URL |
+| `footer_instagram_url` | nullable VARCHAR(255) | HTTPS profile URL |
+| `footer_linkedin_url` | nullable VARCHAR(255) | HTTPS profile URL |
+| `footer_social_managed` | BOOLEAN default false | false: read existing `social_media` for old social icons; true: Site Settings controls them and blank URLs hide their icons |
+
+The footer uses the **active** setting. Call uses a validated `tel:` link from `phone` (fallback `hotline`) and WhatsApp uses a validated `wa.me` URL from `whatsapp_number`. No new social/media table, campaign link change or customer row is introduced. Database migration has **not** been executed by this source patch; backward compatibility preserves existing `social_media` records for older installations.

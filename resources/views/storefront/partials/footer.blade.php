@@ -22,7 +22,9 @@
                 @if($socialLinks->isNotEmpty())
                     <nav class="p33-social-links p37-social-links" aria-label="Official social media profiles">
                         @foreach($socialLinks as $social)
-                            <a href="{{ $social['url'] }}" target="_blank" rel="noopener noreferrer" class="p33-social-icon p33-social-{{ $social['platform'] }}" aria-label="{{ $social['label'] }} (opens in a new tab)" title="{{ $social['label'] }}">
+                            <a href="{{ $social['url'] }}" @unless($social['platform'] === 'phone') target="_blank" rel="noopener noreferrer" @endunless
+                               class="p33-social-icon p33-social-{{ $social['platform'] }}"
+                               aria-label="{{ $social['label'] }}" title="{{ $social['label'] }}">
                                 @include('storefront.partials.social-icon', ['platform' => $social['platform']])
                             </a>
                         @endforeach

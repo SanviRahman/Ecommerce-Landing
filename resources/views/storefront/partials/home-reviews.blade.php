@@ -6,8 +6,9 @@
             ->map(static fn ($item) => $reviews[$item['review_id']])->values()
         : collect($publicReviews ?? [])->values();
 @endphp
-<div class="sf-reviews-shell p37-review-shell" data-review-carousel>
-    <div class="sf-grid sf-grid-reviews" data-review-track>
+<div class="sf-reviews-shell p37-review-shell p39-review-shell" data-review-carousel data-p39-review-carousel
+     role="region" aria-roledescription="carousel" aria-label="Customer reviews">
+    <div class="sf-grid sf-grid-reviews" data-review-track aria-live="off">
         @forelse($visibleReviews as $review)
             <figure class="sf-review p37-review-card">
                 <div class="p37-review-stars" aria-label="{{ (int) $review->rating }} out of 5 stars">
@@ -34,4 +35,5 @@
         <button type="button" data-review-prev aria-label="Previous review">←</button>
         <button type="button" data-review-next aria-label="Next review">→</button>
     </div>
+    <div class="p39-review-dots" data-review-dots aria-label="Select customer review" hidden></div>
 </div>

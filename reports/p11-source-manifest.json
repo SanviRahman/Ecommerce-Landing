@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "scope": "allowlisted-code-only",
-  "count": 596,
-  "sha256": "b2c80bd4315a5cfee72e35c015176c25ad8cb983995cc8baa2396aab46b2f737",
+  "count": 600,
+  "sha256": "1bcc85943cdb319c3a503f582aab3fd7443a60b07adf9b2b6fee3d09761ecfda",
   "files": [
     {
       "path": "app/Console/Commands/BackfillDefaultProductVariants.php",
@@ -286,8 +286,8 @@
     },
     {
       "path": "app/Http/Controllers/Frontend/StorefrontWishlistController.php",
-      "bytes": 3632,
-      "sha256": "1337c1bfcb64ae123762ffb7d0687273299122c49b0779eab33343cec6a36d37"
+      "bytes": 3675,
+      "sha256": "1cc4d8a0fa1ca6c6122bebeca3352e4a3087c33604cd10ad3fa4fad177dc75a4"
     },
     {
       "path": "app/Http/Controllers/Webhook/PathaoWebhookController.php",
@@ -793,6 +793,11 @@
       "path": "app/Support/StorefrontContactLinks.php",
       "bytes": 3924,
       "sha256": "5a9f415117f07f66c38bb5f42a2cb74b02cecbeb2fc80dd6ae8cd14f2270fceb"
+    },
+    {
+      "path": "app/Support/StorefrontWishlistState.php",
+      "bytes": 2119,
+      "sha256": "7ba408a8aaba590d8d9d0207b5000c3ef9adf0f907ab72d06d109824340bd579"
     },
     {
       "path": "app/Support/VariantSignature.php",
@@ -1440,6 +1445,11 @@
       "sha256": "0e74704b0a7eb25c2e4eb37a9e07ab425c1122c7316311dbd0bfe73acb0e128b"
     },
     {
+      "path": "public/frontend/css/storefront-p39.css",
+      "bytes": 12197,
+      "sha256": "e751ca42aa42ce21d1b415003c72294cdfd04f3e85c28721ad9c85384fefe159"
+    },
+    {
       "path": "public/frontend/css/storefront-premium.css",
       "bytes": 18680,
       "sha256": "1fa2923b017dc272dd11a0cca6727ddd1f48dd311744a4d1bc1fa0321fc6bfe7"
@@ -1496,8 +1506,8 @@
     },
     {
       "path": "public/frontend/js/storefront-next.js",
-      "bytes": 17693,
-      "sha256": "b15657638da2fc15aa175dee45803f9119ba53e23cca69aca1775f4e8446d152"
+      "bytes": 17806,
+      "sha256": "d3ea87b6a4923de252edc16973bc8951adb65f2c9c263499bbe1ae6b7d8f576f"
     },
     {
       "path": "public/frontend/js/storefront-p35.js",
@@ -1513,6 +1523,11 @@
       "path": "public/frontend/js/storefront-p38.js",
       "bytes": 520,
       "sha256": "d9238b8639b5d07fd91e87d43329e670fe2e82de3046b5b2402af8c1439f8a95"
+    },
+    {
+      "path": "public/frontend/js/storefront-p39.js",
+      "bytes": 5233,
+      "sha256": "d78c66df87737cc96d1cb5b082f2a677b2d0ff31b77201c2c85a482d47665d5f"
     },
     {
       "path": "public/frontend/js/storefront-premium.js",
@@ -2111,8 +2126,8 @@
     },
     {
       "path": "resources/views/storefront/account/login.blade.php",
-      "bytes": 1470,
-      "sha256": "33f337c1ace9bddab0c185fe9b7367baf1ce1f2996f3088c9aa9d02355dfe926"
+      "bytes": 1584,
+      "sha256": "1be286df801c8e44039a746ce52d30b442c65883ea5119ccafaaa9f09fd9a9c7"
     },
     {
       "path": "resources/views/storefront/account/register.blade.php",
@@ -2121,8 +2136,8 @@
     },
     {
       "path": "resources/views/storefront/layouts/catalog.blade.php",
-      "bytes": 2958,
-      "sha256": "04330e19125d3e99b6e54f189e02dc913337a2360eb758c39d6173891ac1d29d"
+      "bytes": 3119,
+      "sha256": "6e27f46fdb82274c71456d68d3e675e4febb4a65affc5de6c4ca6c508bc180af"
     },
     {
       "path": "resources/views/storefront/pages/cart.blade.php",
@@ -2151,13 +2166,13 @@
     },
     {
       "path": "resources/views/storefront/pages/home.blade.php",
-      "bytes": 24258,
-      "sha256": "ca7d260f62d3628fe97861d5ef7e7e8ebf5c4140aa5c4a4dd93a1f6bc9a3272c"
+      "bytes": 25316,
+      "sha256": "bf1ab5eafb7751e6b629bc40fcaf04c2348fedadda61c2db33540dcfc2ddaa11"
     },
     {
       "path": "resources/views/storefront/pages/product.blade.php",
-      "bytes": 13953,
-      "sha256": "0837cba49d72bd0b34a0a10bb6f755afd7cf8ba39250789b148ab2fdd0e7c9ee"
+      "bytes": 14627,
+      "sha256": "063d8e96449f18d38f4c17e458a24e3cb087d3a6cd19b9d98455442b142eca03"
     },
     {
       "path": "resources/views/storefront/pages/shop.blade.php",
@@ -2171,8 +2186,8 @@
     },
     {
       "path": "resources/views/storefront/pages/wishlist.blade.php",
-      "bytes": 1225,
-      "sha256": "97a490771b48922fae37667e712874b2f175d420d35c93ff6be2d06b41d3a44a"
+      "bytes": 1227,
+      "sha256": "ee761e0b1dc794bdf004d1f94184d2a7288dfc55a1ee47e77eec6f85180b74f6"
     },
     {
       "path": "resources/views/storefront/partials/contact-widget.blade.php",
@@ -2186,28 +2201,28 @@
     },
     {
       "path": "resources/views/storefront/partials/home-product-card.blade.php",
-      "bytes": 4405,
-      "sha256": "2ccff6e85f22088f3067de61b166825cc90b44adfdc6f386eaac587afc74ce85"
+      "bytes": 4862,
+      "sha256": "c937770884feee5fa98380b88fbe3db763276ba32341234df034f4ce0bf83fe8"
     },
     {
       "path": "resources/views/storefront/partials/home-reviews.blade.php",
-      "bytes": 2254,
-      "sha256": "5c1139e5ec2bee1ff9dc1c3b39d863fb0a822b0658bd423bbe1b5ff86c9b59eb"
+      "bytes": 2493,
+      "sha256": "51be65363c629d1cb09150a7fcfc4179ce97e90fb6ffa744080de43bc8799ffe"
     },
     {
       "path": "resources/views/storefront/partials/icon.blade.php",
-      "bytes": 4309,
-      "sha256": "392d356bd6f0381221de8f6a1cbc6ea57ac754e990cc4f85d91d3f7eb21a8fdf"
+      "bytes": 4920,
+      "sha256": "a2291d09f3e1b1e0ad9413e25a0680504b4c24940047cc010607273067fce6cb"
     },
     {
       "path": "resources/views/storefront/partials/navigation.blade.php",
-      "bytes": 13159,
-      "sha256": "b0ce17cfb5bd3306c8f7cf3d6afae0ea17981e1f041b5c66203fd324eaf07426"
+      "bytes": 14341,
+      "sha256": "d0cbfe4bd41f7e08d54bf5c088ee04f6d361a96c5e2c13297c57876bc469056b"
     },
     {
       "path": "resources/views/storefront/partials/product-card.blade.php",
-      "bytes": 4124,
-      "sha256": "ef83943620c1a62ea880324d7a4b587259c61d4881ef2b82f5ac3496e3186c78"
+      "bytes": 4605,
+      "sha256": "a509ff41fba778e469e950b3dbf018f6dfba490b50f976c1bebb38f66b2fc147"
     },
     {
       "path": "resources/views/storefront/partials/social-icon.blade.php",
@@ -2788,6 +2803,11 @@
       "path": "tools/qa/check-p38-source-contract.mjs",
       "bytes": 3175,
       "sha256": "85963061ed96672f55b7c6aadd8e406c636e9a4777023a134b017c8cd1fe3162"
+    },
+    {
+      "path": "tools/qa/check-p39-reference-wishlist.mjs",
+      "bytes": 5732,
+      "sha256": "318672eb123cc3795631cb7587dc2d0dd98ec8fd4621f5ec48b3c91e10fb4896"
     },
     {
       "path": "tools/qa/check-summary-html.mjs",

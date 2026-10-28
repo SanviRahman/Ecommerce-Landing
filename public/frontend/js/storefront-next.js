@@ -97,6 +97,7 @@
 
   // Approved global testimonials remain read-only; navigation supports pointer, keyboard and reduced motion.
   $$('[data-review-carousel]').forEach(carousel => {
+    if (carousel.hasAttribute('data-p39-review-carousel')) return; // enhanced autoplay/dots handled once by P39
     const track = $('[data-review-track]', carousel);
     const cards = $$('.sf-review', track);
     const controls = $('[data-review-controls]', carousel);

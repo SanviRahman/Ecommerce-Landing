@@ -47,20 +47,53 @@ final class StorefrontBranding
         if ($this->links !== null) {
             return $this->links;
         }
+        $site = $this->settings();
+        $managed = $site !== null && $site->footer_social_managed;
         $allowed = ['facebook', 'instagram', 'youtube', 'linkedin', 'twitter', 'x', 'tiktok', 'pinterest'];
-        $this->links = SocialMedia::query()->active()->orderByDesc('id')->limit(25)->get()
-            ->map(static function (SocialMedia $social) use ($allowed): ?array {
-                $platform = strtolower(trim((string) $social->platform_name));
-                if (! in_array($platform, $allowed, true)) {
-                    return null;
+        $links = collect();
+        if ($managed) {
+            foreach (['facebook', 'instagram', 'youtube', 'linkedin'] as $platform) {
+                $url = trim((string) ($site->{'footer_'.$platform.'_url'} ?? ''));
+                if ($this->safeHttpsUrl($url)) {
+                    $links->push(['platform' => $platform, 'label' => ucfirst($platform), 'url' => $url]);
                 }
-                $parts = parse_url((string) $social->link);
-                if (! is_array($parts) || strtolower((string) ($parts['scheme'] ?? '')) !== 'https'
-                    || empty($parts['host']) || isset($parts['user']) || isset($parts['pass'])) {
-                    return null;
-                }
-                return ['platform' => $platform, 'label' => $social->platform_name, 'url' => $social->link];
-            })->filter()->unique('platform')->take(8)->values();
-        return $this->links;
+            }
+        } else {
+            $links = SocialMedia::query()->active()->orderByDesc('id')->limit(25)->get()
+                ->map(function (SocialMedia $social) use ($allowed): ?array {
+                    $platform = strtolower(trim((string) $social->platform_name));
+                    if (! in_array($platform, $allowed, true) || ! $this->safeHttpsUrl((string) $social->link)) {
+                        return null;
+                    }
+                    return ['platform' => $platform, 'label' => $social->platform_name, 'url' => $social->link];
+                })->filter()->unique('platform')->values();
+        }
+
+        // Call and WhatsApp are managed by the existing phone fields regardless of
+        // whether social links have been migrated from the old SocialMedia screen.
+        $phone = trim((string) ($site?->phone ?: $site?->hotline ?: ''));
+        $digits = preg_replace('/\D+/', '', $phone);
+        if (preg_match('/\A\+?[0-9() .-]+\z/D', $phone) && preg_match('/\A\d{8,15}\z/D', (string) $digits)) {
+            $links->push(['platform' => 'phone', 'label' => 'Call Us',
+                'url' => 'tel:' . (str_starts_with($phone, '+') ? '+' : '') . $digits]);
+        }
+        $whatsApp = preg_replace('/\D+/', '', trim((string) ($site?->whatsapp_number ?? '')));
+        if (preg_match('/\A\d{8,15}\z/D', (string) $whatsApp)) {
+            if (str_starts_with($whatsApp, '01') && strlen($whatsApp) === 11) {
+                $whatsApp = '88' . $whatsApp;
+            }
+            $links->push(['platform' => 'whatsapp', 'label' => 'WhatsApp',
+                'url' => 'https://wa.me/' . $whatsApp]);
+        }
+        return $this->links = $links->unique('platform')->take(10)->values();
     }
+
+    private function safeHttpsUrl(string $url): bool
+    {
+        $parts = parse_url($url);
+        return is_array($parts) && strtolower((string) ($parts['scheme'] ?? '')) === 'https'
+            && ! empty($parts['host']) && ! isset($parts['user']) && ! isset($parts['pass'])
+            && filter_var($url, FILTER_VALIDATE_URL) !== false;
+    }
+
 }

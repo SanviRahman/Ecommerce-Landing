@@ -363,3 +363,21 @@ Prepared changed-files patch for user-provided `website(20261027-040404).zip`: a
 - Implemented independent storefront FAQ admin create/edit/soft-delete and public Help query; campaign FAQ unchanged. Separate Storefront logo, white logo/favicon media collections and Site Settings upload forms; campaign branding retains original collections. Validated floating Contact+ beside intact cart, with accessible WhatsApp/Call/Email links from saved settings. Admin history clone-to-edit and audited archived hide; published revision cannot be deleted.
 - Two forward-only, local-guarded migrations; main/local production DB not modified. No checkout, stock, order, campaign route, or customer data changed.
 - PHP/JS lint and isolated source checks only; Windows MySQL, Blade rendering and browser acceptance pending the operator's manual verification.
+
+### 2026-10-27 - P39 green reference UI and customer-scoped wishlist
+
+- Reviewed `website(20261027-082637).zip`, NextGenAIBD green mockup, current local screenshots and AGENTS/rules/bugfix/constraints.
+- Scoped visual layer: Contact label rotation fix + animation, contrast-safe active mega category, review left-to-right sequence autoplay with accessible pagination dots and pause controls, review two-column editorial composition, compact image-text border and larger storefront typography/cards. Added reviewed category SVG icons and truthful hero support labels; no screenshot flattening.
+- Enforced active customer-only wishlist on GET and POST, with customer-ID-specific session keys, guest Login link and server-side refusal of unauthorized writes. Legacy anonymous wishlist session values ignored, no admin authentication dependency.
+- P39 offline source checks, previous P33-P38 source checks, PHP/JS lint and representative Chromium DOM interaction/viewport checks performed. No Laravel/XAMPP/MySQL integration; real order or account acceptance not asserted.
+- No migration, seed, `.env`, order or inventory service changes. Detailed installation/checks in `P39-START-HERE-BN.md`.
+
+### P40 — User-requested category/product options/footer/scroll improvements (2026-10-27)
+
+- Source: `website(20261027-103622).zip`, 7 user screenshots, `/rules`, `/bugfix`, `/constraint` (resolved to `constraints.md`).
+- Existing category hierarchy and grouped active frontend navigation verified; improved admin parent visibility and featured subcategory navigation on parent-category page, no schema for categories.
+- Completed create/edit/activate-deactivate/delete for existing controlled Color/Size/Weight/Piece Count values; reject deletion of referenced values and deactivation used by active variants; existing option SKU/inventory authority retained.
+- Added one forward-only site-settings migration for social URL fields/managed flag; original links retained until Site Settings first saves. Frontend/footer adds validated WhatsApp and call links. Campaign footer unchanged.
+- Shared animated back-to-top in public layouts + AdminLTE plugin with reduced-motion support and no right-side widget collisions. Linked annotated user screenshots/guide in `P40-START-HERE-BN.md`.
+- Fixed missing asset targets by providing safe, neutral placeholder PNGs for old AdminLTE/category/product image fallbacks and `HasMediaTrait`. Original missing uploads remain unavailable; user data untouched.
+- **Checks:** PHP syntax, frontend JS syntax, offline P40 source contracts. **Blocked:** Composer vendor missing; MySQL/Blade/browser/manual acceptance and P04 integration suite not executable in this source container. No DB operations performed. NOT production-signed-off.

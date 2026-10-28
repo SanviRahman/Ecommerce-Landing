@@ -23,11 +23,17 @@ class SiteSetting extends Model implements HasMedia
         'footer_text',
         'business_short_description',
         'working_hours',
+        'footer_youtube_url',
+        'footer_facebook_url',
+        'footer_instagram_url',
+        'footer_linkedin_url',
+        'footer_social_managed',
         'status',
     ];
 
     protected $casts = [
         'status' => 'boolean',
+        'footer_social_managed' => 'boolean',
     ];
 
     public function registerMediaCollections(): void

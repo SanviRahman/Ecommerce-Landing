@@ -4,6 +4,7 @@
 <div class="p19-auth-layout">
     <section class="p19-auth-card" aria-labelledby="login-title"><p class="p19-caption">CUSTOMER ACCOUNT</p>
         <h1 id="login-title">Welcome Back</h1><p>Login to see your own orders and saved profile.</p>
+        @if(session('status'))<p class="p39-wishlist-signin-note" role="status">{{ session('status') }}</p>@endif
         @if($errors->any())<div class="p08-error" role="alert">{{ $errors->first() }}</div>@endif
         <form method="POST" action="{{ route('storefront.account.login.submit') }}">@csrf
             <label for="p19-login-email">Email Address</label>

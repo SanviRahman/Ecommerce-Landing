@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\SiteSetting;
+use App\Models\SocialMedia;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
@@ -23,7 +24,14 @@ class SiteSettingController extends Controller
 
         $siteSetting = SiteSetting::query()->latest()->first();
 
+        // Legacy records remain a read-only fallback until Site Settings takes ownership.
+        $legacySocial = SocialMedia::query()->active()->whereIn('platform_name',
+            ['youtube', 'facebook', 'instagram', 'linkedin'])
+            ->orderByDesc('id')->get()->unique(fn ($item) => strtolower($item->platform_name))
+            ->mapWithKeys(fn ($item) => [strtolower($item->platform_name) => $item->link]);
+
         return view('admin.site-settings.index', [
+            'legacySocial' => $legacySocial,
             'siteSetting' => $siteSetting,
             'isEdit' => (bool) $siteSetting,
             'action' => $siteSetting
@@ -116,7 +124,12 @@ class SiteSettingController extends Controller
         return $request->only([
             'website_name', 'phone', 'hotline', 'whatsapp_number', 'messenger_link',
             'email', 'address', 'business_short_description', 'working_hours',
-        ]) + ['status' => $request->boolean('status')];
+            'footer_youtube_url', 'footer_facebook_url',
+            'footer_instagram_url', 'footer_linkedin_url',
+        ]) + [
+            'status' => $request->boolean('status'),
+            'footer_social_managed' => true,
+        ];
     }
 
     private function validationRules(): array
@@ -132,6 +145,10 @@ class SiteSettingController extends Controller
             'business_short_description' => ['nullable', 'string', 'max:500'],
             'working_hours' => ['nullable', 'string', 'max:120'],
             'status' => ['nullable', 'boolean'],
+            'footer_youtube_url' => ['nullable', 'url:https', 'max:255'],
+            'footer_facebook_url' => ['nullable', 'url:https', 'max:255'],
+            'footer_instagram_url' => ['nullable', 'url:https', 'max:255'],
+            'footer_linkedin_url' => ['nullable', 'url:https', 'max:255'],
 
             'site_logo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp,svg', 'max:4096'],
             'site_white_logo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp,svg', 'max:4096'],

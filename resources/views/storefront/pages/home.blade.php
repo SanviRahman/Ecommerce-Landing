@@ -29,6 +29,7 @@
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p36.css') }}">
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p37.css') }}">
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p38.css') }}">
+    <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p39.css') }}">
 </head>
 <body class="p34-storefront">
 @php
@@ -132,6 +133,13 @@
                                         <span class="sf-cta sf-inert">{{ $item['link_label'] }} <span aria-hidden="true">→</span></span>
                                     @endif
                                 @endif
+                                @unless($isPreview ?? false)
+                                    <div class="p39-hero-benefits" aria-label="Storefront benefits">
+                                        <span>@include('storefront.partials.icon', ['name'=>'truck']) Delivery options</span>
+                                        <span>@include('storefront.partials.icon', ['name'=>'shield']) Clear product details</span>
+                                        <span>@include('storefront.partials.icon', ['name'=>'headphones']) Customer support</span>
+                                    </div>
+                                @endunless
                             </div>
                             @endif
                             <img class="p36-hero-banner" src="{{ $media[$item['media_id']]->getUrl() }}" alt="{{ $item['title'] ?: 'Featured collection' }}" loading="{{ $loop->first ? 'eager' : 'lazy' }}" decoding="async">
@@ -258,9 +266,11 @@
                 <section id="sf-section-{{ $section['section_key'] }}" class="sf-section p35-home-reviews {{ $reviewVisibility }}"
                     style="{{ $styleForSection($section) }}" aria-label="{{ $section['title'] ?: 'Customer reviews' }}">
                     <div class="sf-wrapper" data-reveal>
-                        @if($section['subtitle'])<p class="sf-kicker">{{ $section['subtitle'] }}</p>@endif
-                        <div class="sf-title-line"><h2>{{ $section['title'] ?: 'Customer reviews' }}</h2><span class="sf-title-decoration" aria-hidden="true"></span></div>
-                        @if($section['description'])<p class="sf-lead">{{ $section['description'] }}</p>@endif
+                        <div class="p39-review-intro">
+                            @if($section['subtitle'])<p class="sf-kicker">{{ $section['subtitle'] }}</p>@endif
+                            <div class="sf-title-line"><h2>{{ $section['title'] ?: 'Customer reviews' }}</h2><span class="sf-title-decoration" aria-hidden="true"></span></div>
+                            @if($section['description'])<p class="sf-lead">{{ $section['description'] }}</p>@endif
+                        </div>
                         @include('storefront.partials.home-reviews', ['section' => $section, 'reviews' => $reviews])
                     </div>
                 </section>
@@ -272,8 +282,11 @@
         @if(!$publicReviewsRendered && collect($revision['sections'])->where('type', 'reviews')->isEmpty() && collect($publicReviews ?? [])->isNotEmpty())
             <section class="sf-section p35-home-reviews p37-auto-reviews" aria-label="Customer reviews">
                 <div class="sf-wrapper" data-reveal>
-                    <p class="sf-kicker">REAL FEEDBACK</p>
-                    <div class="sf-title-line"><h2>What our customers say</h2><span class="sf-title-decoration" aria-hidden="true"></span></div>
+                    <div class="p39-review-intro">
+                        <p class="sf-kicker">CUSTOMER LOVE</p>
+                        <div class="sf-title-line"><h2>What Our Customers Say</h2><span class="sf-title-decoration" aria-hidden="true"></span></div>
+                        <p class="sf-lead">Reviews shared by our customers.</p>
+                    </div>
                     @include('storefront.partials.home-reviews', ['section' => ['items' => []], 'reviews' => $reviews])
                 </div>
             </section>
@@ -323,4 +336,5 @@
     <script src="{{ asset('frontend/js/storefront-catalog.js') }}" defer></script>
 @endunless
 <script src="{{ asset('frontend/js/storefront-p38.js') }}" defer></script>
+<script src="{{ asset('frontend/js/storefront-p39.js') }}" defer></script>
 </body></html>

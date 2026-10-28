@@ -62,7 +62,11 @@ class CategoryController extends Controller
             ? Category::onlyTrashed()
             : Category::query();
 
-        return $query->withCount(['products', 'activeProducts'])->latest();
+        $query->withCount(['products', 'activeProducts']);
+        if ($this->hierarchyAvailable()) {
+            $query->with('parent')->withCount('children');
+        }
+        return $query->latest();
     }
 
     private function applyFilters(Builder $query, Request $request): Builder

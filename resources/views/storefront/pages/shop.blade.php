@@ -15,6 +15,29 @@
         <p>Browse available products and their genuine options. Browse verified options and stock. Add to Cart is shown when secure cart access is ready for this server.</p>
     </section>
 
+    @if($category && $category->parent_id === null)
+        @php $selectedParent = $navigation->firstWhere('id', $category->id); @endphp
+        @if($selectedParent && $selectedParent->children->isNotEmpty())
+            <section class="p40-subcategory-section" aria-labelledby="p40-subcategories-title">
+                <div class="p40-subcategory-heading">
+                    <div><span class="p07-eyebrow">Explore the collection</span>
+                        <h2 id="p40-subcategories-title">Shop {{ $category->name }} subcategories</h2>
+                        <p>Choose a subcategory to browse its products.</p>
+                    </div>
+                    <span class="p40-subcategory-total">{{ $selectedParent->children->count() }} categories</span>
+                </div>
+                <div class="p40-subcategory-grid">
+                    @foreach($selectedParent->children as $child)
+                        <a class="p40-subcategory-card" href="{{ route('storefront.category', $child->slug) }}">
+                            <img src="{{ $catalog->categoryImage($child) }}" alt="" loading="lazy">
+                            <span><strong>{{ $child->name }}</strong><small>Explore products →</small></span>
+                        </a>
+                    @endforeach
+                </div>
+            </section>
+        @endif
+    @endif
+
     <section id="categories" class="p07-browse-categories" aria-label="Product categories">
         <h2>Shop by Category</h2>
         <div class="p07-category-list">

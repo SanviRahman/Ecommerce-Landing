@@ -82,6 +82,63 @@ final class VariantCatalogManager
     }
 
     /**
+     * Option values are shared reference data. Never change a referenced code or
+     * deactivate an actively used choice without first retiring those variants.
+     */
+    public function updateOptionValue(ProductOption $option, ProductOptionValue $value, array $data): void
+    {
+        $this->assertTestSchema();
+        DB::transaction(function () use ($option, $value, $data): void {
+            $option = ProductOption::query()->whereKey($option->id)->lockForUpdate()->firstOrFail();
+            $row = ProductOptionValue::query()->whereKey($value->id)
+                ->where('product_option_id', $option->id)->lockForUpdate()->firstOrFail();
+            if (! isset(self::OPTIONS[$option->code])) {
+                $this->reject('Unsupported product option.', 'option_id');
+            }
+            if ($option->code !== 'color' && ! empty($data['swatch_hex'])) {
+                $this->reject('Only Color can have a swatch.', 'swatch_hex');
+            }
+            $referenced = DB::table('product_variant_values')
+                ->where('product_option_value_id', $row->id)->exists();
+            if ($referenced && $row->code !== $data['code']) {
+                $this->reject('The code is locked because existing variants use this value.', 'code');
+            }
+            if (ProductOptionValue::query()->where('product_option_id', $option->id)
+                ->where('code', $data['code'])->where('id', '!=', $row->id)->exists()) {
+                $this->reject('This code already exists within the option.', 'code');
+            }
+            if ($referenced && ! $data['is_active'] && $row->is_active
+                && DB::table('product_variant_values as pvv')
+                    ->join('product_variants as pv', 'pv.id', '=', 'pvv.product_variant_id')
+                    ->where('pvv.product_option_value_id', $row->id)
+                    ->whereNull('pv.deleted_at')->where('pv.is_active', true)->exists()) {
+                $this->reject('Active variants use this value. Deactivate those variants first.', 'is_active');
+            }
+            $row->update([
+                'code' => $data['code'],
+                'label' => trim($data['label']),
+                'swatch_hex' => $option->code === 'color' ? ($data['swatch_hex'] ?: null) : null,
+                'sort_order' => (int) $data['sort_order'],
+                'is_active' => (bool) $data['is_active'],
+            ]);
+        }, 3);
+    }
+
+    public function deleteOptionValue(ProductOption $option, ProductOptionValue $value): void
+    {
+        $this->assertTestSchema();
+        DB::transaction(function () use ($option, $value): void {
+            $row = ProductOptionValue::query()->whereKey($value->id)
+                ->where('product_option_id', $option->id)->lockForUpdate()->firstOrFail();
+            if (DB::table('product_variant_values')
+                ->where('product_option_value_id', $row->id)->exists()) {
+                $this->reject('Value is used by a variant. Keep it for history; archive the variant before disabling this choice.', 'value');
+            }
+            $row->delete();
+        }, 3);
+    }
+
+    /**
      * Prepare an unreconciled legacy/simple product without touching historic orders.
      * A positive opening balance is recorded as unverified until physically checked.
      */
@@ -191,7 +248,7 @@ final class VariantCatalogManager
                 }
                 $option = $optionMap->get($code);
                 $value = ProductOptionValue::whereKey($valueId)
-                    ->where('product_option_id', $option->id)->where('is_active', true)->first();
+                    ->where('product_option_id', $option->id)->where('is_active', true)->lockForUpdate()->first();
                 if ($value === null) {
                     $this->reject('Option value is inactive or belongs to another option.', 'options');
                 }

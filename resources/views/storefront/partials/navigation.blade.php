@@ -6,7 +6,10 @@
         || request()->attributes->get('p32_local_commerce', false) === true;
     $checkoutActive = $commerceActive && config('storefront.p08_checkout_test_enabled', false) === true
         && config('storefront.p03_core_test_enabled', false) === true;
-    $wishCount = count(array_filter((array) session('storefront_wishlist_ids', []), 'is_int'));
+    $wishlistState = app(\App\Support\StorefrontWishlistState::class);
+    $wishSignedIn = $wishlistState->authenticated();
+    $wishCount = $wishlistState->count();
+    $wishlistHref = $wishSignedIn ? route('storefront.wishlist') : route('storefront.account.login');
     $cartActive = $commerceActive && config('storefront.p08_cart_test_enabled', false) === true;
     $account = $commerceActive ? \Illuminate\Support\Facades\Auth::guard('storefront')->user() : null;
 @endphp
@@ -44,7 +47,7 @@
                     <span class="p33-action-copy"><strong>Shop Products</strong></span>
                 </a>
             @endif
-            <a href="{{ route('storefront.wishlist') }}" class="p19-account-link p32-nav-wishlist p33-wishlist" aria-label="Wishlist, {{ $wishCount }} saved items">
+            <a href="{{ $wishlistHref }}" class="p19-account-link p32-nav-wishlist p33-wishlist" aria-label="{{ $wishSignedIn ? 'Wishlist, '.$wishCount.' saved items' : 'Log in to use Wishlist' }}">
                 <span class="p33-action-icon">@include('storefront.partials.icon', ['name'=>'heart'])<b class="p33-count-badge" data-wishlist-count>{{ $wishCount }}</b></span>
                 <span class="p33-action-copy"><strong>Wishlist</strong><small>{{ $wishCount }} saved items</small></span>
             </a>
@@ -61,12 +64,26 @@
             <summary>@include('storefront.partials.icon', ['name'=>'grid']) <span>All Categories</span>@include('storefront.partials.icon', ['name'=>'chevron-down', 'class'=>'p34-mega-chevron'])</summary>
             <div class="p19-mega-panel">
                 @forelse($navigation as $parent)
+                    @php
+                        // Visual-only icons; never infer category or product data from the label.
+                        $categoryIcons = ['beauty'=>'sparkles','clothing'=>'shirt','electronics'=>'monitor',
+                            'home-kitchen'=>'home','home-and-kitchen'=>'home','natural-oil'=>'leaf','organic-food'=>'leaf'];
+                        $categoryIcon = $categoryIcons[$parent->slug] ?? 'grid';
+                    @endphp
                     <details class="p19-parent-category">
-                        <summary>{{ $parent->name }}@include('storefront.partials.icon', ['name'=>'chevron-right'])</summary>
+                        <summary>
+                            <span class="p39-category-label">@include('storefront.partials.icon', ['name'=>$categoryIcon]) {{ $parent->name }}</span>
+                            @if($parent->children->isNotEmpty())
+                                <span class="p40-subcategory-count" aria-label="{{ $parent->children->count() }} subcategories">{{ $parent->children->count() }}</span>
+                            @endif
+                            @include('storefront.partials.icon', ['name'=>'chevron-right'])
+                        </summary>
                         <div class="p19-category-children">
-                            <a href="{{ route('storefront.category', $parent->slug) }}">All {{ $parent->name }}</a>
+                            <a href="{{ route('storefront.category', $parent->slug) }}"
+                               @if(request()->routeIs('storefront.category') && request()->route('slug') === $parent->slug) aria-current="page" @endif>All {{ $parent->name }}</a>
                             @foreach($parent->children as $child)
-                                <a href="{{ route('storefront.category', $child->slug) }}">{{ $child->name }}</a>
+                                <a href="{{ route('storefront.category', $child->slug) }}"
+                                   @if(request()->routeIs('storefront.category') && request()->route('slug') === $child->slug) aria-current="page" @endif>{{ $child->name }}</a>
                             @endforeach
                         </div>
                     </details>
@@ -99,11 +116,12 @@
     <nav aria-label="Categories and shopping" class="p19-drawer-scroll">
         <a class="p19-drawer-link" href="{{ route('home') }}">@include('storefront.partials.icon', ['name'=>'home']) Home</a>
         <a class="p19-drawer-link" href="{{ route('storefront.shop') }}">@include('storefront.partials.icon', ['name'=>'grid']) Shop All Products</a>
-        <a class="p19-drawer-link" href="{{ route('storefront.wishlist') }}">@include('storefront.partials.icon', ['name'=>'heart']) My Wishlist</a>
+        <a class="p19-drawer-link" href="{{ $wishlistHref }}">@include('storefront.partials.icon', ['name'=>'heart']) My Wishlist</a>
         @if($cartActive)<a class="p19-drawer-link" href="{{ route('storefront.cart') }}">@include('storefront.partials.icon', ['name'=>'cart']) My Cart</a>@endif
         @if($checkoutActive)<a class="p19-drawer-link" href="{{ route('storefront.checkout') }}">Secure Checkout</a>@endif
         @foreach($navigation as $parent)
-            <details class="p19-mobile-category"><summary>{{ $parent->name }}<span aria-hidden="true">+</span></summary>
+            <details class="p19-mobile-category"><summary>{{ $parent->name }}
+                <span class="p40-mobile-count">{{ $parent->children->count() ?: '+' }}</span></summary>
                 <a href="{{ route('storefront.category', $parent->slug) }}">All {{ $parent->name }}</a>
                 @foreach($parent->children as $child)
                     <a href="{{ route('storefront.category', $child->slug) }}">{{ $child->name }}</a>
@@ -151,7 +169,7 @@
     <button type="button" data-menu-open aria-label="Open category menu">
         <span class="p34-bottom-icon">@include('storefront.partials.icon', ['name'=>'grid'])</span><span class="p34-mobile-text">Menu</span>
     </button>
-    <a href="{{ route('storefront.wishlist') }}" class="p33-mobile-wishlist" @if(request()->routeIs('storefront.wishlist')) aria-current="page" @endif aria-label="Wishlist, {{ $wishCount }} saved items">
+    <a href="{{ $wishlistHref }}" class="p33-mobile-wishlist" @if(request()->routeIs('storefront.wishlist')) aria-current="page" @endif aria-label="{{ $wishSignedIn ? 'Wishlist, '.$wishCount.' saved items' : 'Log in to use Wishlist' }}">
         <span class="p34-bottom-icon">@include('storefront.partials.icon', ['name'=>'heart'])<b class="p34-nav-count" data-wishlist-count>{{ $wishCount }}</b></span>
         <span class="p34-mobile-text">Wishlist</span>
     </a>

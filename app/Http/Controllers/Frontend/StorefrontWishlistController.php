@@ -6,28 +6,30 @@ namespace App\Http\Controllers\Frontend;
 
 use App\Http\Controllers\Controller;
 use App\Services\Storefront\PublicCatalog;
+use App\Support\StorefrontWishlistState;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Validation\ValidationException;
 
-/** Real, owner-session-scoped wishlist: no database migration or fake saved count. */
+/** Only active, authenticated storefront customers may see or change a wishlist. */
 final class StorefrontWishlistController extends Controller
 {
-    private const SESSION_KEY = 'storefront_wishlist_ids';
     private const LIMIT = 60;
 
-    public function index(Request $request, PublicCatalog $catalog): Response
+    public function index(Request $request, PublicCatalog $catalog, StorefrontWishlistState $wishlist): Response|RedirectResponse
     {
+        if (! $wishlist->authenticated()) {
+            return $this->requireCustomerLogin();
+        }
         $catalog->assertAvailable();
-        $ids = $this->ids($request);
+        $ids = $wishlist->ids($request);
         $products = $catalog->eligibleProducts()->with(['media', 'category', 'variants.optionValues.option'])
             ->whereIn('products.id', $ids)->get()->sortBy(static function ($product) use ($ids): int {
                 $index = array_search((int) $product->id, $ids, true);
                 return $index === false ? PHP_INT_MAX : $index;
             })->values();
 
-        // Inactive/removed products are never exposed just because they were saved.
         return response()->view('storefront.pages.wishlist', [
             'navigation' => $catalog->navigationCategories(),
             'products' => $products, 'catalog' => $catalog,
@@ -35,12 +37,17 @@ final class StorefrontWishlistController extends Controller
         ])->header('Cache-Control', 'private, no-store, max-age=0');
     }
 
-    public function toggle(Request $request, PublicCatalog $catalog): RedirectResponse
+    public function toggle(Request $request, PublicCatalog $catalog, StorefrontWishlistState $wishlist): RedirectResponse
     {
+        // Direct POSTs, forged anonymous forms and inactive accounts all fail closed.
+        // This check must be server-side, not just hidden links in Blade.
+        if (! $wishlist->authenticated()) {
+            return $this->requireCustomerLogin();
+        }
         $catalog->assertAvailable();
         $data = $request->validate(['product_id' => ['required', 'integer', 'min:1']]);
         $id = (int) $data['product_id'];
-        $ids = $this->ids($request);
+        $ids = $wishlist->ids($request);
         $existing = array_search($id, $ids, true);
         if ($existing !== false) {
             unset($ids[$existing]);
@@ -55,28 +62,15 @@ final class StorefrontWishlistController extends Controller
             $ids[] = $id;
             $message = 'Saved to your wishlist.';
         }
-        $request->session()->put(self::SESSION_KEY, array_values($ids));
+        $wishlist->put($request, array_values($ids));
+
         return redirect()->back(303)->with('status', $message);
     }
 
-    /** @return list<int> */
-    private function ids(Request $request): array
+    private function requireCustomerLogin(): RedirectResponse
     {
-        $input = $request->session()->get(self::SESSION_KEY, []);
-        if (! is_array($input)) {
-            return [];
-        }
-        $ids = [];
-        foreach ($input as $value) {
-            if (! is_int($value) || $value < 1 || in_array($value, $ids, true)) {
-                continue;
-            }
-            $ids[] = $value;
-            if (count($ids) >= self::LIMIT) {
-                break;
-            }
-        }
-        return $ids;
+        return redirect()->route('storefront.account.login')
+            ->with('status', 'Please log in or create a customer account to save products to your wishlist.');
     }
 
     private function cartVersion(Request $request): ?int

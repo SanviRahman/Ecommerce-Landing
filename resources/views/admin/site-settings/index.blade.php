@@ -29,6 +29,11 @@
 @endsection
 
 @section('content')
+<style>
+.sf-social-setting-panel{padding:22px 20px 8px;margin:10px 0 20px;background:linear-gradient(135deg,#f5fbf7,#fff);border:1px solid #d0eadd;border-radius:16px;box-shadow:0 8px 24px rgba(19,90,58,.05)}
+.sf-social-setting-panel .form-control{border-radius:9px;min-height:42px}
+.sf-social-setting-panel .form-control:focus{border-color:#218f61;box-shadow:0 0 0 3px rgba(33,143,97,.12)}
+</style>
 
 @if ($errors->any())
     <div class="alert alert-danger alert-dismissible fade show">
@@ -96,6 +101,29 @@
                                 <div class="form-group col-12"><label for="sfAbout">Footer Description</label><textarea id="sfAbout" name="business_short_description" rows="2" maxlength="500" class="form-control @error('business_short_description') is-invalid @enderror">{{ old('business_short_description', $siteSetting->business_short_description ?? '') }}</textarea>@error('business_short_description')<span class="invalid-feedback">{{ $message }}</span>@enderror</div>
                                 <div class="form-group col-md-6"><label for="sfWhatsApp">WhatsApp Number</label><input id="sfWhatsApp" type="tel" maxlength="25" name="whatsapp_number" class="form-control @error('whatsapp_number') is-invalid @enderror" value="{{ old('whatsapp_number', $siteSetting->whatsapp_number ?? '') }}">@error('whatsapp_number')<span class="invalid-feedback">{{ $message }}</span>@enderror</div>
                                 <div class="form-group col-md-6"><label for="sfMessenger">Messenger HTTPS Link</label><input id="sfMessenger" type="url" maxlength="255" name="messenger_link" class="form-control @error('messenger_link') is-invalid @enderror" value="{{ old('messenger_link', $siteSetting->messenger_link ?? '') }}">@error('messenger_link')<span class="invalid-feedback">{{ $message }}</span>@enderror</div>
+                                <div class="col-12">
+                                    <section class="sf-social-setting-panel" aria-labelledby="sf-footer-links-title">
+                                        <div class="d-flex align-items-center justify-content-between flex-wrap mb-3">
+                                            <div><h6 id="sf-footer-links-title" class="font-weight-bold text-success mb-1"><i class="fas fa-share-alt mr-1"></i> Footer Social Links</h6>
+                                                <p class="small text-muted mb-0">Manage the footer icons here. Blank links will be hidden. WhatsApp and Call use the phone fields above.</p>
+                                            </div>
+                                            <span class="badge badge-success px-3 py-2">Site Settings managed</span>
+                                        </div>
+                                        <div class="row">
+                                            @foreach(['youtube'=>'YouTube', 'facebook'=>'Facebook', 'instagram'=>'Instagram', 'linkedin'=>'LinkedIn'] as $key=>$label)
+                                                @php $field = 'footer_'.$key.'_url'; @endphp
+                                                <div class="form-group col-md-6">
+                                                    <label for="sf-{{ $key }}">{{ $label }} HTTPS URL</label>
+                                                    <input id="sf-{{ $key }}" type="url" name="{{ $field }}" maxlength="255"
+                                                        class="form-control @error($field) is-invalid @enderror"
+                                                        value="{{ old($field, ($siteSetting && $siteSetting->footer_social_managed) ? ($siteSetting->$field ?? '') : ($siteSetting?->$field ?: ($legacySocial[$key] ?? ''))) }}"
+                                                        placeholder="https://{{ $key }}.com/your-profile">
+                                                    @error($field)<span class="invalid-feedback">{{ $message }}</span>@enderror
+                                                </div>
+                                            @endforeach
+                                        </div>
+                                    </section>
+                                </div>
                                 <div class="col-12"><input type="hidden" name="status" value="0"><label><input type="checkbox" name="status" value="1" @checked((bool) old('status', $siteSetting->status ?? true))> Enable active public Site Settings</label></div>
                             </div>
                         </div>

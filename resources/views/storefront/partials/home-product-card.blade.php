@@ -3,7 +3,9 @@
     $price = $productPreview ? (int) $product->new_price : $catalog->displayPrice($product);
     $photo = $product->getFirstMediaUrl('product_thumbnail') ?: asset('frontend/images/no-image.svg');
     $productUrl = route('storefront.product', $product->slug);
-    $saved = in_array((int) $product->id, (array) session('storefront_wishlist_ids', []), true);
+    $wishlistState = app(\App\Support\StorefrontWishlistState::class);
+    $wishSignedIn = $wishlistState->authenticated();
+    $saved = $wishSignedIn && $wishlistState->contains((int) $product->id);
     $defaultSku = $productPreview || $product->has_variants ? null : $product->variants->first(
         fn ($v) => $v->is_default && $v->is_active && !$v->trashed() && $v->stock > 0 && (int) $product->inventory_version === 1
     );
@@ -17,6 +19,7 @@
         <img src="{{ $photo }}" data-image-fallback="{{ asset('frontend/images/no-image.svg') }}" alt="{{ $product->name }}" loading="lazy">
     </a>
     @unless($productPreview)
+        @if($wishSignedIn)
         <form method="POST" action="{{ route('storefront.wishlist.toggle') }}" class="p32-card-wishlist">
             @csrf
             <input type="hidden" name="product_id" value="{{ $product->id }}">
@@ -24,6 +27,12 @@
                 @include('storefront.partials.icon', ['name'=>$saved ? 'heart-fill' : 'heart'])
             </button>
         </form>
+    @else
+        <a class="p32-card-wishlist p39-guest-heart" href="{{ route('storefront.account.login') }}"
+           aria-label="Log in or register to save {{ $product->name }} to your wishlist" title="Log in to save to wishlist">
+            @include('storefront.partials.icon', ['name'=>'heart'])
+        </a>
+    @endif
     @endunless
     <div class="sf-product-copy">
         <p class="sf-product-category">{{ $product->category?->name }}</p>

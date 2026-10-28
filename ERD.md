@@ -212,3 +212,34 @@ The `product_options` -> `product_option_values` -> `product_variant_values` gra
 - `storefront_faqs` is stand-alone. `faqs` -> `campaigns` relationship stays untouched.
 - `site_settings` -> `media` (existing polymorphic Media Library) now uses additional `storefront_logo`, `storefront_white_logo` and `storefront_favicon` collection names; no new FK or column.
 - `storefront_revisions` gets nullable `deleted_at` for hidden *archived* histories only; all `storefront_pages` pointers, `homepage_sections` children, and `homepage_audit_events` references are retained.
+
+## P40 Footer settings extension (source-level, migration pending)
+
+```mermaid
+erDiagram
+    site_settings {
+        bigint id PK
+        string website_name
+        string phone
+        string hotline
+        string whatsapp_number
+        string footer_youtube_url
+        string footer_facebook_url
+        string footer_instagram_url
+        string footer_linkedin_url
+        boolean footer_social_managed
+        boolean status
+    }
+    social_media {
+        bigint id PK
+        string platform_name
+        string link
+        boolean status
+    }
+```
+
+These two tables remain independent (no FK). `StorefrontBranding` reads active
+`social_media` rows **only until** Site Settings first saves and sets
+`footer_social_managed=true`. Thereafter the four Site Settings social URLs are
+authoritative; Call/WhatsApp stay tied to existing contact phone fields. This is a
+source design, not a claim that the P40 migration has run against the user's DB.

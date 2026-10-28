@@ -3,7 +3,9 @@
     $available = $catalog->displayStock($product);
     $price = $catalog->displayPrice($product);
     $productUrl = route('storefront.product', $product->slug);
-    $saved = in_array((int) $product->id, (array) session('storefront_wishlist_ids', []), true);
+    $wishlistState = app(\App\Support\StorefrontWishlistState::class);
+    $wishSignedIn = $wishlistState->authenticated();
+    $saved = $wishSignedIn && $wishlistState->contains((int) $product->id);
     $defaultSku = $product->has_variants ? null : $product->variants->first(
         fn ($v) => $v->is_default && $v->is_active && !$v->trashed() && $v->stock > 0 && (int) $product->inventory_version === 1
     );
@@ -15,13 +17,20 @@
     <a href="{{ $productUrl }}" class="p07-card-link" aria-label="View {{ $product->name }}">
         <img src="{{ $catalog->productImage($product) }}" alt="{{ $product->name }}" loading="lazy" class="p07-card-image">
     </a>
-    <form method="POST" action="{{ route('storefront.wishlist.toggle') }}" class="p32-card-wishlist">
-        @csrf
-        <input type="hidden" name="product_id" value="{{ $product->id }}">
-        <button type="submit" aria-label="{{ $saved ? 'Remove ' : 'Save ' }}{{ $product->name }} {{ $saved ? 'from' : 'to' }} wishlist">
-            @include('storefront.partials.icon', ['name'=>$saved ? 'heart-fill' : 'heart'])
-        </button>
-    </form>
+    @if($wishSignedIn)
+        <form method="POST" action="{{ route('storefront.wishlist.toggle') }}" class="p32-card-wishlist">
+            @csrf
+            <input type="hidden" name="product_id" value="{{ $product->id }}">
+            <button type="submit" aria-label="{{ $saved ? 'Remove ' : 'Save ' }}{{ $product->name }} {{ $saved ? 'from' : 'to' }} wishlist">
+                @include('storefront.partials.icon', ['name'=>$saved ? 'heart-fill' : 'heart'])
+            </button>
+        </form>
+    @else
+        <a class="p32-card-wishlist p39-guest-heart" href="{{ route('storefront.account.login') }}"
+           aria-label="Log in or register to save {{ $product->name }} to your wishlist" title="Log in to save to wishlist">
+            @include('storefront.partials.icon', ['name'=>'heart'])
+        </a>
+    @endif
     <div class="p07-card-body">
         <span class="p07-card-category">{{ $product->category?->name }}</span>
         <h3><a href="{{ $productUrl }}">{{ $product->name }}</a></h3>

@@ -195,3 +195,13 @@ No new migrations or data writes are part of P31. Browser and database integrati
 | DELETE `/admin/storefront/home/history/{revision}` | `admin.storefront.home.history.hide` | Only `archived` history entries, optimistic version lock, retained audit and content |
 
 Published and archived revision editing is **clone-to-draft**, using existing `admin.storefront.home.restore` POST route. Published revision and current draft can never be deleted by history action. Site branding uses existing Site Settings update route, with `storefront_logo`, `storefront_white_logo`, `storefront_favicon` media collections separate from the legacy campaign collections. Contact float links use only validated Site Settings values.
+
+### P40 Admin product option value CRUD
+
+| Method/path | Name | Contract |
+|---|---|---|
+| `POST /admin/products/options/{option}/values` | `admin.products.options.values.store` | Existing CSRF/admin/DB-gated option-value creation |
+| `PATCH /admin/products/options/{option}/values/{value}` | `admin.products.options.values.update` | CSRF/admin, nested ownership, validated unique code/label/HEX/sort/status; no code edits if referenced or active-value disabling if used |
+| `DELETE /admin/products/options/{option}/values/{value}` | `admin.products.options.values.destroy` | CSRF/admin, nested ownership; forbidden if any historical/current variant refers to value |
+
+Existing product, campaign, catalog and checkout URLs are unchanged. Site Settings uses original `PUT /admin/site-settings/{siteSetting}` with four new optional social fields and managed flag, after the forward-only migration.

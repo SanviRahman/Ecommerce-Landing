@@ -5,7 +5,7 @@
     <section class="p32-wishlist-heading">
         <p class="p19-caption">YOUR FAVOURITES</p>
         <h1>My Wishlist <span aria-hidden="true">@include('storefront.partials.icon', ['name'=>'heart'])</span></h1>
-        <p>Saved products stay in this browser's current customer session. Only active products are displayed.</p>
+        <p>Your private wishlist belongs to your signed-in customer session. Only active products are displayed.</p>
         @if(session('status')) <p class="p08-feedback" role="status">{{ session('status') }}</p> @endif
         @if($errors->any()) <p class="p08-error" role="alert">{{ $errors->first() }}</p> @endif
     </section>
