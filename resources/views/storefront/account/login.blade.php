@@ -8,9 +8,9 @@
         @if($errors->any())<div class="p08-error" role="alert">{{ $errors->first() }}</div>@endif
         <form method="POST" action="{{ route('storefront.account.login.submit') }}">@csrf
             <label for="p19-login-email">Email Address</label>
-            <input type="email" id="p19-login-email" name="email" value="{{ old('email') }}" autocomplete="username" required maxlength="190">
+            <input type="email" id="p19-login-email" name="email" placeholder="Enter your email address" value="{{ old('email') }}" autocomplete="username" required maxlength="190">
             <label for="p19-login-password">Password</label>
-            <input type="password" id="p19-login-password" name="password" autocomplete="current-password" required>
+            <input type="password" id="p19-login-password" name="password" placeholder="Enter your password" autocomplete="current-password" required>
             <button class="p08-primary" type="submit">Login to Account →</button>
         </form>
         <p>New customer? <a href="{{ route('storefront.account.register') }}">Create an account</a></p>

@@ -22,6 +22,9 @@
         <a href="{{ route('order.track') }}">Track Order</a>
     </div></div>
     <div class="p07-container p19-main-header">
+        <button type="button" class="p59-header-menu" data-menu-open aria-label="Open category menu" aria-controls="p19-category-menu-drawer">
+            @include('storefront.partials.icon', ['name'=>'menu'])
+        </button>
         <a class="p07-brand p33-logo-brand" href="{{ route('home') }}" aria-label="{{ $brandName }} homepage">
             @if($brandLogo)
                 <img class="p33-site-logo" src="{{ $brandLogo }}" alt="" loading="eager" decoding="async">
@@ -110,7 +113,7 @@
     </form>
 </div>
 <div class="p19-drawer-backdrop" data-drawer-backdrop hidden></div>
-<aside class="p19-drawer p19-menu-drawer" data-menu-drawer role="dialog" aria-modal="true" aria-labelledby="p19-menu-title" hidden>
+<aside id="p19-category-menu-drawer" class="p19-drawer p19-menu-drawer" data-menu-drawer role="dialog" aria-modal="true" aria-labelledby="p19-menu-title" hidden>
     <div class="p19-drawer-head"><h2 id="p19-menu-title">Browse Categories</h2>
         <button type="button" data-drawer-close aria-label="Close menu">@include('storefront.partials.icon', ['name'=>'close'])</button>
     </div>
@@ -170,10 +173,6 @@
     <button type="button" data-menu-open aria-label="Open category menu">
         <span class="p34-bottom-icon">@include('storefront.partials.icon', ['name'=>'grid'])</span><span class="p34-mobile-text">Menu</span>
     </button>
-    <a href="{{ $wishlistHref }}" class="p33-mobile-wishlist" @if(request()->routeIs('storefront.wishlist')) aria-current="page" @endif aria-label="{{ $wishSignedIn ? 'Wishlist, '.$wishCount.' saved items' : 'Log in to use Wishlist' }}">
-        <span class="p34-bottom-icon">@include('storefront.partials.icon', ['name'=>'heart'])<b class="p34-nav-count" data-wishlist-count>{{ $wishCount }}</b></span>
-        <span class="p34-mobile-text">Wishlist</span>
-    </a>
     @if($cartActive)
         <button type="button" data-cart-open class="p34-bottom-cart" aria-label="Open cart">
             <span class="p34-bottom-icon">@include('storefront.partials.icon', ['name'=>'cart'])<b class="p34-nav-count" data-cart-count>…</b></span>

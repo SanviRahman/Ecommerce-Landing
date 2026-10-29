@@ -9,14 +9,15 @@ use App\Models\ProductVariant;
 use App\Services\Storefront\PublicCatalog;
 use App\Support\P32LocalStorefrontAccess;
 use App\Support\P33CatalogAdminAccess;
+use App\Support\P58ProductionStorefrontAccess;
 use App\Support\VariantSignature;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 /**
  * Explicit, admin-approved activation of an audited variable SKU catalog.
- * This is scoped to the existing verified loopback MySQL / isolated QA gates;
- * it is NOT a production feature-flag bypass or a legacy stock migration.
+ * Requires the existing P33 admin role and verified test/local or P58
+ * production database identity. It never reconciles legacy stock automatically.
  */
 final class VariableStorefrontActivation
 {
@@ -33,7 +34,7 @@ final class VariableStorefrontActivation
             // The P32 request middleware grants checkout only when EVERY global
             // readiness condition is true. Validate that same gate *after* this
             // product becomes active, but before the transaction commits.
-            $this->assertLocalCheckoutReady();
+            $this->assertStorefrontCheckoutReady();
         }, 3);
     }
 
@@ -45,7 +46,7 @@ final class VariableStorefrontActivation
             $this->reject('The product is not active. Use the explicit activation action.');
         }
         $this->assertReady($product, requireStock: false);
-        $this->assertLocalCheckoutReady();
+        $this->assertStorefrontCheckoutReady();
     }
 
     public function pause(Product $product): void
@@ -62,8 +63,16 @@ final class VariableStorefrontActivation
         }, 3);
     }
 
-    private function assertLocalCheckoutReady(): void
+    private function assertStorefrontCheckoutReady(): void
     {
+        if (config('app.env') === 'production') {
+            $production = app(P58ProductionStorefrontAccess::class);
+            $production->assertApprovedDatabase(request(), false);
+            if (! $production->checkoutReady()) {
+                $this->reject('Production checkout readiness failed. Check shipping, published homepage and managed SKU inventory before activation. No changes saved.');
+            }
+            return;
+        }
         if (! P32LocalStorefrontAccess::matchesContext(
             (string) config('app.env'), config('app.debug') === true,
             (string) request()->ip(), (string) request()->getHost(),

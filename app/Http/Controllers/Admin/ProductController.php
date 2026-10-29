@@ -163,16 +163,7 @@ class ProductController extends Controller
         $query = $this->applyFilters($query, $request);
 
         $products = $query->paginate(15)->withQueryString();
-        $variantAdminAvailable = false;
-        if (auth()->check() && auth()->user()->isAdmin()) {
-            try {
-                \App\Support\P33CatalogAdminAccess::assertAllowed();
-                $variantAdminAvailable = true;
-            } catch (\Throwable) {
-                $variantAdminAvailable = false;
-            }
-        }
-
+        $variantAdminAvailable = $this->variantAdminAvailable();
 
         $breadcrumb = [
             ['text' => 'Dashboard', 'url' => route('admin.dashboard')],
@@ -224,6 +215,20 @@ class ProductController extends Controller
         );
     }
 
+    /** The list and product details use the same verified variant-admin gate. */
+    private function variantAdminAvailable(): bool
+    {
+        if (! auth()->check() || ! auth()->user()->isAdmin()) {
+            return false;
+        }
+        try {
+            \App\Support\P33CatalogAdminAccess::assertAllowed();
+            return true;
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
     public function show(Product $product)
     {
         $this->adminOrEmployeeOnly();
@@ -232,6 +237,7 @@ class ProductController extends Controller
 
         return view('admin.products.show', [
             'product'    => $product,
+            'variantAdminAvailable' => $this->variantAdminAvailable(),
             'title'      => 'Product Details',
             'breadcrumb' => [
                 ['text' => 'Dashboard', 'url' => route('admin.dashboard')],
@@ -392,7 +398,7 @@ class ProductController extends Controller
                 return response()->json([
                     'status'  => true,
                     'message' => $hasNewVariation
-                        ? 'Color/Size variation saved as a zero-stock, inactive product. You can review SKU and pricing in Variant Manager; use Variants > Validate & Activate for Local Storefront after audited stock is ready.'
+                        ? 'Color/Size variation saved as a zero-stock, inactive product. You can review SKU and pricing in Variant Manager; use Variants > Validate & Activate for Storefront after audited stock is ready.'
                         : 'Product created successfully.',
                     'variant_url' => $hasNewVariation ? route('admin.products.variants.index', $product->id) : null,
                 ]);
@@ -503,7 +509,7 @@ class ProductController extends Controller
             $managed = (int) ($locked->inventory_version ?? 0) === 1;
             if ((bool) ($locked->has_variants ?? false) && ! $locked->status && $request->boolean('status')) {
                 throw ValidationException::withMessages([
-                    'status' => 'Use Variants > Validate & Activate for Local Storefront to verify options, price, inventory and checkout readiness first.',
+                    'status' => 'Use Variants > Validate & Activate for Storefront to verify options, price, inventory and checkout readiness first.',
                 ]);
             }
             if ($managed && $request->has('stock')

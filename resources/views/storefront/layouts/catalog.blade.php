@@ -40,7 +40,7 @@
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p51.css') }}?v=p51">
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p52.css') }}?v=p52">
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p53.css') }}?v=p53">
-    <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p54.css') }}?v=p54">
+    <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p54.css') }}?v=p59">
     <script src="{{ asset('frontend/js/storefront-p51-loader.js') }}?v=p52"></script>
 </head>
 <body class="p34-storefront">

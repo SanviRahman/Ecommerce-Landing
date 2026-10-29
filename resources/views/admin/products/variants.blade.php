@@ -17,8 +17,8 @@
 
 @section('content')
 <div class="alert alert-info" role="note">
-    <strong>Managed variants:</strong> Available on the restricted test DB and verified local development storefront only. On the local main database only a NEW zero-stock product without campaign/order history can be prepared. Legacy campaign checkout remains separate.
-    Conversion temporarily deactivates the product. After verifying a complete, stocked combination, use the explicit local Storefront Activation control below. Production checkout is not unlocked by this page.
+    <strong>Managed variants:</strong> Admin-only on the verified test/local database or approved P58 production database. On a live inventory database, only a NEW zero-stock product without campaign/order history can be prepared. Legacy campaign inventory remains separate.
+    Conversion temporarily deactivates the product. After checking a complete, stocked SKU combination and checkout readiness, activate it explicitly. No historical orders or inventory are rewritten.
     Every variant starts at zero stock. Never assume a 2-piece pack is the same as cart quantity 2.
 </div>
 @if(session('success'))
@@ -54,10 +54,10 @@
                         @else
                             <form method="POST" action="{{ route('admin.products.variants.activate', $product->id) }}">
                                 @csrf
-                                <button class="btn btn-success btn-block" type="submit">Validate &amp; Activate for Local Storefront</button>
+                                <button class="btn btn-success btn-block" type="submit">Validate &amp; Activate for Storefront</button>
                             </form>
                         @endif
-                        <p class="small text-muted mt-2 mb-0">Requires a valid category, complete active options, positive audited SKU stock, and an active local checkout readiness gate. This does not release production commerce.</p>
+                        <p class="small text-muted mt-2 mb-0">Requires a valid category, complete active options, positive audited SKU stock and checkout readiness on the approved database. Production sales still require their independent P58 release gate.</p>
                     </div>
                 @endif
                 @if((int) $product->inventory_version === 0)

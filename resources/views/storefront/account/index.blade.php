@@ -66,7 +66,7 @@
                         </div>
                         <div class="p52-profile-fields p52-profile-personal">
                             <div><label for="p19-profile-name">Full Name <span class="p52-required">*</span></label>
-                                <input id="p19-profile-name" name="name" autocomplete="name" required maxlength="160" value="{{ old('name',$customer->name) }}"></div>
+                                <input id="p19-profile-name" name="name" placeholder="Your full name" autocomplete="name" required maxlength="160" value="{{ old('name',$customer->name) }}"></div>
                             <div><label for="p52-profile-email">Email Address</label>
                                 <input id="p52-profile-email" type="email" value="{{ $customer->email }}" readonly aria-describedby="p52-email-help">
                                 <small id="p52-email-help">Your login email is read-only for account security.</small></div>

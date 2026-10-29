@@ -108,7 +108,7 @@ class ProductVariantController extends Controller
     {
         $this->adminOnly();
         $release->activate($product);
-        return back()->with('success', 'Variant inventory approved. This product is now active for the verified local storefront.');
+        return back()->with('success', 'Variant inventory approved for the verified storefront.');
     }
 
     public function pause(Product $product, VariableStorefrontActivation $release): RedirectResponse

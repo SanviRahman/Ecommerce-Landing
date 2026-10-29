@@ -24,14 +24,14 @@
         @if($isEdit)
             <a class="btn btn-sm btn-outline-success ml-2" href="{{ route('admin.products.variants.index', $product->id) }}">Set variant prices and stock</a>
         @else
-            <span class="small d-block mt-1">For a NEW variable product select Color and/or Size below and set initial Stock to <b>0</b>. A draft SKU will be created automatically. More combinations and their prices can be managed under <b>Variants</b>. The new variable product starts inactive. Once SKU options and audited stock are ready, use Variants > Validate & Activate for Local Storefront. Production checkout remains gated. Existing campaign inventory is never converted automatically.</span>
+            <span class="small d-block mt-1">For a NEW variable product select Color and/or Size below and set initial Stock to <b>0</b>. A draft SKU will be created automatically. More combinations and their prices can be managed under <b>Variants</b>. The new variable product starts inactive. Once SKU options and audited stock are ready, use Variants > Validate & Activate for Storefront on the approved database. Production checkout has its own separate release gate. Existing campaign inventory is never converted automatically.</span>
         @endif
     </div>
     @if(!$isEdit && !empty($initialVariationOptions))
         <section class="card border-success mb-3" aria-labelledby="p36-initial-variant-heading">
             <div class="card-body">
                 <h2 class="h6 font-weight-bold text-success" id="p36-initial-variant-heading">Initial Color / Size Variation (optional)</h2>
-                <p class="small text-muted">Choose Color and/or Size while creating the product. A managed zero-stock SKU is created without changing any existing product. The variable product remains <strong>inactive / not purchasable</strong> until the administrator validates and activates its managed variants on the verified local storefront. Production commerce remains gated. Review combinations and prices in Variant Manager.</p>
+                <p class="small text-muted">Choose Color and/or Size while creating the product. A managed zero-stock SKU is created without changing any existing product. The variable product remains <strong>inactive / not purchasable</strong> until the administrator validates and activates its managed variants on the approved storefront database. Production sales remain independently gated. Review combinations and prices in Variant Manager.</p>
                 <div class="row">
                     @foreach(['color' => 'Color', 'size' => 'Size'] as $optionCode => $optionLabel)
                         <div class="col-sm-6 form-group">

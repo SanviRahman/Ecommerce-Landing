@@ -152,16 +152,18 @@ final class VariantCatalogManager
                 $this->reject('Product is already managed or contains variants.');
             }
             $stock = (int) $locked->stock;
-            // Local main DB contains real historical campaign inventory. Its opening
-            // quantities must never be silently treated as physically reconciled.
-            // Existing campaign products/history require a separate stock review.
-            if (\App\Support\P32LocalStorefrontAccess::matchesContext(
-                (string) config('app.env'), config('app.debug') === true,
-                (string) request()->ip(), (string) request()->getHost(), (int) request()->getPort()
-            ) && ($stock !== 0
+            // Main live inventory is never silently reconciled from legacy stock
+            // or order history. Restrict preparation to new zero-stock products;
+            // the P33 gate independently verifies the production DB identity.
+            $mainInventoryDatabase = config('app.env') === 'production'
+                || \App\Support\P32LocalStorefrontAccess::matchesContext(
+                    (string) config('app.env'), config('app.debug') === true,
+                    (string) request()->ip(), (string) request()->getHost(), (int) request()->getPort()
+                );
+            if ($mainInventoryDatabase && ($stock !== 0
                 || DB::table('order_items')->where('product_id', $locked->id)->exists()
                 || DB::table('campaign_product')->where('product_id', $locked->id)->exists())) {
-                $this->reject('On the local main database, only new zero-stock products with no campaign/order history can be converted. Reconcile legacy stock separately.');
+                $this->reject('On the main inventory database, only new zero-stock products with no campaign/order history can be prepared. Reconcile legacy inventory separately.');
             }
             if ($stock < 0 || $stock > 2_147_483_647) {
                 $this->reject('Legacy stock is outside supported limits.');
