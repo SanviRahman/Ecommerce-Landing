@@ -230,3 +230,13 @@ All mutations require Laravel CSRF, authenticated active Admin, required area/BD
 - Existing `PATCH /storefront/account/profile` requires an authenticated active storefront customer and CSRF. Multipart `_method=PATCH` validates optional profile fields and JPG/PNG/WebP photo <= 2 MB. Email stays read-only. Only the current authenticated account is updated. Only five personal/address columns are introduced in a gated, additive local migration. Profile photos reuse the existing Spatie `media` table and `StorefrontAccount::profile_photo` single-file collection; no photo-path column or new media migration.
 - Existing `GET /storefront/checkout` without a purchasable owned cart **redirects** to `storefront.cart` with a visible status flash instead of exposing a generic 409 exception screen. Checkout POST validation remains fail-closed.
 - Floating WhatsApp UI is an in-page progressive enhancement on validated Site Settings links; no stored contact URLs or routes are altered.
+
+### P56 — Read-only order-purge audit viewer
+
+| Method / Route | Name | Authorization | Behavior |
+|---|---|---|---|
+| GET `/admin/reports/audit-logs` | `admin.reports.audit-logs.index` | active `admin` only | Filter/paginate existing P55 archive |
+| GET `/admin/reports/audit-logs/export` | `admin.reports.audit-logs.export` | active `admin` only | Download CSV summary, max 5000 |
+| GET `/admin/reports/audit-logs/{audit}` | `admin.reports.audit-logs.show` | active `admin` only | Read-only snapshot detail |
+
+No POST/PATCH/PUT/DELETE audit viewer endpoints, no new audit schema, no modification to order deletion service.

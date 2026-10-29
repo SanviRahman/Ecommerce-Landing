@@ -690,6 +690,13 @@ return [
                     'icon' => 'far fa-fw fa-circle',
                     'can'  => 'admin-only',
                 ],
+                [
+                    'text'   => 'Audit Logs (Read Only)',
+                    'url'    => 'admin/reports/audit-logs',
+                    'icon'   => 'fas fa-fw fa-shield-alt',
+                    'can'    => 'admin-only',
+                    'active' => ['admin/reports/audit-logs*'],
+                ],
             ],
         ],
 
@@ -875,6 +882,39 @@ return [
                             'icon'   => 'far fa-dot-circle',
                             'can'    => 'admin-only',
                             'active' => ['admin/media-management/campaign/gallery*'],
+                        ],
+                    ],
+                ],
+                [
+                    'text' => 'Homepage Media',
+                    'url' => 'admin/media-management/homepage',
+                    'icon' => 'far fa-fw fa-circle',
+                    'can' => 'admin-only',
+                    'active' => ['admin/media-management/homepage*'],
+                    'submenu' => [
+                        [
+                            'text' => 'All Homepage Media',
+                            'url' => 'admin/media-management/homepage',
+                            'icon' => 'far fa-dot-circle',
+                            'can' => 'admin-only',
+                        ],
+                        [
+                            'text' => 'Hero Banner',
+                            'url' => 'admin/media-management/homepage/hero',
+                            'icon' => 'far fa-dot-circle',
+                            'can' => 'admin-only',
+                        ],
+                        [
+                            'text' => 'Image & Text',
+                            'url' => 'admin/media-management/homepage/content',
+                            'icon' => 'far fa-dot-circle',
+                            'can' => 'admin-only',
+                        ],
+                        [
+                            'text' => 'Site Branding',
+                            'url' => 'admin/media-management/homepage/branding',
+                            'icon' => 'far fa-dot-circle',
+                            'can' => 'admin-only',
                         ],
                     ],
                 ],

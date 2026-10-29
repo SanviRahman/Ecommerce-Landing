@@ -208,6 +208,7 @@
                 <a href="{{ route('admin.media-management.category') }}" class="btn btn-outline-primary {{ !$trashMode && $currentContext === 'category' ? 'active' : '' }}">Category</a>
                 <a href="{{ route('admin.media-management.products') }}" class="btn btn-outline-primary {{ !$trashMode && $currentContext === 'products' ? 'active' : '' }}">Products</a>
                 <a href="{{ route('admin.media-management.campaign') }}" class="btn btn-outline-primary {{ !$trashMode && str_starts_with($currentContext, 'campaign') ? 'active' : '' }}">Campaign</a>
+                <a href="{{ route('admin.media-management.homepage') }}" class="btn btn-outline-success {{ !$trashMode && str_starts_with($currentContext, 'homepage') ? 'active' : '' }}">Homepage</a>
                 <a href="{{ route('admin.media-management.other') }}" class="btn btn-outline-primary {{ !$trashMode && $currentContext === 'other' ? 'active' : '' }}">Other</a>
                 <a href="{{ route('admin.media-management.trash', ['context' => $currentContext]) }}"
                    class="btn btn-outline-danger {{ $trashMode ? 'active' : '' }}"

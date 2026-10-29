@@ -477,3 +477,17 @@ Prepared changed-files patch for user-provided `website(20261027-040404).zip`: a
 - Scope: Storefront Product/Checkout/Navigation/Loader/Contact Blade, StorefrontCartController JSON response and `storefront-next.js`, new scoped P54 CSS, source test; campaign, checkout writer, inventory, webhook, existing Admin settings and migrations untouched.
 - Evidence: offline P54 source contracts 7/7; synthetic Chromium AJAX Meta/dataLayer, checkout 2 shipping amounts, loader 390px/1366px and mobile WhatsApp dialog checks pass. P53 8/8, P48 5/5, P50 5/5, P51 5/5, P47 7/7, Spatie P52 5/5; PHP lint and JS/CSS parse pass. P52 legacy 5.5s loader test fails in original and modified source because owner currently configured 1s; preserved deliberately.
 - Still pending: real verified Laravel/MySQL HTTP and Order placement, physical mobile WhatsApp app installed/not installed, Meta real-network acceptance. No production release claim.
+
+### P55 — 29 October 2026 — scoped offline source patch
+
+- **Source:** user latest `website(20261029-034750).zip`.
+- **Problem:** order force-delete violates checkout idempotency FK; mobile Whatsapp target is framed; homepage Spatie dedicated media stored under numeric folders.
+- **Implementation:** `AuditedOrderTrashPurger` + opt-in audit migration; no FK disabling or restocks; direct external mobile WhatsApp; named Homepage media generator, safe copy-only organizer and section-based Admin Media grouping.
+- **Offline QA:** see `P55-QA-REPORT-BN.md`. PHP/JS/source checks passed; real Laravel/MySQL and mobile runtime blocked due to missing dependencies.
+- **Operations:** no migrations/deletions/media moves executed; reviewed local backups and approval required before applying new audit table or media organizer.
+
+### P56 — 29 October 2026 — Read-only Order Purge Audit Logs viewer
+
+- Implemented three Admin-only GET routes, AdminLTE Reports submenu, filterable/paginated audit list, detail snapshot UI and bounded CSV summary export.
+- Reused existing P55 `order_purge_audits`; **no new schema/migration, order deletion code or inventory changes**.
+- Added guarded MySQL HTTP feature tests and offline contract checks. See `P56-QA-REPORT-BN.md` for results/limitations; real Laravel/MySQL tests pending in approved staging environment.

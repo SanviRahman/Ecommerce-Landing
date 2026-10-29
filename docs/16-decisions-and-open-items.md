@@ -351,3 +351,17 @@ Open item: Execute real MySQL transaction, duplicate checkout, last-unit concurr
 - **Decision / media:** enlarge branded loader image frame and use `object-fit:contain` (without cropping); preserve current source loader delay of `1000ms` (do not silently override the owner's custom setting).
 - **Decision / WhatsApp:** WhatsApp cannot render inside iframes due to third-party framing restrictions. Use an explicit first-party dialog with native `whatsapp://` handoff and a standalone HTTPS link (`target=_blank`) plus copy-number fallback; do not embed WhatsApp or assume external network availability.
 - **Open gate:** real MySQL HTTP Buy Now / cart / order integration, physical-device app/browser handoff and Meta Events Manager delivery must pass before production signoff. The old P52 offline duration check demands `5500ms` while the supplied unchanged source uses `1000ms`; record that pre-existing discrepancy rather than changing the owner's loader duration.
+
+### P55 ADR — Audited Trash removal and shared Homepage media paths (2026-10-29)
+
+- **Decision:** Never bypass `checkout_requests` FK with `FOREIGN_KEY_CHECKS=0` or erase inventory movements. A permanent admin Trash purge must atomically archive order amount/SKU/ledger references, tombstone the old idempotency claim and detach the nullable ledger order-item link. Stock is not refunded or mutated. Paid/dispatched/external-sync orders are not eligible for force-delete.
+- **Decision:** Dedicated new Homepage media uses a Spatie SiteSetting path generator to `homepage/{section}/media-{id}`; shared library items used by Image & Text remain in their existing physical paths and are only grouped/labeled in the Admin Media Manager.
+- **Migration:** a single `order_purge_audits` archive table, explicitly approved and backed up on local DB. Existing Spatie media DB schema unchanged.
+- **Open:** approve retention policy and independently verify MariaDB transactions, cascade behavior, audit snapshot, and courier history on target database before any production rollout.
+
+### P56 ADR — Read-only Admin Order Purge Audit Viewer (2026-10-29)
+
+- **Evidence:** The latest uploaded ZIP contains `order_purge_audits` schema and P55 `AuditedOrderTrashPurger`, but no Admin viewer. Existing `users.role` distinguishes `admin` and `employee`, not a separate Super Admin role.
+- **Decision:** Reuse the P55 archive table without schema changes or writes; add only GET routes under existing admin-only Reports namespace and a `can => admin-only` AdminLTE submenu. Controller double-checks active `admin`. Query Builder is used for read-only access and soft-deleted Admin names; records are never deleted or updated by this UI.
+- **Data minimization:** CSV is capped at 5,000 filtered summaries, omitting raw JSON and applying CSV formula escaping. The details page only renders known, safely escaped snapshot fields. Missing migration produces a friendly warning.
+- **Open:** Staging HTTP tests and actual MySQL schema status must be verified. P55 audit rows are retained but are not cryptographically tamper-proof; database security, backups and retention policies remain operational responsibilities.

@@ -313,7 +313,12 @@ final class HomepageBuilderController extends Controller
         $newMedia = [];
         try {
             foreach ($request->file('hero_images') as $image) {
-                $newMedia[] = $settings->addMedia($image)->toMediaCollection('storefront_hero_image', 'public');
+                $newMedia[] = $settings->addMedia($image)
+                    ->withCustomProperties([
+                        'homepage_named_path' => true,
+                        'homepage_section_folder' => 'hero-banner',
+                        'homepage_section_key' => $sectionKey,
+                    ])->toMediaCollection('storefront_hero_image', 'public');
             }
             $builder->addHeroSlides((int) $data['expected_version'], (int) auth()->id(), $sectionKey,
                 array_map(static fn ($media): int => (int) $media->id, $newMedia));

@@ -2454,7 +2454,7 @@ $(document).ready(function() {
 
         Swal.fire({
             title: 'Empty trash permanently?',
-            text: 'All trash orders will be permanently deleted. This action cannot be undone.',
+            text: 'Eligible Trash orders will be deleted with an audit trail. Inventory stock will NOT be replenished. Dispatched/paid orders remain protected. Back up the database first.',
             icon: 'warning',
             showCancelButton: true,
             confirmButtonColor: '#dc3545',
@@ -2532,7 +2532,8 @@ $(document).ready(function() {
         let isDelete = button.hasClass('btnDelete') || button.hasClass('btnForceDelete');
 
         Swal.fire({
-            title: isDelete ? 'Are you sure?' : 'Restore order?',
+            title: button.hasClass('btnForceDelete') ? 'Permanently delete audited order?' : (isDelete ? 'Are you sure?' : 'Restore order?'),
+            text: button.hasClass('btnForceDelete') ? 'The order will be removed, its checkout key blocked from replay and inventory movements kept. Stock is NOT restored.' : '',
             icon: 'warning',
             type: 'warning',
             showCancelButton: true,

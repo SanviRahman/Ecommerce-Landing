@@ -1,8 +1,10 @@
 <?php
 
 use App\MediaLibrary\LandingMediaPathGenerator;
+use App\MediaLibrary\HomepageMediaPathGenerator;
 use App\MediaLibrary\ProductMediaPathGenerator;
 use App\Models\Campaign;
+use App\Models\SiteSetting;
 use App\Models\Product;
 use App\Models\Review;
 use Spatie\ImageOptimizer\Optimizers\Avifenc;
@@ -126,6 +128,7 @@ return [
         Product::class => ProductMediaPathGenerator::class,
         Campaign::class => LandingMediaPathGenerator::class,
         Review::class => LandingMediaPathGenerator::class,
+        SiteSetting::class => HomepageMediaPathGenerator::class,
     ],
 
     /*

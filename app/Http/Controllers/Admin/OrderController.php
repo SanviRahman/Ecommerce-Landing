@@ -23,6 +23,7 @@ use App\Services\Inventory\ManagedOrderQuantityEditor;
 use App\Services\Inventory\ManagedOrderWriter;
 use App\Services\OrderAssignmentService;
 use App\Services\OrderBlockService;
+use App\Services\Orders\AuditedOrderTrashPurger;
 use App\Services\PathaoCourierService;
 use App\Services\SteadfastCourierService;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -3576,19 +3577,17 @@ class OrderController extends Controller
         return response()->json(['status' => true, 'message' => 'Order restored successfully.']);
     }
 
-    public function forceDelete($id)
+    /** Permanent deletion is an audited transaction; no raw forceDelete on orders. */
+    public function forceDelete($id, AuditedOrderTrashPurger $purger)
     {
         $this->adminOnly();
-        if (ManagedOrderWriter::enabled()) {
-            DB::transaction(function () use ($id): void {
-                app(ManagedOrderLifecycle::class)->assertCanDeleteOrRestore([(int) $id]);
-                Order::onlyTrashed()->findOrFail($id)->forceDelete();
-            });
-        } else {
-            Order::onlyTrashed()->findOrFail($id)->forceDelete();
-        }
+        $deleted = $purger->purge([(int) $id], (int) auth()->id());
 
-        return response()->json(['status' => true, 'message' => 'Order permanently deleted successfully.']);
+        return response()->json([
+            'status' => true,
+            'message' => 'Order permanently deleted with an immutable inventory/checkout audit.',
+            'deleted' => $deleted,
+        ]);
     }
 
     public function multipleAction(Request $request)
@@ -3633,15 +3632,15 @@ class OrderController extends Controller
         }
 
         if ($action === 'force_delete') {
-            if (ManagedOrderWriter::enabled()) {
-                DB::transaction(function () use ($ids): void {
-                    app(ManagedOrderLifecycle::class)->assertCanDeleteOrRestore(array_map('intval', $ids));
-                    Order::onlyTrashed()->whereIn('id', $ids)->forceDelete();
-                });
-                return response()->json(['status' => true, 'message' => 'Selected orders permanently deleted.']);
-            }
-            Order::onlyTrashed()->whereIn('id', $ids)->forceDelete();
-            return response()->json(['status' => true, 'message' => 'Selected orders permanently deleted.']);
+            $deleted = app(AuditedOrderTrashPurger::class)->purge(
+                array_map('intval', $ids), (int) auth()->id()
+            );
+
+            return response()->json([
+                'status' => true,
+                'message' => "{$deleted} selected orders permanently deleted with audited records retained.",
+                'deleted' => $deleted,
+            ]);
         }
 
         $accessibleIds = $this->accessibleOrderIds($ids);
@@ -3825,15 +3824,23 @@ class OrderController extends Controller
         ]);
     }
 
-    public function emptyTrash()
+    public function emptyTrash(AuditedOrderTrashPurger $purger)
     {
         $this->adminOnly();
+        $ids = Order::onlyTrashed()->orderBy('id')->limit(201)->pluck('id')
+            ->map(static fn ($id): int => (int) $id)->all();
 
-        $deleted = Order::onlyTrashed()->forceDelete();
+        if ($ids === []) {
+            return response()->json(['status' => true, 'message' => 'Trash is already empty.', 'deleted' => 0]);
+        }
+
+        // The entire selection is atomic; never claim "Trash emptied" when a
+        // restrictive record still exists or the safety cap was exceeded.
+        $deleted = $purger->purge($ids, (int) auth()->id());
 
         return response()->json([
-            'status'  => true,
-            'message' => "Trash bin emptied successfully. {$deleted} orders permanently deleted.",
+            'status' => true,
+            'message' => "{$deleted} trashed orders permanently deleted; audit history preserved.",
             'deleted' => $deleted,
         ]);
     }

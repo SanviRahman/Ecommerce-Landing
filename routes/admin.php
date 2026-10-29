@@ -20,6 +20,7 @@ use App\Http\Controllers\Admin\StorefrontMessageController;
 use App\Http\Controllers\Admin\StorefrontFaqController;
 use App\Http\Controllers\Admin\MediaManagementController;
 use App\Http\Controllers\Admin\OrderController;
+use App\Http\Controllers\Admin\OrderPurgeAuditLogController;
 use App\Http\Controllers\Admin\ProductController;
 use App\Http\Controllers\Admin\ProductOptionController;
 use App\Http\Controllers\Admin\ProductVariantController;
@@ -758,6 +759,14 @@ Route::middleware(['auth', 'role:admin,employee'])->group(function () {
         Route::prefix('reports')
             ->as('reports.')
             ->group(function () {
+                // P56: GET-only retained Order Purge Audit history, admin-only by parent middleware.
+                // Static paths must precede the reports/{report} catch-all route.
+                Route::prefix('audit-logs')->as('audit-logs.')->middleware('role:admin')->group(function (): void {
+                    Route::get('/', [OrderPurgeAuditLogController::class, 'index'])->name('index');
+                    Route::get('/export', [OrderPurgeAuditLogController::class, 'export'])->name('export');
+                    Route::get('/{audit}', [OrderPurgeAuditLogController::class, 'show'])
+                        ->whereNumber('audit')->name('show');
+                });
                 Route::post('/multiple-action', [ReportController::class, 'multipleAction'])->name('multiple_action');
 
                 Route::get('/create', [ReportController::class, 'create'])->name('create');
@@ -792,6 +801,10 @@ Route::middleware(['auth', 'role:admin,employee'])->group(function () {
                 Route::get('/campaign/{section}', 'campaignSection')
                     ->whereIn('section', ['hero', 'section', 'product', 'review', 'gallery'])
                     ->name('campaign.section');
+
+                Route::get('/homepage', 'homepage')->name('homepage');
+                Route::get('/homepage/{section}', 'homepageSection')
+                    ->whereIn('section', ['hero', 'content', 'branding'])->name('homepage.section');
 
                 Route::get('/other', 'other')->name('other');
 

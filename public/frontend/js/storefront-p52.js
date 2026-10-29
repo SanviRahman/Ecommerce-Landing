@@ -1,32 +1,22 @@
 /* P52: accessible WhatsApp fallback and local avatar preview. Never alters cart/order code. */
 (() => {
   'use strict';
-  const dialog = document.querySelector('[data-p52-whatsapp-dialog]');
-  if (dialog) {
-    document.querySelectorAll('[data-p52-whatsapp]').forEach((link) => {
-      link.addEventListener('click', (event) => {
-        if (typeof dialog.showModal !== 'function') return; // native https link fallback
-        event.preventDefault();
-        document.querySelector('[data-p38-contact-dock] details')?.removeAttribute('open');
-        dialog.showModal();
-      });
-    });
-    dialog.addEventListener('click', (event) => {
-      if (event.target === dialog) dialog.close();
-    });
-    dialog.querySelector('[data-p52-copy-number]')?.addEventListener('click', async (event) => {
-      const number = event.currentTarget.getAttribute('data-p52-copy-number');
-      const status = dialog.querySelector('[data-p52-whatsapp-status]');
-      if (!status || !number) return;
-      try {
-        if (!navigator.clipboard?.writeText) throw new Error('Clipboard not supported');
-        await navigator.clipboard.writeText(number);
-        status.textContent = 'Number copied. Open WhatsApp and paste it into a chat.';
-      } catch (_) {
-        status.textContent = 'Select and copy the number above to contact us.';
+  // P55: Open WhatsApp directly (like tel: for Call) rather than show a modal
+  // or embed wa.me in an iframe. Real mobile OS handles the whatsapp:// scheme;
+  // desktop and responsive simulators use an external https browser tab.
+  const mobileDevice = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '')
+    || Boolean(navigator.userAgentData?.mobile);
+  document.querySelectorAll('[data-p55-whatsapp-direct]').forEach((link) => {
+    if (mobileDevice) {
+      const appHref = link.dataset.p55MobileUrl || '';
+      if (/^whatsapp:\/\/send\?phone=[1-9][0-9]{7,14}$/.test(appHref)) {
+        link.setAttribute('href', appHref);
+        link.removeAttribute('target');
       }
-    });
-  }
+    }
+    // Do not preventDefault/window.open: native navigation must be triggered
+    // by the customer's direct click, not through a framed intermediary.
+  });
 
   const photoInput = document.querySelector('[data-p52-photo-input]');
   const preview = document.querySelector('[data-p52-photo-preview]');

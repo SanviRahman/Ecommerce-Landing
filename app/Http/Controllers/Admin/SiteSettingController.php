@@ -176,9 +176,14 @@ class SiteSettingController extends Controller
                 $siteSetting
                     ->clearMediaCollection($field);
 
-                $siteSetting
-                    ->addMediaFromRequest($field)
-                    ->toMediaCollection($field);
+                $upload = $siteSetting->addMediaFromRequest($field);
+                if (str_starts_with($field, 'storefront_')) {
+                    $upload->withCustomProperties([
+                        'homepage_named_path' => true,
+                        'homepage_section_folder' => \App\MediaLibrary\HomepageMediaPathGenerator::FOLDERS[$field],
+                    ]);
+                }
+                $upload->toMediaCollection($field, 'public');
             }
         }
     }
