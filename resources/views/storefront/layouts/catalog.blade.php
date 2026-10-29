@@ -40,7 +40,68 @@
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p51.css') }}?v=p51">
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p52.css') }}?v=p52">
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p53.css') }}?v=p53">
-    <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p54.css') }}?v=p59">
+    <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p54.css') }}?v=p60">
+    {{-- P60 header-only safety rules: protect against a stale external CSS copy in the cPanel document root. --}}
+    <style>
+        @media (min-width: 761px) {
+            body.p34-storefront .p59-header-menu { display: none !important; }
+        }
+        @media (max-width: 760px) {
+            body.p34-storefront .p19-benefit-bar { display: none !important; }
+            body.p34-storefront .p19-main-header > .p19-search { display: none !important; }
+            body.p34-storefront .p19-main-header {
+                display: flex !important;
+                flex-wrap: nowrap !important;
+                align-items: center;
+                gap: 7px;
+                min-height: 62px;
+                padding-top: 8px;
+                padding-bottom: 8px;
+            }
+            body.p34-storefront .p59-header-menu {
+                display: grid !important;
+                place-items: center;
+                flex: 0 0 40px;
+                width: 40px;
+                height: 44px;
+                padding: 8px;
+                color: #154b36;
+                background: #fff;
+                border: 1px solid #d1e3d7;
+                border-radius: 10px;
+                cursor: pointer;
+            }
+            body.p34-storefront .p19-main-header > .p07-brand {
+                flex: 1 1 auto;
+                min-width: 0;
+                max-width: none !important;
+                overflow: hidden;
+            }
+            body.p34-storefront .p33-header-actions {
+                display: flex !important;
+                flex: 0 0 auto;
+                align-items: center;
+                gap: 2px;
+            }
+            body.p34-storefront .p33-header-actions :is(.p19-account-link, .p19-top-cart) {
+                display: grid !important;
+                place-items: center;
+                flex: 0 0 36px;
+                width: 36px;
+                min-width: 36px;
+                min-height: 44px;
+                padding: 5px;
+            }
+            body.p34-storefront .p33-header-actions .p33-action-copy { display: none !important; }
+            body.p34-storefront .p19-mobile-search-panel {
+                top: calc(62px + env(safe-area-inset-top));
+            }
+        }
+        @media (max-width: 355px) {
+            body.p34-storefront .p33-brand-name { font-size: 12px; }
+            body.p34-storefront .p33-brand-name small { font-size: 7.5px; white-space: nowrap; }
+        }
+    </style>
     <script src="{{ asset('frontend/js/storefront-p51-loader.js') }}?v=p52"></script>
 </head>
 <body class="p34-storefront">

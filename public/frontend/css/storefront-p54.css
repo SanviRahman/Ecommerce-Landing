@@ -181,3 +181,15 @@ body.p34-storefront .p19-auth-card input::placeholder {color:#788f80;opacity:1}
   body.p34-storefront .p33-brand-name {font-size:12px}
   body.p34-storefront .p33-brand-name small {font-size:7.5px}
 }
+
+/* P60: Desktop header matches the original three-column design (no menu button).
+   Mobile hides the promotional topbar and inline search only; the bottom Search
+   action still opens the existing accessible search panel. */
+@media (min-width: 761px) {
+  body.p34-storefront .p59-header-menu { display: none !important; }
+}
+@media (max-width: 760px) {
+  body.p34-storefront .p19-benefit-bar { display: none !important; }
+  body.p34-storefront .p19-main-header > .p19-search { display: none !important; }
+  body.p34-storefront .p19-mobile-search-panel { top: calc(62px + env(safe-area-inset-top)); }
+}
