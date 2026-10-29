@@ -76,7 +76,8 @@ final class StorefrontWishlistController extends Controller
     private function cartVersion(Request $request): ?int
     {
         if (($request->attributes->get('p26_isolated_commerce_qa') !== true
-                && $request->attributes->get('p32_local_commerce') !== true)
+                && $request->attributes->get('p32_local_commerce') !== true
+                && $request->attributes->get('p58_production_commerce') !== true)
             || config('storefront.p08_cart_test_enabled', false) !== true) {
             return null;
         }

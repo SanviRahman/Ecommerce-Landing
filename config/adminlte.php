@@ -992,6 +992,13 @@ return [
                     'can'    => 'admin-only',
                 ],
                 [
+                    'text'   => 'Database Migrations',
+                    'url'    => 'command/database-migrations',
+                    'icon'   => 'fas fa-fw fa-database',
+                    'can'    => 'admin-only',
+                    'active' => ['command/database-migrations*'],
+                ],
+                [
                     'text'   => 'Prepare Media Storage',
                     'url'    => 'command/storage-link',
                     'method' => 'POST',

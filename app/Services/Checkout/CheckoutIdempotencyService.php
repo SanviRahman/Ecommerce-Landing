@@ -10,7 +10,7 @@ use InvalidArgumentException;
 use LogicException;
 
 /**
- * STAGED P03 CORE. No current route invokes this service.
+ * Shared P03 checkout idempotency core: isolated/local QA and explicit P58 storefront release.
  *
  * Claim and complete MUST run in the very same transaction as order creation.
  * If the transaction rolls back, the claim rolls back as well; a retry can
@@ -119,7 +119,9 @@ final class CheckoutIdempotencyService
         if (config('storefront.p03_core_test_enabled', false) !== true) {
             throw new LogicException('P03 checkout idempotency is disabled pending MySQL integration approval.');
         }
-        if (request()->attributes->get('p32_local_checkout', false) === true) {
+        if (request()->attributes->get('p58_production_checkout') === true) {
+            app(\App\Support\P58ProductionStorefrontAccess::class)->assertStorefrontCheckout();
+        } elseif (request()->attributes->get('p32_local_checkout', false) === true) {
             app(\App\Support\P32LocalStorefrontAccess::class)->assertStorefrontCheckout();
         } else {
             P02MigrationSafety::assertIsolatedTestDatabase();

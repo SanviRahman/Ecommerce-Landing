@@ -1,6 +1,14 @@
 <?php
 
 return [
+    // P58: explicit production commerce cutover, OFF until staging and DB audit pass.
+    // Production requires HTTPS APP_URL, exact canonical host and exact actual MySQL schema.
+    // Existing local P26/P32 and campaign order writers stay independently guarded.
+    'p58_production_commerce_enabled' => env('P58_PRODUCTION_STOREFRONT_ENABLED', false) === true
+        || env('P58_PRODUCTION_STOREFRONT_ENABLED', false) === 'true',
+    'p58_production_host' => env('P58_PRODUCTION_STOREFRONT_HOST', ''),
+    'p58_production_database' => env('P58_PRODUCTION_STOREFRONT_DATABASE', ''),
+
     // P14 LOCAL DEV ONLY. Menu and homepage CRUD still verify actual DB identity.
     // Never set this on production; false unless explicit .env opt-in.
     'p14_local_homepage_builder_enabled' => env('P14_LOCAL_HOMEPAGE_BUILDER_ENABLED', false) === true

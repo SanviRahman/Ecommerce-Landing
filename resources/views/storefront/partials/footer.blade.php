@@ -1,6 +1,7 @@
 @php
     $commerceActive = request()->attributes->get('p26_isolated_commerce_qa', false) === true
-        || request()->attributes->get('p32_local_commerce', false) === true;
+        || request()->attributes->get('p32_local_commerce', false) === true
+        || request()->attributes->get('p58_production_commerce') === true;
     $branding = app(\App\Support\StorefrontBranding::class);
     $details = app(\App\Support\StorefrontContactDetails::class)->get();
     $brandName = $branding->name();

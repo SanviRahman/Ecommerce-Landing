@@ -136,7 +136,8 @@ final class StorefrontCatalogController extends Controller
         $product = $catalog->product($slug);
         $cartVersion = null;
         if (($request->attributes->get('p26_isolated_commerce_qa', false) === true
-                || $request->attributes->get('p32_local_commerce', false) === true)
+                || $request->attributes->get('p32_local_commerce', false) === true
+                || $request->attributes->get('p58_production_commerce') === true)
             && config('storefront.p08_cart_test_enabled', false) === true) {
             $ownerHash = app(\App\Services\Cart\GuestCartOwner::class)->hash($request);
             $cartVersion = app(\App\Services\Cart\GuestCartService::class)->show($ownerHash)['version'];
@@ -166,7 +167,8 @@ final class StorefrontCatalogController extends Controller
     {
         // Ordinary storefront GETs must NEVER read the isolated QA cart or owner.
         if (($request->attributes->get('p26_isolated_commerce_qa', false) !== true
-                && $request->attributes->get('p32_local_commerce', false) !== true)
+                && $request->attributes->get('p32_local_commerce', false) !== true
+                && $request->attributes->get('p58_production_commerce') !== true)
             || config('storefront.p08_cart_test_enabled', false) !== true) return null;
         $owner = app(\App\Services\Cart\GuestCartOwner::class);
         return (int) app(\App\Services\Cart\GuestCartService::class)

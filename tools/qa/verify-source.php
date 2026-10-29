@@ -8,9 +8,13 @@
 $root = dirname(__DIR__, 2);
 $read = static fn (string $path): string => (string) file_get_contents($root . '/' . $path);
 $checks = [
-    'GET maintenance routes removed' => ! str_contains($read('routes/command.php'), 'Route::get('),
+    'GET maintenance routes are read-only preview' => substr_count($read('routes/command.php'), 'Route::get(') === 1
+        && str_contains($read('routes/command.php'), "Route::get('/database-migrations'"),
     'HTTP migrate/seed routes removed' => ! preg_match("~Route::post\\('/(?:migrate|seed|migrate-fresh|migrate-fresh-seed)'~", $read('routes/command.php')),
-    'Maintenance routes remain POST' => substr_count($read('routes/command.php'), 'Route::post(') === 12,
+    'Maintenance routes remain POST' => substr_count($read('routes/command.php'), 'Route::post(') === 13,
+    'Database migration POST is confirmation gated' => str_contains($read('routes/command.php'), "Route::post('/database-migrations'")
+        && str_contains($read('app/Http/Controllers/Admin/DatabaseMigrationController.php'), "Hash::check")
+        && str_contains($read('app/Http/Controllers/Admin/DatabaseMigrationController.php'), "--force"),
     'Campaign global-product fallback removed' => ! str_contains($read('app/Http/Controllers/Admin/CampaignOrderController.php'), 'Product::query()'),
     'Campaign membership validation present' => str_contains($read('app/Http/Controllers/Admin/CampaignOrderController.php'), 'One or more selected products are not available in this campaign.'),
     'Order existing item IDs scoped and distinct' => str_contains($read('app/Http/Controllers/Admin/OrderController.php'), 'distinct:strict'),

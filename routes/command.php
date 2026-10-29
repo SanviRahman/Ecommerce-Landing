@@ -62,6 +62,17 @@ Route::prefix('command')
     ->name('command.')
     ->middleware(['auth', 'role:admin', 'lte_context:admin'])
     ->group(function () use ($redirectWithToast) {
+        // Database migrations: read-only preview by GET, confirmed mutation by POST.
+        // No raw command text or user-supplied Artisan options are accepted.
+        Route::get('/database-migrations',
+            [\App\Http\Controllers\Admin\DatabaseMigrationController::class, 'index'])
+            ->name('database-migrations.index');
+
+        Route::post('/database-migrations',
+            [\App\Http\Controllers\Admin\DatabaseMigrationController::class, 'store'])
+            ->middleware('throttle:3,15')
+            ->name('database-migrations.store');
+
         Route::post('/clear-cache', function () use ($redirectWithToast) {
             Artisan::call('cache:clear');
 

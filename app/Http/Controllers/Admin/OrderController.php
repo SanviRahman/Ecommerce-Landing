@@ -1457,7 +1457,7 @@ class OrderController extends Controller
             ->with('assignedEmployee')
             ->get();
 
-        if (ManagedOrderWriter::enabled()) {
+        if (ManagedOrderLifecycle::enabledForAdmin()) {
             // One transaction for the full batch: an invalid managed order
             // cannot leave previous orders partially cancelled/restocked.
             return DB::transaction(function () use ($orders, $status, $extra): int {
@@ -2748,7 +2748,7 @@ class OrderController extends Controller
             $isNegotiatedBulkOrder,
             $campaignAutoSelectionService
         ) {
-            if (ManagedOrderWriter::enabled()) {
+            if (ManagedOrderLifecycle::enabledForAdmin()) {
                 // Full-form item edits are NOT stock-delta aware yet. Stop
                 // before changing customers/order items for managed orders.
                 app(ManagedOrderLifecycle::class)->assertCanFullEdit((int) $order->id);
@@ -2991,7 +2991,7 @@ class OrderController extends Controller
         ]);
 
         $status = $request->order_status;
-        if (ManagedOrderWriter::enabled()) {
+        if (ManagedOrderLifecycle::enabledForAdmin()) {
             // Both the status log and any pre-dispatch stock release must
             // commit/roll back together. Only the isolated P03 test DB is allowed.
             app(ManagedOrderLifecycle::class)->transitionStatus(
@@ -3550,7 +3550,7 @@ class OrderController extends Controller
     public function destroy(Order $order)
     {
         $this->adminOnly();
-        if (ManagedOrderWriter::enabled()) {
+        if (ManagedOrderLifecycle::enabledForAdmin()) {
             DB::transaction(function () use ($order): void {
                 app(ManagedOrderLifecycle::class)->assertCanDeleteOrRestore([(int) $order->id]);
                 $order->delete();
@@ -3565,7 +3565,7 @@ class OrderController extends Controller
     public function restore($id)
     {
         $this->adminOnly();
-        if (ManagedOrderWriter::enabled()) {
+        if (ManagedOrderLifecycle::enabledForAdmin()) {
             DB::transaction(function () use ($id): void {
                 app(ManagedOrderLifecycle::class)->assertCanDeleteOrRestore([(int) $id]);
                 Order::onlyTrashed()->findOrFail($id)->restore();
@@ -3608,7 +3608,7 @@ class OrderController extends Controller
         }
 
         if ($action === 'delete') {
-            if (ManagedOrderWriter::enabled()) {
+            if (ManagedOrderLifecycle::enabledForAdmin()) {
                 DB::transaction(function () use ($ids): void {
                     app(ManagedOrderLifecycle::class)->assertCanDeleteOrRestore(array_map('intval', $ids));
                     Order::whereIn('id', $ids)->delete();
@@ -3620,7 +3620,7 @@ class OrderController extends Controller
         }
 
         if ($action === 'restore') {
-            if (ManagedOrderWriter::enabled()) {
+            if (ManagedOrderLifecycle::enabledForAdmin()) {
                 DB::transaction(function () use ($ids): void {
                     app(ManagedOrderLifecycle::class)->assertCanDeleteOrRestore(array_map('intval', $ids));
                     Order::onlyTrashed()->whereIn('id', $ids)->restore();

@@ -11,7 +11,7 @@ use InvalidArgumentException;
 use LogicException;
 
 /**
- * P03 STAGED CORE — test-only integration hooks exist; public production usage is disabled.
+ * P03 managed inventory core with separately verified P58 storefront checkout allocation.
  *
  * Must be called INSIDE the same transaction that creates/changes the order.
  * Before the P02 MariaDB + campaign/manual regression gates pass this class is
@@ -211,7 +211,12 @@ final class InventoryAllocator
      */
     public function allocateStorefrontOrder(int $orderId, array $variantByOrderItem): void
     {
-        if (request()->attributes->get('p32_local_checkout', false) === true) {
+        if (request()->attributes->get('p58_production_checkout') === true) {
+            app(\App\Support\P58ProductionStorefrontAccess::class)->assertStorefrontCheckout();
+            if (DB::transactionLevel() < 1) {
+                throw new LogicException('Production inventory allocation must share the checkout transaction.');
+            }
+        } elseif (request()->attributes->get('p32_local_checkout', false) === true) {
             app(\App\Support\P32LocalStorefrontAccess::class)->assertStorefrontCheckout();
             if (DB::transactionLevel() < 1) {
                 throw new LogicException('Storefront inventory must share the checkout transaction.');
@@ -361,7 +366,14 @@ final class InventoryAllocator
      */
     public function releaseCancelledOrder(int $orderId, string $eventUuid): void
     {
-        $this->assertTestTransaction();
+        if (app(\App\Support\P58ProductionStorefrontAccess::class)->allowsAdminManaged()) {
+            app(\App\Support\P58ProductionStorefrontAccess::class)->assertAdminManaged();
+            if (DB::transactionLevel() < 1) {
+                throw new LogicException('Production cancellation and stock release must share one transaction.');
+            }
+        } else {
+            $this->assertTestTransaction();
+        }
         if ($orderId < 1 || Str::isUuid($eventUuid) === false) {
             throw new InvalidArgumentException('A valid order ID and persisted transition UUID are required.');
         }

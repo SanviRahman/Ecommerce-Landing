@@ -176,11 +176,15 @@ final class StorefrontAccountController extends Controller
     }
     private function assertAccountReady(PublicCatalog $catalog): void
     {
-        // Customer account writes have NOT been released to the main DB.
+        // Customer writes require an explicit, independently verified request context.
         $request = request();
+        $production = $request->attributes->get('p58_production_commerce') === true;
         $local = $request->attributes->get('p32_local_commerce', false) === true;
-        abort_unless($local || $request->attributes->get('p26_isolated_commerce_qa', false) === true, 404);
-        if ($local) {
+        abort_unless($production || $local
+            || $request->attributes->get('p26_isolated_commerce_qa', false) === true, 404);
+        if ($production) {
+            app(\App\Support\P58ProductionStorefrontAccess::class)->assertApprovedDatabase($request);
+        } elseif ($local) {
             app(\App\Support\P32LocalStorefrontAccess::class)->assertActualMainDatabase($request);
         }
         $catalog->assertAvailable();

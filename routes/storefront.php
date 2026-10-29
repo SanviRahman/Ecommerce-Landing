@@ -7,12 +7,13 @@ use App\Http\Controllers\Frontend\StorefrontCatalogController;
 use App\Http\Controllers\Frontend\StorefrontContactController;
 use App\Http\Middleware\P26IsolatedCommerceQaMiddleware;
 use App\Http\Middleware\P32LocalStorefrontCommerceMiddleware;
+use App\Http\Middleware\P58ProductionStorefrontCommerceMiddleware;
 use Illuminate\Support\Facades\Route;
 
 // Public browse routes work directly on the published catalog (including the main DB).
-// The existing QA middleware adds scoped cart/checkout capabilities ONLY on its
-// isolated loopback sandbox; it never blocks ordinary visitor GET requests.
-Route::prefix('storefront')->name('storefront.')->middleware([P26IsolatedCommerceQaMiddleware::class, P32LocalStorefrontCommerceMiddleware::class])
+// The QA/local/production middlewares grant scoped cart/checkout capabilities
+// independently; ordinary published catalog browsing stays public.
+Route::prefix('storefront')->name('storefront.')->middleware([P26IsolatedCommerceQaMiddleware::class, P32LocalStorefrontCommerceMiddleware::class, P58ProductionStorefrontCommerceMiddleware::class])
     ->group(function (): void {
         Route::get('/home', [StorefrontCatalogController::class, 'home'])->name('home');
         Route::get('/shop', [StorefrontCatalogController::class, 'shop'])->name('shop');

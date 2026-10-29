@@ -3,7 +3,8 @@
     $brandName = $branding->name();
     $brandLogo = $branding->logo();
     $commerceActive = request()->attributes->get('p26_isolated_commerce_qa', false) === true
-        || request()->attributes->get('p32_local_commerce', false) === true;
+        || request()->attributes->get('p32_local_commerce', false) === true
+        || request()->attributes->get('p58_production_commerce') === true;
     $checkoutActive = $commerceActive && config('storefront.p08_checkout_test_enabled', false) === true
         && config('storefront.p03_core_test_enabled', false) === true;
     $wishlistState = app(\App\Support\StorefrontWishlistState::class);

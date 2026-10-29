@@ -20,7 +20,7 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use DomainException;
 
-/** Single-transaction, server-quoted, COD-only storefront checkout (isolated-test-only). */
+/** Single-transaction, server-quoted, COD-only storefront checkout with independently approved request scopes. */
 final class StorefrontCheckout
 {
     public function __construct(
@@ -37,7 +37,9 @@ final class StorefrontCheckout
         $this->carts->assertEnabled();
         abort_unless(config('storefront.p08_checkout_test_enabled', false) === true
             && config('storefront.p03_core_test_enabled', false) === true, 404);
-        if (request()->attributes->get('p32_local_commerce', false) === true) {
+        if (request()->attributes->get('p58_production_commerce') === true) {
+            app(\App\Support\P58ProductionStorefrontAccess::class)->assertStorefrontCheckout();
+        } elseif (request()->attributes->get('p32_local_commerce', false) === true) {
             app(\App\Support\P32LocalStorefrontAccess::class)->assertStorefrontCheckout();
         }
     }

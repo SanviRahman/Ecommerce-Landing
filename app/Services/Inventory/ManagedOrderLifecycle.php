@@ -13,7 +13,7 @@ use InvalidArgumentException;
 use LogicException;
 
 /**
- * P03 test-only lifecycle integration. Preserves old behavior while flags stay OFF.
+ * P03 isolated lifecycle plus P58 authorized production admin stock-linked transitions.
  *
  * The caller must authorize/validate status changes before invoking this method.
  * Only the test database and both explicit P03 flags can activate this service.
@@ -142,8 +142,19 @@ final class ManagedOrderLifecycle
         }
     }
 
+    /** Existing admin status/edit/trash routes may manage allocated storefront stock. */
+    public static function enabledForAdmin(): bool
+    {
+        return ManagedOrderWriter::enabled()
+            || app(\App\Support\P58ProductionStorefrontAccess::class)->allowsAdminManaged();
+    }
+
     private function assertIsolatedEnabled(): void
     {
+        if (app(\App\Support\P58ProductionStorefrontAccess::class)->allowsAdminManaged()) {
+            app(\App\Support\P58ProductionStorefrontAccess::class)->assertAdminManaged();
+            return;
+        }
         if (! ManagedOrderWriter::enabled() || config('storefront.p03_core_test_enabled', false) !== true) {
             throw new LogicException('P03 managed lifecycle remains disabled.');
         }
