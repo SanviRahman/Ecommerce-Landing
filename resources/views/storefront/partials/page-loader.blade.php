@@ -7,9 +7,9 @@
 @endphp
 <div class="p51-page-loader" data-p51-loader role="status" aria-live="polite" aria-label="Loading {{ $loaderBrandName }}">
     <div class="p51-page-loader__inner">
-        <span class="p51-page-loader__mark" aria-hidden="true">
+        <span class="p51-page-loader__mark {{ $loaderBrandLogo ? 'p54-loader-with-image' : 'p54-loader-with-initial' }}" aria-hidden="true">
             @if($loaderBrandLogo)
-                <img src="{{ $loaderBrandLogo }}" alt="" width="76" height="76" loading="eager" fetchpriority="high" decoding="async">
+                <img src="{{ $loaderBrandLogo }}" alt="" width="280" height="160" loading="eager" fetchpriority="high" decoding="async">
             @else
                 <span class="p51-page-loader__initial">{{ $loaderInitial }}</span>
             @endif

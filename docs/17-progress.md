@@ -461,3 +461,19 @@ Prepared changed-files patch for user-provided `website(20261027-040404).zip`: a
 - Customer avatar is stored through existing Spatie Media Library `media` table, on `StorefrontAccount::profile_photo` (`public` / singleFile). No separate file path column or custom directory.
 - Revised additive guarded migration only adds `gender`, `date_of_birth`, `division`, `district`, `upazila`; no data migration for photographs.
 - Offline contract tests reproduce former implementation's mismatch and pass after refactor. Live MySQL, media upload and local customer HTTP checks remain pending.
+
+### 2026-10-29 — P53 Homepage courier tracking reuse + Meta + mobile sticky purchase CTA
+
+- Source: user-uploaded `website(20261029-021547).zip`, screenshot of third-party reference mobile sticky purchase bar and explicit requirements. Existing `AGENTS.md`, `rules.md`, `bugfix.md`, `constraints.md` consulted.
+- Courier webhook already uses shared `Order` and `CourierAccount` and existing signed Steadfast/Pathao endpoints; no campaign filter. Existing `/track-order` POST searches shared orders by phone. Added a scoped Homepage footer form against same throttled endpoint; no new webhook, dispatch writer or order status mutation.
+- Reused admin-managed active numeric Meta Pixel IDs and campaign first-party browser event bridge in public Storefront (except private preview/read-only). Added ViewContent, successful AddToCart and InitiateCheckout payloads from authoritative public catalog/cart data; existing Success Page handles Purchase without duplication.
+- Mobile product sticky CTA reuses actual product purchase form and positions above measured bottom nav. Replaced observer-only detection with scroll + resize handling to avoid missed fast swipes. Public descriptions justified via scoped CSS, not admin inputs/price labels.
+- Source regression 8/8; P47 7/7, P48 5/5, P50 5/5, P51 5/5, P52 Spatie 5/5; PHP lint 498/498, frontend JS parse 18/18, CSS parse 32/32; Chromium synthetic sticky tracking/form/Meta Ajax behavior PASS. Existing P52 features test loader duration mismatch 1/7 is pre-existing in original ZIP (actual 1000ms, test requires 5500ms) and deliberately untouched.
+- No MySQL provider or Laravel vendor in authoring environment; real MySQL test, signed courier webhook callback, Meta Events Manager receipt and live checkout pending. No new migrations, order/writer or campaign feature flag changes.
+
+### P54 — Source-scoped storefront purchase UX fixes (2026-10-29)
+- Input: owner ZIP `website(20261029-031525).zip`, seven images showing Pixel Helper/DataLayer, checkout total placeholder, extra desktop menu Checkout link, loader and WhatsApp embedded-preview error.
+- Implemented: progressive Product Details AJAX cart add with server-confirmed `AddToCart`, safe flashed tracking when navigating via Buy Now; estimated checkout subtotal + selected global delivery charge in Shipping, Payment and Review; removed top-level Checkout navigation link only; enlarged full-contain branding image; mobile WhatsApp app/external-tab/copy paths, no iframe.
+- Scope: Storefront Product/Checkout/Navigation/Loader/Contact Blade, StorefrontCartController JSON response and `storefront-next.js`, new scoped P54 CSS, source test; campaign, checkout writer, inventory, webhook, existing Admin settings and migrations untouched.
+- Evidence: offline P54 source contracts 7/7; synthetic Chromium AJAX Meta/dataLayer, checkout 2 shipping amounts, loader 390px/1366px and mobile WhatsApp dialog checks pass. P53 8/8, P48 5/5, P50 5/5, P51 5/5, P47 7/7, Spatie P52 5/5; PHP lint and JS/CSS parse pass. P52 legacy 5.5s loader test fails in original and modified source because owner currently configured 1s; preserved deliberately.
+- Still pending: real verified Laravel/MySQL HTTP and Order placement, physical mobile WhatsApp app installed/not installed, Meta real-network acceptance. No production release claim.

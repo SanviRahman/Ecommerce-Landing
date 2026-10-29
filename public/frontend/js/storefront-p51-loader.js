@@ -7,7 +7,7 @@
   const root = document.documentElement;
   const start = window.performance?.now?.() ?? Date.now();
   const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches === true;
-  const minimum = reducedMotion ? 250 : 5500;
+  const minimum = reducedMotion ? 250 : 1000;
   let released = false;
   let queued = false;
   let finishTimer = null;

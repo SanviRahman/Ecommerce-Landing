@@ -1,0 +1,18 @@
+/* P53: campaign/success/public page descriptions only. Never change forms or numeric summaries. */
+body > main :is(
+    .hero-description, .section-description, .product-description,
+    .campaign-description, .product-details-description, .faq-answer,
+    .review-description, .order-tracking-subtitle, .success-subtitle,
+    .footer-description, .lead-description, .intro-description,
+    .description-text, .about-description
+),
+body > footer :is(.footer-description, .footer-about p),
+body > main p:not(:is(
+    .price, .total, .amount, .badge, .status, .alert,
+    .order-summary-line, .summary-line, .product-price, .form-error
+)) {
+    text-align: justify;
+    text-align-last: start;
+    text-justify: inter-word;
+    overflow-wrap: break-word;
+}

@@ -94,7 +94,6 @@
         <a href="{{ route('home') }}" @if(request()->routeIs('home', 'storefront.home')) aria-current="page" @endif>Home</a>
         <a href="{{ route('storefront.shop') }}">Shop</a>
         <a href="{{ route('storefront.shop', ['sort'=>'newest']) }}">New Arrivals</a>
-        @if($checkoutActive)<a href="{{ route('storefront.checkout') }}">Checkout</a>@endif
         <a href="{{ route('home') }}#categories">Categories</a>
         <a href="{{ route('storefront.help') }}">Help</a>
         <a href="{{ route('storefront.contact') }}">Contact</a>

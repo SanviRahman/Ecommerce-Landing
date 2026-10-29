@@ -9,6 +9,30 @@
 @endphp
 <footer class="p07-footer p19-footer p37-footer" id="storefront-footer">
     <div class="p07-container">
+        {{-- No new homepage-builder section: the shared courier tracking form lives in the public footer. --}}
+        @if(request()->routeIs('home') && !request()->attributes->get('p25_local_readonly_browse', false))
+            <section class="p53-home-track" id="home-order-tracking" aria-labelledby="p53-home-track-title">
+                <div class="p53-track-copy">
+                    <span class="p53-track-eyebrow">ORDER UPDATES</span>
+                    <h2 id="p53-home-track-title">Track your order</h2>
+                    <p>Ordered from our Homepage or a Campaign? Use the phone number from your order to see its latest courier status.</p>
+                    <a href="{{ route('order.track') }}">Open full tracking page →</a>
+                </div>
+                <div class="p53-track-widget">
+                    <form method="POST" action="{{ route('order.track.search') }}" data-storefront-track>
+                        @csrf
+                        <label for="p53-home-track-phone">Order phone number</label>
+                        <div class="p53-track-fields">
+                            <input id="p53-home-track-phone" type="tel" name="tracking_phone"
+                                inputmode="numeric" autocomplete="tel" maxlength="11"
+                                pattern="01[0-9]{9}" placeholder="01XXXXXXXXX" required>
+                            <button type="submit">Track Order →</button>
+                        </div>
+                    </form>
+                    <div class="p53-track-results" data-track-results role="status" aria-live="polite"></div>
+                </div>
+            </section>
+        @endif
         <div class="p19-newsletter p37-newsletter"><div><span class="p19-caption">EXPLORE THE COLLECTION</span>
             <h2>Quality products. Better shopping.</h2><p>Explore the latest arrivals and carefully organized categories.</p>
         </div><a class="p19-newsletter-cta" href="{{ route('storefront.shop') }}">Explore Products @include('storefront.partials.icon', ['name'=>'arrow-right'])</a></div>

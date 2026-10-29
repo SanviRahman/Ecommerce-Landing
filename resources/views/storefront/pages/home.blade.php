@@ -10,6 +10,9 @@
         <meta name="robots" content="noindex,nofollow">
     @endif
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    @if(!($isPreview ?? false) && !request()->attributes->get('p25_local_readonly_browse', false))
+        @include('storefront.partials.meta-pixel')
+    @endif
     <title>{{ config('app.name', 'Storefront') }} — Homepage</title>
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-preview.css') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -39,9 +42,12 @@
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p50.css') }}">
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p51.css') }}?v=p51">
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p52.css') }}?v=p52">
+    <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p53.css') }}?v=p53">
+    <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p54.css') }}?v=p54">
     <script src="{{ asset('frontend/js/storefront-p51-loader.js') }}?v=p52"></script>
 </head>
 <body class="p34-storefront">
+    @stack('p53-meta-noscript')
 @include('storefront.partials.page-loader')
 @php
     $defaultTheme = \App\Support\HomeSectionSchema::DEFAULT_THEME;
@@ -302,6 +308,12 @@
     @include('storefront.partials.footer')
     @include('storefront.partials.contact-widget')
 @endif
+@if(!($isPreview ?? false) && !request()->attributes->get('p25_local_readonly_browse', false))
+    @include('frontend.partials.datalayer-events')
+    @if(($p53FlashedItem = session('p53_added_item')) && is_array($p53FlashedItem))
+        <div hidden data-p53-added-item="{{ json_encode($p53FlashedItem, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_THROW_ON_ERROR) }}"></div>
+    @endif
+@endif
 <script src="{{ asset('frontend/js/image-fallback.js') }}" defer></script>
 <script src="{{ asset('frontend/js/storefront-next.js') }}" defer></script>
 <script src="{{ asset('frontend/js/storefront-p36.js') }}?v=p43" defer></script>
@@ -313,4 +325,5 @@
 <script src="{{ asset('frontend/js/storefront-p39.js') }}" defer></script>
 <script src="{{ asset('frontend/js/back-to-top.js') }}" defer></script>
     <script src="{{ asset('frontend/js/storefront-p52.js') }}?v=p52" defer></script>
+    <script src="{{ asset('frontend/js/storefront-p53.js') }}?v=p53" defer></script>
 </body></html>

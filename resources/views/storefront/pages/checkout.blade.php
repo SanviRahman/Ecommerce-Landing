@@ -2,6 +2,16 @@
 @section('title', 'Secure Checkout')
 @section('content')
     @php $shopper = \Illuminate\Support\Facades\Auth::guard('storefront')->user(); @endphp
+    <div hidden data-p53-checkout-tracking="{{ json_encode([
+        'currency' => 'BDT',
+        'value' => (float) $cart['subtotal'],
+        'items' => array_map(static fn ($line) => [
+            'item_id' => (string) $line['product_id'],
+            'item_name' => (string) $line['name'],
+            'price' => (float) $line['unit_price'],
+            'quantity' => (int) $line['quantity'],
+        ], $cart['lines']),
+    ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_THROW_ON_ERROR) }}"></div>
     <div class="p50-checkout-intro">
     <div class="p19-checkout-heading" data-reveal><p class="p19-caption">SECURE CASH ON DELIVERY CHECKOUT</p>
         <h1>Complete Your <span>Order</span></h1><p>Enter shipping details, confirm payment method, review your order and place it securely.</p>
@@ -67,7 +77,8 @@
                     @endforeach
                 </div>
                 <div class="p19-review-totals"><p>Subtotal <strong>৳{{ $cart['subtotal'] }}</strong></p>
-                    <p>Delivery <strong data-shipping-preview>Calculated by server</strong></p></div>
+                    <p>Delivery <strong data-shipping-preview>Choose delivery area</strong></p>
+                    <p class="p54-review-total">Estimated Total <strong data-checkout-total-preview>Choose delivery area</strong></p></div>
                 <p class="p08-help">By placing your order, you confirm that the information is correct. Inventory and price are checked again.</p>
                 <div class="p19-form-actions"><button type="button" data-step-back="2">← Payment</button>
                     <button class="p08-primary p08-submit" type="submit" @disabled($areas->isEmpty())>Place COD Order</button>
@@ -83,7 +94,8 @@
             @endforeach
             <hr><p>Subtotal <strong>৳{{ $cart['subtotal'] }}</strong></p>
             <p>Shipping <strong data-shipping-preview>Choose delivery area</strong></p>
-            <p class="p19-summary-total">Total <strong>Calculated on confirmation</strong></p>
+            <p class="p19-summary-total">Estimated Total <strong data-checkout-total-preview data-subtotal-bdt="{{ $cart['subtotal'] }}" aria-live="polite">Choose delivery area</strong></p>
+            <p class="p54-total-note">Final total, shipping and stock are confirmed by the server when you place the order.</p>
             <a href="{{ route('storefront.cart') }}">← Edit cart</a>
         </aside>
     </div>

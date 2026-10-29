@@ -267,8 +267,15 @@
         throw new Error(first || (response.status === 419 ? 'Session expired. Refresh this page.' : 'Unable to add this product. Please review stock and options.'));
       }
       const result = await response.json();
-      await refreshCart();
+      // Only a confirmed Laravel cart mutation is an AddToCart event.
+      // Buy Now flashes that event on the landing Checkout page to avoid a
+      // cancelled Pixel request during navigation. No duplicate emission here.
       if (result.redirect) {window.location.assign(result.redirect);return;}
+      if (result.saved === true && result.tracking && window.SFATracking?.addToCart) {
+        try {window.SFATracking.addToCart(result.tracking);}
+        catch (analyticsError) {console.warn('Cart saved, analytics unavailable.', analyticsError);}
+      }
+      await refreshCart();
       const opener = $('[data-cart-open]');
       showDrawer(cartDrawer, opener);
       feedback('Item added to cart.');
@@ -276,25 +283,28 @@
     finally {if (submitter) submitter.disabled = false;}
   }));
 
-  // Sticky Order Now only after primary CTA has scrolled above the viewport.
+  // Sticky Buy Now after the primary actions have scrolled above the viewport.
+  // Scroll-position checks also handle fast swipes that skip an IntersectionObserver
+  // visibility transition (below and above the viewport in the same frame).
   const sticky = $('[data-sticky-order]');
   const primary = $('#p19-primary-buy-actions');
   if (sticky && primary) {
-    const setStickyVisible = (visible) => {
+    let framePending = false;
+    const update = () => {
+      framePending = false;
+      const mobile = window.matchMedia('(max-width: 760px)').matches;
+      const visible = mobile && primary.getBoundingClientRect().bottom <= 0;
       sticky.hidden = !visible;
       doc.body.classList.toggle('p35-sticky-buy-visible', visible);
     };
-    if ('IntersectionObserver' in window) {
-      const observer = new IntersectionObserver(([entry]) => {
-        setStickyVisible(!entry.isIntersecting && entry.boundingClientRect.top < 0);
-      }, {threshold:0});
-      observer.observe(primary);
-    } else {
-      const update = () => setStickyVisible(primary.getBoundingClientRect().bottom <= 0);
-      window.addEventListener('scroll', update, {passive:true});
-      window.addEventListener('resize', update);
-      update();
-    }
+    const requestUpdate = () => {
+      if (framePending) return;
+      framePending = true;
+      window.requestAnimationFrame(update);
+    };
+    window.addEventListener('scroll', requestUpdate, {passive: true});
+    window.addEventListener('resize', requestUpdate, {passive: true});
+    requestUpdate();
   }
 
   // Checkout: 1 Shipping -> 2 COD Payment -> 3 Review -> 4 existing order success URL.
@@ -304,9 +314,30 @@
     const indicators = $$('[data-step-indicator-item]');
     const shipping = $('#p08-area', checkout);
     const getStep = (index) => panels.find(panel => Number(panel.dataset.checkoutStep) === index);
+    const totalPreview = $('[data-checkout-total-preview][data-subtotal-bdt]');
+    // Parse decimal BDT into integer paisa; never infer a total from formatted
+    // strings with commas or from the browser's cart widget. Server is final.
+    const asPaisa = (raw) => {
+      const value = String(raw ?? '').trim();
+      if (!/^\d+(?:\.\d{1,2})?$/.test(value)) return null;
+      const [taka, fraction = ''] = value.split('.');
+      const cents = Number(taka) * 100 + Number(fraction.padEnd(2, '0'));
+      return Number.isSafeInteger(cents) ? cents : null;
+    };
+    const bdt = (amount) => '৳' + (amount / 100).toLocaleString('en-BD',
+      {minimumFractionDigits: 2, maximumFractionDigits: 2});
     const updateEstimate = () => {
       const fee = shipping?.selectedOptions?.[0]?.dataset.shippingCost;
-      $$('[data-shipping-preview]').forEach(el => {el.textContent = fee === undefined ? 'Choose delivery area' : `Est. ৳${Number(fee).toLocaleString('en-BD')} (confirmed on submit)`;});
+      const shippingPaisa = asPaisa(fee);
+      const subtotalPaisa = asPaisa(totalPreview?.dataset.subtotalBdt);
+      const valid = shippingPaisa !== null && subtotalPaisa !== null
+        && Number.isSafeInteger(shippingPaisa + subtotalPaisa);
+      $$('[data-shipping-preview]').forEach(el => {
+        el.textContent = valid ? `Est. ${bdt(shippingPaisa)}` : 'Choose delivery area';
+      });
+      $$('[data-checkout-total-preview]').forEach(el => {
+        el.textContent = valid ? `Est. ${bdt(subtotalPaisa + shippingPaisa)}` : 'Choose delivery area';
+      });
     };
     const show = (index, {scroll = true, focus = true} = {}) => {
       panels.forEach(panel => { panel.hidden = Number(panel.dataset.checkoutStep) !== index; });

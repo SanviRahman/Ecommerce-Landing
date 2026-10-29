@@ -29,6 +29,14 @@
         <a href="{{ route('storefront.category', $category->slug) }}">{{ $category->name }}</a>
         <span aria-hidden="true">/</span><span>{{ $product->name }}</span>
     </div>
+    <div hidden data-p53-product-tracking="{{ json_encode([
+        'item_id' => (string) $product->id,
+        'item_name' => $product->name,
+        'price' => (float) $catalog->displayPrice($product),
+        'quantity' => 1,
+        'item_category' => $category->name,
+        'currency' => 'BDT',
+    ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_THROW_ON_ERROR) }}"></div>
     <div class="p07-detail">
         <div class="p07-product-gallery">
             <img class="p07-main-photo" src="{{ $catalog->productImage($product) }}" alt="{{ $product->name }}" fetchpriority="high">
@@ -81,7 +89,7 @@
                     $canCheckoutNow = config('storefront.p08_checkout_test_enabled', false) === true
                         && config('storefront.p03_core_test_enabled', false) === true;
                 @endphp
-                <form id="p08-product-order-form" class="p08-product-order" method="POST" action="{{ route('storefront.cart.add') }}">
+                <form id="p08-product-order-form" class="p08-product-order" data-async-cart method="POST" action="{{ route('storefront.cart.add') }}">
                     @csrf
                     <input type="hidden" name="storefront_product_origin" value="{{ $product->slug }}">
                     <input type="hidden" name="cart_version" value="{{ $cartVersion }}">

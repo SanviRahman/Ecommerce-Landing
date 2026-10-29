@@ -46,10 +46,12 @@
             <h2 id="p52-whatsapp-title">Chat with us on WhatsApp</h2>
             <p>Choose how you want to connect. If WhatsApp is unavailable on this device, copy the number and contact us later.</p>
             <div class="p52-whatsapp-dialog__number">+{{ $waDigits }}</div>
-            <div class="p52-whatsapp-dialog__buttons">
-                <a href="{{ 'https://api.whatsapp.com/send?phone='.$waDigits }}" target="_blank" rel="noopener noreferrer">Open WhatsApp ↗</a>
+            <div class="p52-whatsapp-dialog__buttons p54-whatsapp-actions">
+                <a href="{{ 'whatsapp://send?phone='.$waDigits }}" class="p54-whatsapp-app" data-p54-whatsapp-app>Open WhatsApp App</a>
                 <button type="button" data-p52-copy-number="+{{ $waDigits }}">Copy number</button>
             </div>
+            <a class="p54-whatsapp-browser" href="{{ 'https://wa.me/'.$waDigits }}" target="_blank" rel="noopener noreferrer" data-p54-whatsapp-browser>Or open WhatsApp in a separate browser tab</a>
+            <p class="p54-whatsapp-embed-note">WhatsApp cannot open inside embedded mobile previews. Use the app, an external tab, or copy the number.</p>
             <p class="p52-whatsapp-dialog__feedback" role="status" aria-live="polite" data-p52-whatsapp-status></p>
         </dialog>
     @endif

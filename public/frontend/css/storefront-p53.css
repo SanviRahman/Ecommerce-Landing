@@ -1,0 +1,118 @@
+/* P53: shared public descriptions, homepage tracking and phone-sized sticky purchase CTA. */
+body.p34-storefront :is(
+  .sf-lead, .sf-hero-copy p, .p44-image-banner__content p,
+  .p46-image-intro p, .p39-review-intro p,
+  .p07-description-body, .p19-product-benefits p,
+  .p33-track-page > p, .p37-contact-content p,
+  .p19-checkout-heading > p, .p19-step-subtitle,
+  .p08-heading > p, .p19-newsletter p,
+  .p33-footer-about > p, .p53-track-copy p,
+  .p19-account-overview p, .p33-related-heading p,
+  .sf-image-copy p, .p37-footer-about > p
+) {
+  text-align: justify;
+  text-align-last: start;
+  text-justify: inter-word;
+  overflow-wrap: break-word;
+}
+body.p34-storefront .p53-home-track {
+  display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);
+  gap:clamp(20px,3vw,42px); align-items:start;
+  padding:clamp(22px,3vw,36px); margin:0 0 30px;
+  background:linear-gradient(120deg,#f5fcf7,#e8f5ec);
+  color:#133c2a; border:1px solid #d2e7d8;
+  border-radius:20px; box-shadow:0 14px 38px rgba(11,73,47,.065);
+}
+body.p34-storefront .p53-track-eyebrow {
+  color:#237955;font-size:11px;font-weight:850;letter-spacing:.12em;
+}
+body.p34-storefront .p53-track-copy h2 {
+  margin:8px 0 9px;font-size:clamp(21px,2.35vw,29px);font-weight:850;color:#103c2c;
+}
+body.p34-storefront .p53-track-copy p {margin:0 0 10px;color:#456957;font-size:13px;line-height:1.75;max-width:440px}
+body.p34-storefront .p53-track-copy a {font-size:13px;font-weight:800;color:#125f43;text-decoration:underline;text-underline-offset:4px}
+body.p34-storefront .p53-track-widget {min-width:0}
+body.p34-storefront .p53-track-widget label {display:block;font-size:12px;font-weight:800;margin:0 0 9px;color:#234834}
+body.p34-storefront .p53-track-fields {display:flex;gap:9px;min-width:0}
+body.p34-storefront .p53-track-fields input {
+  flex:1;min-width:0;min-height:47px;border:1px solid #afcdbb;
+  border-radius:11px;background:#fff;color:#173c2c;padding:10px 12px;font-size:14px;
+}
+body.p34-storefront .p53-track-fields button {
+  min-height:47px;flex:0 0 auto;background:#176c49;color:#fff;font-size:13px;font-weight:850;
+  border:0;border-radius:11px;padding:10px 19px;cursor:pointer;
+}
+body.p34-storefront .p53-track-fields button:disabled {opacity:.65;cursor:progress}
+body.p34-storefront .p53-track-results:not(:empty) {
+  margin-top:15px;padding:15px;background:#fff;border:1px solid #d9e8db;border-radius:12px;
+  max-height:370px;overflow:auto;font-size:13px;line-height:1.6;color:#234737;
+}
+body.p34-storefront .p53-track-results .order-tracking-card {
+  padding:13px;margin:12px 0 0;border:1px solid #dceadf;border-radius:10px;
+  background:#fbfdfb;
+}
+body.p34-storefront .p53-track-results .order-tracking-meta {font-size:12px;line-height:1.7;color:#416750}
+body.p34-storefront .p53-track-results .order-tracking-status {
+  display:inline-flex;border-radius:15px;padding:4px 9px;background:#e3f5e8;
+  color:#186c49;font-weight:800;font-size:11px;
+}
+body.p34-storefront .p53-track-results .row, body.p34-storefront .p53-track-results .d-flex {display:flex;gap:12px;flex-wrap:wrap}
+body.p34-storefront .p53-track-results .col-md-6 {min-width:0;flex:1 1 180px}
+body.p34-storefront .p53-track-results .mt-4 {margin-top:14px}
+body.p34-storefront .p53-track-results .mt-3 {margin-top:12px}
+body.p34-storefront .p53-track-results .font-weight-bold {font-weight:850}
+body.p34-storefront .p53-track-results .alert-warning {padding:12px;border-radius:9px;background:#fffae9;color:#7b5a25}
+@media(max-width:760px) {
+  body.p34-storefront .p53-home-track {grid-template-columns:1fr;gap:15px;border-radius:16px;padding:20px 17px}
+  body.p34-storefront .p53-track-copy h2 {font-size:23px}
+  body.p34-storefront .p53-track-fields button {padding-inline:12px}
+  body.p34-storefront .p10-mobile-buy.p35-sticky-buy[data-sticky-order]:not([hidden]) {
+    display:flex!important;position:fixed!important;left:50%!important;right:auto!important;
+    bottom:calc(var(--p53-mobile-nav-height, 72px) + 9px)!important;
+    width:min(460px,calc(100% - 18px))!important;
+    min-height:72px!important;max-width:calc(100% - 18px)!important;
+    padding:9px 10px!important;border-radius:16px!important;
+    background:rgba(255,255,255,.98)!important;border:1px solid #d7e7dc!important;
+    box-shadow:0 12px 35px rgba(4,37,25,.23)!important;
+    z-index:29!important;
+  }
+  body.p34-storefront .p35-sticky-buy .p19-sticky-product {
+    flex:1 1 0;min-width:0;overflow:hidden;display:flex;align-items:center;gap:9px;
+  }
+  body.p34-storefront .p35-sticky-buy .p19-sticky-product img {
+    width:48px;height:48px;flex:0 0 48px;object-fit:cover;border-radius:10px;
+  }
+  body.p34-storefront .p35-sticky-buy .p19-sticky-product span {
+    min-width:0;display:flex;flex-direction:column;gap:2px;
+  }
+  body.p34-storefront .p35-sticky-buy .p19-sticky-product strong {
+    display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+    font-size:12px;max-width:100%;color:#173f2e;
+  }
+  body.p34-storefront .p35-sticky-buy .p19-sticky-product small {
+    font-size:12px;font-weight:800;color:#0d6746;
+  }
+  body.p34-storefront .p35-sticky-buy button {
+    flex:0 0 39%;min-height:49px;border-radius:11px;font-size:13px;
+  }
+  body.p34-storefront.p35-sticky-buy-visible .p19-floating-cart,
+  body.p34-storefront.p35-sticky-buy-visible .p35-mobile-cart-peek {display:none!important}
+  body.p34-storefront.p35-sticky-buy-visible .p10-contact {
+    bottom:calc(var(--p53-mobile-nav-height, 72px) + 107px)!important;
+  }
+  body.p34-storefront.p35-sticky-buy-visible .p19-footer {
+    padding-bottom:calc(var(--p53-mobile-nav-height, 72px) + 120px)!important;
+  }
+}
+@media(max-width:370px) {
+  body.p34-storefront .p53-track-fields {flex-wrap:wrap}
+  body.p34-storefront .p53-track-fields button {width:100%}
+  body.p34-storefront .p35-sticky-buy .p19-sticky-product img {width:40px;height:40px;flex-basis:40px}
+  body.p34-storefront .p35-sticky-buy button {flex:0 0 38%;min-height:46px;font-size:11px}
+}
+@media(min-width:761px) {
+  body.p34-storefront .p10-mobile-buy.p35-sticky-buy[data-sticky-order] {display:none!important}
+}
+@media(prefers-reduced-motion:reduce) {
+  body.p34-storefront .p35-sticky-buy {transition:none!important}
+}

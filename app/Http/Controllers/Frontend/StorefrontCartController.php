@@ -59,26 +59,48 @@ final class StorefrontCartController extends Controller
             'cart_version' => ['required', 'integer', 'min:0'],
             'intent' => ['nullable', 'in:cart,checkout'],
         ]);
-        $cart->add($owner->hash($request), (int) $data['product_variant_id'],
+        $ownerHash = $owner->hash($request);
+        $cart->add($ownerHash, (int) $data['product_variant_id'],
             (int) $data['quantity'], (int) $data['cart_version']);
+        $state = $cart->show($ownerHash);
+        $addedLine = collect($state['lines'])->first(
+            static fn (array $line) => (int) $line['variant_id'] === (int) $data['product_variant_id']
+        );
+        // Analytics is not authoritative for price/order data; quote comes from the cart service.
+        $pixelItem = $addedLine ? [
+            'item_id' => (string) $addedLine['product_id'],
+            'item_name' => (string) $addedLine['name'],
+            'price' => (float) $addedLine['unit_price'],
+            'quantity' => (int) $data['quantity'],
+            'currency' => 'BDT',
+        ] : null;
         if ($request->expectsJson()) {
-            $state = $cart->show($owner->hash($request));
+            $redirectToCheckout = ($data['intent'] ?? 'cart') === 'checkout'
+                && config('storefront.p08_checkout_test_enabled', false) === true
+                && config('storefront.p03_core_test_enabled', false) === true;
+            if ($redirectToCheckout && $pixelItem !== null) {
+                // AJAX Buy Now navigates immediately. Fire the event on Checkout
+                // after redirect, rather than losing it during page unload.
+                // Do not issue a cart-summary request before that redirect.
+                $request->session()->flash('p53_added_item', $pixelItem);
+            }
             return response()->json([
                 'saved' => true, 'version' => $state['version'],
+                'tracking' => $redirectToCheckout ? null : $pixelItem,
                 'count' => array_sum(array_column($state['lines'], 'quantity')),
                 'subtotal' => $state['subtotal'],
-                'redirect' => ($data['intent'] ?? 'cart') === 'checkout'
-                    && config('storefront.p08_checkout_test_enabled', false)
-                    && config('storefront.p03_core_test_enabled', false)
-                    ? route('storefront.checkout') : null,
+                'redirect' => $redirectToCheckout ? route('storefront.checkout') : null,
             ])->header('Cache-Control','private, no-store');
         }
         if (($data['intent'] ?? 'cart') === 'checkout'
             && config('storefront.p08_checkout_test_enabled', false) === true
             && config('storefront.p03_core_test_enabled', false) === true) {
-            return redirect()->route('storefront.checkout');
+            return redirect()->route('storefront.checkout')
+                ->with('p53_added_item', $pixelItem);
         }
-        return redirect()->route('storefront.cart')->with('status', 'Added to your cart.');
+        return redirect()->route('storefront.cart')
+            ->with('status', 'Added to your cart.')
+            ->with('p53_added_item', $pixelItem);
     }
 
     public function change(

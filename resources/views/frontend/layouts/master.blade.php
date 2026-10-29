@@ -79,6 +79,7 @@
 
     {{-- Loaded last so polished green actions override older page rules. --}}
     <link rel="stylesheet" href="{{ asset('frontend/css/buttons.css') }}?v=20261024-frontend2">
+    <link rel="stylesheet" href="{{ asset('frontend/css/public-description-p53.css') }}?v=p53">
 </head>
 
 <body>
