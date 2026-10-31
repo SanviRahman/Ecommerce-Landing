@@ -25,6 +25,7 @@ use App\Services\Inventory\StorefrontDeferredStock;
 use App\Services\OrderAssignmentService;
 use App\Services\OrderBlockService;
 use App\Services\Orders\AuditedOrderTrashPurger;
+use App\Services\Orders\ManagedOrderTrashService;
 use App\Services\PathaoCourierService;
 use App\Services\SteadfastCourierService;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -3591,14 +3592,7 @@ class OrderController extends Controller
     public function destroy(Order $order)
     {
         $this->adminOnly();
-        if (ManagedOrderLifecycle::enabledForAdmin()) {
-            DB::transaction(function () use ($order): void {
-                app(ManagedOrderLifecycle::class)->assertCanDeleteOrRestore([(int) $order->id]);
-                $order->delete();
-            });
-        } else {
-            $order->delete();
-        }
+        app(ManagedOrderTrashService::class)->moveToTrash([(int) $order->id], (int) auth()->id());
 
         return response()->json(['status' => true, 'message' => 'Order moved to trash successfully.']);
     }
@@ -3606,14 +3600,7 @@ class OrderController extends Controller
     public function restore($id)
     {
         $this->adminOnly();
-        if (ManagedOrderLifecycle::enabledForAdmin()) {
-            DB::transaction(function () use ($id): void {
-                app(ManagedOrderLifecycle::class)->assertCanDeleteOrRestore([(int) $id]);
-                Order::onlyTrashed()->findOrFail($id)->restore();
-            });
-        } else {
-            Order::onlyTrashed()->findOrFail($id)->restore();
-        }
+        app(ManagedOrderTrashService::class)->restoreFromTrash([(int) $id], (int) auth()->id());
 
         return response()->json(['status' => true, 'message' => 'Order restored successfully.']);
     }
@@ -3649,27 +3636,27 @@ class OrderController extends Controller
         }
 
         if ($action === 'delete') {
-            if (ManagedOrderLifecycle::enabledForAdmin()) {
-                DB::transaction(function () use ($ids): void {
-                    app(ManagedOrderLifecycle::class)->assertCanDeleteOrRestore(array_map('intval', $ids));
-                    Order::whereIn('id', $ids)->delete();
-                });
-                return response()->json(['status' => true, 'message' => 'Selected orders moved to trash.']);
-            }
-            Order::whereIn('id', $ids)->delete();
-            return response()->json(['status' => true, 'message' => 'Selected orders moved to trash.']);
+            $deleted = app(ManagedOrderTrashService::class)->moveToTrash(
+                array_map('intval', $ids), (int) auth()->id()
+            );
+
+            return response()->json([
+                'status' => true,
+                'message' => "{$deleted} selected orders moved to trash.",
+                'deleted' => $deleted,
+            ]);
         }
 
         if ($action === 'restore') {
-            if (ManagedOrderLifecycle::enabledForAdmin()) {
-                DB::transaction(function () use ($ids): void {
-                    app(ManagedOrderLifecycle::class)->assertCanDeleteOrRestore(array_map('intval', $ids));
-                    Order::onlyTrashed()->whereIn('id', $ids)->restore();
-                });
-                return response()->json(['status' => true, 'message' => 'Selected orders restored.']);
-            }
-            Order::onlyTrashed()->whereIn('id', $ids)->restore();
-            return response()->json(['status' => true, 'message' => 'Selected orders restored.']);
+            $restored = app(ManagedOrderTrashService::class)->restoreFromTrash(
+                array_map('intval', $ids), (int) auth()->id()
+            );
+
+            return response()->json([
+                'status' => true,
+                'message' => "{$restored} selected orders restored.",
+                'restored' => $restored,
+            ]);
         }
 
         if ($action === 'force_delete') {
@@ -3856,18 +3843,12 @@ class OrderController extends Controller
             ->limit((int) $request->limit)
             ->pluck('id');
 
-        if (ManagedOrderLifecycle::enabledForAdmin()) {
-            // The limit-based trash route must respect the same reservation and
-            // inventory-ledger protection as the single/bulk delete endpoints.
-            $deleted = DB::transaction(function () use ($ids): int {
-                app(ManagedOrderLifecycle::class)->assertCanDeleteOrRestore(
-                    $ids->map(static fn ($id): int => (int) $id)->all()
-                );
-                return Order::query()->whereIn('id', $ids)->delete();
-            });
-        } else {
-            $deleted = Order::query()->whereIn('id', $ids)->delete();
-        }
+        // Single, selected and limit-based trash actions share one safe,
+        // transactional archive policy; soft deletion does not alter stock.
+        $deleted = app(ManagedOrderTrashService::class)->moveToTrash(
+            $ids->map(static fn ($id): int => (int) $id)->all(),
+            (int) auth()->id()
+        );
 
         return response()->json([
             'status'  => true,

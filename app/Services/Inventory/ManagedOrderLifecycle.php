@@ -153,43 +153,7 @@ final class ManagedOrderLifecycle
         }
     }
 
-    /**
-     * Keep managed stock/ledger references intact until a reviewed
-     * deletion/restore/archive policy exists. Legacy rows remain editable.
-     * Call inside the same transaction as the bulk/single mutation.
-     *
-     * @param array<int,int> $orderIds
-     */
-    public function assertCanDeleteOrRestore(array $orderIds): void
-    {
-        $this->assertIsolatedEnabled();
-        if (DB::transactionLevel() < 1) {
-            throw new LogicException('Delete guard must share the mutation transaction.');
-        }
-        if ($orderIds === []) {
-            return;
-        }
-        foreach ($orderIds as $orderId) {
-            if (! is_int($orderId) || $orderId < 1) {
-                throw new InvalidArgumentException('Order IDs must be positive integers.');
-            }
-        }
-        $hasStockState = Schema::hasColumn('orders', 'storefront_stock_state');
-        $managed = DB::table('orders')->whereIn('id', array_values(array_unique($orderIds)))
-            ->where(function ($query) use ($hasStockState): void {
-                $query->where('inventory_version', 1);
-                if ($hasStockState) {
-                    $query->orWhere('storefront_stock_state', '<>', StorefrontDeferredStock::LEGACY);
-                }
-            })->orderBy('id')->lockForUpdate()->first(['id']);
-        if ($managed !== null) {
-            throw ValidationException::withMessages([
-                'orders' => 'Managed stock-linked orders cannot be deleted or restored until a reviewed archive policy exists.',
-            ]);
-        }
-    }
-
-    /** Existing admin status/edit/trash routes may manage allocated storefront stock. */
+    /** Existing admin status/edit routes may manage allocated storefront stock. */
     public static function enabledForAdmin(): bool
     {
         return ManagedOrderWriter::enabled()
