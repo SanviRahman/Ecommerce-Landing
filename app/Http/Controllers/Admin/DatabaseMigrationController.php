@@ -12,6 +12,8 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
+use App\Support\P58ProductionStorefrontAccess;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Throwable;
@@ -58,11 +60,21 @@ final class DatabaseMigrationController extends Controller
             $request->session()->forget(self::PREVIEW_SESSION);
         }
 
+        // Do not default to the previously completed P55 audit while storefront
+        // prerequisites remain pending. No migration is executed by a GET request.
+        $storefrontPending = $statusReady && self::storefrontMigrationsExist() && (
+            self::statusHasPendingMigration($statusOutput, self::STOREFRONT_STOCK_MIGRATION)
+            || self::statusHasPendingMigration($statusOutput, self::STOREFRONT_SESSIONS_MIGRATION)
+        );
+
         return response()->view('admin.commands.database-migrations', [
             'statusReady' => $statusReady,
             'statusOutput' => self::shortOutput($statusOutput),
             'auditMigrationExists' => is_file(base_path(self::AUDIT_MIGRATION)),
             'storefrontMigrationsExist' => self::storefrontMigrationsExist(),
+            'storefrontPending' => $storefrontPending,
+            'suggestedScope' => $storefrontPending ? 'storefront' : 'audit',
+            'productionChecks' => $this->productionChecks($request),
         ])->header('Cache-Control', 'private, no-store, max-age=0')
           ->header('X-Robots-Tag', 'noindex, nofollow');
     }
@@ -192,20 +204,36 @@ final class DatabaseMigrationController extends Controller
 
             $exitCode = Artisan::call('migrate', $options);
             $resultOutput = trim(Artisan::output());
+            $prerequisitesVerified = true;
+            if ($exitCode === 0 && $data['scope'] === 'storefront') {
+                // A successful console exit alone is not evidence that the two
+                // migrations were recorded and the required schema exists.
+                $newStatusExit = Artisan::call('migrate:status');
+                $newStatus = trim(Artisan::output());
+                $prerequisitesVerified = $newStatusExit === 0
+                    && ! self::statusHasPendingMigration($newStatus, self::STOREFRONT_STOCK_MIGRATION)
+                    && ! self::statusHasPendingMigration($newStatus, self::STOREFRONT_SESSIONS_MIGRATION)
+                    && Schema::hasColumn('orders', 'storefront_stock_state')
+                    && Schema::hasTable('sessions');
+            }
+            $success = $exitCode === 0 && $prerequisitesVerified;
 
             Log::notice('Admin database migration finished', [
                 'admin_id' => $request->user()->getAuthIdentifier(),
                 'scope' => $data['scope'],
                 'exit_code' => $exitCode,
+                'prerequisites_verified' => $prerequisitesVerified,
             ]);
 
             return redirect()->route('command.database-migrations.index')
                 ->with('migration_result', [
-                    'success' => $exitCode === 0,
+                    'success' => $success,
                     'scope' => $data['scope'],
-                    'message' => $exitCode === 0
-                        ? 'Artisan migrate finished successfully. Review the updated status below.'
-                        : 'Artisan migrate reported a failure. Review the output and server log.',
+                    'message' => $success
+                        ? ($data['scope'] === 'storefront'
+                            ? 'Both storefront prerequisites are recorded and their database schema is present.'
+                            : 'Selected migration scope completed. Review the updated status below.')
+                        : 'Migration or prerequisite verification failed. Review the output and server log.',
                     'output' => self::shortOutput($resultOutput),
                 ]);
         } catch (ValidationException $exception) {
@@ -228,6 +256,40 @@ final class DatabaseMigrationController extends Controller
         } finally {
             $lock->release();
         }
+    }
+
+    /** Safe status parsing; the GET status preview is the authoritative list. */
+    private static function statusHasPendingMigration(string $output, string $migrationPath): bool
+    {
+        $name = pathinfo($migrationPath, PATHINFO_FILENAME);
+        return preg_match('/(?:^|\n)[^\r\n]*' . preg_quote($name, '/')
+            . '[^\r\n]*\bPending\b/i', $output) === 1;
+    }
+
+    /** Admin-only, read-only production diagnostics (no DB name or secrets exposed). */
+    private function productionChecks(Request $request): array
+    {
+        $checks = [
+            'Production mode with debug disabled' => config('app.env') === 'production'
+                && config('app.debug') === false,
+            'Explicit P58 storefront approval configured' => config('storefront.p58_production_commerce_enabled') === true,
+            'Approved HTTPS host and real MySQL database match' => false,
+            'P61 order stock-state column present' => false,
+            'Database sessions table present' => false,
+        ];
+        try {
+            app(P58ProductionStorefrontAccess::class)->assertApprovedDatabase($request, false);
+            $checks['Approved HTTPS host and real MySQL database match'] = true;
+        } catch (Throwable) {
+            // A failed check is reported as not ready without divulging credentials.
+        }
+        try {
+            $checks['P61 order stock-state column present'] = Schema::hasColumn('orders', 'storefront_stock_state');
+            $checks['Database sessions table present'] = Schema::hasTable('sessions');
+        } catch (Throwable) {
+            // Keep diagnostics safe when the production DB is unavailable.
+        }
+        return $checks;
     }
 
     private static function storefrontMigrationsExist(): bool

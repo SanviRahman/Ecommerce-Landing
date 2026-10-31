@@ -50,6 +50,28 @@
         </div>
     </div>
 
+    @if ($storefrontPending)
+        <div class="alert alert-warning" role="status">
+            <strong>Storefront prerequisites are still pending.</strong>
+            Choose <strong>Storefront Prerequisites</strong>, type <code>MIGRATE STOREFRONT</code>
+            (not your email), enter your current Admin password, and confirm a verified database backup.
+            The selection below defaults to this scope; nothing runs until you submit the form.
+        </div>
+    @endif
+
+    <div class="card card-outline card-secondary shadow-sm">
+        <div class="card-header"><h3 class="card-title">Production Storefront Readiness (Admin Only)</h3></div>
+        <div class="card-body">
+            <p class="small text-muted">Read-only checks. These do not enable sales or change the database.
+                If a configuration check fails, verify the active server <code>.env</code> and clear the Laravel config cache.</p>
+            <ul class="list-unstyled mb-0">
+                @foreach ($productionChecks as $label => $passed)
+                    <li class="mb-1"><span class="badge {{ $passed ? 'badge-success' : 'badge-warning' }} mr-2">{{ $passed ? 'PASS' : 'NOT READY' }}</span>{{ $label }}</li>
+                @endforeach
+            </ul>
+        </div>
+    </div>
+
     <div class="card card-outline card-primary shadow-sm">
         <div class="card-header"><h3 class="card-title">Run Approved Migration</h3></div>
         <div class="card-body">
@@ -63,11 +85,11 @@
                             @if (!$auditMigrationExists)
                                 <option value="" selected disabled>Select a migration scope</option>
                             @endif
-                            <option value="audit" {{ $auditMigrationExists && old('scope', 'audit') === 'audit' ? 'selected' : '' }}
+                            <option value="audit" {{ $auditMigrationExists && old('scope', $suggestedScope) === 'audit' ? 'selected' : '' }}
                                 {{ !$auditMigrationExists ? 'disabled' : '' }}>
                                 Only Order Purge Audit Table — recommended (migrate --path=... --force)
                             </option>
-                            <option value="storefront" {{ old('scope') === 'storefront' ? 'selected' : '' }}
+                            <option value="storefront" {{ old('scope', $suggestedScope) === 'storefront' ? 'selected' : '' }}
                                 {{ !$storefrontMigrationsExist ? 'disabled' : '' }}>
                                 Storefront Prerequisites — stock-state + database sessions only (2 approved migrations)
                             </option>
@@ -78,7 +100,7 @@
                         @if (!$auditMigrationExists)
                             <small class="form-text text-danger">The P55 audit migration file was not found on this server.</small>
                         @else
-                            <small class="form-text text-muted">Default option runs only the P55 audit table migration. It does not run other pending migrations.</small>
+                            <small class="form-text text-muted">The P55 audit scope does NOT apply the P61 stock-state or sessions migrations.</small>
                         @endif
                         @if (!$storefrontMigrationsExist)
                             <small class="form-text text-danger d-block">The approved storefront stock-state or sessions migration file is missing.</small>
@@ -91,8 +113,9 @@
                         <label for="migration_confirmation">Type confirmation phrase</label>
                         <input id="migration_confirmation" name="confirmation" type="text" class="form-control" maxlength="30"
                                value="{{ old('confirmation') }}" required spellcheck="false" autocomplete="off"
-                               placeholder="MIGRATE AUDIT / STOREFRONT / ALL">
-                        <small class="form-text text-muted">Audit Only: <code>MIGRATE AUDIT</code>. Storefront Prerequisites: <code>MIGRATE STOREFRONT</code>. All Pending: <code>MIGRATE ALL</code>.</small>
+                               placeholder="Type MIGRATE STOREFRONT for storefront migrations">
+                        <div class="alert alert-info py-2 mt-2 mb-1" role="note">For the two pending storefront migrations, type <strong>MIGRATE STOREFRONT</strong>. Do not enter your email address here.</div>
+                        <small class="form-text text-muted">Audit Only: <code>MIGRATE AUDIT</code>. All Pending: <code>MIGRATE ALL</code> (advanced).</small>
                     </div>
 
                     <div class="form-group">
