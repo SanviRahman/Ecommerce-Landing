@@ -61,13 +61,11 @@ class CampaignPageController extends Controller
         $orderProducts = $products;
         $orderFormToken = $this->makeOrderFormToken();
 
+        // Campaign pages must never inherit homepage/global customer reviews.
         $reviews = Review::query()
             ->with('media')
             ->where('status', true)
-            ->where(function ($query) use ($campaign) {
-                $query->whereNull('campaign_id')
-                    ->orWhere('campaign_id', $campaign->id);
-            })
+            ->where('campaign_id', $campaign->id)
             ->latest()
             ->take(12)
             ->get();

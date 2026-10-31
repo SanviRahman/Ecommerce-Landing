@@ -18,7 +18,8 @@
   let data;
   try { data = JSON.parse(picker.dataset.variantMatrix || '{}'); } catch { return; }
   if (!Array.isArray(data.options) || !Array.isArray(data.variants)) return;
-  const selectors = [...picker.querySelectorAll('select[data-option-id]')];
+  const inputs = [...picker.querySelectorAll('input[type="radio"][data-option-id]')];
+  const optionIds = [...new Set(inputs.map((input) => input.dataset.optionId))];
   const price = document.getElementById('p07-selected-price');
   const status = document.getElementById('p07-variant-status');
   const sku = document.getElementById('p07-variant-sku');
@@ -35,23 +36,34 @@
       qty.dispatchEvent(new Event('p35-stock-changed'));
     }
   };
-  const update = () => {
+  const checkedSelection = () => {
     const selected = {};
-    if (cartVariant) cartVariant.value = ''; 
-    for (const field of selectors) {
-      if (!field.value) {
-        if (status) status.textContent = 'Select all options to view exact price and stock.';
-        if (price) price.textContent = originalPrice;
-        if (sku) sku.textContent = '';
-        if (stickyPrice) stickyPrice.textContent = originalPrice;
-        syncPurchase(false);
-        return;
-      }
-      selected[field.dataset.optionId] = Number(field.value);
+    for (const id of optionIds) {
+      const input = inputs.find((node) => node.dataset.optionId === id && node.checked);
+      if (!input) return null;
+      selected[id] = Number(input.value);
     }
-    const variant = data.variants.find((row) =>
-      selectors.every((field) => Number(row.selected?.[field.dataset.optionId]) === selected[field.dataset.optionId])
-    );
+    return selected;
+  };
+  const chooseVariant = (variant) => {
+    inputs.forEach((input) => {
+      input.checked = Number(variant.selected?.[input.dataset.optionId]) === Number(input.value);
+    });
+  };
+  const update = () => {
+    const selected = checkedSelection();
+    if (cartVariant) cartVariant.value = '';
+    if (!selected) {
+      if (status) status.textContent = 'Select all options to view exact price and stock.';
+      if (price) price.textContent = originalPrice;
+      if (sku) sku.textContent = '';
+      if (stickyPrice) stickyPrice.textContent = originalPrice;
+      syncPurchase(false);
+      return;
+    }
+    const variant = data.variants.find((row) => optionIds.every((id) =>
+      Number(row.selected?.[id]) === selected[id]
+    ));
     if (!variant) {
       if (status) status.textContent = 'This combination is not available.';
       if (price) price.textContent = originalPrice;
@@ -61,43 +73,27 @@
       return;
     }
     if (price) price.textContent = '৳' + Number(variant.price).toLocaleString('en-BD');
-    if (status) status.textContent = Number(variant.stock) > 0
-      ? 'Available: ' + Number(variant.stock)
-      : 'Currently out of stock';
+    // Physical count stays unchanged while orders are Processing. The `stock`
+    // field is the separately enforced sellable quantity after reservations.
+    const physicalStock = Math.max(0, Number(variant.physical_stock ?? variant.stock) || 0);
+    const sellableStock = Math.max(0, Number(variant.stock) || 0);
+    if (status) status.textContent = physicalStock === 0
+      ? 'Currently out of stock'
+      : 'Total stock: ' + physicalStock + (sellableStock === 0
+          ? ' (temporarily reserved by pending orders)' : '');
     if (sku) sku.textContent = 'SKU: ' + variant.sku;
     if (cartVariant && Number(variant.stock) > 0) cartVariant.value = String(variant.id);
     if (stickyPrice) stickyPrice.textContent = price?.textContent || originalPrice;
     syncPurchase(Number(variant.stock) > 0, Number(variant.stock));
   };
-  // Preserve the previously selected SKU after Laravel redirects back with
-  // validation errors. Option picker remains the source of displayed price.
-  if (cartVariant?.value) {
-    const remembered = data.variants.find((row) => String(row.id) === cartVariant.value);
-    if (remembered) {
-      selectors.forEach((field) => {
-        field.value = String(remembered.selected?.[field.dataset.optionId] ?? '');
-      });
-    }
-  }
-  // A single in-stock combination needs no extra user choice. Selecting it
-  // automatically keeps the exact SKU, price and available quantity coherent.
-  // Multiple choices still require an explicit customer selection.
-  if (cartVariant && selectors.length && selectors.every((field) => !field.value)) {
+  // A validation redirect restores the exact option chips, not an unrelated SKU.
+  const rememberedId = cartVariant?.value;
+  const remembered = data.variants.find((row) => String(row.id) === rememberedId);
+  if (remembered) chooseVariant(remembered);
+  if (!remembered && optionIds.length) {
     const available = data.variants.filter((row) => Number(row.stock) > 0 && Number(row.price) > 0);
-    if (available.length === 1) {
-      selectors.forEach((field) => {
-        field.value = String(available[0].selected?.[field.dataset.optionId] ?? '');
-      });
-    }
+    if (available.length === 1) chooseVariant(available[0]);
   }
   update();
-  selectors.forEach((field) => field.addEventListener('change', update));
-  cartVariant?.addEventListener('change', () => {
-    const chosen = data.variants.find((row) => String(row.id) === cartVariant.value);
-    if (!chosen) return;
-    selectors.forEach((field) => {
-      field.value = String(chosen.selected?.[field.dataset.optionId] ?? '');
-    });
-    update();
-  });
+  inputs.forEach((input) => input.addEventListener('change', update));
 })();

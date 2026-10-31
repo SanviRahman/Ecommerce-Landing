@@ -32,7 +32,7 @@ class P54Contracts(unittest.TestCase):
         self.assertIn('Estimated Total',blade)
         self.assertIn('asPaisa',js)
         self.assertIn('subtotalPaisa + shippingPaisa',js)
-        self.assertIn('shipping?.addEventListener(\'change\', updateEstimate)',js)
+        self.assertIn("option.addEventListener('change', updateEstimate)",js)
         self.assertIn("route('storefront.checkout.place')",blade)
         self.assertIn('recalculated by the server',blade)
     def test_only_desktop_nav_checkout_removed_not_cart_navigation(self):

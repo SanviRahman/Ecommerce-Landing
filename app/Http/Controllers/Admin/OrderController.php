@@ -21,6 +21,7 @@ use App\Services\ExternalOrderSyncService;
 use App\Services\Inventory\ManagedOrderLifecycle;
 use App\Services\Inventory\ManagedOrderQuantityEditor;
 use App\Services\Inventory\ManagedOrderWriter;
+use App\Services\Inventory\StorefrontDeferredStock;
 use App\Services\OrderAssignmentService;
 use App\Services\OrderBlockService;
 use App\Services\Orders\AuditedOrderTrashPurger;
@@ -1508,11 +1509,16 @@ class OrderController extends Controller
 
             $wasPrinted = ! empty($order->invoice_printed_at);
 
-            $canMoveToCompleteInvoice = in_array($order->order_status, [
-                Order::STATUS_PENDING,
-                Order::STATUS_CONFIRMED,
-                Order::STATUS_PROCESSING,
-            ], true);
+            // Printing is allowed while Processing, but it cannot silently
+            // confirm a deferred storefront order or consume physical stock.
+            $awaitingConfirmation = (int) ($order->storefront_stock_state ?? 0)
+                === StorefrontDeferredStock::RESERVED;
+            $canMoveToCompleteInvoice = ! $awaitingConfirmation
+                && in_array($order->order_status, [
+                    Order::STATUS_PENDING,
+                    Order::STATUS_CONFIRMED,
+                    Order::STATUS_PROCESSING,
+                ], true);
 
             $updateData = [
                 'admin_note' => $this->appendAutoAdminNote(
@@ -1546,7 +1552,20 @@ class OrderController extends Controller
                 $printedCount++;
             }
 
-            $order->update($updateData);
+            if ($canMoveToCompleteInvoice && ManagedOrderLifecycle::enabledForAdmin()) {
+                // Legacy/already-allocated orders retain their existing auto
+                // Complete Invoice behavior. Reserved storefront orders remain
+                // Processing until explicitly Confirmed from the admin status UI.
+                app(ManagedOrderLifecycle::class)->transitionStatus(
+                    (int) $order->id,
+                    Order::STATUS_COMPLETE_INVOICE,
+                    static function (Order $locked) use ($updateData): void {
+                        $locked->update($updateData);
+                    }
+                );
+            } else {
+                $order->update($updateData);
+            }
         }
 
         return [
@@ -3091,15 +3110,26 @@ class OrderController extends Controller
             'fake_reason' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        $order->update($this->buildOrderStatusUpdateData(
-            $order,
-            Order::STATUS_FAKE
-        ));
-
-        $order->fakeLogs()->create([
-            'fake_reason' => $request->fake_reason ?: 'Marked manually',
-            'detected_by' => 'manual',
-        ]);
+        if (ManagedOrderLifecycle::enabledForAdmin()) {
+            // Fake is a terminal release for an unconfirmed storefront hold.
+            app(ManagedOrderLifecycle::class)->transitionStatus(
+                (int) $order->id,
+                Order::STATUS_FAKE,
+                function (Order $locked) use ($request): void {
+                    $locked->update($this->buildOrderStatusUpdateData($locked, Order::STATUS_FAKE));
+                    $locked->fakeLogs()->create([
+                        'fake_reason' => $request->fake_reason ?: 'Marked manually',
+                        'detected_by' => 'manual',
+                    ]);
+                }
+            );
+        } else {
+            $order->update($this->buildOrderStatusUpdateData($order, Order::STATUS_FAKE));
+            $order->fakeLogs()->create([
+                'fake_reason' => $request->fake_reason ?: 'Marked manually',
+                'detected_by' => 'manual',
+            ]);
+        }
 
         return response()->json([
             'status'  => true,
@@ -3112,10 +3142,18 @@ class OrderController extends Controller
         $this->adminOrEmployeeOnly();
         $this->ensureEmployeeOrderAccess($order);
 
-        $order->update($this->buildOrderStatusUpdateData(
-            $order,
-            Order::STATUS_PENDING
-        ));
+        if (ManagedOrderLifecycle::enabledForAdmin()) {
+            // Previously released deferred reservations cannot be reactivated.
+            app(ManagedOrderLifecycle::class)->transitionStatus(
+                (int) $order->id,
+                Order::STATUS_PENDING,
+                function (Order $locked): void {
+                    $locked->update($this->buildOrderStatusUpdateData($locked, Order::STATUS_PENDING));
+                }
+            );
+        } else {
+            $order->update($this->buildOrderStatusUpdateData($order, Order::STATUS_PENDING));
+        }
 
         return response()->json([
             'status'  => true,
@@ -3196,7 +3234,10 @@ class OrderController extends Controller
          * Confirm printing and move eligible active orders to Complete Invoice.
          * Shipped remains a separate manual status change by Admin/Employee.
          */
-        $result       = $this->markOrdersAsInvoicePrinted($orders);
+        $result = DB::transaction(
+            fn (): array => $this->markOrdersAsInvoicePrinted($orders),
+            3
+        );
         $printedCount = (int) ($result['printed'] ?? 0);
         $movedCount   = (int) ($result['moved'] ?? 0);
 
@@ -3815,7 +3856,18 @@ class OrderController extends Controller
             ->limit((int) $request->limit)
             ->pluck('id');
 
-        $deleted = Order::query()->whereIn('id', $ids)->delete();
+        if (ManagedOrderLifecycle::enabledForAdmin()) {
+            // The limit-based trash route must respect the same reservation and
+            // inventory-ledger protection as the single/bulk delete endpoints.
+            $deleted = DB::transaction(function () use ($ids): int {
+                app(ManagedOrderLifecycle::class)->assertCanDeleteOrRestore(
+                    $ids->map(static fn ($id): int => (int) $id)->all()
+                );
+                return Order::query()->whereIn('id', $ids)->delete();
+            });
+        } else {
+            $deleted = Order::query()->whereIn('id', $ids)->delete();
+        }
 
         return response()->json([
             'status'  => true,

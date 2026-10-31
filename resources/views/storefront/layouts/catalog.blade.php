@@ -41,11 +41,11 @@
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p52.css') }}?v=p52">
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p53.css') }}?v=p53">
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p54.css') }}?v=p60">
+    <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p61.css') }}?v=p63">
+    {{-- P62: desktop-only header restore and correctly stacked, non-blurring mini-cart. --}}
+    <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p62.css') }}?v=p63">
     {{-- P60 header-only safety rules: protect against a stale external CSS copy in the cPanel document root. --}}
     <style>
-        @media (min-width: 761px) {
-            body.p34-storefront .p59-header-menu { display: none !important; }
-        }
         @media (max-width: 760px) {
             body.p34-storefront .p19-benefit-bar { display: none !important; }
             body.p34-storefront .p19-main-header > .p19-search { display: none !important; }
@@ -124,9 +124,9 @@
             <div hidden data-p53-added-item="{{ json_encode($p53FlashedItem, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_THROW_ON_ERROR) }}"></div>
         @endif
     @endunless
-    <script src="{{ asset('frontend/js/storefront-catalog.js') }}" defer></script>
+    <script src="{{ asset('frontend/js/storefront-catalog.js') }}?v=p65" defer></script>
     <script src="{{ asset('frontend/js/storefront-p35.js') }}" defer></script>
-    <script src="{{ asset('frontend/js/storefront-next.js') }}" defer></script>
+    <script src="{{ asset('frontend/js/storefront-next.js') }}?v=p63" defer></script>
     <script src="{{ asset('frontend/js/storefront-premium.js') }}" defer></script>
 <script src="{{ asset('frontend/js/storefront-p38.js') }}" defer></script>
     <script src="{{ asset('frontend/js/storefront-p39.js') }}" defer></script>

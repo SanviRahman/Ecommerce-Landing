@@ -140,17 +140,20 @@
 
                 <button class="navbar-toggler front-toggler"
                         type="button"
-                        data-toggle="collapse"
-                        data-target="#frontMenu"
+                        data-campaign-menu-toggle
                         aria-controls="frontMenu"
                         aria-expanded="false"
-                        aria-label="Toggle navigation">
+                        aria-label="Open campaign navigation">
                     <span></span>
                     <span></span>
                     <span></span>
                 </button>
 
-                <div class="collapse navbar-collapse" id="frontMenu">
+                <div class="navbar-collapse front-offcanvas-menu" id="frontMenu" data-campaign-menu>
+                    <div class="front-offcanvas-head d-lg-none">
+                        <strong id="front-offcanvas-title">Browse this campaign</strong>
+                        <button type="button" data-campaign-menu-close aria-label="Close campaign navigation">&times;</button>
+                    </div>
                     <ul class="navbar-nav ml-auto align-items-lg-center">
                         @if($headerCategoryActive)
                             <li class="nav-item">
@@ -235,6 +238,7 @@
                         @endif
                     </ul>
                 </div>
+                <div class="front-offcanvas-backdrop" data-campaign-menu-backdrop hidden></div>
             </nav>
         @else
             {{-- Keep the original header shell/spacing, but render no visible data. --}}

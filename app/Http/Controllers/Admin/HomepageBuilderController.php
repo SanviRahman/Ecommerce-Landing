@@ -360,14 +360,17 @@ final class HomepageBuilderController extends Controller
         return $this->back('Homepage published. Visitors now see the pinned revision at /. Campaigns remain at /campaign/{slug}.');
     }
 
-    public function preview(Request $request, HomepageBuilder $builder, CategoryShelf $shelves, PublicCatalog $catalog): \Illuminate\Http\Response
+    public function preview(Request $request, HomepageBuilder $builder, CategoryShelf $shelves, PublicCatalog $catalog): \Illuminate\Http\Response|RedirectResponse
     {
         $this->adminOnly($builder);
         $data = $request->validate(['revision' => ['nullable', 'integer', 'min:1']]);
         $state = $builder->inspect();
         $id = isset($data['revision']) ? (int) $data['revision']
             : (int) ($state['draft']['id'] ?? $state['published']['id'] ?? 0);
-        abort_if($id === 0, 404, 'No homepage revision to preview.');
+        if ($id === 0) {
+            return redirect()->route('admin.storefront.home.index')
+                ->with('warning', 'Create a draft before opening the homepage preview.');
+        }
         $revision = $builder->revision($id); // Strict same-homepage FK ownership check.
 
         $productIds = $categoryIds = $reviewIds = $mediaIds = [];

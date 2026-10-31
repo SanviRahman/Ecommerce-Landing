@@ -80,6 +80,7 @@
     {{-- Loaded last so polished green actions override older page rules. --}}
     <link rel="stylesheet" href="{{ asset('frontend/css/buttons.css') }}?v=20261024-frontend2">
     <link rel="stylesheet" href="{{ asset('frontend/css/public-description-p53.css') }}?v=p53">
+    <link rel="stylesheet" href="{{ asset('frontend/css/campaign-offcanvas-p62.css') }}?v=p62">
 </head>
 
 <body>
@@ -102,6 +103,7 @@
     @includeIf('frontend.partials.datalayer-events')
 
     @stack('js')
+    <script src="{{ asset('frontend/js/campaign-offcanvas-p62.js') }}?v=p62" defer></script>
     <script src="{{ asset('frontend/js/back-to-top.js') }}" defer></script>
 </body>
 </html>

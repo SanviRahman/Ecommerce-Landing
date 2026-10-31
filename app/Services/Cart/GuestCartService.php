@@ -7,6 +7,7 @@ namespace App\Services\Cart;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Services\Storefront\PublicCatalog;
+use App\Services\Inventory\StorefrontDeferredStock;
 use App\Support\ExactBdt;
 use App\Support\P02MigrationSafety;
 use DomainException;
@@ -54,7 +55,8 @@ final class GuestCartService
             $variant = ProductVariant::with(['product.category', 'optionValues.option'])->find($item->product_variant_id);
             $product = $variant?->product;
             $valid = $variant !== null && $product !== null && $this->isPurchasable($product, $variant);
-            $stock = $valid ? max(0, (int) $variant->stock) : 0;
+            $stock = $valid ? StorefrontDeferredStock::availableForVariant(
+                (int) $variant->id, (int) $variant->stock) : 0;
             $current = $valid ? $this->price($product, $variant) : null;
             $quoted = ExactBdt::fromDecimal((string) $item->quoted_unit_price);
             $priceChanged = $current !== null && $current !== $quoted;
@@ -110,7 +112,8 @@ final class GuestCartService
                 ->where('product_variant_id', $variantId)->lockForUpdate()->first();
             $newQuantity = $quantity + (int) ($existing->quantity ?? 0);
             $this->validateQuantity($newQuantity);
-            if ($newQuantity > (int) $variant->stock) {
+            if ($newQuantity > StorefrontDeferredStock::availableForVariant(
+                (int) $variant->id, (int) $variant->stock)) {
                 throw ValidationException::withMessages(['quantity' => 'Not enough stock is available.']);
             }
             if ($existing) {
@@ -152,7 +155,8 @@ final class GuestCartService
             } else {
                 $variant = ProductVariant::with(['product.category', 'optionValues.option'])->find($item->product_variant_id);
                 $product = $variant?->product;
-                if (! $product || ! $this->isPurchasable($product, $variant) || (int) $variant->stock < $quantity) {
+                if (! $product || ! $this->isPurchasable($product, $variant) || StorefrontDeferredStock::availableForVariant(
+                    (int) $variant->id, (int) $variant->stock) < $quantity) {
                     throw ValidationException::withMessages(['quantity' => 'Product is unavailable or has insufficient stock.']);
                 }
                 DB::table('cart_items')->where('id', $itemId)->where('cart_id', $cart->id)->update([

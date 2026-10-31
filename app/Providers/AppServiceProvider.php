@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Models\Order;
 use App\Support\LocalHomepageAccess;
+use App\Support\ProductionHomepageAccess;
 use App\Observers\OrderBidirectionalSyncObserver;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
@@ -30,8 +31,14 @@ class AppServiceProvider extends ServiceProvider
         // is never the DB security boundary; the service checks actual identity.
         Gate::define('isolated-homepage-builder', static function ($user): bool {
             if ($user->role !== 'admin' || ! (bool) $user->is_active
-                || ! app()->environment(['local', 'testing'])
                 || config('database.default') !== 'mysql') {
+                return false;
+            }
+
+            if (ProductionHomepageAccess::configuredForBuilder()) {
+                return true;
+            }
+            if (! app()->environment(['local', 'testing'])) {
                 return false;
             }
 

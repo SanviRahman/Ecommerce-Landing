@@ -47,6 +47,12 @@ class NormalizeCourierOrderStatuses extends Command
                 &$skipped,
                 &$failed
             ): void {
+                // A storefront hold must be explicitly Confirmed before any
+                // courier job can move its status without allocating stock.
+                if ((int) ($order->storefront_stock_state ?? 0) === 1) {
+                    $skipped++;
+                    return;
+                }
                 if (in_array($order->order_status, [
                     Order::STATUS_DELIVERED,
                     Order::STATUS_CANCELLED,
@@ -81,6 +87,11 @@ class NormalizeCourierOrderStatuses extends Command
                 try {
                     DB::transaction(function () use ($order, $targetStatus): void {
                         $lockedOrder = Order::query()->lockForUpdate()->findOrFail($order->id);
+                        // Repeat under the lock; no courier normalization may
+                        // bypass deferred stock confirmation.
+                        if ((int) ($lockedOrder->storefront_stock_state ?? 0) === 1) {
+                            return;
+                        }
 
                         if (in_array($lockedOrder->order_status, [
                             Order::STATUS_DELIVERED,

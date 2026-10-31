@@ -6,6 +6,7 @@ namespace App\Services\Storefront;
 
 use App\Support\HomeSectionSchema;
 use App\Support\LocalHomepageAccess;
+use App\Support\ProductionHomepageAccess;
 use App\Support\P02MigrationSafety;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -36,6 +37,8 @@ final class HomepageBuilder
     {
         if (LocalHomepageAccess::configuredForBuilder()) {
             LocalHomepageAccess::assertActualBuilderDatabase();
+        } elseif (ProductionHomepageAccess::configuredForBuilder()) {
+            ProductionHomepageAccess::assertActualBuilderDatabase();
         } else {
             P02MigrationSafety::assertIsolatedTestDatabase();
         }

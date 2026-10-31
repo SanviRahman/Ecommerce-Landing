@@ -6,11 +6,18 @@
     $wishlistState = app(\App\Support\StorefrontWishlistState::class);
     $wishSignedIn = $wishlistState->authenticated();
     $saved = $wishSignedIn && $wishlistState->contains((int) $product->id);
-    $defaultSku = $productPreview || $product->has_variants ? null : $product->variants->first(
-        fn ($v) => $v->is_default && $v->is_active && !$v->trashed() && $v->stock > 0 && (int) $product->inventory_version === 1
-    );
-    $canAdd = !$productPreview && ($cartVersion ?? null) !== null && $defaultSku !== null;
-    $canCheckout = $canAdd && config('storefront.p08_checkout_test_enabled', false) === true
+    $quickVariants = !$productPreview && (int) $product->inventory_version === 1
+        ? ($product->has_variants
+            ? $catalog->eligibleVariants($product)->filter(fn ($v) => \App\Services\Inventory\StorefrontDeferredStock::availableForVariant((int) $v->id, (int) $v->stock) > 0)->values()
+            : $product->variants->filter(fn ($v) => $v->is_default && $v->is_active
+                && !$v->trashed() && \App\Services\Inventory\StorefrontDeferredStock::availableForVariant((int) $v->id, (int) $v->stock) > 0)->values())
+        : collect();
+    // Homepage cards never display SKU/option selectors. Direct cart writes are
+    // allowed only for an unambiguous, available SKU. Multiple eligible SKUs
+    // are chosen on the product detail page (no guessed customer selection).
+    $canQuickAdd = !$productPreview && ($cartVersion ?? null) !== null && $quickVariants->count() === 1;
+    $selectionUrl = $product->has_variants ? $productUrl.'#p07-variant-picker' : $productUrl;
+    $canCheckout = $canQuickAdd && config('storefront.p08_checkout_test_enabled', false) === true
         && config('storefront.p03_core_test_enabled', false) === true;
 @endphp
 <article class="sf-tile sf-product p34-product-card" data-reveal>
@@ -42,10 +49,10 @@
             @if($productPreview)
                 <span class="sf-secondary sf-inert" title="Preview only">@include('storefront.partials.icon', ['name'=>'cart-plus'])</span>
                 <span class="sf-cta sf-inert">Preview only</span>
-            @elseif($canAdd)
+            @elseif($canQuickAdd)
                 <form action="{{ route('storefront.cart.add') }}" method="POST" data-async-cart class="sf-product-quickform">
                     @csrf
-                    <input type="hidden" name="product_variant_id" value="{{ $defaultSku->id }}">
+                    <input type="hidden" name="product_variant_id" value="{{ $quickVariants->first()->id }}">
                     <input type="hidden" name="cart_version" value="{{ $cartVersion }}">
                     <input type="hidden" name="quantity" value="1">
                     <button type="submit" name="intent" value="cart" class="sf-secondary" aria-label="Add {{ $product->name }} to cart" title="Add to Cart">@include('storefront.partials.icon', ['name'=>'cart-plus'])</button>
@@ -56,9 +63,9 @@
                     @endif
                 </form>
             @else
-                <a class="sf-secondary" href="{{ $productUrl }}" aria-label="Choose options or view {{ $product->name }}" title="{{ $product->has_variants ? 'Choose options first' : 'View product details' }}">@include('storefront.partials.icon', ['name'=>'cart-plus'])</a>
-                <a class="sf-cta p34-buy-button" href="{{ $productUrl }}">
-                    {{ $product->has_variants ? 'Choose Options' : (($cartVersion ?? null) !== null && config('storefront.p08_checkout_test_enabled', false) && config('storefront.p03_core_test_enabled', false) && $catalog->displayStock($product) > 0 ? 'Buy Now' : 'View Product') }}
+                <a class="sf-secondary" href="{{ $selectionUrl }}" aria-label="{{ $product->has_variants ? 'Select a variation for' : 'View' }} {{ $product->name }}" title="{{ $product->has_variants ? 'Select size or color on product page' : 'View product details' }}">@include('storefront.partials.icon', ['name'=>'cart-plus'])</a>
+                <a class="sf-cta p34-buy-button" href="{{ $selectionUrl }}">
+                    {{ $product->has_variants ? 'Choose Options' : 'View Product' }}
                     @include('storefront.partials.icon', ['name'=>'arrow-right'])
                 </a>
             @endif

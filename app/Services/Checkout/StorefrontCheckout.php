@@ -11,6 +11,7 @@ use App\Models\ShippingCharge;
 use App\Services\Cart\GuestCartService;
 use App\Services\CustomerIdentityService;
 use App\Services\Inventory\InventoryAllocator;
+use App\Services\Inventory\StorefrontDeferredStock;
 use App\Services\OrderAssignmentService;
 use App\Services\OrderBlockService;
 use App\Support\ExactBdt;
@@ -84,7 +85,11 @@ final class StorefrontCheckout
             ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE));
             $claim = $this->idempotency->claim($ownerHash, $key, $requestHash, 'storefront');
             if ($claim['state'] === 'replayed') {
-                $completed = Order::query()->whereKey($claim['order_id'])->where('inventory_version', 1)->first();
+                $completed = Order::query()->whereKey($claim['order_id'])
+                    ->whereNull('campaign_id')->where('created_via', 'frontend')
+                    ->when(! StorefrontDeferredStock::checkoutEnabled(),
+                        static fn ($query) => $query->where('inventory_version', 1))
+                    ->first();
                 if (! $completed) {
                     throw new DomainException('Saved checkout no longer has an authorized order.');
                 }
@@ -128,6 +133,18 @@ final class StorefrontCheckout
             }
             $shippingMinor = $freeDelivery ? 0 : ExactBdt::fromDecimal((string) $shipping->delivery_charge);
             $total = ExactBdt::add($subTotal, $shippingMinor);
+            // Production: lock all physical SKUs and account for prior pending
+            // storefront reservations BEFORE recording this new reservation.
+            // P26/P32 keep their existing immediate-allocation behavior.
+            $deferStock = StorefrontDeferredStock::checkoutEnabled();
+            if ($deferStock) {
+                $requiredStock = [];
+                foreach ($checked as [, $variant, $qty]) {
+                    $id = (int) $variant->id;
+                    $requiredStock[$id] = ($requiredStock[$id] ?? 0) + $qty;
+                }
+                app(StorefrontDeferredStock::class)->assertCapacityAndLock($requiredStock);
+            }
             $customer = $this->identities->resolveOrCreate($name, $phone);
             $order = Order::create([
                 'invoice_id' => $this->invoiceId(),
@@ -162,8 +179,23 @@ final class StorefrontCheckout
                     'product_variant_id' => $variant->id,
                 ]);
                 $mapped[(int) $item->id] = (int) $variant->id;
+                if ($deferStock) {
+                    $selected = $variant->optionValues->mapWithKeys(
+                        static fn ($value) => [(int) $value->product_option_id => (int) $value->id]
+                    )->all();
+                    DB::table('order_items')->where('id', $item->id)->update([
+                        'variant_sku' => $variant->sku,
+                        'variant_options' => json_encode($selected === [] ? new \stdClass() : $selected, JSON_THROW_ON_ERROR),
+                    ]);
+                }
             }
-            $this->inventory->allocateStorefrontOrder((int) $order->id, $mapped);
+            if ($deferStock) {
+                DB::table('orders')->where('id', $order->id)->update([
+                    'storefront_stock_state' => StorefrontDeferredStock::RESERVED,
+                ]);
+            } else {
+                $this->inventory->allocateStorefrontOrder((int) $order->id, $mapped);
+            }
             $this->idempotency->complete((string) $claim['checkout_request_id'], (int) $order->id);
             $this->assignment->assign($order);
             DB::table('cart_items')->where('cart_id', $cart->id)->delete();

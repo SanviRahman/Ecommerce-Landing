@@ -109,28 +109,46 @@
     $('[data-review-next]', controls)?.addEventListener('click', () => move(1));
   });
 
-  // Off-canvas menu and cart: Escape, overlay, focus trap and focus restoration.
+  // Storefront menu/cart drawer. The cart must be ABOVE its backdrop, and the
+  // backdrop must not blur the page or intercept the checkout link. Preserve
+  // pre-existing body overflow and reset stale state on page navigation/BFCache.
   const overlay = $('[data-drawer-backdrop]');
   const menu = $('[data-menu-drawer]');
   const cartDrawer = $('[data-cart-drawer]');
   let openDrawer = null;
   let focusReturn = null;
-  const closeDrawer = () => {
-    if (!openDrawer) return;
+  let savedBodyOverflow = null;
+  const closeDrawer = ({restoreFocus = true} = {}) => {
+    if (!openDrawer) {
+      // Pageshow may restore an old DOM snapshot after a browser Back action.
+      if (overlay) { overlay.hidden = true; delete overlay.dataset.drawerKind; }
+      if (menu) menu.hidden = true;
+      if (cartDrawer) cartDrawer.hidden = true;
+      $$('[data-menu-open]').forEach(button => button.setAttribute('aria-expanded', 'false'));
+      return;
+    }
     openDrawer.hidden = true;
-    if (overlay) overlay.hidden = true;
-    doc.body.style.overflow = '';
+    $$('[data-menu-open]').forEach(button => button.setAttribute('aria-expanded', 'false'));
+    if (overlay) { overlay.hidden = true; delete overlay.dataset.drawerKind; }
+    doc.body.style.overflow = savedBodyOverflow ?? '';
+    savedBodyOverflow = null;
     openDrawer = null;
-    focusReturn?.focus?.();
+    const previousFocus = focusReturn;
     focusReturn = null;
+    if (restoreFocus && previousFocus?.isConnected) previousFocus.focus?.();
   };
   const showDrawer = (drawer, target) => {
     if (!drawer) return;
-    closeDrawer();
+    closeDrawer({restoreFocus: false});
     focusReturn = target || doc.activeElement;
+    savedBodyOverflow = doc.body.style.overflow;
     openDrawer = drawer;
     drawer.hidden = false;
-    if (overlay) overlay.hidden = false;
+    if (drawer === menu) target?.setAttribute?.('aria-expanded', 'true');
+    if (overlay) {
+      overlay.dataset.drawerKind = drawer === cartDrawer ? 'cart' : 'menu';
+      overlay.hidden = false;
+    }
     doc.body.style.overflow = 'hidden';
     $('[data-drawer-close]', drawer)?.focus();
   };
@@ -139,15 +157,23 @@
     showDrawer(cartDrawer, button);
     void refreshCart();
   }));
-  $$('[data-drawer-close]').forEach(button => button.addEventListener('click', closeDrawer));
-  overlay?.addEventListener('click', closeDrawer);
+  $$('[data-drawer-close]').forEach(button => button.addEventListener('click', () => closeDrawer()));
+  overlay?.addEventListener('click', () => closeDrawer());
+  // Follow checkout/cart links with NO lingering overlay or scroll lock.
+  cartDrawer?.querySelectorAll('a[href]').forEach(link => link.addEventListener('click', () => {
+    closeDrawer({restoreFocus: false});
+  }));
+  window.addEventListener('pagehide', () => closeDrawer({restoreFocus: false}));
+  window.addEventListener('pageshow', (event) => {
+    if (event.persisted) closeDrawer({restoreFocus: false});
+  });
   doc.addEventListener('keydown', (event) => {
     if (!openDrawer) return;
     if (event.key === 'Escape') { event.preventDefault(); closeDrawer(); return; }
     if (event.key !== 'Tab') return;
     const focusable = $$('a[href],button:not(:disabled),input:not(:disabled),select:not(:disabled)', openDrawer)
       .filter(el => el.getClientRects().length > 0);
-    if (!focusable.length) return;
+    if (!focusable.length) {event.preventDefault();return;}
     const first = focusable[0], last = focusable[focusable.length - 1];
     if (event.shiftKey && doc.activeElement === first) {event.preventDefault();last.focus();}
     else if (!event.shiftKey && doc.activeElement === last) {event.preventDefault();first.focus();}
@@ -312,7 +338,8 @@
   if (checkout) {
     const panels = $$('[data-checkout-step]', checkout);
     const indicators = $$('[data-step-indicator-item]');
-    const shipping = $('#p08-area', checkout);
+    const shippingOptions = $$('[data-shipping-area]', checkout);
+    const selectedShipping = () => shippingOptions.find((option) => option.checked);
     const getStep = (index) => panels.find(panel => Number(panel.dataset.checkoutStep) === index);
     const totalPreview = $('[data-checkout-total-preview][data-subtotal-bdt]');
     // Parse decimal BDT into integer paisa; never infer a total from formatted
@@ -327,7 +354,7 @@
     const bdt = (amount) => '৳' + (amount / 100).toLocaleString('en-BD',
       {minimumFractionDigits: 2, maximumFractionDigits: 2});
     const updateEstimate = () => {
-      const fee = shipping?.selectedOptions?.[0]?.dataset.shippingCost;
+      const fee = selectedShipping()?.dataset.shippingCost;
       const shippingPaisa = asPaisa(fee);
       const subtotalPaisa = asPaisa(totalPreview?.dataset.subtotalBdt);
       const valid = shippingPaisa !== null && subtotalPaisa !== null
@@ -351,7 +378,7 @@
         const preview = $('[data-review-shipping]');
         if (preview) {
           preview.textContent = [$('#p08-customer-name')?.value, $('#p08-phone')?.value,
-            $('#p08-address')?.value, shipping?.selectedOptions?.[0]?.textContent?.trim()]
+            $('#p08-address')?.value, selectedShipping()?.closest('.p61-area-option')?.textContent?.trim()]
             .filter(Boolean).join('\n');
         }
       }
@@ -372,7 +399,7 @@
         });
       }
     };
-    shipping?.addEventListener('change', updateEstimate);
+    shippingOptions.forEach((option) => option.addEventListener('change', updateEstimate));
     updateEstimate();
     $$('[data-step-next]', checkout).forEach(button => button.addEventListener('click', () => {
       const target = Number(button.dataset.stepNext);

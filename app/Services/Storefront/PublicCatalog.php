@@ -7,6 +7,7 @@ namespace App\Services\Storefront;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\ProductVariant;
+use App\Services\Inventory\StorefrontDeferredStock;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 
@@ -173,8 +174,39 @@ final class PublicCatalog
 
     public function displayStock(Product $product): int
     {
-        return $product->has_variants
-            ? (int) $this->eligibleVariants($product)->sum('stock')
+        if ($product->has_variants) {
+            return (int) $this->eligibleVariants($product)->sum(
+                static fn (ProductVariant $variant) => StorefrontDeferredStock::availableForVariant(
+                    (int) $variant->id, (int) $variant->stock)
+            );
+        }
+        $default = $product->variants->first(
+            static fn (ProductVariant $variant) => (bool) $variant->is_default && ! $variant->trashed()
+        );
+        return $default
+            ? StorefrontDeferredStock::availableForVariant((int) $default->id, (int) $default->stock)
+            : max(0, (int) $product->stock);
+    }
+
+    /**
+     * Count PHYSICAL SKU units only. Processing storefront orders create a
+     * reservation, not an inventory movement; the public product detail must
+     * not mistake those temporary holds for a completed stock decrement.
+     *
+     * Purchase eligibility stays on displayStock()/availableForVariant().
+     */
+    public function physicalStock(Product $product): int
+    {
+        if ($product->has_variants) {
+            return (int) $this->eligibleVariants($product)->sum(
+                static fn (ProductVariant $variant): int => max(0, (int) $variant->stock)
+            );
+        }
+        $default = $product->variants->first(
+            static fn (ProductVariant $variant) => (bool) $variant->is_default && ! $variant->trashed()
+        );
+        return $default
+            ? max(0, (int) $default->stock)
             : max(0, (int) $product->stock);
     }
 
@@ -204,7 +236,11 @@ final class PublicCatalog
                 'id' => (int) $variant->id, 'sku' => $variant->sku,
                 'price' => (int) ($variant->price_override ?? $product->new_price),
                 'old_price' => (int) ($variant->old_price_override ?? $product->old_price ?? 0),
-                'stock' => (int) $variant->stock, 'selected' => $selected,
+                // Sellable quantity remains reservation-aware for the cart/checkout guard.
+                'stock' => StorefrontDeferredStock::availableForVariant((int) $variant->id, (int) $variant->stock),
+                // Public product detail shows real on-hand stock until Confirmed.
+                'physical_stock' => max(0, (int) $variant->stock),
+                'selected' => $selected,
             ];
         }
         uasort($options, static fn ($a, $b) => [$a['sort_order'], $a['id']] <=> [$b['sort_order'], $b['id']]);

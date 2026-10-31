@@ -44,6 +44,9 @@
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p52.css') }}?v=p52">
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p53.css') }}?v=p53">
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p54.css') }}?v=p54">
+    <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p61.css') }}?v=p63">
+    {{-- P63: public homepage shares the same drawer stacking and desktop header rules as the catalog/checkout. --}}
+    <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p62.css') }}?v=p63">
     <script src="{{ asset('frontend/js/storefront-p51-loader.js') }}?v=p52"></script>
 </head>
 <body class="p34-storefront">
@@ -315,11 +318,11 @@
     @endif
 @endif
 <script src="{{ asset('frontend/js/image-fallback.js') }}" defer></script>
-<script src="{{ asset('frontend/js/storefront-next.js') }}" defer></script>
+<script src="{{ asset('frontend/js/storefront-next.js') }}?v=p63" defer></script>
 <script src="{{ asset('frontend/js/storefront-p36.js') }}?v=p43" defer></script>
 <script src="{{ asset('frontend/js/storefront-premium.js') }}" defer></script>
 @unless($isPreview ?? false)
-    <script src="{{ asset('frontend/js/storefront-catalog.js') }}" defer></script>
+    <script src="{{ asset('frontend/js/storefront-catalog.js') }}?v=p65" defer></script>
 @endunless
 <script src="{{ asset('frontend/js/storefront-p38.js') }}" defer></script>
 <script src="{{ asset('frontend/js/storefront-p39.js') }}" defer></script>

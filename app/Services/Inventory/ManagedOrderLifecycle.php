@@ -7,16 +7,17 @@ use App\Support\P02MigrationSafety;
 use Closure;
 use DomainException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
 use LogicException;
 
 /**
- * P03 isolated lifecycle plus P58 authorized production admin stock-linked transitions.
+ * P03 isolated lifecycle plus P58 production and P32 verified-local admin transitions.
  *
  * The caller must authorize/validate status changes before invoking this method.
- * Only the test database and both explicit P03 flags can activate this service.
+ * The isolated test DB or an explicitly verified local/production admin can activate it.
  */
 final class ManagedOrderLifecycle
 {
@@ -38,6 +39,30 @@ final class ManagedOrderLifecycle
             DB::transaction(function () use ($orderId, $targetStatus, $persist): void {
                 $order = Order::query()->whereKey($orderId)->lockForUpdate()->firstOrFail();
                 $managed = (int) $order->inventory_version === 1;
+                $stockState = (int) ($order->storefront_stock_state ?? 0);
+                $deferred = $stockState === StorefrontDeferredStock::RESERVED;
+                // Invoice printing and Complete Invoice must not deduct stock
+                // before the operator explicitly moves Processing to Confirmed.
+                if ($deferred && $targetStatus === 'complete_invoice') {
+                    throw ValidationException::withMessages([
+                        'order_status' => 'Confirm this storefront order before moving it to Complete Invoice.',
+                    ]);
+                }
+
+                if ($stockState === StorefrontDeferredStock::RELEASED
+                    && ! in_array($targetStatus, ['cancelled', 'canceled', 'fake', 'stock_out', 'courier_cancelled'], true)) {
+                    throw ValidationException::withMessages([
+                        'order_status' => 'This cancelled/released storefront reservation cannot be reactivated.',
+                    ]);
+                }
+                if ($deferred && ! in_array($targetStatus, [
+                    'pending', 'processing', 'confirmed', 'complete_invoice',
+                    'cancelled', 'canceled', 'fake', 'stock_out', 'courier_cancelled',
+                ], true)) {
+                    throw ValidationException::withMessages([
+                        'order_status' => 'Complete this storefront order first so inventory is allocated before dispatch.',
+                    ]);
+                }
 
                 if ($managed) {
                     $oldStatus = (string) $order->order_status;
@@ -79,10 +104,23 @@ final class ManagedOrderLifecycle
                     throw new LogicException('Status writer did not persist the requested transition.');
                 }
 
+                if ($deferred) {
+                    if ($targetStatus === 'confirmed') {
+                        app(StorefrontDeferredStock::class)->finalize($orderId);
+                    } elseif (in_array($targetStatus, [
+                        'cancelled', 'canceled', 'fake', 'stock_out', 'courier_cancelled',
+                    ], true)) {
+                        // The physical stock was NEVER deducted; release only the
+                        // pending availability hold. A subsequent retry can't reactivate it.
+                        DB::table('orders')->where('id', $orderId)
+                            ->where('storefront_stock_state', StorefrontDeferredStock::RESERVED)
+                            ->update(['storefront_stock_state' => StorefrontDeferredStock::RELEASED]);
+                    }
+                }
                 if ($managed && in_array($targetStatus, ['cancelled', 'canceled'], true)) {
                     app(InventoryAllocator::class)->releaseCancelledOrder($orderId, (string) Str::uuid());
                 }
-            });
+            }, 3); // Retry a transient lock deadlock with concurrent checkout.
         } catch (DomainException $exception) {
             // Business-rule denial is a normal 422 response, not a 500.
             throw ValidationException::withMessages(['order_status' => $exception->getMessage()]);
@@ -100,12 +138,15 @@ final class ManagedOrderLifecycle
         if (DB::transactionLevel() < 1) {
             throw new LogicException('Edit safety check must share the order transaction.');
         }
+        $columns = ['id', 'inventory_version'];
+        if (Schema::hasColumn('orders', 'storefront_stock_state')) $columns[] = 'storefront_stock_state';
         $order = DB::table('orders')->where('id', $orderId)->whereNull('deleted_at')
-            ->lockForUpdate()->first(['id', 'inventory_version']);
+            ->lockForUpdate()->first($columns);
         if ($order === null) {
             throw new DomainException('Cannot edit an unknown/deleted order.');
         }
-        if ((int) $order->inventory_version === 1) {
+        if ((int) $order->inventory_version === 1
+            || (int) ($order->storefront_stock_state ?? 0) !== StorefrontDeferredStock::LEGACY) {
             throw ValidationException::withMessages([
                 'items' => 'Managed order item editing is locked until audited stock-delta reconciliation is enabled.',
             ]);
@@ -133,8 +174,14 @@ final class ManagedOrderLifecycle
                 throw new InvalidArgumentException('Order IDs must be positive integers.');
             }
         }
+        $hasStockState = Schema::hasColumn('orders', 'storefront_stock_state');
         $managed = DB::table('orders')->whereIn('id', array_values(array_unique($orderIds)))
-            ->where('inventory_version', 1)->orderBy('id')->lockForUpdate()->first(['id']);
+            ->where(function ($query) use ($hasStockState): void {
+                $query->where('inventory_version', 1);
+                if ($hasStockState) {
+                    $query->orWhere('storefront_stock_state', '<>', StorefrontDeferredStock::LEGACY);
+                }
+            })->orderBy('id')->lockForUpdate()->first(['id']);
         if ($managed !== null) {
             throw ValidationException::withMessages([
                 'orders' => 'Managed stock-linked orders cannot be deleted or restored until a reviewed archive policy exists.',
@@ -146,13 +193,18 @@ final class ManagedOrderLifecycle
     public static function enabledForAdmin(): bool
     {
         return ManagedOrderWriter::enabled()
-            || app(\App\Support\P58ProductionStorefrontAccess::class)->allowsAdminManaged();
+            || app(\App\Support\P58ProductionStorefrontAccess::class)->allowsAdminManaged()
+            || app(\App\Support\P32LocalStorefrontAccess::class)->allowsAdminManaged();
     }
 
     private function assertIsolatedEnabled(): void
     {
         if (app(\App\Support\P58ProductionStorefrontAccess::class)->allowsAdminManaged()) {
             app(\App\Support\P58ProductionStorefrontAccess::class)->assertAdminManaged();
+            return;
+        }
+        if (app(\App\Support\P32LocalStorefrontAccess::class)->allowsAdminManaged()) {
+            app(\App\Support\P32LocalStorefrontAccess::class)->assertAdminManaged();
             return;
         }
         if (! ManagedOrderWriter::enabled() || config('storefront.p03_core_test_enabled', false) !== true) {

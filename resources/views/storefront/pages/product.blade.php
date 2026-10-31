@@ -59,21 +59,37 @@
             @if($product->has_variants)
                 <div id="p07-variant-picker" data-variant-matrix="{{ json_encode($selection, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_THROW_ON_ERROR) }}" data-p35-managed-product="{{ (int) $product->inventory_version === 1 ? '1' : '0' }}">
                     @foreach($selection['options'] as $option)
-                        <div class="p07-choice-group">
-                            <label for="p07-option-{{ $option['id'] }}">{{ $option['name'] }}</label>
-                            <select id="p07-option-{{ $option['id'] }}" data-option-id="{{ $option['id'] }}">
-                                <option value="">Choose {{ $option['name'] }}</option>
+                        <fieldset class="p07-choice-group p61-choice-group" data-choice-group="{{ $option['id'] }}">
+                            <legend>{{ $option['name'] }}</legend>
+                            <div class="p61-choice-flex" role="group" aria-label="Choose {{ $option['name'] }}">
                                 @foreach($option['values'] as $value)
-                                    <option value="{{ $value['id'] }}">{{ $value['label'] }}</option>
+                                    @php $swatch = isset($value['swatch']) && preg_match('/\A#[0-9a-fA-F]{6}\z/D', (string) $value['swatch']) ? $value['swatch'] : null; @endphp
+                                    <label class="p61-choice-label">
+                                        <input type="radio" name="option_{{ $option['id'] }}" data-option-id="{{ $option['id'] }}"
+                                            value="{{ $value['id'] }}" aria-label="{{ $value['label'] }}">
+                                        <span class="p61-choice-chip">
+                                            @if($swatch)<span class="p61-color-dot" style="--p61-swatch:{{ $swatch }}" aria-hidden="true"></span>@endif
+                                            {{ $value['label'] }}
+                                        </span>
+                                    </label>
                                 @endforeach
-                            </select>
-                        </div>
+                            </div>
+                        </fieldset>
                     @endforeach
                     <p class="p07-variant-status" id="p07-variant-status" role="status" aria-live="polite">Select all options to view exact price and stock.</p>
                     <p class="p07-sku" id="p07-variant-sku"></p>
                 </div>
             @else
-                <p class="p07-variant-status">{{ $catalog->displayStock($product) > 0 ? 'Available: '.$catalog->displayStock($product) : 'Currently out of stock' }}</p>
+                @php
+                    $physicalStock = $catalog->physicalStock($product);
+                    $sellableStock = $catalog->displayStock($product);
+                @endphp
+                <p class="p07-variant-status" role="status">
+                    {{ $physicalStock > 0 ? 'Total stock: '.$physicalStock : 'Currently out of stock' }}
+                    @if($physicalStock > 0 && $sellableStock === 0)
+                        <span>(temporarily reserved by pending orders)</span>
+                    @endif
+                </p>
                 @if($product->weight_size)<p class="p07-sku">{{ $product->weight_size }}</p>@endif
             @endif
             @if($cartVersion !== null)
@@ -84,8 +100,9 @@
                             ->where('option_signature', 'default')->where('stock', '>', 0)->first()
                         : null;
                     $canSelectSku = (int) $product->inventory_version === 1 && ($product->has_variants
-                        ? $catalog->eligibleVariants($product)->contains(static fn ($v) => $v->stock > 0)
-                        : $simpleDefault !== null);
+                        ? $catalog->eligibleVariants($product)->contains(static fn ($v) => \App\Services\Inventory\StorefrontDeferredStock::availableForVariant((int) $v->id, (int) $v->stock) > 0)
+                        : ($simpleDefault !== null && \App\Services\Inventory\StorefrontDeferredStock::availableForVariant(
+                            (int) $simpleDefault->id, (int) $simpleDefault->stock) > 0));
                     $canCheckoutNow = config('storefront.p08_checkout_test_enabled', false) === true
                         && config('storefront.p03_core_test_enabled', false) === true;
                 @endphp
@@ -94,15 +111,9 @@
                     <input type="hidden" name="storefront_product_origin" value="{{ $product->slug }}">
                     <input type="hidden" name="cart_version" value="{{ $cartVersion }}">
                     @if($product->has_variants)
-                        <label for="p08-variant-id">Selected variation</label>
-                        <select name="product_variant_id" id="p08-variant-id" aria-describedby="p07-variant-status" required>
-                            <option value="">Choose the exact SKU</option>
-                            @foreach($catalog->eligibleVariants($product) as $variant)
-                                <option value="{{ $variant->id }}" @disabled($variant->stock < 1) @selected((string) old('product_variant_id') === (string) $variant->id)>
-                                    {{ $variant->optionValues->map(fn($v) => $v->label)->implode(' / ') }} ({{ $variant->sku }}) — {{ $variant->stock }} available
-                                </option>
-                            @endforeach
-                        </select>
+                        {{-- SKU is derived strictly from the checked option chips in the matrix. --}}
+                        <input type="hidden" name="product_variant_id" id="p08-variant-id"
+                            value="{{ old('product_variant_id', '') }}">
                     @else
                         <input type="hidden" name="product_variant_id" value="{{ $simpleDefault?->id }}">
                     @endif
@@ -111,7 +122,7 @@
                         <div class="p35-quantity-stepper" data-p35-quantity-stepper>
                             <button type="button" data-p35-qty-step="-1" aria-label="Decrease quantity" aria-controls="p08-product-quantity">−</button>
                             <input type="number" name="quantity" id="p08-product-quantity" min="1"
-                                max="{{ $simpleDefault ? min(1000, (int) $simpleDefault->stock) : 1000 }}"
+                                max="{{ $simpleDefault ? min(1000, \App\Services\Inventory\StorefrontDeferredStock::availableForVariant((int) $simpleDefault->id, (int) $simpleDefault->stock)) : 1000 }}"
                                 value="{{ old('quantity', 1) }}" inputmode="numeric" required>
                             <button type="button" data-p35-qty-step="1" aria-label="Increase quantity" aria-controls="p08-product-quantity">+</button>
                         </div>

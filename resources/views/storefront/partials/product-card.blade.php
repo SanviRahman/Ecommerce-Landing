@@ -6,10 +6,13 @@
     $wishlistState = app(\App\Support\StorefrontWishlistState::class);
     $wishSignedIn = $wishlistState->authenticated();
     $saved = $wishSignedIn && $wishlistState->contains((int) $product->id);
-    $defaultSku = $product->has_variants ? null : $product->variants->first(
-        fn ($v) => $v->is_default && $v->is_active && !$v->trashed() && $v->stock > 0 && (int) $product->inventory_version === 1
-    );
-    $canAdd = ($cartVersion ?? null) !== null && $defaultSku !== null;
+    $quickVariants = (int) $product->inventory_version === 1
+        ? ($product->has_variants
+            ? $catalog->eligibleVariants($product)->filter(fn ($v) => \App\Services\Inventory\StorefrontDeferredStock::availableForVariant((int) $v->id, (int) $v->stock) > 0)->values()
+            : $product->variants->filter(fn ($v) => $v->is_default && $v->is_active
+                && !$v->trashed() && \App\Services\Inventory\StorefrontDeferredStock::availableForVariant((int) $v->id, (int) $v->stock) > 0)->values())
+        : collect();
+    $canAdd = ($cartVersion ?? null) !== null && $quickVariants->isNotEmpty();
     $canCheckout = $canAdd && config('storefront.p08_checkout_test_enabled', false) === true
         && config('storefront.p03_core_test_enabled', false) === true;
 @endphp
@@ -44,7 +47,21 @@
             @if($canAdd)
                 <form action="{{ route('storefront.cart.add') }}" method="POST" data-async-cart class="p19-quickform">
                     @csrf
-                    <input type="hidden" name="product_variant_id" value="{{ $defaultSku->id }}">
+                    @if($product->has_variants)
+                        <fieldset class="p61-quick-variants">
+                            <legend>Choose variation</legend>
+                            <div class="p61-quick-options">
+                                @foreach($quickVariants->take(20) as $variant)
+                                    <label><input type="radio" name="product_variant_id" value="{{ $variant->id }}"
+                                        @checked($quickVariants->count() === 1) required>
+                                        <span>{{ $variant->optionValues->map(fn ($v) => $v->label)->implode(' / ') }}</span></label>
+                                @endforeach
+                            </div>
+                            @if($quickVariants->count() > 20)<a href="{{ $productUrl }}">View more options</a>@endif
+                        </fieldset>
+                    @else
+                        <input type="hidden" name="product_variant_id" value="{{ $quickVariants->first()->id }}">
+                    @endif
                     <input type="hidden" name="quantity" value="1">
                     <input type="hidden" name="cart_version" value="{{ $cartVersion }}">
                     <button type="submit" name="intent" value="cart" class="p19-cart-action" aria-label="Add {{ $product->name }} to cart" title="Add to Cart">
@@ -61,7 +78,7 @@
                     @include('storefront.partials.icon', ['name'=>'cart-plus'])
                 </a>
                 <a class="p07-card-action p34-buy-button" href="{{ $productUrl }}">
-                    {{ $product->has_variants ? 'Choose Options' : (($cartVersion ?? null) !== null && $available > 0 && config('storefront.p08_checkout_test_enabled', false) && config('storefront.p03_core_test_enabled', false) ? 'Buy Now' : 'View Product') }}
+                    {{ $product->has_variants ? 'Choose Options' : 'View Product' }}
                     @include('storefront.partials.icon', ['name'=>'arrow-right'])
                 </a>
             @endif

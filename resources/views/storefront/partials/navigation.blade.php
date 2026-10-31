@@ -22,7 +22,7 @@
         <a href="{{ route('order.track') }}">Track Order</a>
     </div></div>
     <div class="p07-container p19-main-header">
-        <button type="button" class="p59-header-menu" data-menu-open aria-label="Open category menu" aria-controls="p19-category-menu-drawer">
+        <button type="button" class="p59-header-menu" data-menu-open aria-label="Open category menu" aria-controls="p19-category-menu-drawer" aria-expanded="false">
             @include('storefront.partials.icon', ['name'=>'menu'])
         </button>
         <a class="p07-brand p33-logo-brand" href="{{ route('home') }}" aria-label="{{ $brandName }} homepage">
@@ -170,7 +170,7 @@
     <a href="{{ route('home') }}" @if(request()->routeIs('home', 'storefront.home')) aria-current="page" @endif>
         <span class="p34-bottom-icon">@include('storefront.partials.icon', ['name'=>'home'])</span><span class="p34-mobile-text">Home</span>
     </a>
-    <button type="button" data-menu-open aria-label="Open category menu">
+    <button type="button" data-menu-open aria-label="Open category menu" aria-controls="p19-category-menu-drawer" aria-expanded="false">
         <span class="p34-bottom-icon">@include('storefront.partials.icon', ['name'=>'grid'])</span><span class="p34-mobile-text">Menu</span>
     </button>
     @if($cartActive)

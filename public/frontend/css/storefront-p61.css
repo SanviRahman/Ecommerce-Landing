@@ -1,0 +1,45 @@
+/* P61: native accessible option radios, compact responsive flex chips. */
+.p61-choice-group{min-width:0;border:0;padding:0;margin:18px 0}
+.p61-choice-group legend{font-weight:750;font-size:14px;margin:0 0 9px;padding:0;color:#25372f}
+.p61-choice-flex{display:flex;align-items:center;flex-wrap:wrap;gap:9px}
+.p61-choice-label{position:relative;display:inline-flex;cursor:pointer;margin:0}
+.p61-choice-label input{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden}
+.p61-choice-chip{min-height:42px;border:1.5px solid #cbdcd1;border-radius:8px;padding:10px 15px;display:inline-flex;align-items:center;gap:8px;background:#fff;color:#264533;font-size:14px;font-weight:650;line-height:1.3;transition:background .15s ease,border-color .15s ease,box-shadow .15s ease}
+.p61-choice-label input:checked+.p61-choice-chip{color:#fff;background:#17693d;border-color:#17693d;box-shadow:0 0 0 1px #17693d}
+.p61-choice-label input:focus-visible+.p61-choice-chip{outline:3px solid #f7ae3c;outline-offset:3px}
+.p61-choice-label:hover .p61-choice-chip{border-color:#17693d}
+.p61-color-dot{display:inline-block;width:16px;height:16px;flex:none;border-radius:50%;background:var(--p61-swatch);border:1px solid #6664;box-shadow:0 0 0 1px #fff6}
+.p61-shipping-areas{border:0;padding:0;margin:17px 0;min-width:0}
+.p61-shipping-areas legend{font-size:14px;font-weight:750;margin-bottom:5px}
+.p61-shipping-areas>p{margin:0 0 10px;font-size:13px;color:#607568}
+.p61-area-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:10px}
+.p61-area-option{display:flex!important;align-items:center;gap:12px;cursor:pointer;margin:0!important;padding:12px 14px;min-height:64px;border:1.5px solid #d5e2d8;border-radius:11px;background:#fff}
+.p61-area-option:has(input:checked){background:#effaf1;border-color:#167a43;box-shadow:inset 0 0 0 1px #167a43}
+.p61-area-option input{flex:none;width:19px;height:19px;margin:0;accent-color:#16834b}
+.p61-area-option input:focus-visible{outline:3px solid #f7ae3c;outline-offset:3px}
+.p61-area-option span{display:flex;flex-direction:column;gap:3px;min-width:0;line-height:1.35}
+.p61-area-option strong{font-size:14px;overflow-wrap:anywhere;color:#213d2e}
+.p61-area-option small{color:#40714f;font-size:13px}
+@media(max-width:480px){.p61-area-grid{grid-template-columns:1fr 1fr}.p61-area-option{padding:10px;min-height:68px}.p61-area-option strong{font-size:12px}.p61-choice-chip{min-height:40px;padding:8px 12px}}
+@media(max-width:350px){.p61-area-grid{grid-template-columns:1fr}}
+/* P63: the header hamburger is ONLY for <=760px responsive layouts.
+   Desktop retains the original brand/search/actions and desktop category nav. */
+@media(max-width:760px){
+ body.p34-storefront .p59-header-menu{display:grid!important;place-items:center}
+ body.p34-storefront .p59-header-menu:hover{background:#edf8f0}
+}
+body.p34-storefront .p19-menu-drawer{width:min(390px,calc(100vw - 24px));max-width:100%;height:100dvh;overscroll-behavior:contain}
+body.p34-storefront .p19-drawer-backdrop{z-index:10000}
+body.p34-storefront .p19-menu-drawer{z-index:10001}
+body.p34-storefront .p59-header-menu:focus-visible{outline:3px solid #f7ae3c;outline-offset:2px}
+/* Variant quick-select is an explicit SKU choice, never an arbitrary first SKU. */
+.p61-quick-variants{border:0;padding:6px 0;margin:0 0 6px;min-width:0;width:100%}
+.p61-quick-variants legend{font-size:11px;font-weight:700;margin-bottom:5px;color:#3b6245}
+.p61-quick-options{display:flex;gap:5px;flex-wrap:wrap;max-height:112px;overflow:auto}
+.p61-quick-options label{position:relative;display:flex;cursor:pointer;margin:0}
+.p61-quick-options input{position:absolute;width:1px;height:1px;opacity:0}
+.p61-quick-options label span{display:inline-flex;padding:5px 8px;border:1px solid #c2d9c9;border-radius:6px;font-size:11px;font-weight:650;background:white;color:#254a34;line-height:1.25}
+.p61-quick-options label input:checked+span{background:#167a43;border-color:#167a43;color:#fff}
+.p61-quick-options label input:focus-visible+span{outline:2px solid #f7ae3c;outline-offset:2px}
+.sf-product-quickform,.p19-quickform{flex-wrap:wrap}
+.p61-quick-variants~button,.p61-quick-variants~a{align-self:stretch}

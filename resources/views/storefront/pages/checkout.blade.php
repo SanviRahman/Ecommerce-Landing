@@ -44,16 +44,20 @@
                 <label for="p08-address">Complete Delivery Address <span>*</span></label>
                 <textarea id="p08-address" name="address" rows="3" minlength="8" maxlength="2000"
                     autocomplete="street-address" required>{{ old('address', $shopper?->address) }}</textarea>
-                <label for="p08-area">Delivery Area <span>*</span></label>
-                <select id="p08-area" name="shipping_area_id" data-shipping-area required>
-                    <option value="">Choose a delivery area</option>
-                    @foreach($areas as $area)
-                        <option value="{{ $area->id }}" data-shipping-cost="{{ $area->delivery_charge }}"
-                            @selected((string)old('shipping_area_id')===(string)$area->id)>
-                            {{ $area->area_name }} — ৳{{ number_format($area->delivery_charge) }}
-                        </option>
-                    @endforeach
-                </select>
+                <fieldset class="p61-shipping-areas" aria-describedby="p61-shipping-hint">
+                    <legend>Delivery Area <span aria-hidden="true">*</span></legend>
+                    <p id="p61-shipping-hint">Select one delivery location to calculate the charge.</p>
+                    <div class="p61-area-grid" id="p08-area">
+                        @foreach($areas as $area)
+                            <label class="p61-area-option">
+                                <input type="radio" name="shipping_area_id" value="{{ $area->id }}"
+                                    data-shipping-area data-shipping-cost="{{ $area->delivery_charge }}"
+                                    @checked((string)old('shipping_area_id')===(string)$area->id) required>
+                                <span><strong>{{ $area->area_name }}</strong><small>৳{{ number_format($area->delivery_charge) }}</small></span>
+                            </label>
+                        @endforeach
+                    </div>
+                </fieldset>
                 <label for="p08-note">Order note (optional)</label>
                 <textarea id="p08-note" name="customer_note" rows="2" maxlength="1000">{{ old('customer_note') }}</textarea>
                 <p class="p08-help">The final price, stock and shipping charge are recalculated by the server before placing your order.</p>

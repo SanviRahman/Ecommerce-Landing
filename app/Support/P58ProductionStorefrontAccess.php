@@ -76,6 +76,9 @@ final class P58ProductionStorefrontAccess
     {
         try {
             $this->assertApprovedDatabase($request);
+            if (! Schema::hasColumn('orders', 'storefront_stock_state')) {
+                return false; // New production checkout must not bypass reservation tracking.
+            }
             foreach ([
                 'storefront_pages', 'storefront_revisions', 'storefront_accounts',
                 'carts', 'cart_items', 'checkout_requests', 'inventory_movements',

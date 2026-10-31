@@ -670,7 +670,7 @@
      | Campaign form থেকে add/update করা FAQ ও Review home blade-এ আগে show হবে।
      | Controller relation eager load না করলেও blade safe fallback হিসেবে relation/query
      | থেকে campaign-specific active data collect করবে। Campaign-specific data না থাকলে
-     | পুরোনো/global $reviews এবং $faqs data fallback হিসেবে show হবে।
+     | Reviews never fall back to homepage/global records; FAQs retain their own rules.
      */
     $isVisibleItem = function ($item): bool {
         if (is_array($item)) {
@@ -696,7 +696,11 @@
     }
 
     $reviewItems = ($campaignReviewItems->isNotEmpty() ? $campaignReviewItems : $reviews)
-        ->filter(function ($review) use ($isVisibleItem) {
+        ->filter(function ($review) use ($isVisibleItem, $campaign) {
+            // Defense in depth: an accidentally global controller collection may
+            // not leak homepage customer reviews into this campaign.
+            $ownerId = is_array($review) ? ($review['campaign_id'] ?? null) : ($review->campaign_id ?? null);
+            if (! $campaign || (int) $ownerId !== (int) $campaign->id) return false;
             if (! $isVisibleItem($review)) {
                 return false;
             }

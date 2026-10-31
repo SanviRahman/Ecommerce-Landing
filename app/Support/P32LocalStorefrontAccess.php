@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Support;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use RuntimeException;
@@ -57,6 +58,33 @@ final class P32LocalStorefrontAccess
         }
     }
 
+    /** Admin orders may finalize storefront holds only on the same verified local main DB. */
+    public function allowsAdminManaged(?Request $request = null): bool
+    {
+        $request ??= request();
+        if (! $request->routeIs('admin.orders.*')) {
+            return false;
+        }
+        $user = Auth::user();
+        if (! $user || ! (bool) $user->is_active
+            || ! in_array((string) $user->role, ['admin', 'employee'], true)) {
+            return false;
+        }
+        try {
+            $this->assertActualMainDatabase($request);
+            return Schema::hasColumn('orders', 'storefront_stock_state');
+        } catch (Throwable) {
+            return false;
+        }
+    }
+
+    public function assertAdminManaged(): void
+    {
+        if (! $this->allowsAdminManaged()) {
+            throw new RuntimeException('Managed order operation is not authorized on this local database.');
+        }
+    }
+
     public function assertActualMainDatabase(?Request $request = null): void
     {
         $request ??= request();
@@ -95,6 +123,11 @@ final class P32LocalStorefrontAccess
     public function checkoutReady(): bool
     {
         try {
+            // Browse/cart remain available before P61 migration; CHECKOUT is
+            // disabled rather than silently falling back to immediate deduction.
+            if (! Schema::hasColumn('orders', 'storefront_stock_state')) {
+                return false;
+            }
             // No global checkout unless basic stock and shipping are coherent.
             if (! DB::table('shipping_charges')->whereNull('campaign_id')
                 ->where('status', 1)->whereNull('deleted_at')->exists()) {

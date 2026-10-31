@@ -2,6 +2,7 @@
 
 namespace App\Services\Checkout;
 
+use App\Services\Inventory\StorefrontDeferredStock;
 use App\Support\P02MigrationSafety;
 use DomainException;
 use Illuminate\Support\Facades\DB;
@@ -80,7 +81,7 @@ final class CheckoutIdempotencyService
         return ['state' => 'new', 'checkout_request_id' => $id, 'order_id' => null];
     }
 
-    /** Commit only after the accepted order and its stock movement are persisted. */
+    /** Commit only after a valid reservation (deferred) or allocation is persisted. */
     public function complete(string $checkoutRequestId, int $orderId): void
     {
         $this->assertTestTransaction();
@@ -95,16 +96,26 @@ final class CheckoutIdempotencyService
         if ($claim->status === 'completed' && (int) $claim->order_id === $orderId) {
             return; // Stable successful response on a safe replay.
         }
-        $order = DB::table('orders')->where('id', $orderId)->first([
-            'campaign_id', 'created_via', 'inventory_version', 'deleted_at',
-        ]);
+        // A deferred order is complete as a *checkout* when its reservation
+        // exists, even though physical inventory is not allocated until Confirmed.
+        // The P26/campaign/legacy paths must still require inventory_version=1.
+        $deferred = $claim->channel === 'storefront'
+            && StorefrontDeferredStock::checkoutEnabled();
+        $columns = ['campaign_id', 'created_via', 'inventory_version', 'deleted_at'];
+        if ($deferred) {
+            $columns[] = 'storefront_stock_state';
+        }
+        $order = DB::table('orders')->where('id', $orderId)->first($columns);
+        $inventoryReady = $order !== null && ($deferred
+            ? (int) $order->inventory_version === 0
+                && (int) $order->storefront_stock_state === StorefrontDeferredStock::RESERVED
+            : (int) $order->inventory_version === 1);
         if ($claim->status !== 'processing' || $claim->order_id !== null
-            || $order === null || $order->deleted_at !== null
-            || (int) $order->inventory_version !== 1
+            || $order === null || $order->deleted_at !== null || ! $inventoryReady
             || ($order->campaign_id === null ? null : (int) $order->campaign_id)
                 !== ($claim->campaign_id === null ? null : (int) $claim->campaign_id)
             || $order->created_via !== 'frontend') {
-            throw new DomainException('Checkout state transition is not permitted or inventory is not allocated.');
+            throw new DomainException('Checkout completion requires a valid allocated or reserved storefront order.');
         }
         $updated = DB::table('checkout_requests')
             ->where('id', $checkoutRequestId)->where('status', 'processing')->whereNull('order_id')
