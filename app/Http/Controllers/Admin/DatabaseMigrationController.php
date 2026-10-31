@@ -25,6 +25,8 @@ use Throwable;
 final class DatabaseMigrationController extends Controller
 {
     private const AUDIT_MIGRATION = 'database/migrations/2026_10_29_100001_create_order_purge_audits.php';
+    private const STOREFRONT_STOCK_MIGRATION = 'database/migrations/2026_10_31_060001_add_storefront_stock_state_to_orders.php';
+    private const STOREFRONT_SESSIONS_MIGRATION = 'database/migrations/2026_10_31_070001_create_sessions_table.php';
     private const PREVIEW_SESSION = 'command.database_migrations.preview';
     private const PREVIEW_TTL_SECONDS = 600;
     private const LOCK_SECONDS = 900;
@@ -60,6 +62,7 @@ final class DatabaseMigrationController extends Controller
             'statusReady' => $statusReady,
             'statusOutput' => self::shortOutput($statusOutput),
             'auditMigrationExists' => is_file(base_path(self::AUDIT_MIGRATION)),
+            'storefrontMigrationsExist' => self::storefrontMigrationsExist(),
         ])->header('Cache-Control', 'private, no-store, max-age=0')
           ->header('X-Robots-Tag', 'noindex, nofollow');
     }
@@ -69,13 +72,17 @@ final class DatabaseMigrationController extends Controller
         $this->assertActiveAdmin($request);
 
         $data = $request->validate([
-            'scope' => ['required', Rule::in(['audit', 'all'])],
+            'scope' => ['required', Rule::in(['audit', 'storefront', 'all'])],
             'confirmation' => ['required', 'string', 'max:30'],
             'current_password' => ['required', 'string', 'max:255'],
             'backup_confirmed' => ['required', 'accepted'],
         ]);
 
-        $requiredPhrase = $data['scope'] === 'all' ? 'MIGRATE ALL' : 'MIGRATE AUDIT';
+        $requiredPhrase = match ($data['scope']) {
+            'audit' => 'MIGRATE AUDIT',
+            'storefront' => 'MIGRATE STOREFRONT',
+            default => 'MIGRATE ALL',
+        };
         if (! hash_equals($requiredPhrase, $data['confirmation'])) {
             throw ValidationException::withMessages([
                 'confirmation' => 'Type exactly ' . $requiredPhrase . ' to confirm.',
@@ -103,6 +110,30 @@ final class DatabaseMigrationController extends Controller
             throw ValidationException::withMessages([
                 'scope' => 'The P55 audit migration file is missing on the server.',
             ]);
+        }
+
+        if ($data['scope'] === 'storefront') {
+            if (! self::storefrontMigrationsExist()) {
+                throw ValidationException::withMessages([
+                    'scope' => 'One or more approved storefront prerequisite migration files are missing.',
+                ]);
+            }
+
+            // This narrowly scoped release operation must never run against a
+            // local, staging, or unexpected database by mistake. The P58 helper
+            // verifies HTTPS host, APP_URL, production mode and actual MySQL DB.
+            try {
+                app(\App\Support\P58ProductionStorefrontAccess::class)
+                    ->assertApprovedDatabase($request, false);
+            } catch (Throwable $exception) {
+                Log::warning('Storefront prerequisite migration target rejected', [
+                    'admin_id' => $request->user()->getAuthIdentifier(),
+                    'exception_class' => $exception::class,
+                ]);
+                throw ValidationException::withMessages([
+                    'scope' => 'Storefront prerequisite migrations are allowed only on the approved production MySQL database.',
+                ]);
+            }
         }
 
         // Double-submit and concurrent execution protection. Fails closed if
@@ -145,6 +176,13 @@ final class DatabaseMigrationController extends Controller
             $options = ['--force' => true, '--no-interaction' => true];
             if ($data['scope'] === 'audit') {
                 $options['--path'] = self::AUDIT_MIGRATION;
+            } elseif ($data['scope'] === 'storefront') {
+                // Laravel's --path option accepts an explicit list. No
+                // request-supplied migration path or shell argument is used.
+                $options['--path'] = [
+                    self::STOREFRONT_STOCK_MIGRATION,
+                    self::STOREFRONT_SESSIONS_MIGRATION,
+                ];
             }
 
             Log::notice('Admin database migration requested', [
@@ -190,6 +228,12 @@ final class DatabaseMigrationController extends Controller
         } finally {
             $lock->release();
         }
+    }
+
+    private static function storefrontMigrationsExist(): bool
+    {
+        return is_file(base_path(self::STOREFRONT_STOCK_MIGRATION))
+            && is_file(base_path(self::STOREFRONT_SESSIONS_MIGRATION));
     }
 
     private function assertActiveAdmin(Request $request): void

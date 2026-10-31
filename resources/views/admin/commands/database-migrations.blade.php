@@ -67,6 +67,10 @@
                                 {{ !$auditMigrationExists ? 'disabled' : '' }}>
                                 Only Order Purge Audit Table — recommended (migrate --path=... --force)
                             </option>
+                            <option value="storefront" {{ old('scope') === 'storefront' ? 'selected' : '' }}
+                                {{ !$storefrontMigrationsExist ? 'disabled' : '' }}>
+                                Storefront Prerequisites — stock-state + database sessions only (2 approved migrations)
+                            </option>
                             <option value="all" {{ old('scope') === 'all' ? 'selected' : '' }}>
                                 All Pending Migrations (php artisan migrate --force) — advanced
                             </option>
@@ -76,14 +80,19 @@
                         @else
                             <small class="form-text text-muted">Default option runs only the P55 audit table migration. It does not run other pending migrations.</small>
                         @endif
+                        @if (!$storefrontMigrationsExist)
+                            <small class="form-text text-danger d-block">The approved storefront stock-state or sessions migration file is missing.</small>
+                        @else
+                            <small class="form-text text-muted d-block">Storefront Prerequisites runs only the P61 stock-state column and the Laravel database sessions table. It verifies the approved production host and actual MySQL database.</small>
+                        @endif
                     </div>
 
                     <div class="form-group">
                         <label for="migration_confirmation">Type confirmation phrase</label>
                         <input id="migration_confirmation" name="confirmation" type="text" class="form-control" maxlength="30"
                                value="{{ old('confirmation') }}" required spellcheck="false" autocomplete="off"
-                               placeholder="MIGRATE AUDIT or MIGRATE ALL">
-                        <small class="form-text text-muted">For Audit Only: <code>MIGRATE AUDIT</code>. For All Pending: <code>MIGRATE ALL</code>.</small>
+                               placeholder="MIGRATE AUDIT / STOREFRONT / ALL">
+                        <small class="form-text text-muted">Audit Only: <code>MIGRATE AUDIT</code>. Storefront Prerequisites: <code>MIGRATE STOREFRONT</code>. All Pending: <code>MIGRATE ALL</code>.</small>
                     </div>
 
                     <div class="form-group">
