@@ -7,13 +7,13 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
 
 $redirectWithToast = function (string $type, string $message) {
-    $source = trim((string) request()->query('source', ''));
-    $returnTo = trim((string) request()->query('return_to', ''));
+    $source = trim((string) request()->input('source', ''));
+    $returnTo = trim((string) request()->input('return_to', ''));
 
     $fallbackUrl = match ($source) {
         'api-orders' => route('admin.orders.api_orders'),
         'orders'     => route('admin.orders.all'),
-        default      => url()->previous() ?: route('admin.dashboard'),
+        default      => route('admin.dashboard'),
     };
 
     $targetUrl = $fallbackUrl;
@@ -26,7 +26,10 @@ $redirectWithToast = function (string $type, string $message) {
      */
     $validRelativeReturn = $returnTo !== ''
         && str_starts_with($returnTo, '/')
-        && ! str_starts_with($returnTo, '//');
+        && ! str_starts_with($returnTo, '//')
+        && ! str_contains($returnTo, '\\')
+        && ! preg_match('/[\x00-\x1F\x7F]/', $returnTo)
+        && parse_url($returnTo, PHP_URL_HOST) === null;
 
     if ($validRelativeReturn) {
         if (in_array($source, ['api-orders', 'orders'], true)) {
@@ -59,31 +62,42 @@ Route::prefix('command')
     ->name('command.')
     ->middleware(['auth', 'role:admin', 'lte_context:admin'])
     ->group(function () use ($redirectWithToast) {
-        Route::get('/clear-cache', function () use ($redirectWithToast) {
+        // Database migrations: read-only preview by GET, confirmed mutation by POST.
+        // No raw command text or user-supplied Artisan options are accepted.
+        Route::get('/database-migrations',
+            [\App\Http\Controllers\Admin\DatabaseMigrationController::class, 'index'])
+            ->name('database-migrations.index');
+
+        Route::post('/database-migrations',
+            [\App\Http\Controllers\Admin\DatabaseMigrationController::class, 'store'])
+            ->middleware('throttle:3,15')
+            ->name('database-migrations.store');
+
+        Route::post('/clear-cache', function () use ($redirectWithToast) {
             Artisan::call('cache:clear');
 
             return $redirectWithToast('success', 'Cache cleared successfully.');
         })->name('clear-cache');
 
-        Route::get('/clear-config', function () use ($redirectWithToast) {
+        Route::post('/clear-config', function () use ($redirectWithToast) {
             Artisan::call('config:clear');
 
             return $redirectWithToast('success', 'Config cleared successfully.');
         })->name('clear-config');
 
-        Route::get('/clear-route', function () use ($redirectWithToast) {
+        Route::post('/clear-route', function () use ($redirectWithToast) {
             Artisan::call('route:clear');
 
             return $redirectWithToast('success', 'Route cache cleared successfully.');
         })->name('clear-route');
 
-        Route::get('/clear-view', function () use ($redirectWithToast) {
+        Route::post('/clear-view', function () use ($redirectWithToast) {
             Artisan::call('view:clear');
 
             return $redirectWithToast('success', 'View cache cleared successfully.');
         })->name('clear-view');
 
-        Route::get('/clear-events', function () use ($redirectWithToast) {
+        Route::post('/clear-events', function () use ($redirectWithToast) {
             try {
                 Artisan::call('event:clear');
 
@@ -98,35 +112,19 @@ Route::prefix('command')
             }
         })->name('clear-events');
 
-        Route::get('/optimize', function () use ($redirectWithToast) {
+        Route::post('/optimize', function () use ($redirectWithToast) {
             Artisan::call('optimize');
 
             return $redirectWithToast('success', 'Application optimized successfully.');
         })->name('optimize');
 
-        Route::get('/optimize-clear', function () use ($redirectWithToast) {
+        Route::post('/optimize-clear', function () use ($redirectWithToast) {
             Artisan::call('optimize:clear');
 
             return $redirectWithToast('success', 'Optimize cache cleared successfully.');
         })->name('optimize-clear');
 
-        Route::get('/migrate', function () use ($redirectWithToast) {
-            Artisan::call('migrate', [
-                '--force' => true,
-            ]);
-
-            return $redirectWithToast('success', 'Database migrated successfully.');
-        })->name('migrate');
-
-        Route::get('/seed', function () use ($redirectWithToast) {
-            Artisan::call('db:seed', [
-                '--force' => true,
-            ]);
-
-            return $redirectWithToast('success', 'Database seeded successfully.');
-        })->name('seed');
-
-        Route::get('/storage-link', function () use ($redirectWithToast) {
+        Route::post('/storage-link', function () use ($redirectWithToast) {
             try {
                 $result = app(PublicMediaStorageService::class)->prepare(true);
                 $productResult = app(
@@ -167,7 +165,7 @@ Route::prefix('command')
             }
         })->name('storage-link');
 
-        Route::get('/sync-steadfast-statuses', function () use ($redirectWithToast) {
+        Route::post('/sync-steadfast-statuses', function () use ($redirectWithToast) {
             try {
                 Artisan::call('courier:sync-steadfast-statuses', [
                     '--limit' => 100,
@@ -192,7 +190,7 @@ Route::prefix('command')
             }
         })->name('sync-steadfast-statuses');
 
-        Route::get('/sync-pathao-statuses', function () use ($redirectWithToast) {
+        Route::post('/sync-pathao-statuses', function () use ($redirectWithToast) {
             try {
                 Artisan::call('courier:sync-pathao-statuses', [
                     '--limit' => 20,
@@ -222,7 +220,7 @@ Route::prefix('command')
         })->name('sync-pathao-statuses');
 
 
-        Route::get('/separate-courier-cancelled-orders', function () use ($redirectWithToast) {
+        Route::post('/separate-courier-cancelled-orders', function () use ($redirectWithToast) {
             try {
                 Artisan::call('courier:separate-cancelled-orders', [
                     '--apply' => true,
@@ -247,7 +245,7 @@ Route::prefix('command')
             }
         })->name('separate-courier-cancelled-orders');
 
-        Route::get('/media-storage-doctor', function () use ($redirectWithToast) {
+        Route::post('/media-storage-doctor', function () use ($redirectWithToast) {
             try {
                 Artisan::call('media:storage-doctor', [
                     '--limit' => 20,
@@ -271,38 +269,4 @@ Route::prefix('command')
                 );
             }
         })->name('media-storage-doctor');
-
-        Route::get('/migrate-fresh', function () use ($redirectWithToast) {
-            if (! app()->environment('local')) {
-                return $redirectWithToast(
-                    'error',
-                    'Fresh migrate is allowed only in local environment.'
-                );
-            }
-
-            Artisan::call('migrate:fresh', [
-                '--force' => true,
-            ]);
-
-            return $redirectWithToast('success', 'Database fresh migrated successfully.');
-        })->name('migrate-fresh');
-
-        Route::get('/migrate-fresh-seed', function () use ($redirectWithToast) {
-            if (! app()->environment('local')) {
-                return $redirectWithToast(
-                    'error',
-                    'Fresh migrate seed is allowed only in local environment.'
-                );
-            }
-
-            Artisan::call('migrate:fresh', [
-                '--seed'  => true,
-                '--force' => true,
-            ]);
-
-            return $redirectWithToast(
-                'success',
-                'Database fresh migrated and seeded successfully.'
-            );
-        })->name('migrate-fresh-seed');
     });

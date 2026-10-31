@@ -17,15 +17,20 @@
     <div class="modal-body p-4">
         <div class="row">
             <div class="col-md-12 mb-3">
-                <label>Select Campaign (Landing Page) <small class="text-muted">(Optional)</small></label>
-                <select name="campaign_id" class="form-control">
-                    <option value="">General / Store Review</option>
+                <label for="review-campaign-id">Select Campaign (Landing Page) <small class="text-muted">(Optional)</small></label>
+                <select id="review-campaign-id" name="campaign_id" class="form-control" aria-describedby="review-campaign-help">
+                    <option value="" @selected(! $isEdit || $review->campaign_id === null)>General / Store Review (Homepage Builder)</option>
                     @foreach($campaigns as $camp)
                         <option value="{{ $camp->id }}" {{ ($isEdit && $review->campaign_id == $camp->id) ? 'selected' : '' }}>
                             {{ $camp->title }}
                         </option>
                     @endforeach
                 </select>
+                <small id="review-campaign-help" class="form-text text-muted">
+                    Only active General / Store Review entries are selectable in Homepage Builder.
+                    Choosing a campaign keeps the review on that campaign landing page instead.
+                    Changing an existing campaign review to General also removes its campaign association.
+                </small>
             </div>
 
             <div class="col-md-6 mb-3">

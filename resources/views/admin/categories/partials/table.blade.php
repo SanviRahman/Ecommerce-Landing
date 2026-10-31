@@ -36,9 +36,18 @@
                                 {{ $category->name }}
                             </div>
 
-                            <div class="small text-muted">
-                                ID: #{{ $category->id }}
-                            </div>
+                            <div class="small text-muted">ID: #{{ $category->id }}</div>
+                            @if($category->parent_id)
+                                <span class="badge badge-light border text-success mt-1">
+                                    <i class="fas fa-level-up-alt fa-rotate-90 mr-1" aria-hidden="true"></i>
+                                    Subcategory of {{ $category->parent?->name ?? 'Unavailable parent' }}
+                                </span>
+                            @else
+                                <span class="badge badge-light border mt-1">Parent Category</span>
+                                @if(($category->children_count ?? 0) > 0)
+                                    <span class="badge badge-info mt-1">{{ $category->children_count }} subcategories</span>
+                                @endif
+                            @endif
                         </div>
                     </div>
                 </td>

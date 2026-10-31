@@ -113,6 +113,8 @@
         'order.track',
         'order.track.search'
     );
+    // The public / URL is now the shop, not a campaign with section anchors.
+    $standaloneCampaignUrl = $campaign?->public_url ?? route('home');
 @endphp
 
 @if($showFrontendHeader)
@@ -128,7 +130,7 @@
 
                 @if($headerOrderActive)
                     <div class="mobile-action d-lg-none ml-auto mr-2">
-                        <a href="{{ $standaloneFrontendPage ? route('home') . '#order-section' : '#order-section' }}"
+                        <a href="{{ $standaloneFrontendPage ? $standaloneCampaignUrl . '#order-section' : '#order-section' }}"
                            class="btn btn-success btn-sm order-nav-btn">
                             <i class="fas fa-shopping-bag mr-1"></i>
                             অর্ডার করুন
@@ -138,21 +140,24 @@
 
                 <button class="navbar-toggler front-toggler"
                         type="button"
-                        data-toggle="collapse"
-                        data-target="#frontMenu"
+                        data-campaign-menu-toggle
                         aria-controls="frontMenu"
                         aria-expanded="false"
-                        aria-label="Toggle navigation">
+                        aria-label="Open campaign navigation">
                     <span></span>
                     <span></span>
                     <span></span>
                 </button>
 
-                <div class="collapse navbar-collapse" id="frontMenu">
+                <div class="navbar-collapse front-offcanvas-menu" id="frontMenu" data-campaign-menu>
+                    <div class="front-offcanvas-head d-lg-none">
+                        <strong id="front-offcanvas-title">Browse this campaign</strong>
+                        <button type="button" data-campaign-menu-close aria-label="Close campaign navigation">&times;</button>
+                    </div>
                     <ul class="navbar-nav ml-auto align-items-lg-center">
                         @if($headerCategoryActive)
                             <li class="nav-item">
-                                <a class="nav-link" href="{{ $standaloneFrontendPage ? route('home') . '#category-section' : '#category-section' }}">
+                                <a class="nav-link" href="{{ $standaloneFrontendPage ? $standaloneCampaignUrl . '#category-section' : '#category-section' }}">
                                     ক্যাটাগরি
                                 </a>
                             </li>
@@ -160,7 +165,7 @@
 
                         @if($headerBrandActive)
                             <li class="nav-item">
-                                <a class="nav-link" href="{{ $standaloneFrontendPage ? route('home') . '#brand-section' : '#brand-section' }}">
+                                <a class="nav-link" href="{{ $standaloneFrontendPage ? $standaloneCampaignUrl . '#brand-section' : '#brand-section' }}">
                                     ব্র্যান্ড
                                 </a>
                             </li>
@@ -168,7 +173,7 @@
 
                         @if($headerProductActive)
                             <li class="nav-item">
-                                <a class="nav-link" href="{{ $standaloneFrontendPage ? route('home') . '#products-section' : '#products-section' }}">
+                                <a class="nav-link" href="{{ $standaloneFrontendPage ? $standaloneCampaignUrl . '#products-section' : '#products-section' }}">
                                     প্রোডাক্ট
                                 </a>
                             </li>
@@ -176,7 +181,7 @@
 
                         @if($headerDifferenceActive)
                             <li class="nav-item">
-                                <a class="nav-link" href="{{ $standaloneFrontendPage ? route('home') . '#difference-section' : '#difference-section' }}">
+                                <a class="nav-link" href="{{ $standaloneFrontendPage ? $standaloneCampaignUrl . '#difference-section' : '#difference-section' }}">
                                     পার্থক্য
                                 </a>
                             </li>
@@ -184,7 +189,7 @@
 
                         @if($headerServiceActive)
                             <li class="nav-item">
-                                <a class="nav-link" href="{{ $standaloneFrontendPage ? route('home') . '#services-section' : '#services-section' }}">
+                                <a class="nav-link" href="{{ $standaloneFrontendPage ? $standaloneCampaignUrl . '#services-section' : '#services-section' }}">
                                     ফিচারস
                                 </a>
                             </li>
@@ -192,7 +197,7 @@
 
                         @if($headerReviewActive)
                             <li class="nav-item">
-                                <a class="nav-link" href="{{ $standaloneFrontendPage ? route('home') . '#reviews-section' : '#reviews-section' }}">
+                                <a class="nav-link" href="{{ $standaloneFrontendPage ? $standaloneCampaignUrl . '#reviews-section' : '#reviews-section' }}">
                                     রিভিউ
                                 </a>
                             </li>
@@ -200,7 +205,7 @@
 
                         @if($headerGalleryActive)
                             <li class="nav-item">
-                                <a class="nav-link" href="{{ $standaloneFrontendPage ? route('home') . '#gallery-section' : '#gallery-section' }}">
+                                <a class="nav-link" href="{{ $standaloneFrontendPage ? $standaloneCampaignUrl . '#gallery-section' : '#gallery-section' }}">
                                     গ্যালারি
                                 </a>
                             </li>
@@ -208,7 +213,7 @@
 
                         @if($headerHelpActive)
                             <li class="nav-item">
-                                <a class="nav-link" href="{{ $standaloneFrontendPage ? route('home') . '#contact-section' : '#contact-section' }}">
+                                <a class="nav-link" href="{{ $standaloneFrontendPage ? $standaloneCampaignUrl . '#contact-section' : '#contact-section' }}">
                                     যোগাযোগ
                                 </a>
                             </li>
@@ -216,7 +221,7 @@
 
                         @if($headerOrderTrackingActive)
                             <li class="nav-item">
-                                <a class="nav-link" href="{{ $standaloneFrontendPage ? route('home') . '#order-track-section' : '#order-track-section' }}">
+                                <a class="nav-link" href="{{ $standaloneFrontendPage ? $standaloneCampaignUrl . '#order-track-section' : '#order-track-section' }}">
                                     অর্ডার ট্র্যাক করুন
                                 </a>
                             </li>
@@ -224,7 +229,7 @@
 
                         @if($headerOrderActive)
                             <li class="nav-item ml-lg-3 d-none d-lg-block">
-                                <a href="{{ $standaloneFrontendPage ? route('home') . '#order-section' : '#order-section' }}"
+                                <a href="{{ $standaloneFrontendPage ? $standaloneCampaignUrl . '#order-section' : '#order-section' }}"
                                    class="btn btn-success order-nav-btn">
                                     <i class="fas fa-shopping-bag mr-1"></i>
                                     অর্ডার করুন
@@ -233,12 +238,13 @@
                         @endif
                     </ul>
                 </div>
+                <div class="front-offcanvas-backdrop" data-campaign-menu-backdrop hidden></div>
             </nav>
         @else
             {{-- Keep the original header shell/spacing, but render no visible data. --}}
             <nav class="navbar navbar-expand-lg front-navbar px-0"
                  aria-hidden="true"
-                 style="min-height: 88px;">
+                 data-empty-header="true">
                 <div class="w-100"></div>
             </nav>
         @endif

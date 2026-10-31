@@ -1,0 +1,282 @@
+{
+  "schema": 1,
+  "base_archive": "website(20261026-033819).zip",
+  "reference": "shoppilot.zip (design only)",
+  "instructions": "Review/merge files; keep local .env, vendor, storage and any custom changes. Never run migrate:fresh or db:seed on existing DB.",
+  "count": 39,
+  "changed_files": [
+    {
+      "status": "new",
+      "path": "P19-START-HERE-BN.md",
+      "base_sha256": null,
+      "new_sha256": "a85131085f0a433d5ae67914ace10fab77937c0aa2100619a647261fcec3f7d1",
+      "bytes": 6044
+    },
+    {
+      "status": "new",
+      "path": "P19_AUDIT_REPORT_BN.md",
+      "base_sha256": null,
+      "new_sha256": "64984fd6f43cbd444297b45ab8aa699c051b3a48a10dd3e610277fe555c3aaf4",
+      "bytes": 7784
+    },
+    {
+      "status": "updated",
+      "path": "app/Http/Controllers/Admin/HomepageBuilderController.php",
+      "base_sha256": "046547c498e1ecae6ef9f5892fc52e2d0a4b6f35cd8421717c64ed80eb9a26ff",
+      "new_sha256": "767972c645c1b00c4898bc1ba16eb4a2f0c656315ac87f303c9f19db5ea1e321",
+      "bytes": 13628
+    },
+    {
+      "status": "new",
+      "path": "app/Http/Controllers/Frontend/StorefrontAccountController.php",
+      "base_sha256": null,
+      "new_sha256": "a7260b35fa31285abe39869d26fcff414687cc2a3305d308da003ad87bc598d3",
+      "bytes": 5773
+    },
+    {
+      "status": "updated",
+      "path": "app/Http/Controllers/Frontend/StorefrontCartController.php",
+      "base_sha256": "61b50d507c88137926b6964ab63a260cc6831bf2876c186890b5e21ec4a519d1",
+      "new_sha256": "dd7ff559a0decd114b394670ee12ebe8369f2b2460ff8bad52b184ca2ec70ee2",
+      "bytes": 7105
+    },
+    {
+      "status": "updated",
+      "path": "app/Http/Controllers/Frontend/StorefrontCatalogController.php",
+      "base_sha256": "39e4d502c1324e9f1a270a614b4a507c572b1c30c9f54882902a893bba14fb83",
+      "new_sha256": "b689695f347443b8671867dd197a2ad1eb67c1b285b65e13702b944aba8194fd",
+      "bytes": 8113
+    },
+    {
+      "status": "updated",
+      "path": "app/Models/Order.php",
+      "base_sha256": "84c65653fe52512dabea6519b73f2d6929b3bb40c985c37955e50ed82a4c31d2",
+      "new_sha256": "64a719e06bb72f8fd2ee40554b0fc587a14a26f9f148545f3e3f121cb6dd1815",
+      "bytes": 18131
+    },
+    {
+      "status": "new",
+      "path": "app/Models/StorefrontAccount.php",
+      "base_sha256": null,
+      "new_sha256": "397c18520a808dbc83ccb3acf367799cf8846b1cd2b5e0644cab685525a730db",
+      "bytes": 675
+    },
+    {
+      "status": "updated",
+      "path": "app/Services/Checkout/StorefrontCheckout.php",
+      "base_sha256": "316607301f0baa0ac2dcd42ac6bc0d5349a32ace1f844d62e0b3f872f7d68771",
+      "new_sha256": "69555e69b7a599acd75efde7e3f6f432b140afc83548b85d0f067b4a66768357",
+      "bytes": 9580
+    },
+    {
+      "status": "new",
+      "path": "app/Services/Storefront/CategoryShelf.php",
+      "base_sha256": null,
+      "new_sha256": "7853fac37b60cb1dbc4393ed063bfd3808d9b727416dd30e2542ad60ab887bf9",
+      "bytes": 1467
+    },
+    {
+      "status": "updated",
+      "path": "app/Services/Storefront/HomepageBuilder.php",
+      "base_sha256": "9cb771937cd22646eb7b4e9382dfaebdca56f8aa036c54ee8f16064c54624178",
+      "new_sha256": "9a77fa8c41f7be80ba6eacf42d4cb17f16cca870a8c6ab9e371db366b6834358",
+      "bytes": 32998
+    },
+    {
+      "status": "updated",
+      "path": "app/Support/HomeSectionSchema.php",
+      "base_sha256": "c6e7e5023d6443f20684493f8968bfd2d9112df8b32f476e27757bbee8d63c7b",
+      "new_sha256": "9f8634cf1595765915dae2c2d86483e8821b3531651412662715456f215fd4e1",
+      "bytes": 5350
+    },
+    {
+      "status": "updated",
+      "path": "config/auth.php",
+      "base_sha256": "c7e204e9785c9f596d66fb884b493f658f2327f157646bdb4088efd6b3a7773f",
+      "new_sha256": "9a70234a42b70ca8266994497d228e681b784b3e558018c431945d36830e1966",
+      "bytes": 4304
+    },
+    {
+      "status": "new",
+      "path": "database/migrations/2026_10_26_100001_create_storefront_accounts.php",
+      "base_sha256": null,
+      "new_sha256": "c4cf5cb96bf3f019fa04ef96cdc816bd3a517ce54b4e084dcd40f1a884464efb",
+      "bytes": 1500
+    },
+    {
+      "status": "updated",
+      "path": "docs/03-bugfix-register.md",
+      "base_sha256": "fe720393143d0331c07c615ca6a6e189fdc3bba9bcfe58ca561c09bf471dee0b",
+      "new_sha256": "e81ee9ae3de7dac3c5a27f93b5070a8ec4254012d8fe6a00c70e94715d3d59a2",
+      "bytes": 24625
+    },
+    {
+      "status": "updated",
+      "path": "docs/16-decisions-and-open-items.md",
+      "base_sha256": "f0167f4031916d72565acc3aacd13506c9f1c3214b97eb55a93fb4554ff6705e",
+      "new_sha256": "059a5bb082f3e1747d965ea463a5ca23c5d7551bf41a055a662dbe2190c73a88",
+      "bytes": 24596
+    },
+    {
+      "status": "updated",
+      "path": "docs/17-progress.md",
+      "base_sha256": "be14a4a4da96e10cb6532ef9ced07d27abac36ae47123b77efdbbbae741d2ce0",
+      "new_sha256": "c15b06a54f19deb1064787b89a66d134fc408b1479622d333162b858d10848ad",
+      "bytes": 43845
+    },
+    {
+      "status": "new",
+      "path": "public/frontend/css/storefront-next.css",
+      "base_sha256": null,
+      "new_sha256": "209f2b1de069494e9cbf4ba9c63ec64797094456256b869473b1a9482082c349",
+      "bytes": 26424
+    },
+    {
+      "status": "new",
+      "path": "public/frontend/js/storefront-next.js",
+      "base_sha256": null,
+      "new_sha256": "92f352de5701d3aabf19cb7a6ad463fa5096404adf68190e69b212e41eddc7a9",
+      "bytes": 15465
+    },
+    {
+      "status": "updated",
+      "path": "reports/p11-source-manifest.json",
+      "base_sha256": "bce52caf1d79e7bb233d71cc7308d7d09cae3fd5aa34fa5a4a68b6b0739cd658",
+      "new_sha256": "7565f48f47893aceb18f071df805258cddd5ff19fc2aadbec9e4fb5b8a1865f3",
+      "bytes": 99824
+    },
+    {
+      "status": "updated",
+      "path": "resources/views/admin/storefront/homepage.blade.php",
+      "base_sha256": "2c48eb399eadedeba3fd495d87e719c16ba50d1af787961fc0981c14180b2691",
+      "new_sha256": "a7c908e2b8feca25a457f9862408b17f1997bfa392e4a34fcb1fc3fefd3fabf0",
+      "bytes": 22701
+    },
+    {
+      "status": "new",
+      "path": "resources/views/storefront/account/index.blade.php",
+      "base_sha256": null,
+      "new_sha256": "965114c86f202a3564578d6f4eea9c73adefab99f6facdfabb478b8ab10c236a",
+      "bytes": 3063
+    },
+    {
+      "status": "new",
+      "path": "resources/views/storefront/account/login.blade.php",
+      "base_sha256": null,
+      "new_sha256": "33f337c1ace9bddab0c185fe9b7367baf1ce1f2996f3088c9aa9d02355dfe926",
+      "bytes": 1470
+    },
+    {
+      "status": "new",
+      "path": "resources/views/storefront/account/register.blade.php",
+      "base_sha256": null,
+      "new_sha256": "5543c5250e362b8c1875895ba23dcbc98b73b3f5bc369fd4706adbe7647b11fe",
+      "bytes": 1877
+    },
+    {
+      "status": "updated",
+      "path": "resources/views/storefront/layouts/catalog.blade.php",
+      "base_sha256": "8cb418fcb891e090f66800c1e13966722f9df292c2d2f8320b41eab8e5788667",
+      "new_sha256": "e70d79398236994fe1f2cec11514a172cb1f0e21e0ea98484fa7f0986ee89d64",
+      "bytes": 1286
+    },
+    {
+      "status": "updated",
+      "path": "resources/views/storefront/pages/checkout.blade.php",
+      "base_sha256": "14027209aac4ab4c4d9cf641c66c6c52c27f8a3179ac5d5839f0d5ce93314b6f",
+      "new_sha256": "b03736183f11ee7a82ddc25f1e48455ed0c988b5292c41bdeea302617fc1c750",
+      "bytes": 7107
+    },
+    {
+      "status": "new",
+      "path": "resources/views/storefront/pages/contact.blade.php",
+      "base_sha256": null,
+      "new_sha256": "4af20cbe6719d51a87e73769ed79c352fecd83aa6d1202a05ddb3afde54afbee",
+      "bytes": 788
+    },
+    {
+      "status": "new",
+      "path": "resources/views/storefront/pages/help.blade.php",
+      "base_sha256": null,
+      "new_sha256": "ac71e5e57db17dcbea1d4b99e3f0ce22f633d8a2e432e83cd89802a5f9f0351e",
+      "bytes": 899
+    },
+    {
+      "status": "updated",
+      "path": "resources/views/storefront/pages/home.blade.php",
+      "base_sha256": "45a8147802bd2825c1c20ee5f673961a5112e697bbe343b13590dcce48541e9f",
+      "new_sha256": "06419a6f154e6eb98ade30268e67d6a150828fbab21658b3c6c94b506f6286ff",
+      "bytes": 12967
+    },
+    {
+      "status": "updated",
+      "path": "resources/views/storefront/pages/product.blade.php",
+      "base_sha256": "21999330eac86023028e95d70b51cc5303ee08f4a52281fe0d6050b22440f9cd",
+      "new_sha256": "4994178a42f4e19d37ded160e5fe26c1ae462796234e50301bffdab418887610",
+      "bytes": 9473
+    },
+    {
+      "status": "updated",
+      "path": "resources/views/storefront/partials/footer.blade.php",
+      "base_sha256": "ca96ec931f99f241b7f679e00629114d7631cdbc4022236ed6e6ee78833f4729",
+      "new_sha256": "f17e4090b00bd49a6753a67ba322c95dbe6afb70752ab43a355313807cbe00e7",
+      "bytes": 2261
+    },
+    {
+      "status": "new",
+      "path": "resources/views/storefront/partials/home-product-card.blade.php",
+      "base_sha256": null,
+      "new_sha256": "6699bf9b952a7d3684b5a30a1ae14abc0852d63bf27dd3804cc7477e7f80e3ad",
+      "bytes": 2567
+    },
+    {
+      "status": "updated",
+      "path": "resources/views/storefront/partials/navigation.blade.php",
+      "base_sha256": "8ba1cdab72757a296a721dad93a4d4915df3bb18aff85420bc5df97c110c736e",
+      "new_sha256": "cb4c48e45d767a9eeab40a67171339ec63046dd0df8ebc287003c33ec5738deb",
+      "bytes": 7172
+    },
+    {
+      "status": "updated",
+      "path": "resources/views/storefront/partials/product-card.blade.php",
+      "base_sha256": "396a85e3ffee41c10e283802d2ab158831aae1fba9c6fd1c9f9e5eb1bbfa66c0",
+      "new_sha256": "ba5117ce3b83f4119dabcb9cc1b742b2e73e2a49d6af76d5bf4aac2faca0e120",
+      "bytes": 2402
+    },
+    {
+      "status": "updated",
+      "path": "routes/storefront.php",
+      "base_sha256": "d29cb321ad4af54e3d0309ada0d8d39c984974da3c4eccabc13266f84d15f0e4",
+      "new_sha256": "c5a07336f86270178be73ec7c551832e89cf06805923233dc35b3412b8c9a6a2",
+      "bytes": 2690
+    },
+    {
+      "status": "updated",
+      "path": "tools/qa/check-p07-catalog-contract.mjs",
+      "base_sha256": "9accd971d10b3834c63547c51b377a8bafedcca31105dad6dc07105fd2360c80",
+      "new_sha256": "dd466b3e1eeded18babe916291c86933486f2b881def4d1aa8168cac5608a70e",
+      "bytes": 8069
+    },
+    {
+      "status": "updated",
+      "path": "tools/qa/check-p10-integration.mjs",
+      "base_sha256": "4f60d6099a169574e51abe5ac656964827f4e2b6faa2816fad6272c22377213d",
+      "new_sha256": "6547bb3add770ef9886c49a3cb35c9ee72b683be49f44df746b7e74f3f2a91be",
+      "bytes": 5365
+    },
+    {
+      "status": "updated",
+      "path": "tools/qa/check-p13-homepage-gate.mjs",
+      "base_sha256": "b55a4100159ec5f4d18e9951292c0dd16b49f2ab72a0af7d081b72d4ae2069f0",
+      "new_sha256": "248fbcbba374b244c9545456672da2e5847a784665ebb06b57d414fde0f6c2ad",
+      "bytes": 6478
+    },
+    {
+      "status": "new",
+      "path": "tools/qa/check-p19-storefront-contract.mjs",
+      "base_sha256": null,
+      "new_sha256": "b294f3c23823fa7f97bd32c8c91b0fe459504bcc9dd6b5e26179a830b0b812a9",
+      "bytes": 9550
+    }
+  ]
+}

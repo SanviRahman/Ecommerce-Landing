@@ -1,0 +1,154 @@
+/* P44: global storefront image/text hero and mobile contact safe-area adjustment.
+   Scoped to .p34-storefront; no admin, campaign or checkout changes. */
+.p34-storefront .p44-image-banner {
+    position: relative;
+    isolation: isolate;
+    display: flex;
+    align-items: center;
+    min-height: clamp(520px, 52vw, 690px);
+    margin: 18px 0 28px;
+    overflow: hidden;
+    border-radius: clamp(16px, 2vw, 26px);
+    background: #0b3c32;
+    box-shadow: 0 22px 56px rgba(7, 52, 37, .19);
+}
+.p34-storefront .p44-image-banner:last-child { margin-bottom: 0; }
+.p34-storefront .p44-image-banner__image {
+    position: absolute;
+    inset: 0;
+    z-index: -2;
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+}
+.p34-storefront .p44-image-banner::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background:
+        linear-gradient(90deg, rgba(4, 35, 30, .97) 0%, rgba(6, 49, 40, .90) 46%, rgba(6, 51, 43, .37) 85%, rgba(5, 41, 34, .15) 100%),
+        linear-gradient(0deg, rgba(3, 32, 27, .30), transparent 54%);
+}
+.p34-storefront .p44-image-banner__content {
+    width: min(100%, 770px);
+    padding: clamp(26px, 4.6vw, 63px);
+    position: relative;
+    z-index: 1;
+    color: #f5fff9;
+    overflow-wrap: anywhere;
+}
+.p34-storefront .p44-image-banner__eyebrow {
+    display: inline-block;
+    color: #b9f1cf;
+    font-size: clamp(10px, .9vw, 12px);
+    font-weight: 800;
+    letter-spacing: .12em;
+    line-height: 1.55;
+    text-transform: uppercase;
+}
+.p34-storefront .sf-section .p44-image-banner__title {
+    margin: 11px 0 14px;
+    color: #fff !important;
+    font-size: clamp(30px, 3.6vw, 46px);
+    font-weight: 850;
+    line-height: 1.16;
+    letter-spacing: -.045em;
+    text-wrap: balance;
+}
+.p34-storefront .p44-image-banner__intro {
+    max-width: 630px;
+    margin: 0;
+    color: #e5f6eb;
+    font-size: clamp(14px, 1.15vw, 16px);
+    line-height: 1.75;
+}
+.p34-storefront .p44-image-banner__detail {
+    max-width: 640px;
+    margin-top: clamp(18px, 2.6vw, 28px);
+    padding-top: clamp(15px, 2vw, 23px);
+    border-top: 1px solid rgba(215, 255, 229, .27);
+}
+.p34-storefront .sf-section .p44-image-banner__detail h3 {
+    margin: 6px 0 12px;
+    color: #fff !important;
+    font-size: clamp(23px, 2.9vw, 38px);
+    font-weight: 850;
+    line-height: 1.21;
+    letter-spacing: -.035em;
+    text-wrap: balance;
+}
+.p34-storefront .p44-image-banner__detail p {
+    margin: 0 0 21px;
+    color: #e4f7ec;
+    font-size: clamp(14px, 1.13vw, 16px);
+    line-height: 1.72;
+}
+.p34-storefront .p44-image-banner__detail .sf-cta {
+    min-height: 44px;
+    padding: 12px 20px;
+    color: var(--sf-btn-text, #fff);
+    background: var(--sf-btn, #176d4a);
+    border: 1px solid var(--sf-btn-border, #176d4a);
+    box-shadow: 0 8px 22px rgba(0, 0, 0, .16);
+    text-decoration: none;
+}
+.p34-storefront .p44-image-banner__detail .sf-cta:focus-visible {
+    outline: 3px solid var(--sf-focus, #b9f1cf);
+    outline-offset: 3px;
+}
+
+@media (max-width: 760px) {
+    .p34-storefront .p44-image-banner {
+        min-height: 500px;
+        align-items: center;
+        margin-block: 8px 18px;
+        border-radius: 17px;
+    }
+    .p34-storefront .p44-image-banner::before {
+        background: linear-gradient(90deg, rgba(4, 36, 30, .95), rgba(4, 42, 35, .80) 74%, rgba(4, 42, 35, .58));
+    }
+    .p34-storefront .p44-image-banner__content {
+        width: 100%;
+        padding: 34px clamp(22px, 5.2vw, 38px);
+    }
+    .p34-storefront .sf-section .p44-image-banner__title { font-size: clamp(26px, 7vw, 36px); }
+    .p34-storefront .sf-section .p44-image-banner__detail h3 { font-size: clamp(22px, 6.3vw, 30px); }
+}
+@media (max-width: 760px) {
+    /* The old popup is vertically centered on a button just above the mobile
+       tab bar. Align its BOTTOM to the button to keep Email above that bar. */
+    body.p34-storefront .p10-contact.p38-contact-dock {
+        position: fixed !important;
+        top: auto !important;
+        bottom: calc(clamp(118px, 22vh, 154px) + env(safe-area-inset-bottom)) !important;
+        right: 6px !important;
+    }
+    body.p34-storefront .p38-contact-menu .p38-contact-list {
+        top: auto !important;
+        bottom: 0 !important;
+        right: calc(100% + 8px) !important;
+        transform: none !important;
+        max-height: calc(100dvh - 145px - env(safe-area-inset-bottom));
+        max-width: calc(100vw - 78px);
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        animation: p44-contact-in .2s ease both;
+    }
+    @keyframes p44-contact-in {
+        from { opacity: 0; translate: 7px 0; }
+        to { opacity: 1; translate: 0 0; }
+    }
+    /* Reserve breathing room on the side where the fixed cart can appear. */
+    .p34-storefront .p44-image-banner__content {
+        padding-right: clamp(58px, 18vw, 77px);
+        padding-left: 19px;
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    body.p34-storefront .p38-contact-menu .p38-contact-list { animation: none !important; }
+    .p34-storefront .p44-image-banner, .p34-storefront .p44-image-banner__image { transition: none !important; }
+}

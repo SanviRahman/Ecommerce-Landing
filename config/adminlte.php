@@ -534,6 +534,17 @@ return [
 |--------------------------------------------------------------------------
 */
         [
+            'header' => 'HOMEPAGE MANAGEMENT',
+            'can'    => 'isolated-homepage-builder',
+        ],
+        [
+            'text'   => 'Homepage Builder',
+            'url'    => 'admin/storefront/home',
+            'icon'   => 'fas fa-fw fa-layer-group',
+            'can'    => 'isolated-homepage-builder',
+            'active' => ['admin/storefront/home*'],
+        ],
+        [
             'header' => 'LANDING PAGE',
             'can'    => 'admin-only',
         ],
@@ -591,6 +602,41 @@ return [
 
         /*
     |--------------------------------------------------------------------------
+    | Customer Reviews
+    |--------------------------------------------------------------------------
+    */
+        [
+            'header' => 'CUSTOMER REVIEWS',
+            'can'    => 'admin-only',
+        ],
+        [
+            'text'   => 'Customer Reviews',
+            'url'    => 'admin/reviews',
+            'icon'   => 'fas fa-fw fa-star',
+            'can'    => 'admin-only',
+            'active' => ['admin/reviews*'],
+        ],
+        [
+            'header' => 'STOREFRONT CUSTOMER CARE',
+            'can'    => 'admin-only',
+        ],
+        [
+            'text'   => 'Storefront FAQs',
+            'url'    => 'admin/storefront-faqs',
+            'icon'   => 'fas fa-fw fa-question-circle',
+            'can'    => 'admin-only',
+            'active' => ['admin/storefront-faqs*'],
+        ],
+        [
+            'text'   => 'Contact Messages',
+            'url'    => 'admin/storefront-messages',
+            'icon'   => 'fas fa-fw fa-envelope-open-text',
+            'can'    => 'admin-only',
+            'active' => ['admin/storefront-messages*'],
+        ],
+
+        /*
+    |--------------------------------------------------------------------------
     | Marketing
     |--------------------------------------------------------------------------
     */
@@ -644,6 +690,13 @@ return [
                     'icon' => 'far fa-fw fa-circle',
                     'can'  => 'admin-only',
                 ],
+                [
+                    'text'   => 'Audit Logs (Read Only)',
+                    'url'    => 'admin/reports/audit-logs',
+                    'icon'   => 'fas fa-fw fa-shield-alt',
+                    'can'    => 'admin-only',
+                    'active' => ['admin/reports/audit-logs*'],
+                ],
             ],
         ],
 
@@ -662,6 +715,13 @@ return [
             'icon'   => 'fas fa-cogs',
             'can'    => 'admin-only',
             'active' => ['admin/site-settings*'],
+        ],
+        [
+            'text'   => 'Shipping Charge for Homepage',
+            'url'    => 'admin/homepage-shipping-charges',
+            'icon'   => 'fas fa-fw fa-shipping-fast',
+            'can'    => 'admin-only',
+            'active' => ['admin/homepage-shipping-charges*'],
         ],
         [
             'text'   => 'Blocked Customers',
@@ -826,6 +886,39 @@ return [
                     ],
                 ],
                 [
+                    'text' => 'Homepage Media',
+                    'url' => 'admin/media-management/homepage',
+                    'icon' => 'far fa-fw fa-circle',
+                    'can' => 'admin-only',
+                    'active' => ['admin/media-management/homepage*'],
+                    'submenu' => [
+                        [
+                            'text' => 'All Homepage Media',
+                            'url' => 'admin/media-management/homepage',
+                            'icon' => 'far fa-dot-circle',
+                            'can' => 'admin-only',
+                        ],
+                        [
+                            'text' => 'Hero Banner',
+                            'url' => 'admin/media-management/homepage/hero',
+                            'icon' => 'far fa-dot-circle',
+                            'can' => 'admin-only',
+                        ],
+                        [
+                            'text' => 'Image & Text',
+                            'url' => 'admin/media-management/homepage/content',
+                            'icon' => 'far fa-dot-circle',
+                            'can' => 'admin-only',
+                        ],
+                        [
+                            'text' => 'Site Branding',
+                            'url' => 'admin/media-management/homepage/branding',
+                            'icon' => 'far fa-dot-circle',
+                            'can' => 'admin-only',
+                        ],
+                    ],
+                ],
+                [
                     'text'   => 'Other Media',
                     'url'    => 'admin/media-management/other',
                     'icon'   => 'far fa-fw fa-circle',
@@ -850,100 +943,95 @@ return [
             'can'     => 'admin-only',
             'submenu' => [
                 [
-                    'text' => 'Clear Cache',
-                    'url'  => 'command/clear-cache',
-                    'icon' => 'far fa-fw fa-circle',
-                    'can'  => 'admin-only',
+                    'text'   => 'Clear Cache',
+                    'url'    => 'command/clear-cache',
+                    'method' => 'POST',
+                    'icon'   => 'far fa-fw fa-circle',
+                    'can'    => 'admin-only',
                 ],
                 [
-                    'text' => 'Clear Config',
-                    'url'  => 'command/clear-config',
-                    'icon' => 'far fa-fw fa-circle',
-                    'can'  => 'admin-only',
+                    'text'   => 'Clear Config',
+                    'url'    => 'command/clear-config',
+                    'method' => 'POST',
+                    'icon'   => 'far fa-fw fa-circle',
+                    'can'    => 'admin-only',
                 ],
                 [
-                    'text' => 'Clear Route',
-                    'url'  => 'command/clear-route',
-                    'icon' => 'far fa-fw fa-circle',
-                    'can'  => 'admin-only',
+                    'text'   => 'Clear Route',
+                    'url'    => 'command/clear-route',
+                    'method' => 'POST',
+                    'icon'   => 'far fa-fw fa-circle',
+                    'can'    => 'admin-only',
                 ],
                 [
-                    'text' => 'Clear View',
-                    'url'  => 'command/clear-view',
-                    'icon' => 'far fa-fw fa-circle',
-                    'can'  => 'admin-only',
+                    'text'   => 'Clear View',
+                    'url'    => 'command/clear-view',
+                    'method' => 'POST',
+                    'icon'   => 'far fa-fw fa-circle',
+                    'can'    => 'admin-only',
                 ],
                 [
-                    'text' => 'Clear Events',
-                    'url'  => 'command/clear-events',
-                    'icon' => 'far fa-fw fa-circle',
-                    'can'  => 'admin-only',
+                    'text'   => 'Clear Events',
+                    'url'    => 'command/clear-events',
+                    'method' => 'POST',
+                    'icon'   => 'far fa-fw fa-circle',
+                    'can'    => 'admin-only',
                 ],
                 [
-                    'text' => 'Optimize',
-                    'url'  => 'command/optimize',
-                    'icon' => 'far fa-fw fa-circle',
-                    'can'  => 'admin-only',
+                    'text'   => 'Optimize',
+                    'url'    => 'command/optimize',
+                    'method' => 'POST',
+                    'icon'   => 'far fa-fw fa-circle',
+                    'can'    => 'admin-only',
                 ],
                 [
-                    'text' => 'Optimize Clear',
-                    'url'  => 'command/optimize-clear',
-                    'icon' => 'far fa-fw fa-circle',
-                    'can'  => 'admin-only',
+                    'text'   => 'Optimize Clear',
+                    'url'    => 'command/optimize-clear',
+                    'method' => 'POST',
+                    'icon'   => 'far fa-fw fa-circle',
+                    'can'    => 'admin-only',
                 ],
                 [
-                    'text' => 'Migrate',
-                    'url'  => 'command/migrate',
-                    'icon' => 'far fa-fw fa-circle',
-                    'can'  => 'admin-only',
+                    'text'   => 'Database Migrations',
+                    'url'    => 'command/database-migrations',
+                    'icon'   => 'fas fa-fw fa-database',
+                    'can'    => 'admin-only',
+                    'active' => ['command/database-migrations*'],
                 ],
                 [
-                    'text' => 'Seed',
-                    'url'  => 'command/seed',
-                    'icon' => 'far fa-fw fa-circle',
-                    'can'  => 'admin-only',
+                    'text'   => 'Prepare Media Storage',
+                    'url'    => 'command/storage-link',
+                    'method' => 'POST',
+                    'icon'   => 'far fa-fw fa-circle',
+                    'can'    => 'admin-only',
                 ],
                 [
-                    'text' => 'Prepare Media Storage',
-                    'url'  => 'command/storage-link',
-                    'icon' => 'far fa-fw fa-circle',
-                    'can'  => 'admin-only',
+                    'text'   => 'Media Storage Check',
+                    'url'    => 'command/media-storage-doctor',
+                    'method' => 'POST',
+                    'icon'   => 'far fa-fw fa-circle',
+                    'can'    => 'admin-only',
                 ],
                 [
-                    'text' => 'Media Storage Check',
-                    'url'  => 'command/media-storage-doctor',
-                    'icon' => 'far fa-fw fa-circle',
-                    'can'  => 'admin-only',
+                    'text'   => 'Sync SteadFast Status',
+                    'url'    => 'command/sync-steadfast-statuses',
+                    'method' => 'POST',
+                    'icon'   => 'far fa-fw fa-circle',
+                    'can'    => 'admin-only',
                 ],
                 [
-                    'text' => 'Sync SteadFast Status',
-                    'url'  => 'command/sync-steadfast-statuses',
-                    'icon' => 'far fa-fw fa-circle',
-                    'can'  => 'admin-only',
+                    'text'   => 'Sync Pathao Status',
+                    'url'    => 'command/sync-pathao-statuses',
+                    'method' => 'POST',
+                    'icon'   => 'far fa-fw fa-circle',
+                    'can'    => 'admin-only',
                 ],
                 [
-                    'text' => 'Sync Pathao Status',
-                    'url'  => 'command/sync-pathao-statuses',
-                    'icon' => 'far fa-fw fa-circle',
-                    'can'  => 'admin-only',
-                ],
-                [
-                    'text' => 'Separate Courier Cancel',
-                    'url'  => 'command/separate-courier-cancelled-orders',
-                    'icon' => 'far fa-fw fa-circle',
-                    'can'  => 'admin-only',
-                ],
-                [
-                    'text' => 'Fresh Migrate',
-                    'url'  => 'command/migrate-fresh',
-                    'icon' => 'far fa-fw fa-circle text-danger',
-                    'can'  => 'admin-only',
-                ],
-                [
-                    'text' => 'Fresh Migrate Seed',
-                    'url'  => 'command/migrate-fresh-seed',
-                    'icon' => 'far fa-fw fa-circle text-danger',
-                    'can'  => 'admin-only',
+                    'text'   => 'Separate Courier Cancel',
+                    'url'    => 'command/separate-courier-cancelled-orders',
+                    'method' => 'POST',
+                    'icon'   => 'far fa-fw fa-circle',
+                    'can'    => 'admin-only',
                 ],
             ],
         ],
@@ -984,6 +1072,14 @@ return [
     */
 
     'plugins'                                 => [
+        // Shared scroll control for all AdminLTE pages, including admin product/settings screens.
+        'StorefrontBackToTop' => [
+            'active' => true,
+            'files' => [
+                ['type' => 'css', 'asset' => true, 'location' => 'frontend/css/back-to-top.css'],
+                ['type' => 'js', 'asset' => true, 'location' => 'frontend/js/back-to-top.js'],
+            ],
+        ],
         'Datatables'  => [
             'active' => false,
             'files'  => [

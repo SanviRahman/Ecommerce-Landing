@@ -1,0 +1,113 @@
+/* P62: public campaign's responsive drawer; no effect on admin or storefront. */
+.front-offcanvas-head, .front-offcanvas-backdrop { display: none; }
+.front-offcanvas-backdrop[hidden] { display: none !important; }
+@media (min-width: 992px) {
+    .front-header .front-offcanvas-menu { display: flex !important; }
+    .front-header .front-offcanvas-head,
+    .front-header .front-offcanvas-backdrop { display: none !important; }
+}
+@media (max-width: 991.98px) {
+    /* A backdrop-filter on a parent creates a fixed-position containing block;
+       remove it here so the drawer is positioned relative to the viewport. */
+    .front-header { backdrop-filter: none; }
+    .front-header .front-toggler {
+        border: 1px solid #cde5d1;
+        border-radius: 9px;
+        background: #fff;
+        min-width: 44px;
+        min-height: 44px;
+        cursor: pointer;
+    }
+    /* No-JS fallback: expose the nav below the header rather than hiding links. */
+    .front-header .front-navbar #frontMenu {
+        display: block;
+        flex-basis: 100%;
+        width: 100%;
+        padding: 12px 0 22px;
+        background: #fff;
+    }
+    html.p62-campaign-nav-ready .front-header .front-navbar #frontMenu {
+        position: fixed;
+        inset: 0 0 0 auto;
+        width: min(360px, 88vw);
+        height: 100vh;
+        height: 100dvh;
+        max-height: 100dvh;
+        padding: 0;
+        z-index: 10002;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        background: #fff;
+        box-shadow: -16px 0 48px rgba(7, 34, 22, .2);
+        visibility: hidden;
+        pointer-events: none;
+        transform: translateX(105%);
+        transition: transform .25s ease, visibility .25s;
+    }
+    html.p62-campaign-nav-ready .front-header .front-navbar #frontMenu.is-open {
+        visibility: visible;
+        pointer-events: auto;
+        transform: translateX(0);
+    }
+    html.p62-campaign-nav-ready .front-header .front-offcanvas-backdrop:not([hidden]) {
+        display: block;
+        position: fixed;
+        inset: 0;
+        z-index: 10001;
+        background: rgba(6, 30, 19, .30);
+        /* No global page blur when navigating the campaign. */
+        backdrop-filter: none;
+    }
+    .front-header .front-offcanvas-head {
+        display: flex !important;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        min-height: 74px;
+        padding: 17px 20px;
+        border-bottom: 1px solid #e4efe6;
+        color: #17422c;
+        font-size: 17px;
+        font-weight: 800;
+    }
+    .front-header .front-offcanvas-head button {
+        flex: none;
+        width: 42px;
+        height: 42px;
+        border: 1px solid #cfe2d1;
+        border-radius: 9px;
+        background: #f6faf7;
+        color: #234536;
+        font-size: 29px;
+        line-height: 1;
+        cursor: pointer;
+    }
+    html.p62-campaign-nav-ready .front-header #frontMenu .navbar-nav {
+        width: 100%;
+        align-items: stretch !important;
+        flex-direction: column;
+        padding: 8px 18px max(24px, env(safe-area-inset-bottom));
+        margin: 0 !important;
+        gap: 3px;
+    }
+    .front-header #frontMenu .nav-link {
+        display: block;
+        padding: 12px 14px !important;
+        border-radius: 9px;
+        font-size: 15px;
+    }
+    .front-header #frontMenu .nav-link:hover,
+    .front-header #frontMenu .nav-link:focus-visible { background: #eef9f0; }
+    .front-header #frontMenu :is(a, button):focus-visible,
+    .front-header [data-campaign-menu-toggle]:focus-visible {
+        outline: 3px solid #e5a222;
+        outline-offset: 3px;
+    }
+    html.p62-campaign-nav-ready .front-header #frontMenu .nav-item.ml-lg-3 {
+        margin: 15px 0 0 !important;
+    }
+    /* Keep the existing mobile Order action in the header, unchanged. */
+}
+@media (max-width: 991.98px) and (prefers-reduced-motion: reduce) {
+    html.p62-campaign-nav-ready .front-header .front-navbar #frontMenu { transition: none; }
+}

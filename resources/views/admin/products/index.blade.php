@@ -45,6 +45,11 @@
 
             <div class="col-md-6 mt-2 mt-md-0 text-md-right">
                 @if(auth()->user()->isAdmin())
+                    @if($variantAdminAvailable ?? false)
+                    <a href="{{ route('admin.products.options.index') }}" class="btn btn-outline-success btn-sm px-3 shadow-none mr-1">
+                        <i class="fas fa-palette mr-1"></i> Variant Options
+                    </a>
+                    @endif
                     <button class="btn btn-outline-danger btn-sm px-3 shadow-none" id="btnToggleTrash">
                         <i class="fas fa-trash-alt mr-1"></i> Trash Bin
                     </button>
@@ -417,6 +422,10 @@ $(document).ready(function () {
                     $('#ajaxModal').modal('hide');
                     reloadTable();
                     showToast('success', res.message || 'Product saved successfully.');
+                    if (res.variant_url) {
+                        // Server-issued same-origin route; opened only for initial variant setup.
+                        window.location.assign(res.variant_url);
+                    }
                 } else {
                     btn.prop('disabled', false).html(oldHtml);
                     showToast('error', res.message || 'Product save failed.');

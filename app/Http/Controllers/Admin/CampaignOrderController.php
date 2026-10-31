@@ -15,6 +15,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class CampaignOrderController extends Controller
 {
@@ -159,8 +160,7 @@ class CampaignOrderController extends Controller
         CustomerIdentityService $customerIdentityService,
         OrderBlockService $orderBlockService
     ) {
-        abort_if($campaign->usesCustomRoute(), 404);
-
+        // A canonical /campaign/{slug}/order works for standard and custom-route campaigns.
         return $this->storeCampaignOrder(
             $request,
             $campaign,
@@ -211,7 +211,7 @@ class CampaignOrderController extends Controller
 
             'products'            => ['required', 'array', 'min:1'],
             'products.*.id'       => ['required', 'integer', 'exists:products,id'],
-            'products.*.quantity' => ['required', 'integer', 'min:1'],
+            'products.*.quantity' => ['required', 'integer', 'min:1', 'max:1000'],
         ]);
 
         $activeBlock = $orderBlockService->findActiveBlock(
@@ -228,18 +228,10 @@ class CampaignOrderController extends Controller
                 );
         }
 
-        if (! $this->consumeOrderFormToken($request->input('order_form_token'))) {
-            return back()
-                ->withInput($request->except(['products']))
-                ->with('error', 'এই পুরোনো ফর্ম দিয়ে আবার অর্ডার করা যাবে না। অনুগ্রহ করে পেজ refresh করে নতুন করে অর্ডার করুন।');
-        }
-
+        // Resolve products and shipping before touching customer records or consuming
+        // the one-time form token. Failed validation must not create partial orders.
         return DB::transaction(function () use ($request, $campaign, $customerIdentityService) {
-            $customer = $customerIdentityService->resolveOrCreate(
-                $request->customer_name,
-                $request->phone,
-                'phone'
-            );
+            app(\App\Services\Inventory\ManagedOrderWriter::class)->assertTransactionReady();
             $campaign->load([
                 'products' => function ($query) {
                     $query->where('products.status', true);
@@ -265,23 +257,27 @@ class CampaignOrderController extends Controller
                 $productId = (int) $submittedProduct['id'];
                 $product = $campaignProducts->get($productId);
 
+                // A campaign checkout may never include a globally active product
+                // that is not explicitly attached to this campaign.
                 if (! $product) {
-                    $product = Product::query()
-                        ->where('status', true)
-                        ->whereKey($productId)
-                        ->first();
+                    throw ValidationException::withMessages([
+                        'products' => 'One or more selected products are not available in this campaign.',
+                    ]);
                 }
 
-                if (! $product) {
-                    continue;
+                $quantity = (int) $submittedProduct['quantity'];
+                if ($quantity < 1 || $quantity > 1000) {
+                    throw ValidationException::withMessages([
+                        'products' => 'Please select a valid quantity (1-1000) for each product.',
+                    ]);
                 }
-
-                $quantity = max(1, (int) $submittedProduct['quantity']);
                 $campaignPrice = isset($product->pivot) ? (int) ($product->pivot->campaign_price ?? 0) : 0;
                 $unitPrice = $campaignPrice > 0 ? $campaignPrice : (int) $product->new_price;
 
                 if ($unitPrice <= 0) {
-                    continue;
+                    throw ValidationException::withMessages([
+                        'products' => 'A selected campaign product has no valid price.',
+                    ]);
                 }
 
                 $lineTotal = $unitPrice * $quantity;
@@ -297,9 +293,9 @@ class CampaignOrderController extends Controller
             }
 
             if (empty($orderItems)) {
-                return back()
-                    ->withInput()
-                    ->with('error', 'Please select at least one valid product.');
+                throw ValidationException::withMessages([
+                    'products' => 'Please select at least one valid campaign product.',
+                ]);
             }
 
             $hasAnyFreeDeliveryProduct = collect($orderItems)
@@ -314,9 +310,9 @@ class CampaignOrderController extends Controller
                     ->first(fn (ShippingCharge $charge) => (string) $charge->id === (string) $request->delivery_area);
 
                 if (! $selectedShippingCharge) {
-                    return back()
-                        ->withInput()
-                        ->with('error', 'Please select a valid delivery area.');
+                    throw ValidationException::withMessages([
+                        'delivery_area' => 'Please select a valid delivery area.',
+                    ]);
                 }
 
                 $shippingCharge = (int) $selectedShippingCharge->delivery_charge;
@@ -328,6 +324,18 @@ class CampaignOrderController extends Controller
 
             $codCharge = 0;
             $totalAmount = $subTotal + $shippingCharge + $codCharge;
+
+            if (! $this->consumeOrderFormToken($request->input('order_form_token'))) {
+                return back()
+                    ->withInput($request->except(['products', 'order_form_token']))
+                    ->with('error', 'এই পুরোনো ফর্ম দিয়ে আবার অর্ডার করা যাবে না। অনুগ্রহ করে পেজ refresh করে নতুন করে অর্ডার করুন।');
+            }
+
+            $customer = $customerIdentityService->resolveOrCreate(
+                $request->customer_name,
+                $request->phone,
+                'phone'
+            );
 
             $order = Order::create([
                 'invoice_id'        => $this->generateInvoiceId(),
@@ -380,6 +388,8 @@ class CampaignOrderController extends Controller
                     'total_price'  => $item['line_total'],
                 ]);
             }
+
+            app(\App\Services\Inventory\ManagedOrderWriter::class)->allocateCreatedOrder($order->id, 'products');
 
             app(OrderAssignmentService::class)->assign($order);
 

@@ -4,9 +4,12 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Category;
+use App\Support\P33CatalogAdminAccess;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
@@ -20,13 +23,50 @@ class CategoryController extends Controller
         }
     }
 
+    private function hierarchyAvailable(): bool
+    {
+        return Schema::hasColumn('categories', 'parent_id')
+            && Schema::hasColumn('categories', 'sort_order');
+    }
+
+    private function parentChoices(?int $excludeId = null)
+    {
+        if (! $this->hierarchyAvailable()) {
+            return collect();
+        }
+        return Category::query()->where('status', true)->whereNull('parent_id')
+            ->when($excludeId, fn ($query) => $query->where('id', '!=', $excludeId))
+            ->orderBy('sort_order')->orderBy('name')->get();
+    }
+
+    private function assertNoParentCycle(int $categoryId, ?int $parentId): void
+    {
+        $seen = [$categoryId => true];
+        $steps = 0;
+        while ($parentId !== null) {
+            if (isset($seen[$parentId]) || ++$steps > 100) {
+                throw ValidationException::withMessages(['parent_id' => 'A category cannot be its own ancestor.']);
+            }
+            $seen[$parentId] = true;
+            $row = Category::query()->whereKey($parentId)->lockForUpdate()->first();
+            if ($row === null || $row->trashed() || ! $row->status) {
+                throw ValidationException::withMessages(['parent_id' => 'Select an active parent category.']);
+            }
+            $parentId = $row->parent_id === null ? null : (int) $row->parent_id;
+        }
+    }
+
     private function categoryQuery(bool $trash = false): Builder
     {
         $query = $trash
             ? Category::onlyTrashed()
             : Category::query();
 
-        return $query->withCount(['products', 'activeProducts'])->latest();
+        $query->withCount(['products', 'activeProducts']);
+        if ($this->hierarchyAvailable()) {
+            $query->with('parent')->withCount('children');
+        }
+        return $query->latest();
     }
 
     private function applyFilters(Builder $query, Request $request): Builder
@@ -111,13 +151,17 @@ class CategoryController extends Controller
         $category = null;
         $isEdit = false;
         $action = route('admin.categories.store');
+        $parents = $this->parentChoices();
+        $hierarchyAvailable = $this->hierarchyAvailable();
 
         return response()->json([
             'status' => true,
             'html' => view('admin.categories.partials.form', compact(
                 'category',
                 'isEdit',
-                'action'
+                'action',
+                'parents',
+                'hierarchyAvailable'
             ))->render(),
         ]);
     }
@@ -130,10 +174,25 @@ class CategoryController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'slug' => ['nullable', 'string', 'max:255', 'unique:categories,slug'],
             'image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            'parent_id' => $this->hierarchyAvailable() ? ['nullable', 'integer', 'exists:categories,id'] : ['prohibited'],
+            'sort_order' => $this->hierarchyAvailable() ? ['nullable', 'integer', 'min:0', 'max:1000000'] : ['prohibited'],
         ]);
 
         return DB::transaction(function () use ($request) {
+            $hierarchyData = [];
+            if ($this->hierarchyAvailable()) {
+                P33CatalogAdminAccess::assertAllowed();
+                $parentId = $request->filled('parent_id') ? (int) $request->input('parent_id') : null;
+                if ($parentId !== null) {
+                    $parent = Category::query()->whereKey($parentId)->lockForUpdate()->first();
+                    if ($parent === null || $parent->trashed() || ! $parent->status || $parent->parent_id !== null) {
+                        throw ValidationException::withMessages(['parent_id' => 'Invalid parent category.']);
+                    }
+                }
+                $hierarchyData = ['parent_id' => $parentId, 'sort_order' => (int) $request->input('sort_order', 0)];
+            }
             $category = Category::create([
+                ...$hierarchyData,
                 'name' => $request->name,
                 'slug' => $request->slug
                     ? Str::slug($request->slug)
@@ -182,13 +241,17 @@ class CategoryController extends Controller
 
         $isEdit = true;
         $action = route('admin.categories.update', $category->id);
+        $parents = $this->parentChoices($category->id);
+        $hierarchyAvailable = $this->hierarchyAvailable();
 
         return response()->json([
             'status' => true,
             'html' => view('admin.categories.partials.form', compact(
                 'category',
                 'isEdit',
-                'action'
+                'action',
+                'parents',
+                'hierarchyAvailable'
             ))->render(),
         ]);
     }
@@ -206,10 +269,38 @@ class CategoryController extends Controller
                 Rule::unique('categories', 'slug')->ignore($category->id),
             ],
             'image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            'parent_id' => $this->hierarchyAvailable() ? ['nullable', 'integer', 'exists:categories,id'] : ['prohibited'],
+            'sort_order' => $this->hierarchyAvailable() ? ['nullable', 'integer', 'min:0', 'max:1000000'] : ['prohibited'],
         ]);
 
         return DB::transaction(function () use ($request, $category) {
+            $hierarchyData = [];
+            if ($this->hierarchyAvailable()) {
+                P33CatalogAdminAccess::assertAllowed();
+                // Lock the changed category and follow the parent chain under transaction.
+                Category::query()->whereKey($category->id)->lockForUpdate()->firstOrFail();
+                $parentId = $request->exists('parent_id')
+                    ? ($request->filled('parent_id') ? (int) $request->input('parent_id') : null)
+                    : ($category->parent_id === null ? null : (int) $category->parent_id);
+                $this->assertNoParentCycle((int) $category->id, $parentId);
+                if ($parentId !== null) {
+                    // Exactly two levels (root -> subcategory), never hide deeper descendants.
+                    $parent = Category::query()->whereKey($parentId)->lockForUpdate()->firstOrFail();
+                    if ($parent->parent_id !== null) {
+                        throw ValidationException::withMessages(['parent_id' => 'Choose a top-level parent category.']);
+                    }
+                    if (Category::query()->where('parent_id', $category->id)->exists()) {
+                        throw ValidationException::withMessages(['parent_id' => 'A category with sub-categories cannot be nested below another category.']);
+                    }
+                }
+                $hierarchyData = [
+                    'parent_id' => $parentId,
+                    'sort_order' => $request->exists('sort_order')
+                        ? (int) $request->input('sort_order', 0) : (int) $category->sort_order,
+                ];
+            }
             $category->update([
+                ...$hierarchyData,
                 'name' => $request->name,
                 'slug' => $request->slug
                     ? Str::slug($request->slug)
@@ -272,6 +363,12 @@ class CategoryController extends Controller
 
         $category = Category::onlyTrashed()->findOrFail($id);
 
+        if ($this->hierarchyAvailable()
+            && Category::withTrashed()->where('parent_id', $category->id)->exists()) {
+            return response()->json(['status' => false,
+                'message' => 'Move child categories before permanently deleting this parent.'], 422);
+        }
+
         if ($category->products()->withTrashed()->exists()) {
             return response()->json([
                 'status' => false,
@@ -326,7 +423,9 @@ class CategoryController extends Controller
                 ->get();
 
             foreach ($categories as $category) {
-                if ($category->products_count > 0) {
+                if ($category->products_count > 0
+                    || ($this->hierarchyAvailable()
+                        && Category::withTrashed()->where('parent_id', $category->id)->exists())) {
                     continue;
                 }
 

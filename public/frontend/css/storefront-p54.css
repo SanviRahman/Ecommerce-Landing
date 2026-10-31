@@ -1,0 +1,195 @@
+/* P54 — Storefront-only presentation fixes. Never alters Admin or Campaign UI. */
+body.p34-storefront .p54-total-note {
+  margin: 7px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #648070;
+}
+body.p34-storefront .p19-order-summary .p19-summary-total strong {
+  color: #126344;
+  font-size: clamp(14px, 1.4vw, 17px);
+  font-weight: 850;
+  white-space: normal;
+  text-align: right;
+}
+body.p34-storefront .p54-review-total {
+  padding-top: 10px;
+  border-top: 1px solid #d6e8dc;
+  font-weight: 800;
+}
+body.p34-storefront .p54-review-total strong { color:#126344; }
+/* Full brand logo in a noticeably taller frame, without cropping or stretching. */
+body.p34-storefront .p51-page-loader__mark.p54-loader-with-image {
+  box-sizing: border-box;
+  width: min(78vw, 300px);
+  height: 164px;
+  padding: 12px 16px;
+  border-radius: 24px;
+}
+body.p34-storefront .p51-page-loader__mark.p54-loader-with-image img {
+  width: 100%;
+  height: 100%;
+  max-height: 100%;
+  max-width: 100%;
+  object-fit: contain;
+  object-position: center;
+  border-radius: 8px;
+}
+body.p34-storefront .p51-page-loader__mark.p54-loader-with-initial {
+  width: 108px;
+  height: 108px;
+}
+/* WhatsApp never renders in an iframe; give customers a native-app action,
+   a separate-tab browser fallback, and a usable copy-number fallback. */
+body.p34-storefront .p54-whatsapp-actions { margin-top: 12px; }
+body.p34-storefront .p54-whatsapp-browser {
+  display: block;
+  text-align: center;
+  margin: 15px 0 5px;
+  padding: 9px;
+  font-size: 13px;
+  font-weight: 750;
+  color: #116847;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+body.p34-storefront .p54-whatsapp-browser:focus-visible,
+body.p34-storefront .p54-whatsapp-app:focus-visible {
+  outline: 3px solid #65cb95;
+  outline-offset: 3px;
+}
+body.p34-storefront .p52-whatsapp-dialog .p54-whatsapp-embed-note {
+  margin: 8px 0 0;
+  font-size: 11px;
+  color: #667d71;
+}
+@media(max-width: 760px) {
+  body.p34-storefront .p51-page-loader__mark.p54-loader-with-image {
+    width: min(84vw, 290px);
+    height: 175px;
+    padding: 12px;
+  }
+  body.p34-storefront .p19-order-summary .p19-summary-total strong { font-size: 15px; }
+  body.p34-storefront .p54-total-note { font-size: 12px; }
+  body.p34-storefront .p52-whatsapp-dialog { max-height: calc(100dvh - 95px); }
+}
+
+
+/* P59: modest, readable spacing reduction across ALL public storefront pages.
+   Scoped out of AdminLTE and campaign landing. Interactive targets stay >=44px. */
+body.p34-storefront {font-size:14.5px;line-height:1.55}
+body.p34-storefront .p19-benefit-bar {font-size:10.5px;line-height:1.2}
+body.p34-storefront .p19-benefit-bar .p07-container {
+  display:flex;flex-wrap:nowrap;gap:clamp(7px,1.5vw,19px);min-height:29px;
+}
+body.p34-storefront .p19-benefit-bar .p07-container>span,
+body.p34-storefront .p19-benefit-bar .p07-container>a {
+  white-space:nowrap;flex:0 0 auto;font-size:10px;line-height:1.2;
+}
+body.p34-storefront .p19-benefit-bar .p07-container>a {margin-left:auto}
+body.p34-storefront .p19-main-header {min-height:80px;gap:clamp(12px,2vw,26px)}
+body.p34-storefront .p33-site-logo {height:49px;max-width:68px}
+body.p34-storefront .p19-search {min-height:46px}
+body.p34-storefront .p19-desktop-nav-inner {min-height:49px}
+body.p34-storefront .p59-header-menu {display:none}
+body.p34-storefront .sf-section:not(.sf-section-hero) {
+  padding-top:clamp(46px,5.25vw,72px);padding-bottom:clamp(46px,5.25vw,72px);
+}
+body.p34-storefront .p33-auto-section {padding:clamp(24px,4.1vw,54px) 0}
+body.p34-storefront .sf-section h2 {font-size:clamp(27px,2.8vw,37px)}
+body.p34-storefront .p33-section-heading {margin-bottom:20px;gap:14px}
+body.p34-storefront .p33-section-heading h2 {font-size:clamp(26px,3vw,37px)}
+body.p34-storefront :is(.sf-grid-products,.sf-grid-categories) {gap:clamp(12px,1.65vw,21px)}
+body.p34-storefront :is(.p07-card-body,.sf-product-copy) {padding:13px 16px 17px}
+body.p34-storefront :is(.sf-price,.p07-card-prices strong) {font-size:18px}
+body.p34-storefront .p07-page-heading {padding-top:23px;padding-bottom:14px}
+body.p34-storefront .p19-auth-layout {margin-top:32px;margin-bottom:48px}
+body.p34-storefront .p19-auth-card {padding:clamp(23px,3.4vw,48px)}
+body.p34-storefront .p19-auth-card form {margin:19px 0;gap:7px}
+body.p34-storefront .p19-auth-card input {min-height:44px}
+body.p34-storefront .p19-account-stat-grid {margin:19px 0;gap:10px}
+body.p34-storefront .p19-account-panel {margin-bottom:15px}
+body.p34-storefront .p52-profile-group {padding-bottom:21px;margin-bottom:21px}
+body.p34-storefront .p53-home-track {padding:clamp(19px,2.6vw,30px)}
+body.p34-storefront .p33-track-section {padding-block:50px}
+body.p34-storefront .p19-footer {margin-top:40px}
+/* All text fields keep useful native labels; placeholders supplement them. */
+body.p34-storefront .p19-auth-card input::placeholder {color:#788f80;opacity:1}
+@media(max-width:760px) {
+  body.p34-storefront {font-size:14.5px;line-height:1.52}
+  body.p34-storefront .p19-benefit-bar .p07-container {gap:7px;min-height:27px}
+  body.p34-storefront .p19-benefit-bar .p07-container>span:not(:first-child) {display:none}
+  body.p34-storefront .p19-benefit-bar .p07-container>span:first-child {
+    min-width:0;flex:0 1 auto;overflow:hidden;text-overflow:ellipsis;font-size:9px;
+  }
+  body.p34-storefront .p19-benefit-bar .p07-container>a {font-size:9px}
+  /* Override the P51 two-row search-header !important rule; bottom Search remains. */
+  body.p34-storefront .p19-main-header>.p19-search {display:none!important}
+  body.p34-storefront .p19-main-header {
+    display:flex!important;flex-wrap:nowrap;align-items:center;justify-content:flex-start;
+    gap:7px;min-height:62px;padding-top:8px;padding-bottom:8px;
+  }
+  body.p34-storefront .p59-header-menu {
+    display:grid;place-items:center;flex:0 0 40px;width:40px;height:44px;
+    padding:8px;border:1px solid #d1e3d7;border-radius:10px;
+    color:#154b36;background:#fff;box-shadow:0 3px 10px rgba(8,65,39,.06);
+    cursor:pointer;
+  }
+  body.p34-storefront .p59-header-menu .p34-icon {width:23px;height:23px}
+  body.p34-storefront .p59-header-menu:hover {background:#ebf7ee}
+  body.p34-storefront .p19-main-header>.p07-brand {
+    flex:1 1 auto;max-width:none!important;min-width:0;overflow:hidden;gap:6px;
+  }
+  body.p34-storefront .p33-site-logo {height:37px;max-width:38px}
+  body.p34-storefront .p33-brand-name {font-size:clamp(12px,3.5vw,16px);min-width:0;overflow:hidden}
+  body.p34-storefront .p33-brand-name small {font-size:8px;white-space:nowrap}
+  body.p34-storefront .p33-header-actions {flex:0 0 auto;gap:2px}
+  body.p34-storefront .p33-header-actions :is(.p19-account-link,.p19-top-cart) {
+    flex:0 0 36px;width:36px;min-width:36px;min-height:44px;height:44px;padding:5px;
+  }
+  body.p34-storefront .p19-mobile-search-panel {
+    top:calc(91px + env(safe-area-inset-top));
+  }
+  body.p34-storefront :is(.sf-section[id],#p19-account-overview,#p19-account-profile,.p33-track-page) {
+    scroll-margin-top:105px;
+  }
+  body.p34-storefront .sf-section:not(.sf-section-hero) {
+    padding-top:clamp(37px,8vw,52px);padding-bottom:clamp(37px,8vw,52px);
+  }
+  body.p34-storefront .p33-auto-section {padding:clamp(24px,6vw,43px) 0}
+  body.p34-storefront :is(.sf-title-line h2,.p33-section-heading h2) {
+    font-size:clamp(24px,6.7vw,33px);
+  }
+  body.p34-storefront .p07-page-heading {padding-top:22px;padding-bottom:14px}
+  body.p34-storefront :is(.p07-page-heading h1,.p19-account-main h1,.p19-info-hero h1) {
+    font-size:clamp(27px,7.1vw,36px);
+  }
+  body.p34-storefront :is(.p07-card-body,.sf-product-copy) {padding:12px 11px 15px}
+  body.p34-storefront .p19-auth-card {padding:20px}
+  body.p34-storefront :is(.p19-checkout-form,.p19-order-summary,.p19-account-sidebar,.p19-account-panel) {
+    padding:clamp(17px,4.3vw,23px);border-radius:15px;
+  }
+  body.p34-storefront .p19-checkout-form :is(button,.p08-primary),
+  body.p34-storefront .p19-auth-card .p08-primary {min-height:44px}
+  body.p34-storefront .p19-footer {margin-top:32px}
+}
+@media(max-width:355px) {
+  body.p34-storefront .p59-header-menu {flex-basis:38px;width:38px}
+  body.p34-storefront .p33-header-actions :is(.p19-account-link,.p19-top-cart) {
+    flex-basis:34px;min-width:34px;width:34px;
+  }
+  body.p34-storefront .p33-brand-name {font-size:12px}
+  body.p34-storefront .p33-brand-name small {font-size:7.5px}
+}
+
+/* P60: Desktop header matches the original three-column design (no menu button).
+   Mobile hides the promotional topbar and inline search only; the bottom Search
+   action still opens the existing accessible search panel. */
+@media (min-width: 761px) {
+  body.p34-storefront .p59-header-menu { display: none !important; }
+}
+@media (max-width: 760px) {
+  body.p34-storefront .p19-benefit-bar { display: none !important; }
+  body.p34-storefront .p19-main-header > .p19-search { display: none !important; }
+  body.p34-storefront .p19-mobile-search-panel { top: calc(62px + env(safe-area-inset-top)); }
+}

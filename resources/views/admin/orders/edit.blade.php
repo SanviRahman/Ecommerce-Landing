@@ -121,6 +121,40 @@ $productsForJs = $products
 <div class="alert alert-danger">{{ session('error') }}</div>
 @endif
 
+@if(!empty($p03QuantityUiEnabled))
+    <div class="alert alert-warning" role="status">
+        <strong>Managed inventory test mode:</strong> Full Order Edit is locked to prevent
+        price/stock mismatches. Use the dedicated quantity controls below.
+        Quantity edits are only accepted for pre-dispatch, unreleased orders.
+    </div>
+    <div class="card shadow-sm border-0 mb-3">
+        <div class="card-header bg-white font-weight-bold">Safe Item Quantity Reconciliation (Test DB Only)</div>
+        <div class="card-body">
+            @error('quantity') <div class="alert alert-danger">{{ $message }}</div> @enderror
+            @foreach($order->items->whereNull('deleted_at') as $managedItem)
+                <form method="POST"
+                      action="{{ route('admin.orders.managed_items.quantity', [$order->id, $managedItem->id]) }}"
+                      class="d-flex align-items-end flex-wrap mb-3 pb-3 border-bottom">
+                    @csrf
+                    @method('PATCH')
+                    <input type="hidden" name="expected_quantity" value="{{ (int) $managedItem->quantity }}">
+                    <div class="mr-3 mb-2">
+                        <strong>{{ $managedItem->product_name }}</strong>
+                        <div class="small text-muted">SKU: {{ $managedItem->variant_sku ?: 'Default' }}</div>
+                    </div>
+                    <div class="mr-2 mb-2">
+                        <label class="small font-weight-bold" for="managedQuantity{{ $managedItem->id }}">Quantity</label>
+                        <input id="managedQuantity{{ $managedItem->id }}" type="number" name="quantity"
+                               class="form-control" min="1" max="1000" step="1"
+                               value="{{ (int) $managedItem->quantity }}" required>
+                    </div>
+                    <button class="btn btn-outline-success mb-2" type="submit">Update Stock &amp; Order Total</button>
+                </form>
+            @endforeach
+        </div>
+    </div>
+@endif
+
 <form action="{{ route('admin.orders.update', $order->id) }}" method="POST" id="orderEditForm"
     enctype="multipart/form-data">
     @csrf
@@ -594,7 +628,7 @@ $productsForJs = $products
                         <i class="fas fa-arrow-left mr-1"></i> Back
                     </a>
 
-                    <button type="submit" class="btn btn-primary px-4">
+                    <button type="submit" class="btn btn-primary px-4" @if(!empty($p03QuantityUiEnabled)) disabled title="Use managed quantity controls above" @endif>
                         <i class="fas fa-save mr-1"></i> Update Order
                     </button>
                 </div>

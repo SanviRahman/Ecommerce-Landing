@@ -1,0 +1,229 @@
+/* P50 - Scoped storefront desktop sizing and accessible COD checkout stepper.
+   Applies only to storefront pages. Admin, campaign and checkout API remain unchanged. */
+body.p34-storefront .p50-checkout-intro {
+    display: grid;
+    grid-template-columns: minmax(0, 1.12fr) minmax(0, 1fr);
+    gap: clamp(24px, 3vw, 54px);
+    align-items: end;
+    margin: clamp(28px, 3.1vw, 44px) 0 28px;
+}
+body.p34-storefront .p50-checkout-intro .p19-checkout-heading {
+    min-width: 0;
+    margin: 0;
+}
+body.p34-storefront .p50-checkout-intro .p19-checkout-heading h1 {
+    margin: 8px 0 12px;
+    font-size: clamp(34px, 3.75vw, 54px);
+    line-height: 1.12;
+    font-weight: 850;
+    letter-spacing: -.045em;
+}
+body.p34-storefront .p50-checkout-intro .p19-checkout-heading > p:last-child {
+    max-width: 660px;
+    margin: 0;
+    font-size: clamp(14px, 1.05vw, 16px);
+    line-height: 1.72;
+}
+body.p34-storefront .p50-checkout-intro .p19-checkout-steps {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0;
+    min-width: 0;
+    align-self: end;
+    list-style: none;
+    padding: 0 0 8px;
+    margin: 0;
+}
+body.p34-storefront .p50-checkout-intro .p19-checkout-steps li {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    min-width: 0;
+    gap: 9px;
+    text-align: center;
+    font-size: clamp(10px, .9vw, 12px);
+    font-weight: 700;
+    white-space: normal;
+    line-height: 1.35;
+}
+body.p34-storefront .p50-checkout-intro .p19-checkout-steps li:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    z-index: 0;
+    top: 19px;
+    left: calc(50% + 23px);
+    width: calc(100% - 46px);
+    height: 2px;
+    background: #d6e6dc;
+    border-radius: 2px;
+}
+body.p34-storefront .p50-checkout-intro .p19-checkout-steps li.is-complete::after {
+    background: #188453;
+}
+body.p34-storefront .p50-checkout-intro .p19-checkout-steps li .p50-step-number {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    flex: 0 0 40px;
+    border: 1px solid #e2ebe5;
+    border-radius: 50%;
+    background: #eaf2ec;
+    color: #6b8073;
+    font-size: 15px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+}
+body.p34-storefront .p50-checkout-intro .p19-checkout-steps li.is-current .p50-step-number {
+    color: #fff;
+    background: #127c4b;
+    border-color: #127c4b;
+    box-shadow: 0 5px 15px #147f4b24;
+}
+body.p34-storefront .p50-checkout-intro .p19-checkout-steps li.is-complete .p50-step-number {
+    color: #11643e;
+    background: #d5f0df;
+    border-color: #a3d8b6;
+}
+body.p34-storefront .p50-checkout-intro .p19-checkout-steps li .p50-step-label {
+    display: block;
+    width: auto;
+    height: auto;
+    flex: initial;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: #63756b;
+    font-size: inherit;
+    font-weight: inherit;
+}
+body.p34-storefront .p50-checkout-intro .p19-checkout-steps li.is-current .p50-step-label {
+    color: #0f764a;
+}
+body.p34-storefront .p50-checkout-intro .p19-checkout-steps li.is-complete .p50-step-label {
+    color: #286b46;
+}
+body.p34-storefront .p50-step-legend-inner {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    font: inherit;
+}
+body.p34-storefront .p50-step-legend-icon {
+    display: inline-grid;
+    place-items: center;
+    width: 46px;
+    height: 46px;
+    flex: 0 0 46px;
+    color: #0d7046;
+    background: #e8f4ed;
+    border-radius: 14px;
+}
+body.p34-storefront .p50-step-legend-icon .p34-icon {
+    width: 25px;
+    height: 25px;
+}
+/* Tablet and mobile retain their established page widths, cards and nav. */
+@media (max-width: 1023px) {
+    body.p34-storefront .p50-checkout-intro {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 22px;
+        margin: 25px 0 22px;
+    }
+    body.p34-storefront .p50-checkout-intro .p19-checkout-steps {
+        padding-bottom: 0;
+    }
+}
+@media (max-width: 560px) {
+    body.p34-storefront .p50-checkout-intro {gap: 19px;}
+    body.p34-storefront .p50-checkout-intro .p19-checkout-heading h1 {
+        font-size: clamp(29px, 8.5vw, 38px);
+    }
+    body.p34-storefront .p50-checkout-intro .p19-checkout-steps li {
+        font-size: 10px;
+        gap: 7px;
+    }
+    body.p34-storefront .p50-checkout-intro .p19-checkout-steps li .p50-step-number {
+        width: 34px;
+        height: 34px;
+        flex-basis: 34px;
+        font-size: 12px;
+    }
+    body.p34-storefront .p50-checkout-intro .p19-checkout-steps li:not(:last-child)::after {
+        top: 16px;
+        left: calc(50% + 19px);
+        width: calc(100% - 38px);
+    }
+    body.p34-storefront .p50-step-legend-icon {
+        width: 40px;
+        height: 40px;
+        flex-basis: 40px;
+    }
+}
+/* Comfortable desktop scale across the shared Storefront header, shop, home,
+   product detail, cart, account, contact and checkout. No mobile rule changes. */
+@media (min-width: 1100px) {
+    body.p34-storefront .p07-container,
+    body.p34-storefront .sf-wrapper {
+        width: min(1360px, calc(100% - 36px));
+    }
+    body.p34-storefront .p19-main-header {min-height: 98px;}
+    body.p34-storefront .p19-desktop-nav-inner {min-height: 59px;}
+    body.p34-storefront .p19-desktop-nav a {font-size: 14.5px;}
+    body.p34-storefront .sf-section:not(.sf-section-hero) {
+        padding-top: clamp(66px, 5.8vw, 94px);
+        padding-bottom: clamp(66px, 5.8vw, 94px);
+    }
+    body.p34-storefront .sf-section h2,
+    body.p34-storefront .p33-section-heading h2 {
+        font-size: clamp(34px, 3.1vw, 46px);
+    }
+    body.p34-storefront .sf-section .sf-lead,
+    body.p34-storefront .p33-section-heading p {
+        font-size: clamp(16px, 1.2vw, 18px);
+        line-height: 1.78;
+    }
+    body.p34-storefront :is(.p07-card-body, .sf-product-copy) {
+        padding: 19px 18px 23px;
+    }
+    body.p34-storefront :is(.p07-card-body h3, .sf-product-copy h3) {
+        font-size: clamp(16px, 1.28vw, 19px);
+    }
+    body.p34-storefront .p07-page-heading {padding-top: 43px; padding-bottom: 24px;}
+    body.p34-storefront .p07-page-heading h1 {font-size: clamp(35px, 3.4vw, 49px);}
+    body.p34-storefront .p07-detail {gap: clamp(32px, 4.1vw, 60px);}
+    body.p34-storefront .p37-contact-hero {padding: clamp(35px, 3.5vw, 56px);}
+    body.p34-storefront .p37-contact-hero h1 {font-size: clamp(38px, 3.8vw, 57px);}
+    body.p34-storefront .p19-info-hero h1 {font-size: clamp(38px, 3.8vw, 57px);}
+    body.p34-storefront .p19-checkout-grid {
+        grid-template-columns: minmax(0, 1.7fr) minmax(330px, .95fr);
+        gap: clamp(24px, 2.8vw, 38px);
+    }
+    body.p34-storefront .p19-checkout-form {
+        padding: clamp(29px, 2.7vw, 40px);
+        border-radius: 21px;
+        box-shadow: 0 15px 36px #0c42300b;
+    }
+    body.p34-storefront .p19-checkout-form .p19-step-panel legend {font-size: 23px;}
+    body.p34-storefront .p19-checkout-form label {font-size: 14px;}
+    body.p34-storefront .p19-checkout-form :is(input, select, textarea) {
+        font-size: 14px;
+        padding: 14px 15px;
+    }
+    body.p34-storefront .p19-order-summary {
+        top: 210px; /* Clear the desktop sticky header during checkout scrolling. */
+        padding: clamp(25px, 2.65vw, 37px);
+        border: 1px solid #e0eae3;
+        border-radius: 21px;
+        box-shadow: 0 18px 42px #0a392616;
+    }
+    body.p34-storefront .p19-order-summary h2 {font-size: 22px;}
+    body.p34-storefront .p19-summary-product {font-size: 13px; padding: 16px 0;}
+}
+@media (prefers-reduced-motion: reduce) {
+    body.p34-storefront .p50-checkout-intro * {transition: none !important;}
+}

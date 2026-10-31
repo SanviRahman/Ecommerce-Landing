@@ -112,6 +112,30 @@ class MediaManagementController extends Controller
                 'collections' => ['campaign_product_gallery'],
             ],
 
+            'homepage' => [
+                'title' => 'Homepage Media',
+                'description' => 'Homepage Hero Banner and Storefront Branding, grouped by section. Existing shared library assets remain in their original paths.',
+                'model_types' => [SiteSetting::class],
+                'collections' => ['storefront_hero_image', 'storefront_logo', 'storefront_white_logo', 'storefront_favicon'],
+            ],
+            'homepage.hero' => [
+                'title' => 'Homepage Hero Banner Media',
+                'description' => 'Homepage Builder hero/banner slides.',
+                'model_types' => [SiteSetting::class],
+                'collections' => ['storefront_hero_image'],
+            ],
+            'homepage.content' => [
+                'title' => 'Homepage Image & Text Media',
+                'description' => 'Shared public images selected for the current Homepage Image & Text sections. These stay in their shared folders.',
+                'model_types' => [],
+                'collections' => [],
+            ],
+            'homepage.branding' => [
+                'title' => 'Homepage Branding Media',
+                'description' => 'Homepage site logo, white logo and favicon.',
+                'model_types' => [SiteSetting::class],
+                'collections' => ['storefront_logo', 'storefront_white_logo', 'storefront_favicon'],
+            ],
             'other' => [
                 'title' => 'Other Media',
                 'description' => 'Banner, page, site setting and user profile media files.',
@@ -122,6 +146,9 @@ class MediaManagementController extends Controller
                     'site_logo',
                     'site_white_logo',
                     'site_favicon',
+                    'storefront_logo',
+                    'storefront_white_logo',
+                    'storefront_favicon',
                     'avatars',
                     'library',
                 ],
@@ -175,6 +202,10 @@ class MediaManagementController extends Controller
             'site_logo' => 'Site Logo',
             'site_white_logo' => 'Site White Logo',
             'site_favicon' => 'Site Favicon',
+            'storefront_hero_image' => 'Homepage / Hero Banner',
+            'storefront_logo' => 'Homepage / Branding / Logo',
+            'storefront_white_logo' => 'Homepage / Branding / White Logo',
+            'storefront_favicon' => 'Homepage / Branding / Favicon',
             'avatars' => 'User Avatar',
             'library' => 'Shared Media Library',
         ];
@@ -261,15 +292,80 @@ class MediaManagementController extends Controller
         return $query;
     }
 
+    /** Media selected in the current editable/published Homepage (never archived history). */
+    private function homepageMediaSectionLabels(): array
+    {
+        foreach (['storefront_pages', 'homepage_sections', 'homepage_section_items'] as $table) {
+            if (! Schema::hasTable($table)) return [];
+        }
+
+        $page = \Illuminate\Support\Facades\DB::table('storefront_pages')->where('slug', 'home')->first();
+        if (! $page) return [];
+
+        $revisions = array_values(array_filter([
+            (int) ($page->draft_revision_id ?? 0), (int) ($page->published_revision_id ?? 0),
+        ]));
+        if ($revisions === []) return [];
+
+        $references = \Illuminate\Support\Facades\DB::table('homepage_section_items as item')
+            ->join('homepage_sections as section', 'section.id', '=', 'item.homepage_section_id')
+            ->whereIn('section.storefront_revision_id', $revisions)
+            ->whereNotNull('item.media_id')
+            ->select('item.media_id', 'section.type')->distinct()->get();
+
+        $labels = [];
+        foreach ($references as $reference) {
+            $id = (int) $reference->media_id;
+            $name = match ((string) $reference->type) {
+                'hero_slider' => 'Hero Banner',
+                'image_text' => 'Image & Text',
+                'customer_reviews' => 'Customer Reviews',
+                default => \Illuminate\Support\Str::headline((string) $reference->type),
+            };
+            $labels[$id][$name] = $name;
+        }
+
+        return array_map(static fn (array $names) => array_values($names), $labels);
+    }
+
     private function applyContext(Builder $query, string $context): Builder
     {
         $groups = $this->groups();
         $group = $groups[$context] ?? $groups['all'];
 
+        if (str_starts_with($context, 'homepage')) {
+            $references = $this->homepageMediaSectionLabels();
+            $referencedIds = array_keys(array_filter($references, static function (array $labels) use ($context): bool {
+                return match ($context) {
+                    'homepage.hero' => in_array('Hero Banner', $labels, true),
+                    'homepage.content' => in_array('Image & Text', $labels, true),
+                    'homepage.branding' => false,
+                    default => true,
+                };
+            }));
+            $collections = $group['collections'];
+            $query->where(function (Builder $q) use ($context, $referencedIds, $collections): void {
+                if ($context !== 'homepage.content') {
+                    $q->where(function (Builder $home) use ($collections): void {
+                        $home->where('model_type', SiteSetting::class)
+                            ->whereIn('collection_name', $collections);
+                    });
+                }
+                if ($referencedIds !== []) {
+                    $context === 'homepage.content'
+                        ? $q->whereIn('id', $referencedIds)
+                        : $q->orWhereIn('id', $referencedIds);
+                }
+                if ($context === 'homepage.content' && $referencedIds === []) {
+                    $q->whereRaw('1 = 0');
+                }
+            });
+            return $query;
+        }
+
         if (! empty($group['model_types'])) {
             $query->whereIn('model_type', $group['model_types']);
         }
-
         if (! empty($group['collections'])) {
             $query->whereIn('collection_name', $group['collections']);
         }
@@ -382,6 +478,7 @@ class MediaManagementController extends Controller
             'disks' => $disks,
             'modelLabels' => $this->modelLabels(),
             'collectionLabels' => $this->collectionLabels(),
+            'homepageMediaSectionLabels' => str_starts_with($context, 'homepage') ? $this->homepageMediaSectionLabels() : [],
             'trashEnabled' => $this->hasTrashColumns(),
             'breadcrumb' => [
                 ['text' => 'Dashboard', 'url' => route('admin.dashboard')],
@@ -643,6 +740,16 @@ class MediaManagementController extends Controller
     public function campaignSection(Request $request, string $section)
     {
         return $this->listResponse($request, $this->sectionKey($section));
+    }
+
+    public function homepage(Request $request)
+    {
+        return $this->listResponse($request, 'homepage');
+    }
+
+    public function homepageSection(Request $request, string $section)
+    {
+        return $this->listResponse($request, 'homepage.' . $section);
     }
 
     public function other(Request $request)

@@ -14,6 +14,8 @@ class Category extends Model implements HasMedia
     protected $fillable = [
         'name',
         'slug',
+        'parent_id',
+        'sort_order',
         'is_front_view',
         'status',
     ];
@@ -21,6 +23,8 @@ class Category extends Model implements HasMedia
     protected $casts = [
         'is_front_view' => 'boolean',
         'status'        => 'boolean',
+        'parent_id'     => 'integer',
+        'sort_order'    => 'integer',
     ];
 
     protected $appends = [
@@ -32,6 +36,16 @@ class Category extends Model implements HasMedia
         $this->addMediaCollection('category_image')
             ->useDisk('public')
             ->singleFile();
+    }
+
+    public function parent()
+    {
+        return $this->belongsTo(self::class, 'parent_id');
+    }
+
+    public function children()
+    {
+        return $this->hasMany(self::class, 'parent_id')->orderBy('sort_order')->orderBy('name');
     }
 
     public function products()

@@ -176,134 +176,7 @@
 @section('meta_description', 'আপনার অর্ডার সফলভাবে গ্রহণ করা হয়েছে।')
 
 @push('css')
-<style>
-    .success-page {
-        min-height: 100vh;
-        padding: 70px 0;
-        background: linear-gradient(180deg, #ffffff, #f8fafc);
-    }
-
-    .success-card {
-        max-width: 760px;
-        margin: 0 auto;
-        background: #ffffff;
-        border: 1px solid #eef2f7;
-        border-radius: 24px;
-        box-shadow: 0 24px 70px rgba(15, 23, 42, 0.08);
-        padding: 42px;
-    }
-
-    .success-icon {
-        width: 72px;
-        height: 72px;
-        border-radius: 50%;
-        background: #22c55e;
-        color: #ffffff;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 32px;
-        margin: 0 auto 18px;
-    }
-
-    .success-title {
-        color: #22c55e;
-        font-size: 38px;
-        font-weight: 900;
-        text-align: center;
-        margin-bottom: 10px;
-    }
-
-    .success-subtitle {
-        color: #64748b;
-        text-align: center;
-        font-size: 17px;
-        line-height: 1.8;
-        margin-bottom: 30px;
-    }
-
-    .invoice-text {
-        text-align: center;
-        font-size: 18px;
-        font-weight: 800;
-        margin-bottom: 28px;
-        color: #334155;
-    }
-
-    .success-item {
-        display: flex;
-        align-items: center;
-        gap: 14px;
-        border-top: 1px dashed #cbd5e1;
-        padding: 16px 0;
-    }
-
-    .success-item img {
-        width: 82px;
-        height: 82px;
-        object-fit: cover;
-        border-radius: 14px;
-        background: #e2e8f0;
-    }
-
-    .success-item h5 {
-        color: #334155;
-        font-size: 17px;
-        font-weight: 900;
-        margin-bottom: 4px;
-    }
-
-    .success-line {
-        display: flex;
-        justify-content: space-between;
-        border-top: 1px dashed #cbd5e1;
-        padding: 14px 0;
-        color: #64748b;
-        font-weight: 700;
-    }
-
-    .success-line strong {
-        color: #16a34a;
-    }
-
-    .success-total {
-        font-size: 20px;
-        font-weight: 900;
-    }
-
-    .success-address {
-        margin-top: 28px;
-        border-top: 1px solid #eef2f7;
-        padding-top: 24px;
-        color: #64748b;
-    }
-
-    .success-address h5 {
-        color: #334155;
-        font-weight: 900;
-        margin-bottom: 10px;
-    }
-
-    @media (max-width: 575px) {
-        .success-card {
-            padding: 28px 20px;
-            border-radius: 18px;
-        }
-
-        .success-title {
-            font-size: 30px;
-        }
-
-        .success-item {
-            align-items: flex-start;
-        }
-
-        .success-item img {
-            width: 68px;
-            height: 68px;
-        }
-    }
-</style>
+<link rel="stylesheet" href="{{ asset('frontend/css/success.css') }}?v=20261024-frontend2">
 @endpush
 
 @section('content')
@@ -315,6 +188,7 @@
             </div>
 
             <h1 class="success-title">অর্ডার সফল হয়েছে</h1>
+            <p><a href="{{ $order->campaign?->public_url ?? route('home') }}">← পণ্যের পেজে ফিরে যান</a></p>
 
             <p class="success-subtitle">
                 আপনার অর্ডারের জন্য ধন্যবাদ। আমাদের প্রতিনিধি খুব শীঘ্রই আপনার সাথে যোগাযোগ করবে।
@@ -353,7 +227,7 @@
                 <div class="success-item">
                     <img src="{{ $productImage }}"
                          alt="{{ $productName }}"
-                         onerror="this.onerror=null;this.src='{{ $noImage }}';">
+                         data-image-fallback="{{ $noImage }}">
 
                     <div class="flex-grow-1">
                         <h5>{{ $productName }}</h5>
@@ -418,27 +292,6 @@
 @endsection
 
 @push('js')
-<script>
-document.addEventListener('DOMContentLoaded', function () {
-    const purchasePayload = @json($purchasePayload);
-    let retryCount = 0;
-    const maxRetry = 20;
-
-    function firePurchase() {
-        if (!window.SFATracking || typeof window.SFATracking.purchase !== 'function') {
-            retryCount++;
-
-            if (retryCount <= maxRetry) {
-                setTimeout(firePurchase, 300);
-            }
-
-            return;
-        }
-
-        window.SFATracking.purchase(purchasePayload);
-    }
-
-    firePurchase();
-});
-</script>
+<div id="sfaSuccessConfig" hidden data-config="{{ json_encode($purchasePayload, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) }}"></div>
+<script src="{{ asset('frontend/js/success.js') }}?v=20261024-frontend2" defer></script>
 @endpush

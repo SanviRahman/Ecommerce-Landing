@@ -21,6 +21,8 @@ class OrderSuccessController extends Controller
         return response()
             ->view('frontend.pages.success', [
                 'order' => $order,
+                'campaign' => $order->campaign,
+                'showFrontendHeaderContent' => $order->campaign !== null,
                 'title' => 'Order Successful',
             ])
             ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')

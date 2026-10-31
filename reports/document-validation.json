@@ -1,0 +1,15 @@
+{
+  "status": "PASS",
+  "markdown_files": 43,
+  "internal_links_checked": 121,
+  "json_examples_parsed": 8,
+  "code_fences_balanced": true,
+  "meeting_feature_count": 11,
+  "meeting_specific_test_cases": 45,
+  "user_provided_pdf_preserved": true,
+  "original_meeting_video_audio_reviewed": false,
+  "target_application_modified": false,
+  "app_tests_executed": false,
+  "source_php_parser_check": "234 of 234 passed on earlier baseline; not rerun in this document-only merge",
+  "errors": []
+}

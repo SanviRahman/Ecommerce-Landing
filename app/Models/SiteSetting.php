@@ -23,11 +23,17 @@ class SiteSetting extends Model implements HasMedia
         'footer_text',
         'business_short_description',
         'working_hours',
+        'footer_youtube_url',
+        'footer_facebook_url',
+        'footer_instagram_url',
+        'footer_linkedin_url',
+        'footer_social_managed',
         'status',
     ];
 
     protected $casts = [
         'status' => 'boolean',
+        'footer_social_managed' => 'boolean',
     ];
 
     public function registerMediaCollections(): void
@@ -35,6 +41,12 @@ class SiteSetting extends Model implements HasMedia
         $this->addMediaCollection('site_logo')->useDisk('public')->singleFile();
         $this->addMediaCollection('site_white_logo')->useDisk('public')->singleFile();
         $this->addMediaCollection('site_favicon')->useDisk('public')->singleFile();
+        // Independent storefront images. Old campaign branding is not modified.
+        $this->addMediaCollection('storefront_logo')->useDisk('public')->singleFile();
+        $this->addMediaCollection('storefront_white_logo')->useDisk('public')->singleFile();
+        $this->addMediaCollection('storefront_favicon')->useDisk('public')->singleFile();
+        // Multiple approved homepage banners; independently managed from site logo.
+        $this->addMediaCollection('storefront_hero_image')->useDisk('public');
     }
 
     public function getLogoAttribute(): string

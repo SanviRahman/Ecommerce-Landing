@@ -6,11 +6,16 @@ use App\Http\Controllers\Controller;
 use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Product;
+use App\Models\ProductVariant;
+use App\Models\ProductOption;
+use App\Services\Catalog\VariantCatalogManager;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
@@ -71,10 +76,12 @@ class ProductController extends Controller
 
     private function activeCategories()
     {
-        return Category::query()
-            ->where('status', true)
-            ->orderBy('name')
-            ->get();
+        return Category::query()->where('status', true)
+            ->where(function ($query): void {
+                $query->whereNull('parent_id')->orWhereHas('parent', static function ($parent): void {
+                    $parent->where('status', true)->whereNull('parent_id');
+                });
+            })->orderBy('name')->get();
     }
 
     private function activeBrands()
@@ -156,6 +163,7 @@ class ProductController extends Controller
         $query = $this->applyFilters($query, $request);
 
         $products = $query->paginate(15)->withQueryString();
+        $variantAdminAvailable = $this->variantAdminAvailable();
 
         $breadcrumb = [
             ['text' => 'Dashboard', 'url' => route('admin.dashboard')],
@@ -175,6 +183,7 @@ class ProductController extends Controller
                 'html'   => view('admin.products.partials.table', [
                     'products' => $products,
                     'isTrash'  => $isTrash,
+                    'variantAdminAvailable' => $variantAdminAvailable,
                 ])->render(),
             ]);
         }
@@ -186,6 +195,7 @@ class ProductController extends Controller
             'title'      => $title,
             'breadcrumb' => $breadcrumb,
             'isTrash'    => $isTrash,
+            'variantAdminAvailable' => $variantAdminAvailable,
         ]);
     }
 
@@ -205,6 +215,20 @@ class ProductController extends Controller
         );
     }
 
+    /** The list and product details use the same verified variant-admin gate. */
+    private function variantAdminAvailable(): bool
+    {
+        if (! auth()->check() || ! auth()->user()->isAdmin()) {
+            return false;
+        }
+        try {
+            \App\Support\P33CatalogAdminAccess::assertAllowed();
+            return true;
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
     public function show(Product $product)
     {
         $this->adminOrEmployeeOnly();
@@ -213,6 +237,7 @@ class ProductController extends Controller
 
         return view('admin.products.show', [
             'product'    => $product,
+            'variantAdminAvailable' => $this->variantAdminAvailable(),
             'title'      => 'Product Details',
             'breadcrumb' => [
                 ['text' => 'Dashboard', 'url' => route('admin.dashboard')],
@@ -236,6 +261,7 @@ class ProductController extends Controller
             'categories' => $this->activeCategories(),
             'brands'     => $this->activeBrands(),
             'isEdit'     => false,
+            'initialVariationOptions' => $this->initialVariationOptions(),
             'action'     => route('admin.products.store'),
             'title'      => 'Product Create',
             'breadcrumb' => [
@@ -255,7 +281,21 @@ class ProductController extends Controller
         return view('admin.products.create', $data);
     }
 
-    public function store(Request $request)
+    /** Only reviewed, active Color/Size values are selectable during new product creation. */
+    private function initialVariationOptions(): array
+    {
+        try {
+            \App\Support\P33CatalogAdminAccess::assertAllowed();
+            return ProductOption::query()->whereIn('code', ['color', 'size'])
+                ->where('is_active', true)
+                ->with(['values' => static fn ($query) => $query->where('is_active', true)])
+                ->get()->keyBy('code')->all();
+        } catch (\Throwable) {
+            return [];
+        }
+    }
+
+    public function store(Request $request, VariantCatalogManager $catalog)
     {
         $this->adminOnly();
 
@@ -274,6 +314,9 @@ class ProductController extends Controller
             'stock'             => ['nullable', 'integer', 'min:0'],
             'sold_quantity'     => ['nullable', 'integer', 'min:0'],
             'weight_size'       => ['nullable', 'string', 'max:255'],
+            'initial_variation' => ['nullable', 'array:color,size'],
+            'initial_variation.color' => ['nullable', 'integer', 'min:1'],
+            'initial_variation.size' => ['nullable', 'integer', 'min:1'],
 
             'short_description' => ['nullable', 'string'],
             'full_description'  => ['nullable', 'string'],
@@ -292,7 +335,22 @@ class ProductController extends Controller
             'product_gallery.*' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
         ]);
 
-        return DB::transaction(function () use ($request) {
+        $selected = array_filter([
+            'color' => $request->input('initial_variation.color'),
+            'size' => $request->input('initial_variation.size'),
+        ], static fn ($value) => $value !== null && $value !== '');
+        $hasNewVariation = $selected !== [];
+        // No implicit stock split: a newly optioned product starts at zero.
+        if ($hasNewVariation) {
+            $catalog->assertTestSchema();
+            if ((int) $request->input('stock', 0) !== 0) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'stock' => 'Set Stock to 0 for a new Color/Size variation. After stock is audited, use Variants > Validate & Activate for Local Storefront.',
+                ]);
+            }
+        }
+
+        return DB::transaction(function () use ($request, $catalog, $selected, $hasNewVariation) {
             $product = Product::create([
                 'category_id'       => $request->category_id,
                 'brand_id'          => $request->brand_id,
@@ -325,18 +383,31 @@ class ProductController extends Controller
                 'meta_description'  => $request->meta_description,
             ]);
 
+            // Reuse the ledger-backed P04 transitions; no historical product is touched.
+            // prepareSimple creates a zero-stock default; conversion retires it; the
+            // selected Color/Size SKU starts with its own zero-stock opening ledger.
+            if ($hasNewVariation) {
+                $catalog->prepareSimple($product);
+                $catalog->convertToVariable($product);
+                $catalog->createVariant($product, 'P' . $product->id . '-V' . implode('-', array_values($selected)),
+                    array_map('intval', $selected), null, null, true);
+            }
             $this->uploadProductMedia($product, $request);
 
             if ($request->ajax()) {
                 return response()->json([
                     'status'  => true,
-                    'message' => 'Product created successfully.',
+                    'message' => $hasNewVariation
+                        ? 'Color/Size variation saved as a zero-stock, inactive product. You can review SKU and pricing in Variant Manager; use Variants > Validate & Activate for Storefront after audited stock is ready.'
+                        : 'Product created successfully.',
+                    'variant_url' => $hasNewVariation ? route('admin.products.variants.index', $product->id) : null,
                 ]);
             }
 
-            return redirect()
-                ->route('admin.products.index')
-                ->with('success', 'Product created successfully.');
+            return $hasNewVariation
+                ? redirect()->route('admin.products.variants.index', $product->id)
+                    ->with('success', 'Initial Color/Size SKU saved with zero stock; activate from Variants after SKU and checkout readiness checks.')
+                : redirect()->route('admin.products.index')->with('success', 'Product created successfully.');
         });
     }
 
@@ -432,7 +503,22 @@ class ProductController extends Controller
         ]);
 
         return DB::transaction(function () use ($request, $product) {
-            $product->update([
+            // Managed stock is variant-backed. The generic Product Edit form must
+            // never overwrite a newer stock balance from a checkout or adjustment.
+            $locked = Product::query()->whereKey($product->id)->lockForUpdate()->firstOrFail();
+            $managed = (int) ($locked->inventory_version ?? 0) === 1;
+            if ((bool) ($locked->has_variants ?? false) && ! $locked->status && $request->boolean('status')) {
+                throw ValidationException::withMessages([
+                    'status' => 'Use Variants > Validate & Activate for Storefront to verify options, price, inventory and checkout readiness first.',
+                ]);
+            }
+            if ($managed && $request->has('stock')
+                && (int) $request->input('stock') !== (int) $locked->stock) {
+                throw ValidationException::withMessages([
+                    'stock' => 'Managed stock is read-only here. Use Variants > Audited Stock Adjustment.',
+                ]);
+            }
+            $locked->update([
                 'category_id'       => $request->category_id,
                 'brand_id'          => $request->brand_id,
 
@@ -447,7 +533,7 @@ class ProductController extends Controller
                 'old_price'         => $request->old_price ?: 0,
                 'new_price'         => $request->new_price,
 
-                'stock'             => $request->stock ?: 0,
+                'stock'             => $managed ? $locked->stock : ($request->stock ?: 0),
                 'sold_quantity'     => $request->sold_quantity ?: 0,
                 'weight_size'       => $request->weight_size,
 
@@ -464,6 +550,14 @@ class ProductController extends Controller
                 'meta_description'  => $request->meta_description,
             ]);
 
+            // Once explicitly released, normal Product Edit must remain usable,
+            // but cannot break a sellable variant, active category or checkout.
+            if ($managed && $locked->has_variants && $locked->status) {
+                app(\App\Services\Catalog\VariableStorefrontActivation::class)
+                    ->verifyActive($locked);
+            }
+
+            $product->refresh();
             $this->uploadProductMedia($product, $request);
 
             if ($request->ajax()) {
@@ -520,6 +614,13 @@ class ProductController extends Controller
         $this->adminOnly();
 
         $product = Product::onlyTrashed()->findOrFail($id);
+        if (Schema::hasTable('product_variants')
+            && ProductVariant::withTrashed()->where('product_id', $product->id)->exists()) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Product has variant inventory/history. Permanent deletion is blocked.',
+            ], 422);
+        }
 
         $product->clearMediaCollection('product_thumbnail');
         $product->clearMediaCollection('product_gallery');
@@ -570,6 +671,10 @@ class ProductController extends Controller
             $products = Product::onlyTrashed()->whereIn('id', $ids)->get();
 
             foreach ($products as $product) {
+                if (Schema::hasTable('product_variants')
+                    && ProductVariant::withTrashed()->where('product_id', $product->id)->exists()) {
+                    continue; // Preserve variant FK, stock ledger and ordered-SKU history.
+                }
                 $product->clearMediaCollection('product_thumbnail');
                 $product->clearMediaCollection('product_gallery');
                 $product->forceDelete();
@@ -579,6 +684,14 @@ class ProductController extends Controller
                 'status'  => true,
                 'message' => 'Selected products permanently deleted.',
             ]);
+        }
+
+        if ($action === 'active' && Schema::hasColumn('products', 'has_variants')
+            && Product::whereIn('id', $ids)->where('has_variants', true)->exists()) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Use the verified Variants > Validate & Activate for Local Storefront action instead of bulk activation.',
+            ], 422);
         }
 
         $updateData = match ($action) {

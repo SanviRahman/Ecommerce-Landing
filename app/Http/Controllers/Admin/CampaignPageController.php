@@ -15,8 +15,6 @@ class CampaignPageController extends Controller
 {
     public function show(Campaign $campaign)
     {
-        abort_if($campaign->usesCustomRoute(), 404);
-
         return $this->renderCampaign($campaign);
     }
 
@@ -26,8 +24,10 @@ class CampaignPageController extends Controller
             ->where('route_type', Campaign::ROUTE_CUSTOM)
             ->where('custom_route', strtolower($customRoute))
             ->firstOrFail();
+        abort_if(! $campaign->status, 404);
 
-        return $this->renderCampaign($campaign);
+        // Preserve old custom URLs as aliases; new links use /campaign/{slug}.
+        return redirect()->route('campaign.show', ['campaign' => $campaign->slug], 301);
     }
 
     private function renderCampaign(Campaign $campaign)
@@ -61,13 +61,11 @@ class CampaignPageController extends Controller
         $orderProducts = $products;
         $orderFormToken = $this->makeOrderFormToken();
 
+        // Campaign pages must never inherit homepage/global customer reviews.
         $reviews = Review::query()
             ->with('media')
             ->where('status', true)
-            ->where(function ($query) use ($campaign) {
-                $query->whereNull('campaign_id')
-                    ->orWhere('campaign_id', $campaign->id);
-            })
+            ->where('campaign_id', $campaign->id)
             ->latest()
             ->take(12)
             ->get();

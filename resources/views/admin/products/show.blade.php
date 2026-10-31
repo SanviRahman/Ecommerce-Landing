@@ -23,6 +23,12 @@
             <i class="fas fa-arrow-left mr-1"></i> Back
         </a>
 
+        @if($variantAdminAvailable ?? false)
+        <a href="{{ route('admin.products.variants.index', $product->id) }}" class="btn btn-outline-success btn-sm">
+            <i class="fas fa-layer-group mr-1"></i> Variants &amp; Stock
+        </a>
+        @endif
+
         @if(auth()->user()->isAdmin())
         <button type="button" class="btn btn-primary btn-sm btnEditFromShow"
             data-url="{{ route('admin.products.edit', $product->id) }}">

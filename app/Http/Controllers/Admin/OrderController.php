@@ -18,8 +18,14 @@ use App\Services\BdCourierFraudCheckerService;
 use App\Services\CampaignAutoSelectionService;
 use App\Services\CustomerIdentityService;
 use App\Services\ExternalOrderSyncService;
+use App\Services\Inventory\ManagedOrderLifecycle;
+use App\Services\Inventory\ManagedOrderQuantityEditor;
+use App\Services\Inventory\ManagedOrderWriter;
+use App\Services\Inventory\StorefrontDeferredStock;
 use App\Services\OrderAssignmentService;
 use App\Services\OrderBlockService;
+use App\Services\Orders\AuditedOrderTrashPurger;
+use App\Services\Orders\ManagedOrderTrashService;
 use App\Services\PathaoCourierService;
 use App\Services\SteadfastCourierService;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -1453,6 +1459,26 @@ class OrderController extends Controller
             ->with('assignedEmployee')
             ->get();
 
+        if (ManagedOrderLifecycle::enabledForAdmin()) {
+            // One transaction for the full batch: an invalid managed order
+            // cannot leave previous orders partially cancelled/restocked.
+            return DB::transaction(function () use ($orders, $status, $extra): int {
+                $updated = 0;
+                foreach ($orders->sortBy('id') as $order) {
+                    app(ManagedOrderLifecycle::class)->transitionStatus(
+                        (int) $order->id,
+                        $status,
+                        function (Order $locked) use ($status, $extra): void {
+                            $locked->update($this->buildOrderStatusUpdateData($locked, $status, $extra));
+                        }
+                    );
+                    $updated++;
+                }
+
+                return $updated;
+            });
+        }
+
         $updated = 0;
 
         foreach ($orders as $order) {
@@ -1484,11 +1510,16 @@ class OrderController extends Controller
 
             $wasPrinted = ! empty($order->invoice_printed_at);
 
-            $canMoveToCompleteInvoice = in_array($order->order_status, [
-                Order::STATUS_PENDING,
-                Order::STATUS_CONFIRMED,
-                Order::STATUS_PROCESSING,
-            ], true);
+            // Printing is allowed while Processing, but it cannot silently
+            // confirm a deferred storefront order or consume physical stock.
+            $awaitingConfirmation = (int) ($order->storefront_stock_state ?? 0)
+                === StorefrontDeferredStock::RESERVED;
+            $canMoveToCompleteInvoice = ! $awaitingConfirmation
+                && in_array($order->order_status, [
+                    Order::STATUS_PENDING,
+                    Order::STATUS_CONFIRMED,
+                    Order::STATUS_PROCESSING,
+                ], true);
 
             $updateData = [
                 'admin_note' => $this->appendAutoAdminNote(
@@ -1522,7 +1553,20 @@ class OrderController extends Controller
                 $printedCount++;
             }
 
-            $order->update($updateData);
+            if ($canMoveToCompleteInvoice && ManagedOrderLifecycle::enabledForAdmin()) {
+                // Legacy/already-allocated orders retain their existing auto
+                // Complete Invoice behavior. Reserved storefront orders remain
+                // Processing until explicitly Confirmed from the admin status UI.
+                app(ManagedOrderLifecycle::class)->transitionStatus(
+                    (int) $order->id,
+                    Order::STATUS_COMPLETE_INVOICE,
+                    static function (Order $locked) use ($updateData): void {
+                        $locked->update($updateData);
+                    }
+                );
+            } else {
+                $order->update($updateData);
+            }
         }
 
         return [
@@ -1957,6 +2001,8 @@ class OrderController extends Controller
             $customerIdentityService,
             $campaignAutoSelectionService
         ) {
+            app(\App\Services\Inventory\ManagedOrderWriter::class)->assertTransactionReady();
+
             $customer = $customerIdentityService->resolveOrCreate(
                 $validated['customer_name'],
                 $validated['phone'],
@@ -2138,6 +2184,8 @@ class OrderController extends Controller
                     'total_price'     => $item['total_price'],
                 ]);
             }
+
+            app(\App\Services\Inventory\ManagedOrderWriter::class)->allocateCreatedOrder($order->id, 'items');
 
             return redirect()
                 ->to($this->safeOrderReturnUrl($validated['return_url'] ?? null))
@@ -2585,9 +2633,14 @@ class OrderController extends Controller
             })
             : false;
 
+        $p03QuantityUiEnabled = ManagedOrderWriter::enabled()
+            && config('storefront.p03_core_test_enabled', false) === true
+            && (int) $order->inventory_version === 1;
+
         return view('admin.orders.edit', [
             'title'             => 'Edit Order - ' . $order->invoice_id,
             'order'             => $order,
+            'p03QuantityUiEnabled' => $p03QuantityUiEnabled,
             'returnUrl'         => $returnUrl,
             'orderDateValue'    => $this->orderDateForInput($order),
             'products'          => $products,
@@ -2692,7 +2745,9 @@ class OrderController extends Controller
             'courier_id'              => ['nullable', 'integer', 'exists:couriers,id'],
             'order_field_id'          => ['nullable', 'integer', 'exists:order_fields,id'],
             'items'                   => ['required', 'array', 'min:1'],
-            'items.*.id'              => ['nullable', 'integer', 'exists:order_items,id'],
+            'items.*.id'              => ['nullable', 'integer', 'distinct:strict', Rule::exists('order_items', 'id')->where(function ($query) use ($order) {
+                $query->where('order_id', $order->id)->whereNull('deleted_at');
+            })],
             'items.*.product_id'      => ['required', 'integer', 'exists:products,id'],
             'items.*.quantity'        => ['required', 'integer', 'min:1'],
             'items.*.unit_price'      => ['required', 'numeric', 'min:0'],
@@ -2713,6 +2768,12 @@ class OrderController extends Controller
             $isNegotiatedBulkOrder,
             $campaignAutoSelectionService
         ) {
+            if (ManagedOrderLifecycle::enabledForAdmin()) {
+                // Full-form item edits are NOT stock-delta aware yet. Stop
+                // before changing customers/order items for managed orders.
+                app(ManagedOrderLifecycle::class)->assertCanFullEdit((int) $order->id);
+            }
+
             $customer = $customerIdentityService->resolveOrCreate(
                 $request->customer_name,
                 $request->phone,
@@ -2877,6 +2938,37 @@ class OrderController extends Controller
         });
     }
 
+    /**
+     * Dedicated stock-aware quantity edit for isolated P03 managed orders.
+     * No client-supplied product, price, shipping or status is accepted.
+     */
+    public function updateManagedItemQuantity(Request $request, Order $order, OrderItem $item)
+    {
+        $this->adminOrEmployeeOnly();
+        $this->ensureEmployeeOrderAccess($order);
+
+        if (! ManagedOrderWriter::enabled() || config('storefront.p03_core_test_enabled', false) !== true) {
+            abort(404);
+        }
+        if ((int) $item->order_id !== (int) $order->id) {
+            abort(404);
+        }
+
+        $validated = $request->validate([
+            'quantity' => ['required', 'integer', 'min:1', 'max:1000'],
+            'expected_quantity' => ['required', 'integer', 'min:1', 'max:1000'],
+        ]);
+        app(ManagedOrderQuantityEditor::class)->changeQuantity(
+            (int) $order->id,
+            (int) $item->id,
+            (int) $validated['expected_quantity'],
+            (int) $validated['quantity']
+        );
+
+        return redirect()->route('admin.orders.edit', $order->id)
+            ->with('success', 'Managed item quantity, stock ledger and order totals updated.');
+    }
+
     public function updateCourier(Request $request, Order $order)
     {
         $this->adminOrEmployeeOnly();
@@ -2918,17 +3010,34 @@ class OrderController extends Controller
             'note'         => ['nullable', 'string', 'max:1000'],
         ]);
 
-        $status     = $request->order_status;
-        $updateData = $this->buildOrderStatusUpdateData($order, $status);
-
-        $order->update($updateData);
-
-        OrderStatusLog::create([
-            'order_id'   => $order->id,
-            'status'     => $status,
-            'note'       => $request->note,
-            'created_by' => auth()->id(),
-        ]);
+        $status = $request->order_status;
+        if (ManagedOrderLifecycle::enabledForAdmin()) {
+            // Both the status log and any pre-dispatch stock release must
+            // commit/roll back together. Only the isolated P03 test DB is allowed.
+            app(ManagedOrderLifecycle::class)->transitionStatus(
+                (int) $order->id,
+                $status,
+                function (Order $locked) use ($status, $request): void {
+                    $locked->update($this->buildOrderStatusUpdateData($locked, $status));
+                    OrderStatusLog::create([
+                        'order_id' => $locked->id,
+                        'status' => $status,
+                        'note' => $request->note,
+                        'created_by' => auth()->id(),
+                    ]);
+                }
+            );
+        } else {
+            // Byte-for-byte legacy semantics are intentionally retained
+            // while production P03 flags remain disabled.
+            $order->update($this->buildOrderStatusUpdateData($order, $status));
+            OrderStatusLog::create([
+                'order_id'   => $order->id,
+                'status'     => $status,
+                'note'       => $request->note,
+                'created_by' => auth()->id(),
+            ]);
+        }
 
         return response()->json([
             'status'  => true,
@@ -3002,15 +3111,26 @@ class OrderController extends Controller
             'fake_reason' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        $order->update($this->buildOrderStatusUpdateData(
-            $order,
-            Order::STATUS_FAKE
-        ));
-
-        $order->fakeLogs()->create([
-            'fake_reason' => $request->fake_reason ?: 'Marked manually',
-            'detected_by' => 'manual',
-        ]);
+        if (ManagedOrderLifecycle::enabledForAdmin()) {
+            // Fake is a terminal release for an unconfirmed storefront hold.
+            app(ManagedOrderLifecycle::class)->transitionStatus(
+                (int) $order->id,
+                Order::STATUS_FAKE,
+                function (Order $locked) use ($request): void {
+                    $locked->update($this->buildOrderStatusUpdateData($locked, Order::STATUS_FAKE));
+                    $locked->fakeLogs()->create([
+                        'fake_reason' => $request->fake_reason ?: 'Marked manually',
+                        'detected_by' => 'manual',
+                    ]);
+                }
+            );
+        } else {
+            $order->update($this->buildOrderStatusUpdateData($order, Order::STATUS_FAKE));
+            $order->fakeLogs()->create([
+                'fake_reason' => $request->fake_reason ?: 'Marked manually',
+                'detected_by' => 'manual',
+            ]);
+        }
 
         return response()->json([
             'status'  => true,
@@ -3023,10 +3143,18 @@ class OrderController extends Controller
         $this->adminOrEmployeeOnly();
         $this->ensureEmployeeOrderAccess($order);
 
-        $order->update($this->buildOrderStatusUpdateData(
-            $order,
-            Order::STATUS_PENDING
-        ));
+        if (ManagedOrderLifecycle::enabledForAdmin()) {
+            // Previously released deferred reservations cannot be reactivated.
+            app(ManagedOrderLifecycle::class)->transitionStatus(
+                (int) $order->id,
+                Order::STATUS_PENDING,
+                function (Order $locked): void {
+                    $locked->update($this->buildOrderStatusUpdateData($locked, Order::STATUS_PENDING));
+                }
+            );
+        } else {
+            $order->update($this->buildOrderStatusUpdateData($order, Order::STATUS_PENDING));
+        }
 
         return response()->json([
             'status'  => true,
@@ -3107,7 +3235,10 @@ class OrderController extends Controller
          * Confirm printing and move eligible active orders to Complete Invoice.
          * Shipped remains a separate manual status change by Admin/Employee.
          */
-        $result       = $this->markOrdersAsInvoicePrinted($orders);
+        $result = DB::transaction(
+            fn (): array => $this->markOrdersAsInvoicePrinted($orders),
+            3
+        );
         $printedCount = (int) ($result['printed'] ?? 0);
         $movedCount   = (int) ($result['moved'] ?? 0);
 
@@ -3461,7 +3592,7 @@ class OrderController extends Controller
     public function destroy(Order $order)
     {
         $this->adminOnly();
-        $order->delete();
+        app(ManagedOrderTrashService::class)->moveToTrash([(int) $order->id], (int) auth()->id());
 
         return response()->json(['status' => true, 'message' => 'Order moved to trash successfully.']);
     }
@@ -3469,17 +3600,22 @@ class OrderController extends Controller
     public function restore($id)
     {
         $this->adminOnly();
-        Order::onlyTrashed()->findOrFail($id)->restore();
+        app(ManagedOrderTrashService::class)->restoreFromTrash([(int) $id], (int) auth()->id());
 
         return response()->json(['status' => true, 'message' => 'Order restored successfully.']);
     }
 
-    public function forceDelete($id)
+    /** Permanent deletion is an audited transaction; no raw forceDelete on orders. */
+    public function forceDelete($id, AuditedOrderTrashPurger $purger)
     {
         $this->adminOnly();
-        Order::onlyTrashed()->findOrFail($id)->forceDelete();
+        $deleted = $purger->purge([(int) $id], (int) auth()->id());
 
-        return response()->json(['status' => true, 'message' => 'Order permanently deleted successfully.']);
+        return response()->json([
+            'status' => true,
+            'message' => 'Order permanently deleted with an immutable inventory/checkout audit.',
+            'deleted' => $deleted,
+        ]);
     }
 
     public function multipleAction(Request $request)
@@ -3500,18 +3636,39 @@ class OrderController extends Controller
         }
 
         if ($action === 'delete') {
-            Order::whereIn('id', $ids)->delete();
-            return response()->json(['status' => true, 'message' => 'Selected orders moved to trash.']);
+            $deleted = app(ManagedOrderTrashService::class)->moveToTrash(
+                array_map('intval', $ids), (int) auth()->id()
+            );
+
+            return response()->json([
+                'status' => true,
+                'message' => "{$deleted} selected orders moved to trash.",
+                'deleted' => $deleted,
+            ]);
         }
 
         if ($action === 'restore') {
-            Order::onlyTrashed()->whereIn('id', $ids)->restore();
-            return response()->json(['status' => true, 'message' => 'Selected orders restored.']);
+            $restored = app(ManagedOrderTrashService::class)->restoreFromTrash(
+                array_map('intval', $ids), (int) auth()->id()
+            );
+
+            return response()->json([
+                'status' => true,
+                'message' => "{$restored} selected orders restored.",
+                'restored' => $restored,
+            ]);
         }
 
         if ($action === 'force_delete') {
-            Order::onlyTrashed()->whereIn('id', $ids)->forceDelete();
-            return response()->json(['status' => true, 'message' => 'Selected orders permanently deleted.']);
+            $deleted = app(AuditedOrderTrashPurger::class)->purge(
+                array_map('intval', $ids), (int) auth()->id()
+            );
+
+            return response()->json([
+                'status' => true,
+                'message' => "{$deleted} selected orders permanently deleted with audited records retained.",
+                'deleted' => $deleted,
+            ]);
         }
 
         $accessibleIds = $this->accessibleOrderIds($ids);
@@ -3686,7 +3843,12 @@ class OrderController extends Controller
             ->limit((int) $request->limit)
             ->pluck('id');
 
-        $deleted = Order::query()->whereIn('id', $ids)->delete();
+        // Single, selected and limit-based trash actions share one safe,
+        // transactional archive policy; soft deletion does not alter stock.
+        $deleted = app(ManagedOrderTrashService::class)->moveToTrash(
+            $ids->map(static fn ($id): int => (int) $id)->all(),
+            (int) auth()->id()
+        );
 
         return response()->json([
             'status'  => true,
@@ -3695,15 +3857,23 @@ class OrderController extends Controller
         ]);
     }
 
-    public function emptyTrash()
+    public function emptyTrash(AuditedOrderTrashPurger $purger)
     {
         $this->adminOnly();
+        $ids = Order::onlyTrashed()->orderBy('id')->limit(201)->pluck('id')
+            ->map(static fn ($id): int => (int) $id)->all();
 
-        $deleted = Order::onlyTrashed()->forceDelete();
+        if ($ids === []) {
+            return response()->json(['status' => true, 'message' => 'Trash is already empty.', 'deleted' => 0]);
+        }
+
+        // The entire selection is atomic; never claim "Trash emptied" when a
+        // restrictive record still exists or the safety cap was exceeded.
+        $deleted = $purger->purge($ids, (int) auth()->id());
 
         return response()->json([
-            'status'  => true,
-            'message' => "Trash bin emptied successfully. {$deleted} orders permanently deleted.",
+            'status' => true,
+            'message' => "{$deleted} trashed orders permanently deleted; audit history preserved.",
             'deleted' => $deleted,
         ]);
     }

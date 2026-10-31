@@ -1,0 +1,68 @@
+/* P06 organizer is limited to the authenticated AdminLTE builder screen. */
+.p06-sort-list {
+    display: grid;
+    gap: .5rem;
+    list-style: none;
+    padding: 0;
+    margin: .5rem 0 1rem;
+}
+.p06-sort-item {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    min-height: 3.2rem;
+    padding: .35rem .75rem .35rem .4rem;
+    background: #ffffff;
+    border: 1px solid #dae2dd;
+    border-radius: .55rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,.03);
+}
+.p06-sort-item:focus-within {
+    border-color: #177a54;
+    box-shadow: 0 0 0 2px rgba(23,122,84,.12);
+}
+.p06-sort-list.p06-ready .p06-drag-handle { cursor: grab; }
+.p06-drag-handle {
+    flex: 0 0 auto;
+    width: 2.5rem;
+    height: 2.5rem;
+    border: 1px solid #cbdcd3;
+    border-radius: .4rem;
+    background: #f4faf6;
+    color: #155e45;
+    font-size: 1.4rem;
+    font-weight: 600;
+    touch-action: none; /* Touch drag only on the handle; page stays scrollable elsewhere. */
+    user-select: none;
+}
+.p06-drag-handle:focus-visible {
+    outline: 3px solid #1b7e5c;
+    outline-offset: 2px;
+}
+.p06-sort-number {
+    color: #4a5b52;
+    min-width: 1.2rem;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+.p06-sort-label { font-weight: 600; overflow-wrap: anywhere; }
+.p06-sort-item.p06-dragging {
+    background: #e8f6ed;
+    border: 2px dashed #21835f;
+    box-shadow: 0 4px 14px rgba(0,0,0,.09);
+}
+.p06-sort-list.p06-saving { opacity: .65; }
+.p06-drag-handle:disabled { cursor: progress; }
+@media (max-width: 575px) {
+    .p06-sort-item { gap: .5rem; }
+    .p06-sort-label { font-size: .94rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .p06-sort-item { scroll-behavior: auto; transition: none; }
+}
+
+/* P06 typed color editor. Input names stay on HEX fields for no-JS submission. */
+.p06-color-controls { gap: .3rem; align-items: center; }
+.p06-color-picker { flex: 0 0 2.8rem; width: 2.8rem; height: 2.3rem; border: 1px solid #ced9d1; padding: .1rem; border-radius: .3rem; background: #fff; }
+.p06-color-controls > .form-control { min-width: 0; flex: 1 1 auto; }
+.p06-color-controls > button { flex: 0 0 auto; }

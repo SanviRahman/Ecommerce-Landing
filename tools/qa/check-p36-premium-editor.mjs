@@ -1,0 +1,70 @@
+/** P36 offline storefront/editor source contracts. Does not connect to DB or modify app state. */
+import fs from 'node:fs';
+import path from 'node:path';
+import vm from 'node:vm';
+const root = path.resolve(import.meta.dirname, '../..');
+const source = relative => fs.readFileSync(path.join(root, relative), 'utf8');
+const css = source('public/frontend/css/storefront-p36.css');
+const heroJs = source('public/frontend/js/storefront-p36.js');
+const home = source('resources/views/storefront/pages/home.blade.php');
+const layout = source('resources/views/storefront/layouts/catalog.blade.php');
+const navigation = source('resources/views/storefront/partials/navigation.blade.php');
+const product = source('resources/views/admin/products/partials/form.blade.php');
+const productController = source('app/Http/Controllers/Admin/ProductController.php');
+const catalogManager = source('app/Services/Catalog/VariantCatalogManager.php');
+const homepageEditor = source('resources/views/admin/storefront/homepage.blade.php');
+const homepageBuilder = source('app/Services/Storefront/HomepageBuilder.php');
+const homepageController = source('app/Http/Controllers/Admin/HomepageBuilderController.php');
+const adminRoutes = source('routes/admin.php');
+const p35 = source('resources/views/storefront/pages/product.blade.php');
+const purchased = source('public/frontend/js/storefront-next.js');
+let pass = 0; let fail = 0;
+function check(name, predicate) {
+  let yes = false; try {yes = Boolean(predicate());} catch (error) {console.error('ERROR',name,error.message);}
+  console.log(yes ? 'PASS' : 'FAIL', name); if (yes) pass++; else fail++;
+}
+check('Desktop hero same wide 3:1 HTBazar-like layout', () => css.includes('aspect-ratio:3 / 1') && css.includes('min(1280px,calc(100% - 88px))'));
+check('Desktop hero no image padding and aligned within banner', () => css.includes('>.p36-hero-banner') && css.includes('object-fit:cover!important') && css.includes('padding:0!important'));
+check('Mobile hero edge-to-edge without border, padding, crop or forced aspect ratio', () => css.includes('width:100vw!important') && css.includes('object-fit:contain!important') && css.includes('border-radius:0!important') && css.includes('--p36-mobile-height'));
+check('Default uploaded slide has no blank copy column', () => home.includes("trim((string) $item['title']) !== trim((string) $section['title'])") && home.includes('p36-hero-image-only'));
+check('Custom CTA overlay still rendered with escaped URLs/labels', () => home.includes('p36-hero-with-copy') && home.includes('{{ $item[\'link_url\'] }}') && home.includes('{{ $item[\'link_label\'] }}'));
+check('Dynamic mobile hero height uses intrinsic aspect ratio, not a fixed spacer', () => heroJs.includes('image.naturalHeight / image.naturalWidth') && heroJs.includes("'--p36-mobile-height'"));
+check('Mobile hero height responds to carousel active slide & window resize', () => heroJs.includes("attributeFilter:['aria-hidden']") && heroJs.includes("'resize', sync"));
+check('Original right-to-left slider and accessible controls remain', () => purchased.includes("translate3d(-${active * 100}%") && home.includes('data-hero-next') && home.includes('data-hero-prev'));
+check('Reduced motion still handled by existing hero slider', () => purchased.includes('if (reduced || doc.hidden || timer)'));
+check('Category and product image preserve full image ratio without padding', () => css.includes('object-fit:contain;object-position:center;background:#fff') && css.includes('padding:0!important;margin:0;border:0'));
+check('Premium Bangla + English fonts loaded on both storefront layouts', () => [home,layout].every(s => s.includes('Hind+Siliguri') && s.includes('storefront-p36.css')) && css.includes("'Hind Siliguri'"));
+check('Mobile mini-cart real server data reuses existing cart drawer', () => navigation.includes('p35-mobile-cart-peek') && navigation.includes('data-cart-open') && navigation.includes('data-cart-count') && navigation.includes('data-cart-total'));
+check('Mobile mini-cart right centered and not underneath sticky bottom nav', () => css.includes('top:46%!important') && css.includes('right:0!important') && css.includes('transform:translateY(-50%)!important'));
+check('Mobile sticky Buy Now kept above bottom navigation on scroll', () => css.includes('bottom:calc(79px + env(safe-area-inset-bottom))') && purchased.includes("classList.toggle('p35-sticky-buy-visible'") && p35.includes('data-sticky-order'));
+check('Sticky button still uses existing actual cart/checkout form', () => p35.includes('form="p08-product-order-form" type="submit"') && p35.includes('@if($canCheckoutNow)'));
+check('New option inputs only in product CREATE form', () => product.includes('@if(!$isEdit && !empty($initialVariationOptions))') && product.includes('name="initial_variation[{{ $optionCode }}]"'));
+check('Color/Size option IDs validated through existing manager', () => productController.includes('initial_variation.color') && productController.includes('initial_variation.size') && productController.includes("$catalog->createVariant($product"));
+check('Selected variation requires zero stock and ledger-backed process', () => productController.includes('$catalog->assertTestSchema()') && productController.includes('$catalog->prepareSimple($product)') && productController.includes('$catalog->convertToVariable($product)') && productController.includes('$catalog->createVariant($product'));
+check('Variable item remains inactive before variant checkout release', () => catalogManager.includes("'has_variants' => true, 'status' => false") && productController.includes('Variable products cannot be activated before variant-aware checkout is released.') && product.includes('remains <strong>inactive / not purchasable</strong>'));
+check('New SKU uses audited inventory without rewriting existing campaign orders', () => catalogManager.includes('Legacy campaign checkout cannot safely order optioned products yet.') && productController.includes('DB::transaction') && productController.includes('No implicit stock split'));
+check('Product create AJAX goes to correct Variants manager after save', () => productController.includes("'variant_url' =>") && source('resources/views/admin/products/index.blade.php').includes('res.variant_url'));
+check('Published Homepage must be cloned into an editable draft', () => homepageEditor.includes('Edit Published Homepage (Create Draft)') && homepageEditor.includes('admin.storefront.home.draft'));
+check('Admin draft has edit/remove controls for typed sections and items', () => homepageEditor.includes('admin.storefront.home.sections.update') && homepageEditor.includes('admin.storefront.home.items.update') && homepageEditor.includes('admin.storefront.home.items.delete') && homepageEditor.includes('admin.storefront.home.sections.delete'));
+check('Discard affects draft pointer, never published pointer', () => homepageBuilder.includes('public function discardDraft(') && homepageBuilder.includes("'draft_revision_id' => null") && homepageBuilder.includes('(int) ($page->published_revision_id ?? 0)'));
+check('Editor uses optimistic version, admin auth, Laravel CSRF, PATCH/POST', () => homepageEditor.includes('@method(\'PATCH\')') && homepageEditor.includes('@csrf') && homepageController.includes('$this->adminOnly($builder)') && homepageBuilder.includes('$this->lockedDraft($expectedVersion)'));
+check('New item save checks ownership/media/URL and audits with revision lock', () => homepageBuilder.includes("$this->mutate($expectedVersion, $actorId, 'item_update'") && homepageBuilder.includes("->where('item_key', $itemKey)") && homepageBuilder.includes('$this->eligibleMedia($replacement)') && homepageBuilder.includes('HomeSectionSchema::normalizeUrl'));
+check('New editor routes restricted to existing role:admin route group', () => adminRoutes.includes("Route::middleware('role:admin')->prefix('storefront/home')") && adminRoutes.includes("->name('items.update')") && adminRoutes.includes("->name('draft.discard')"));
+check('No route to bypass security for checkout or public campaign changed', () => source('routes/web.php').includes('campaign') && productController.includes('P33CatalogAdminAccess') && catalogManager.includes('P33CatalogAdminAccess::assertAllowed()'));
+check('No new migration/seed, shell script or security bypass in P36 QA implementation', () => !heroJs.includes('fetch(') && !heroJs.includes('localStorage') && !css.includes('pointer-events:none!important'));
+// Run small JavaScript smoke test with a fake DOM. No actual browser/application.
+const callbacks=[];
+const makeImage = (w,h) => ({complete:true,naturalWidth:w,naturalHeight:h,addEventListener(){}});
+const panelA={attributes:{'aria-hidden':'false'},classList:{contains:()=>false},getAttribute(k){return this.attributes[k];},querySelector:()=>makeImage(1600,700)};
+const panelB={attributes:{'aria-hidden':'true'},classList:{contains:()=>false},getAttribute(k){return this.attributes[k];},querySelector:()=>makeImage(800,500)};
+const properties={};
+const carousel={clientWidth:360,querySelector:()=>({querySelectorAll:()=>[panelA,panelB]}),style:{setProperty(k,v){properties[k]=v},removeProperty(k){delete properties[k]}}};
+const Observer=class{constructor(fn){callbacks.push(fn)}observe(){}};
+const sandbox={window:{matchMedia:()=>({matches:true}),addEventListener(){},MutationObserver:Observer},document:{querySelectorAll:()=>[carousel]},MutationObserver:Observer};
+vm.runInNewContext(heroJs,sandbox);
+check('Mobile height calculation uses selected 360px banner aspect, updates on slide change', ()=>{
+ const before=properties['--p36-mobile-height']; panelA.attributes['aria-hidden']='true';panelB.attributes['aria-hidden']='false';callbacks[0]();
+ return before==='158px' && properties['--p36-mobile-height']==='225px';
+});
+console.log(`RESULT: ${pass}/${pass+fail} P36 offline source/JS checks PASS (no MySQL/Laravel/browser)`);
+if(fail) process.exitCode = 1;

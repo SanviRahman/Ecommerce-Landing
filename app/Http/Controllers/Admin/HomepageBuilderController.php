@@ -1,0 +1,438 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Http\Controllers\Admin;
+
+use App\Http\Controllers\Controller;
+use App\Models\Category;
+use App\Models\Product;
+use App\Models\Review;
+use App\Models\SiteSetting;
+use Spatie\MediaLibrary\MediaCollections\Models\Media;
+use App\Services\Storefront\HomepageBuilder;
+use App\Services\Storefront\CategoryShelf;
+use App\Services\Storefront\PublicCatalog;
+use App\Support\HomeSectionSchema;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\View\View;
+use Illuminate\Validation\ValidationException;
+use RuntimeException;
+
+/** Authenticated Homepage Builder controls; published revision powers the public root. */
+final class HomepageBuilderController extends Controller
+{
+    /**
+     * A safe landing for the old /admin/storefront URL. Only an authorized
+     * admin on the reviewed database can reach the private staged preview.
+     * When nothing has been staged, show the editor rather than a 404.
+     * This deliberately does not enable the public storefront or checkout.
+     */
+    public function entry(HomepageBuilder $builder): RedirectResponse
+    {
+        $this->adminOnly($builder);
+        $state = $builder->inspect();
+        $destination = $state['draft'] || $state['published']
+            ? 'admin.storefront.home.preview'
+            : 'admin.storefront.home.index';
+
+        return redirect()->route($destination)
+            ->header('Cache-Control', 'private, no-store, max-age=0');
+    }
+
+    public function index(HomepageBuilder $builder): View
+    {
+        $this->adminOnly($builder);
+        $state = $builder->inspect();
+        $extraProducts = [];
+        $extraCategories = [];
+        foreach ($state['draft']['sections'] ?? [] as $section) {
+            $extraProducts = array_merge($extraProducts, $section['products']);
+            $extraCategories = array_merge($extraCategories, $section['categories']);
+            if (! empty($section['category_id'])) $extraCategories[] = (int) $section['category_id'];
+        }
+        $selectedProducts = Product::query()->whereIn('id', array_unique($extraProducts))->where('status', true)->get(['id', 'name']);
+        $selectedCategories = Category::query()->whereIn('id', array_unique($extraCategories))->where('status', true)->get(['id', 'name']);
+        $selectedMediaIds = [];
+        foreach ($state['draft']['sections'] ?? [] as $section) {
+            foreach ($section['items'] as $item) {
+                if ($item['media_id']) $selectedMediaIds[] = (int) $item['media_id'];
+            }
+        }
+        $mediaThumbnails = Media::query()->where('disk', 'public')
+            ->whereIn('id', array_unique($selectedMediaIds))->get()
+            ->filter(static fn (Media $item) => is_file($item->getPath()))->keyBy('id');
+        $productChoices = Product::query()->where('status', true)->orderBy('name')->limit(200)->get(['id', 'name']);
+        $categoryChoices = Category::query()->where('status', true)->orderBy('name')->limit(150)->get(['id', 'name']);
+        return view('admin.storefront.homepage', [
+            'state' => $state,
+            'history' => $builder->history(),
+            'types' => HomeSectionSchema::TYPES,
+            'themeDefaults' => HomeSectionSchema::DEFAULT_THEME,
+            'categories' => $categoryChoices->merge($selectedCategories)->unique('id')->sortBy('name')->values(),
+            'products' => $productChoices->merge($selectedProducts)->unique('id')->sortBy('name')->values(),
+            'reviews' => Review::query()->whereNull('campaign_id')->where('status', true)->orderByDesc('id')
+                ->limit(50)->get(['id', 'customer_name']),
+            'mediaThumbnails' => $mediaThumbnails,
+            'mediaChoices' => DB::table('media')->where('disk', 'public')
+                ->whereIn('collection_name', HomepageBuilder::PUBLIC_IMAGE_COLLECTIONS)->orderByDesc('id')
+                ->limit(80)->get(['id', 'file_name']),
+        ]);
+    }
+
+    public function start(Request $request, HomepageBuilder $builder): RedirectResponse
+    {
+        $this->adminOnly($builder);
+        $data = $request->validate(['expected_version' => ['required', 'integer', 'min:0']]);
+        $builder->startDraft((int) $data['expected_version'], (int) auth()->id());
+        return $this->back('Homepage draft is ready. Public homepage was not changed.');
+    }
+
+    /** Discards only the active draft; immutable published revisions are never deleted. */
+    public function discardDraft(Request $request, HomepageBuilder $builder): RedirectResponse
+    {
+        $this->adminOnly($builder);
+        $data = $request->validate(['expected_version' => ['required', 'integer', 'min:1']]);
+        $builder->discardDraft((int) $data['expected_version'], (int) auth()->id());
+        return $this->back('Draft discarded. The published homepage and revision history are unchanged.');
+    }
+
+    public function restore(Request $request, int $revision, HomepageBuilder $builder): RedirectResponse
+    {
+        $this->adminOnly($builder);
+        $data = $request->validate(['expected_version' => ['required', 'integer', 'min:0']]);
+        $builder->startDraft((int) $data['expected_version'], (int) auth()->id(), $revision);
+        return $this->back('A NEW editable draft was cloned from that revision. Published data is unchanged.');
+    }
+
+    public function hideArchived(Request $request, int $revision, HomepageBuilder $builder): RedirectResponse
+    {
+        $this->adminOnly($builder);
+        $data = $request->validate(['expected_version' => ['required', 'integer', 'min:1']]);
+        $builder->hideArchivedRevision($revision, (int) $data['expected_version'], (int) auth()->id());
+        return $this->back('Archived revision removed from visible history. Audit record and content are preserved.');
+    }
+
+    public function addSection(Request $request, HomepageBuilder $builder): RedirectResponse
+    {
+        $this->adminOnly($builder);
+        $data = $request->validate([
+            'expected_version' => ['required', 'integer', 'min:1'],
+            'type' => ['required', 'string', 'in:' . implode(',', array_keys(HomeSectionSchema::TYPES))],
+        ]);
+        $builder->addSection((int) $data['expected_version'], (int) auth()->id(), $data['type']);
+        return $this->back('Draft section added. It stays disabled until configured.');
+    }
+
+    public function saveSection(Request $request, string $sectionKey, HomepageBuilder $builder): RedirectResponse
+    {
+        $this->adminOnly($builder);
+        $data = $request->validate(array_merge([
+            'expected_version' => ['required', 'integer', 'min:1'],
+            'title' => ['nullable', 'string', 'max:160'],
+            'subtitle' => ['nullable', 'string', 'max:200'],
+            'description' => ['nullable', 'string', 'max:3000'],
+            'is_enabled' => ['nullable', 'boolean'],
+            'show_desktop' => ['nullable', 'boolean'],
+            'show_mobile' => ['nullable', 'boolean'],
+            'category_ids' => ['sometimes', 'array', 'max:24'],
+            'category_ids.*' => ['integer', 'min:1', 'distinct'],
+            'product_ids' => ['sometimes', 'array', 'max:50'],
+            'product_ids.*' => ['integer', 'min:1', 'distinct'],
+            'source_category_id' => ['nullable', 'integer', 'min:1'],
+            'include_descendants' => ['nullable', 'boolean'],
+            'product_sort' => ['nullable', 'in:newest,name,price_asc,price_desc'],
+            'product_limit' => ['nullable', 'integer', 'between:1,24'],
+            'styles' => ['sometimes', 'array:' . implode(',', HomeSectionSchema::STYLE_KEYS)],
+        ], $this->colorRules('styles')));
+        $data['category_ids'] = array_map('intval', $data['category_ids'] ?? []);
+        $data['product_ids'] = array_map('intval', $data['product_ids'] ?? []);
+        $builder->updateSection((int) $data['expected_version'], (int) auth()->id(), $sectionKey, $data);
+        return $this->back('Draft section saved. Public publication is unchanged.');
+    }
+
+    /** Accessible no-JS move follows the same validated live-sort flow as drag-and-drop. */
+    public function move(Request $request, string $sectionKey, HomepageBuilder $builder): RedirectResponse
+    {
+        $this->adminOnly($builder);
+        $data = $request->validate([
+            'expected_version' => ['required', 'integer', 'min:1'],
+            'direction' => ['required', 'in:up,down'],
+            'publish_after_sort' => ['sometimes', 'boolean'],
+        ]);
+        $version = (int) $data['expected_version'];
+        $actor = (int) auth()->id();
+        $result = $this->saveOrderAndMaybePublish($builder, $version, $actor,
+            static fn () => $builder->move($version, $actor, $sectionKey, $data['direction']),
+            (bool) ($data['publish_after_sort'] ?? false));
+
+        return redirect()->route('admin.storefront.home.index')
+            ->with($result['published'] || ! ($data['publish_after_sort'] ?? false) ? 'success' : 'warning', $result['notice']);
+    }
+
+    /** Same revision ordering in admin preview and public page; publication is opt-in per request.
+     * The editor explicitly sends publish_after_sort=1. API clients without the flag retain
+     * the original private-draft semantics and optimistic version contract.
+     */
+    public function reorder(Request $request, HomepageBuilder $builder): RedirectResponse|\Illuminate\Http\JsonResponse
+    {
+        $this->adminOnly($builder);
+        $data = $request->validate([
+            'expected_version' => ['required', 'integer', 'min:1'],
+            'section_keys' => ['required', 'array', 'max:30'],
+            'section_keys.*' => ['required', 'uuid', 'distinct'],
+            'publish_after_sort' => ['sometimes', 'boolean'],
+        ]);
+        $version = (int) $data['expected_version'];
+        $actor = (int) auth()->id();
+        $result = $this->saveOrderAndMaybePublish($builder, $version, $actor,
+            static fn () => $builder->reorder($version, $actor, $data['section_keys']),
+            (bool) ($data['publish_after_sort'] ?? false));
+
+        if ($request->expectsJson()) {
+            // A successful publication + cloned draft bumps version three times.
+            // A draft-only reorder bumps it once; both outcomes are audited.
+            if ($result['published']) {
+                $request->session()->flash('success', $result['notice']);
+            }
+            return response()->json([
+                'saved' => true,
+                'published' => $result['published'],
+                'lock_version' => $result['lock_version'],
+                'section_keys' => array_values($data['section_keys']),
+                'notice' => $result['notice'],
+            ])->header('Cache-Control', 'no-store');
+        }
+
+        return redirect()->route('admin.storefront.home.index')
+            ->with($result['published'] || ! ($data['publish_after_sort'] ?? false) ? 'success' : 'warning', $result['notice']);
+    }
+
+    /**
+     * Save order, validate+publish an immutable revision, and recreate the editable draft
+     * atomically. If publication validation fails, keep the sorted private draft and
+     * explain why public visibility is unchanged. Unauthorized/stale writes still fail.
+     * @return array{published:bool,lock_version:int,notice:string}
+     */
+    private function saveOrderAndMaybePublish(HomepageBuilder $builder, int $version, int $actor,
+        callable $reorder, bool $publishAfterSort): array
+    {
+        return DB::transaction(static function () use ($builder, $version, $actor, $reorder, $publishAfterSort): array {
+            $reorder();
+            if (! $publishAfterSort) {
+                return ['published' => false, 'lock_version' => $version + 1,
+                    'notice' => 'Section order saved in the private draft. Publish to update the live homepage.'];
+            }
+            try {
+                $builder->publish($version + 1, $actor);
+            } catch (ValidationException $exception) {
+                $errors = $exception->errors();
+                $first = $errors === [] ? 'Check enabled sections and their media.' : (string) (reset($errors)[0] ?? 'Review the draft.');
+                return ['published' => false, 'lock_version' => $version + 1,
+                    'notice' => 'Order saved in draft only; live publication was blocked: ' . $first];
+            }
+            // Never continue editing a published revision. Clone it for the next edit.
+            $builder->startDraft($version + 2, $actor);
+            return ['published' => true, 'lock_version' => $version + 3,
+                'notice' => 'Section order published successfully. Preview and live homepage now use this order. A new editable draft is ready.'];
+        }, 3);
+    }
+
+    public function deleteSection(Request $request, string $sectionKey, HomepageBuilder $builder): RedirectResponse
+    {
+        $this->adminOnly($builder);
+        $version = $request->validate(['expected_version' => ['required', 'integer', 'min:1']]);
+        $builder->deleteSection((int) $version['expected_version'], (int) auth()->id(), $sectionKey);
+        return $this->back('Draft section removed; published revisions remain intact.');
+    }
+
+    public function addItem(Request $request, string $sectionKey, HomepageBuilder $builder): RedirectResponse
+    {
+        $this->adminOnly($builder);
+        $data = $request->validate([
+            'expected_version' => ['required', 'integer', 'min:1'],
+            'title' => ['nullable', 'string', 'max:160'],
+            'description' => ['nullable', 'string', 'max:2000'],
+            'link_url' => ['nullable', 'string', 'max:2048'],
+            'link_label' => ['nullable', 'string', 'max:80'],
+            'media_id' => ['nullable', 'integer', 'min:1'],
+            'review_id' => ['nullable', 'integer', 'min:1'],
+        ]);
+        foreach (['media_id', 'review_id'] as $id) {
+            if (isset($data[$id])) {
+                $data[$id] = (int) $data[$id];
+            }
+        }
+        $builder->addItem((int) $data['expected_version'], (int) auth()->id(), $sectionKey, $data);
+        return $this->back('Draft item added.');
+    }
+
+    /** Draft-only item edits; enabled state, media and CTA URLs are reviewed and audited. */
+    public function updateItem(Request $request, string $sectionKey, string $itemKey,
+        HomepageBuilder $builder): RedirectResponse
+    {
+        $this->adminOnly($builder);
+        $data = $request->validate([
+            'expected_version' => ['required', 'integer', 'min:1'],
+            'title' => ['nullable', 'string', 'max:160'],
+            'description' => ['nullable', 'string', 'max:2000'],
+            'link_url' => ['nullable', 'string', 'max:2048'],
+            'link_label' => ['nullable', 'string', 'max:80'],
+            'media_id' => ['nullable', 'integer', 'min:1'],
+            'is_enabled' => ['nullable', 'boolean'],
+        ]);
+        $builder->updateItem((int) $data['expected_version'], (int) auth()->id(), $sectionKey, $itemKey, $data);
+        return $this->back('Draft item updated. Publish the draft when ready.');
+    }
+
+    /** Admin upload + attach (one POST), no draft/public media deletion. */
+    public function uploadHeroImages(Request $request, string $sectionKey, HomepageBuilder $builder): RedirectResponse
+    {
+        $this->adminOnly($builder);
+        $data = $request->validate([
+            'expected_version' => ['required', 'integer', 'min:1'],
+            'hero_images' => ['required', 'array', 'min:1', 'max:6'],
+            'hero_images.*' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
+        ]);
+        $settings = SiteSetting::query()->latest()->first();
+        if (! $settings) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'hero_images' => 'Create Site Settings first to upload storefront banners.',
+            ]);
+        }
+        // Validate the version/section before writing media files.
+        $state = $builder->inspect();
+        $draft = $state['draft'];
+        if (! $draft || (int) ($state['page']['lock_version'] ?? 0) !== (int) $data['expected_version']
+            || ! collect($draft['sections'])->contains(fn ($section) => $section['section_key'] === $sectionKey
+                && $section['type'] === 'hero_slider')) {
+            abort(409, 'Hero section was changed in another tab; reload the editor.');
+        }
+        $newMedia = [];
+        try {
+            foreach ($request->file('hero_images') as $image) {
+                $newMedia[] = $settings->addMedia($image)
+                    ->withCustomProperties([
+                        'homepage_named_path' => true,
+                        'homepage_section_folder' => 'hero-banner',
+                        'homepage_section_key' => $sectionKey,
+                    ])->toMediaCollection('storefront_hero_image', 'public');
+            }
+            $builder->addHeroSlides((int) $data['expected_version'], (int) auth()->id(), $sectionKey,
+                array_map(static fn ($media): int => (int) $media->id, $newMedia));
+        } catch (\Throwable $error) {
+            // Only clean up media created by THIS failed request, never existing images.
+            foreach ($newMedia as $media) {
+                try { $media->delete(); } catch (\Throwable) {}
+            }
+            throw $error;
+        }
+        return $this->back(count($newMedia) . ' hero images added to the draft. Publish to show them publicly.');
+    }
+
+    public function deleteItem(Request $request, string $sectionKey, string $itemKey,
+        HomepageBuilder $builder): RedirectResponse
+    {
+        $this->adminOnly($builder);
+        $data = $request->validate(['expected_version' => ['required', 'integer', 'min:1']]);
+        $builder->deleteItem((int) $data['expected_version'], (int) auth()->id(), $sectionKey, $itemKey);
+        return $this->back('Draft item removed.');
+    }
+
+    public function theme(Request $request, HomepageBuilder $builder): RedirectResponse
+    {
+        $this->adminOnly($builder);
+        $data = $request->validate(array_merge([
+            'expected_version' => ['required', 'integer', 'min:1'],
+            'theme' => ['required', 'array:' . implode(',', HomeSectionSchema::STYLE_KEYS)],
+        ], $this->colorRules('theme')));
+        $builder->saveTheme((int) $data['expected_version'], (int) auth()->id(), $data['theme']);
+        return $this->back('Global draft theme saved.');
+    }
+
+    public function publish(Request $request, HomepageBuilder $builder): RedirectResponse
+    {
+        $this->adminOnly($builder);
+        $data = $request->validate(['expected_version' => ['required', 'integer', 'min:1']]);
+        $builder->publish((int) $data['expected_version'], (int) auth()->id());
+        return $this->back('Homepage published. Visitors now see the pinned revision at /. Campaigns remain at /campaign/{slug}.');
+    }
+
+    public function preview(Request $request, HomepageBuilder $builder, CategoryShelf $shelves, PublicCatalog $catalog): \Illuminate\Http\Response|RedirectResponse
+    {
+        $this->adminOnly($builder);
+        $data = $request->validate(['revision' => ['nullable', 'integer', 'min:1']]);
+        $state = $builder->inspect();
+        $id = isset($data['revision']) ? (int) $data['revision']
+            : (int) ($state['draft']['id'] ?? $state['published']['id'] ?? 0);
+        if ($id === 0) {
+            return redirect()->route('admin.storefront.home.index')
+                ->with('warning', 'Create a draft before opening the homepage preview.');
+        }
+        $revision = $builder->revision($id); // Strict same-homepage FK ownership check.
+
+        $productIds = $categoryIds = $reviewIds = $mediaIds = [];
+        foreach ($revision['sections'] as $section) {
+            if (! $section['is_enabled']) {
+                continue;
+            }
+            $productIds = array_merge($productIds, $section['products']);
+            $categoryIds = array_merge($categoryIds, $section['categories']);
+            foreach ($section['items'] as $item) {
+                if ($item['review_id']) $reviewIds[] = (int) $item['review_id'];
+                if ($item['media_id']) $mediaIds[] = (int) $item['media_id'];
+            }
+        }
+        $products = $catalog->eligibleProducts()->with('media', 'variants.optionValues.option')
+            ->whereIn('products.id', array_unique($productIds))->get()->keyBy('id');
+        $categories = $catalog->eligibleCategories()->with('media')
+            ->whereIn('id', array_unique($categoryIds))->get()->keyBy('id');
+        $reviews = Review::query()->whereIn('id', array_unique($reviewIds))->where('status', true)
+            ->whereNull('campaign_id')->with('media')->get()->keyBy('id');
+        $media = \Spatie\MediaLibrary\MediaCollections\Models\Media::query()->whereIn('id', array_unique($mediaIds))
+            ->where('disk', 'public')->whereIn('collection_name', HomepageBuilder::PUBLIC_IMAGE_COLLECTIONS)
+            ->get()->filter(fn ($m) => is_file($m->getPath()))->keyBy('id');
+
+        $categoryShelves = [];
+        foreach ($revision['sections'] as $section) {
+            if ($section['type'] === 'category_products' && $section['is_enabled']) {
+                $categoryShelves[$section['section_key']] = $shelves->productsFor($section);
+            }
+        }
+        return response()->view('storefront.preview.home', compact('revision', 'products', 'categories', 'reviews', 'media', 'categoryShelves'))
+            ->header('Cache-Control', 'private, no-store, max-age=0')
+            ->header('X-Robots-Tag', 'noindex, nofollow')
+            ->header('Referrer-Policy', 'same-origin');
+    }
+
+    private function colorRules(string $key): array
+    {
+        $rules = [];
+        foreach (HomeSectionSchema::STYLE_KEYS as $token) {
+            $rules[$key . '.' . $token] = ['nullable', 'string', 'regex:/\A#[0-9a-fA-F]{6}\z/D'];
+        }
+        return $rules;
+    }
+
+    private function adminOnly(HomepageBuilder $builder): void
+    {
+        abort_unless(auth()->check() && auth()->user()->isAdmin() && auth()->user()->is_active, 403);
+        try {
+            $builder->assertTestSchema();
+        } catch (RuntimeException $error) {
+            // Local opt-in can show the menu before the 11 P02 migrations exist.
+            // Do not convert missing schema into a misleading route-not-found.
+            if (str_starts_with($error->getMessage(), 'P05 requires the complete P02 homepage schema:')) {
+                abort(503, 'Homepage Builder requires the reviewed P02 migrations before use.');
+            }
+            abort(404, 'Homepage Builder access is not approved for this database.');
+        }
+    }
+
+    private function back(string $message): RedirectResponse
+    {
+        return redirect()->route('admin.storefront.home.index')->with('success', $message);
+    }
+}

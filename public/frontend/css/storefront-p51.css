@@ -1,0 +1,320 @@
+/* P51 — Storefront-only mobile comfort improvements and branded loader.
+   Reuse real Site Settings branding. Campaign/AdminLTE never inherit these rules.
+   No changes to routes, order pricing, cart state or published builder content. */
+body.p34-storefront .p51-page-loader {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: grid;
+    place-items: center;
+    padding: 28px;
+    background: radial-gradient(circle at 50% 30%, #ffffff 0, #f7fbf8 60%, #eaf5ee 100%);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 260ms ease, visibility 260ms ease;
+}
+html.p51-booting body.p34-storefront .p51-page-loader {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+}
+body.p34-storefront .p51-page-loader__inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    width: min(100%, 320px);
+    text-align: center;
+}
+body.p34-storefront .p51-page-loader__mark {
+    display: grid;
+    place-items: center;
+    width: 86px;
+    height: 86px;
+    border-radius: 24px;
+    padding: 6px;
+    background: #ffffff;
+    border: 1px solid #d4e9db;
+    box-shadow: 0 12px 32px rgba(17, 83, 55, .13);
+}
+body.p34-storefront .p51-page-loader__mark img {
+    display: block;
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    border-radius: 15px;
+}
+body.p34-storefront .p51-page-loader__initial {
+    display: grid;
+    place-items: center;
+    width: 68px;
+    height: 68px;
+    border-radius: 19px;
+    background: linear-gradient(140deg, #158558, #0a4435);
+    color: #fff;
+    font: 800 33px/1 Manrope, 'Hind Siliguri', sans-serif;
+}
+body.p34-storefront .p51-page-loader__brand {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    color: #0d3c2e;
+    font-size: clamp(21px, 5vw, 27px);
+    font-weight: 850;
+    letter-spacing: -.04em;
+    line-height: 1.3;
+}
+body.p34-storefront .p51-page-loader__tagline {
+    font-size: 12px;
+    color: #607b69;
+    letter-spacing: .02em;
+}
+body.p34-storefront .p51-page-loader__track {
+    display: block;
+    width: 154px;
+    height: 4px;
+    overflow: hidden;
+    margin-top: 16px;
+    border-radius: 20px;
+    background: #d7e9dd;
+}
+body.p34-storefront .p51-page-loader__track span {
+    display: block;
+    width: 42%;
+    height: 100%;
+    border-radius: inherit;
+    background: #167c51;
+    animation: p51-progress 1.05s cubic-bezier(.42, 0, .2, 1) infinite alternate;
+}
+body.p34-storefront .p51-page-loader__status {
+    font-size: 11px;
+    color: #698373;
+}
+@keyframes p51-progress {
+    from { transform: translateX(0); }
+    to { transform: translateX(139%); }
+}
+
+/* The reference mobile UI is more readable than the existing 10-13px controls.
+   Scale up existing components while preserving their data binding and 2-card grid. */
+@media (max-width: 760px) {
+    body.p34-storefront {
+        font-size: 15px;
+        line-height: 1.58;
+        -webkit-text-size-adjust: 100%;
+    }
+    body.p34-storefront :is(.p07-container, .sf-wrapper) {
+        width: calc(100% - clamp(24px, 7vw, 36px));
+    }
+    /* Two-row sticky header: brand/actions first, real product search beneath. */
+    body.p34-storefront .p19-main-header {
+        display: flex !important;
+        flex-wrap: wrap;
+        align-items: center;
+        column-gap: 7px;
+        row-gap: 7px;
+        min-height: 0;
+        padding-top: 10px;
+        padding-bottom: 12px;
+    }
+    body.p34-storefront .p19-main-header > .p07-brand {
+        max-width: calc(100% - 143px) !important;
+        gap: 7px;
+    }
+    body.p34-storefront .p33-site-logo { max-width: 42px; max-height: 42px; }
+    body.p34-storefront .p33-brand-name {
+        font-size: clamp(14px, 4vw, 17px);
+        line-height: 1.22;
+    }
+    body.p34-storefront .p33-brand-name small { font-size: 9px; }
+    body.p34-storefront .p33-header-actions :is(.p19-account-link, .p19-top-cart) {
+        min-width: 41px;
+        width: 41px;
+        height: 43px;
+    }
+    body.p34-storefront .p19-main-header > .p19-search {
+        display: flex !important;
+        order: 3;
+        flex: 1 0 100%;
+        width: 100%;
+        max-width: none;
+        min-width: 0;
+        min-height: 47px;
+        margin: 2px 0 0;
+        border-radius: 12px;
+        box-shadow: 0 3px 13px rgba(15, 75, 45, .05);
+    }
+    body.p34-storefront .p19-main-header > .p19-search input {
+        min-height: 47px;
+        font-size: 14px;
+        padding: 11px 13px;
+    }
+    body.p34-storefront .p19-main-header > .p19-search button {
+        min-height: 47px;
+        padding: 0 15px;
+        font-size: 13px;
+        font-weight: 800;
+    }
+    body.p34-storefront .p19-mobile-search-panel {
+        top: calc(143px + env(safe-area-inset-top));
+    }
+    body.p34-storefront :is(.sf-section[id], #p19-account-overview, #p19-account-profile, .p33-track-page) {
+        scroll-margin-top: 160px;
+    }
+    /* Page introduction and homepage section text. */
+    body.p34-storefront .sf-section:not(.sf-section-hero) {
+        padding-top: clamp(44px, 9vw, 60px);
+        padding-bottom: clamp(44px, 9vw, 60px);
+    }
+    body.p34-storefront :is(.sf-title-line h2, .p33-section-heading h2) {
+        font-size: clamp(26px, 7.3vw, 36px);
+        line-height: 1.18;
+        overflow-wrap: anywhere;
+    }
+    body.p34-storefront :is(.sf-section .sf-lead, .p33-section-heading p, .p07-detail-summary > p) {
+        font-size: clamp(14px, 3.7vw, 16px);
+        line-height: 1.73;
+    }
+    body.p34-storefront .p07-page-heading {
+        padding-top: 30px;
+        padding-bottom: 20px;
+    }
+    body.p34-storefront :is(.p07-page-heading h1, .p19-account-main h1, .p19-info-hero h1) {
+        font-size: clamp(29px, 7.9vw, 39px);
+        line-height: 1.18;
+        overflow-wrap: anywhere;
+    }
+    body.p34-storefront .p07-breadcrumb { font-size: 12.5px; line-height: 1.6; }
+    /* The hero remains a single image with copy over it (P43 behavior). */
+    body.p34-storefront .sf-hero-panel.p36-hero-with-copy .sf-hero-copy h1 {
+        font-size: clamp(22px, 5.95vw, 30px) !important;
+        line-height: 1.2 !important;
+    }
+    body.p34-storefront .sf-hero-panel.p36-hero-with-copy .sf-hero-copy p {
+        font-size: clamp(12.5px, 3.35vw, 15px) !important;
+        line-height: 1.57 !important;
+    }
+    body.p34-storefront .sf-hero-panel.p36-hero-with-copy .sf-hero-copy .sf-cta {
+        min-height: 45px;
+        padding: 11px 17px !important;
+        font-size: 12px !important;
+    }
+    /* Home, Shop, Wishlist and Related Products all retain 2 columns. */
+    body.p34-storefront :is(.p33-category-grid, .p07-card-grid, .p35-related-grid),
+    body.p34-storefront .sf-section .p46-featured-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: clamp(11px, 3vw, 16px);
+    }
+    body.p34-storefront :is(.p07-card, .sf-product, .p33-category-tile) {
+        min-width: 0;
+        border-radius: 15px;
+    }
+    body.p34-storefront :is(.p07-card-body, .sf-product-copy) {
+        padding: 14px 12px 17px;
+    }
+    body.p34-storefront :is(.p07-card-body h3, .sf-product-copy h3) {
+        font-size: clamp(14px, 3.7vw, 16px);
+        font-weight: 800;
+        line-height: 1.42;
+        overflow-wrap: anywhere;
+    }
+    body.p34-storefront :is(.sf-product-category, .p07-card-category) {
+        font-size: 11.5px;
+        line-height: 1.35;
+    }
+    body.p34-storefront :is(.sf-price, .p07-card-prices strong) {
+        font-size: clamp(17px, 4.7vw, 20px);
+        line-height: 1.35;
+    }
+    body.p34-storefront .p34-product-actions :is(.p19-cart-action, .sf-secondary) {
+        min-height: 44px;
+        border-radius: 10px;
+    }
+    body.p34-storefront .p34-product-actions :is(.p34-buy-button, .sf-cta) {
+        min-height: 44px;
+        font-size: clamp(11px, 3.05vw, 13px);
+        padding: 9px 6px;
+        border-radius: 10px;
+    }
+    body.p34-storefront .p33-category-tile :is(h3, strong) { font-size: 14px; }
+    body.p34-storefront .p46-view-all { min-height: 49px; font-size: 14px; }
+    body.p34-storefront .p40-subcategory-card strong { font-size: 14px; }
+    body.p34-storefront .p40-subcategory-card small { font-size: 12px; }
+    /* Checkout, Account, Login, FAQ, Contact and other utility pages. */
+    body.p34-storefront .p19-account-layout {
+        gap: 18px;
+        margin-top: 22px;
+    }
+    body.p34-storefront :is(.p19-checkout-form, .p19-order-summary, .p19-account-sidebar, .p19-account-panel, .p19-auth-card) {
+        border-radius: 17px;
+        padding: clamp(18px, 5vw, 26px);
+    }
+    body.p34-storefront .p19-checkout-form .p19-step-panel legend { font-size: 20px; }
+    body.p34-storefront :is(.p19-checkout-form, .p19-auth-card, .p19-profile-form, .p37-contact-form)
+      :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
+        min-height: 48px;
+        font-size: 15px;
+        padding: 11px 13px;
+        border-radius: 10px;
+        max-width: 100%;
+    }
+    body.p34-storefront :is(.p19-checkout-form label, .p19-auth-card label, .p19-profile-form label, .p37-contact-form label) {
+        font-size: 14px;
+        line-height: 1.6;
+    }
+    body.p34-storefront .p19-checkout-form :is(button, .p08-primary),
+    body.p34-storefront .p19-auth-card .p08-primary,
+    body.p34-storefront .p37-contact-submit {
+        min-height: 48px;
+        font-size: 14px;
+    }
+    body.p34-storefront .p19-account-sidebar .p47-account-menu a {
+        min-height: 47px;
+        display: flex;
+        align-items: center;
+        font-size: 14px;
+        padding: 12px 14px;
+        border-radius: 11px;
+    }
+    body.p34-storefront .p19-account-main .p19-account-panel h2 { font-size: 21px; }
+    body.p34-storefront .p19-account-stat-grid > div {
+        padding: 14px 10px;
+        min-width: 0;
+    }
+    body.p34-storefront .p19-account-stat-grid span { font-size: 11.5px; line-height: 1.4; }
+    body.p34-storefront .p19-auth-card h1 { font-size: clamp(29px, 7vw, 37px); }
+    body.p34-storefront .p19-faq-item { padding: 18px; font-size: 14px; }
+    body.p34-storefront .p19-info-hero p { font-size: 15px; line-height: 1.7; }
+    body.p34-storefront .p19-footer-grid :is(a, p, small) {
+        font-size: 13.5px;
+        line-height: 1.72;
+    }
+    body.p34-storefront .p19-footer-grid h3 { font-size: 15px; }
+    body.p34-storefront .p19-mobile-nav.p34-mobile-nav :is(a, button) {
+        min-height: 58px;
+    }
+    body.p34-storefront .p19-mobile-nav.p34-mobile-nav .p34-mobile-text {
+        font-size: 10.5px !important;
+    }
+}
+@media (max-width: 359px) {
+    body.p34-storefront .p19-main-header > .p07-brand { max-width: calc(100% - 131px) !important; }
+    body.p34-storefront .p33-header-actions :is(.p19-account-link, .p19-top-cart) {
+        min-width: 36px;
+        width: 36px;
+        height: 41px;
+    }
+    body.p34-storefront .p19-main-header > .p19-search button { padding-inline: 10px; }
+    body.p34-storefront .p34-product-actions :is(.p34-buy-button, .sf-cta) { font-size: 10.5px; }
+    body.p34-storefront .p19-mobile-nav.p34-mobile-nav .p34-mobile-text { font-size: 9.5px !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+    body.p34-storefront .p51-page-loader,
+    body.p34-storefront .p51-page-loader__track span {
+        transition: none !important;
+        animation: none !important;
+    }
+    body.p34-storefront .p51-page-loader__track span { width: 100%; }
+}

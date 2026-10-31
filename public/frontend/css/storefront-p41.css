@@ -1,0 +1,24 @@
+/* P41: minimal position-only change; contact menu, cart behavior and theme unchanged.
+   Both controls stay fixed to the viewport while scrolling. */
+@media (min-width: 651px) {
+    .p34-storefront .p19-floating-cart {
+        top: 57% !important;
+        bottom: auto !important;
+        right: 0 !important;
+    }
+    .p34-storefront .p38-contact-dock {
+        top: calc(57% + 93px) !important;
+        bottom: auto !important;
+    }
+}
+@media (max-width: 650px) {
+    /* Mobile cart peek and sticky order buttons retain their existing rules. */
+    .p34-storefront .p38-contact-dock {
+        top: auto !important;
+        bottom: calc(94px + env(safe-area-inset-bottom)) !important;
+    }
+}
+
+/* Restored manual product carousel arrows on builder-configured category shelves. */
+.p34-storefront .p41-shelf-toolbar { display:flex;justify-content:flex-end;margin:0 0 12px; }
+.p34-storefront .p41-shelf-toolbar .p33-shelf-buttons button:focus-visible {outline:3px solid #17a46b;outline-offset:3px;}

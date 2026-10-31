@@ -62,7 +62,9 @@ class StoreExternalOrderRequest extends FormRequest
 
         $this->merge([
             'external_order_id' => $externalOrderId,
-            'sync_uuid' => $this->input('sync_uuid', $externalOrderId),
+            // Absent sync_uuid remains null; the importer generates a safe UUID.
+            // external_order_id is a distinct identifier and need not be a UUID.
+            'sync_uuid' => $this->input('sync_uuid'),
             'customer_name' => $this->input('customer_name', $this->input('name')),
             'phone' => $this->normalizePhone(
                 $this->input('phone', $this->input('customer_phone'))

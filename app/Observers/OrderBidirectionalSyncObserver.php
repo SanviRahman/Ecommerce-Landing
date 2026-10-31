@@ -11,6 +11,20 @@ class OrderBidirectionalSyncObserver implements ShouldHandleEventsAfterCommit
 {
     public function created(Order $order): void
     {
+        // P26 QA must never send synthetic orders to external websites.
+        if (app()->bound('request')
+            && request()->attributes->get('p26_isolated_commerce_qa', false) === true) {
+            return;
+        }
+
+        // An order placed via the loopback main-DB storefront must never
+        // synchronize to a remote merchant during a manual local rehearsal.
+        if (app()->environment('local') && $order->campaign_id === null
+            && is_string($order->source_url)
+            && str_contains($order->source_url, '/storefront/checkout')) {
+            return;
+        }
+
         if ($order->created_via === Order::CREATED_VIA_EXTERNAL_API) {
             return;
         }
@@ -24,6 +38,20 @@ class OrderBidirectionalSyncObserver implements ShouldHandleEventsAfterCommit
 
     public function updated(Order $order): void
     {
+        // P26 QA must never send synthetic orders to external websites.
+        if (app()->bound('request')
+            && request()->attributes->get('p26_isolated_commerce_qa', false) === true) {
+            return;
+        }
+
+        // An order placed via the loopback main-DB storefront must never
+        // synchronize to a remote merchant during a manual local rehearsal.
+        if (app()->environment('local') && $order->campaign_id === null
+            && is_string($order->source_url)
+            && str_contains($order->source_url, '/storefront/checkout')) {
+            return;
+        }
+
         if ($order->created_via === Order::CREATED_VIA_EXTERNAL_API) {
             return;
         }

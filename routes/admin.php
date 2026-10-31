@@ -13,9 +13,17 @@ use App\Http\Controllers\Admin\CreatePageController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\ExternalWebsiteController;
 use App\Http\Controllers\Admin\FaqController;
+use App\Http\Controllers\Admin\HomepageBuilderController;
+use App\Http\Controllers\Admin\HomepageShippingChargeController;
+use App\Http\Controllers\Admin\StorefrontReadinessController;
+use App\Http\Controllers\Admin\StorefrontMessageController;
+use App\Http\Controllers\Admin\StorefrontFaqController;
 use App\Http\Controllers\Admin\MediaManagementController;
 use App\Http\Controllers\Admin\OrderController;
+use App\Http\Controllers\Admin\OrderPurgeAuditLogController;
 use App\Http\Controllers\Admin\ProductController;
+use App\Http\Controllers\Admin\ProductOptionController;
+use App\Http\Controllers\Admin\ProductVariantController;
 use App\Http\Controllers\Admin\ProfileController;
 use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\Admin\ReviewController;
@@ -25,7 +33,8 @@ use App\Http\Controllers\Admin\TrackingPixelController;
 use App\Http\Controllers\Admin\UserController;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware(['auth'])->group(function () {
+// RoleMiddleware also enforces active-account status on shared admin routes.
+Route::middleware(['auth', 'role:admin,employee'])->group(function () {
 
     /*
     |--------------------------------------------------------------------------
@@ -34,6 +43,70 @@ Route::middleware(['auth'])->group(function () {
     */
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard.index');
+
+    /* P24: The short /admin/storefront URL is an admin-only entrance, not a public shop. */
+    Route::get('/storefront', [HomepageBuilderController::class, 'entry'])
+        ->middleware('role:admin')->name('storefront.entry');
+
+    // P26 local-only: explicit authenticated POST grants a read-only showroom
+    // in the current Admin browser session. No GET mutation or customer access.
+    Route::get('/storefront/readiness', [StorefrontReadinessController::class, 'index'])
+        ->middleware('role:admin')->name('storefront.readiness');
+    Route::post('/storefront/readiness/enable', [StorefrontReadinessController::class, 'enable'])
+        ->middleware('role:admin')->name('storefront.readiness.enable');
+    Route::post('/storefront/readiness/disable', [StorefrontReadinessController::class, 'disable'])
+        ->middleware('role:admin')->name('storefront.readiness.disable');
+
+    /* P05 test-only homepage drafts. Admin authorization and MySQL isolation rechecked in controller/service. */
+    Route::middleware('role:admin')->prefix('storefront/home')->as('storefront.home.')->group(function () {
+        Route::get('/', [HomepageBuilderController::class, 'index'])->name('index');
+        Route::post('/draft', [HomepageBuilderController::class, 'start'])->name('draft');
+        Route::post('/draft/discard', [HomepageBuilderController::class, 'discardDraft'])->name('draft.discard');
+        Route::post('/restore/{revision}', [HomepageBuilderController::class, 'restore'])->whereNumber('revision')->name('restore');
+        Route::delete('/history/{revision}', [HomepageBuilderController::class, 'hideArchived'])->whereNumber('revision')->name('history.hide');
+        Route::post('/sections', [HomepageBuilderController::class, 'addSection'])->name('sections.store');
+        Route::patch('/sections/reorder', [HomepageBuilderController::class, 'reorder'])->name('sections.reorder');
+        Route::patch('/sections/{sectionKey}', [HomepageBuilderController::class, 'saveSection'])->whereUuid('sectionKey')->name('sections.update');
+        Route::patch('/sections/{sectionKey}/move', [HomepageBuilderController::class, 'move'])->whereUuid('sectionKey')->name('sections.move');
+        Route::delete('/sections/{sectionKey}', [HomepageBuilderController::class, 'deleteSection'])->whereUuid('sectionKey')->name('sections.delete');
+        Route::post('/sections/{sectionKey}/hero-images', [HomepageBuilderController::class, 'uploadHeroImages'])->whereUuid('sectionKey')->name('hero-images.store');
+        Route::post('/sections/{sectionKey}/items', [HomepageBuilderController::class, 'addItem'])->whereUuid('sectionKey')->name('items.store');
+        Route::patch('/sections/{sectionKey}/items/{itemKey}', [HomepageBuilderController::class, 'updateItem'])
+            ->whereUuid('sectionKey')->whereUuid('itemKey')->name('items.update');
+        Route::delete('/sections/{sectionKey}/items/{itemKey}', [HomepageBuilderController::class, 'deleteItem'])
+            ->whereUuid('sectionKey')->whereUuid('itemKey')->name('items.delete');
+        Route::patch('/theme', [HomepageBuilderController::class, 'theme'])->name('theme');
+        Route::post('/publish', [HomepageBuilderController::class, 'publish'])->name('publish');
+        Route::get('/preview', [HomepageBuilderController::class, 'preview'])->name('preview');
+    });
+
+    // Homepage/global delivery areas share the existing shipping_charges model,
+    // but never edit campaign_id-scoped shipping records.
+    Route::middleware('role:admin')->prefix('homepage-shipping-charges')
+        ->as('homepage-shipping-charges.')->group(function (): void {
+            Route::get('/', [HomepageShippingChargeController::class, 'index'])->name('index');
+            Route::post('/', [HomepageShippingChargeController::class, 'store'])->name('store');
+            Route::patch('/{charge}', [HomepageShippingChargeController::class, 'update'])->whereNumber('charge')->name('update');
+            Route::delete('/{charge}', [HomepageShippingChargeController::class, 'destroy'])->whereNumber('charge')->name('destroy');
+        });
+
+    // Storefront questions are NOT campaign FAQs. Admin-only CRUD.
+    Route::prefix('storefront-faqs')->as('storefront-faqs.')->middleware('role:admin')->group(function (): void {
+        Route::get('/', [StorefrontFaqController::class, 'index'])->name('index');
+        Route::get('/create', [StorefrontFaqController::class, 'create'])->name('create');
+        Route::post('/', [StorefrontFaqController::class, 'store'])->name('store');
+        Route::get('/{faq}/edit', [StorefrontFaqController::class, 'edit'])->whereNumber('faq')->name('edit');
+        Route::put('/{faq}', [StorefrontFaqController::class, 'update'])->whereNumber('faq')->name('update');
+        Route::delete('/{faq}', [StorefrontFaqController::class, 'destroy'])->whereNumber('faq')->name('destroy');
+    });
+
+    // Customer correspondence is private; only active admins may view or mutate it.
+    Route::prefix('storefront-messages')->as('storefront-messages.')->middleware('role:admin')->group(function (): void {
+        Route::get('/', [StorefrontMessageController::class, 'index'])->name('index');
+        Route::get('/{message}', [StorefrontMessageController::class, 'show'])->whereNumber('message')->name('show');
+        Route::patch('/{message}', [StorefrontMessageController::class, 'update'])->whereNumber('message')->name('update');
+        Route::delete('/{message}', [StorefrontMessageController::class, 'destroy'])->whereNumber('message')->name('destroy');
+    });
 
     Route::get('/profile', [ProfileController::class, 'profile'])->name('profile');
     Route::post('/profile', [ProfileController::class, 'updateProfile'])->name('profile.update');
@@ -207,6 +280,10 @@ Route::middleware(['auth'])->group(function () {
             Route::patch('/{order}/mark-as-fake', [OrderController::class, 'markAsFake'])->name('mark_as_fake');
             Route::patch('/{order}/restore-fake', [OrderController::class, 'restoreFake'])->name('restore_fake');
 
+            // Test-only managed quantity edits; controller + service enforce
+            // independent isolated MySQL guards and CSRF/auth middleware.
+            Route::patch('/{order}/managed-items/{item}/quantity', [OrderController::class, 'updateManagedItemQuantity'])
+                ->name('managed_items.quantity');
             Route::get('/{order}/edit', [OrderController::class, 'edit'])->name('edit');
             Route::put('/{order}', [OrderController::class, 'update'])->name('update');
             Route::patch('/{order}', [OrderController::class, 'update']);
@@ -232,6 +309,21 @@ Route::middleware(['auth'])->group(function () {
         ->group(function () {
 
             Route::middleware(['role:admin'])->group(function () {
+                // P33 catalog admin: restricted isolated QA or verified loopback main DB; controller/service re-checks identity.
+                Route::get('/options/manage', [ProductOptionController::class, 'index'])->name('options.index');
+                Route::post('/options/bootstrap', [ProductOptionController::class, 'bootstrap'])->name('options.bootstrap');
+                Route::post('/options/{option}/values', [ProductOptionController::class, 'value'])->name('options.values.store');
+                Route::patch('/options/{option}/values/{value}', [ProductOptionController::class, 'updateValue'])->name('options.values.update');
+                Route::delete('/options/{option}/values/{value}', [ProductOptionController::class, 'destroyValue'])->name('options.values.destroy');
+                Route::get('/{product}/variants', [ProductVariantController::class, 'index'])->name('variants.index');
+                Route::post('/{product}/variants/prepare', [ProductVariantController::class, 'prepare'])->name('variants.prepare');
+                Route::post('/{product}/variants/convert', [ProductVariantController::class, 'convert'])->name('variants.convert');
+                Route::post('/{product}/variants/activate', [ProductVariantController::class, 'activate'])->name('variants.activate');
+                Route::post('/{product}/variants/pause', [ProductVariantController::class, 'pause'])->name('variants.pause');
+                Route::post('/{product}/variants', [ProductVariantController::class, 'store'])->name('variants.store');
+                Route::patch('/{product}/variants/{variant}', [ProductVariantController::class, 'update'])->name('variants.update');
+                Route::post('/{product}/variants/{variant}/stock', [ProductVariantController::class, 'stock'])->name('variants.stock');
+
                 Route::get('/create', [ProductController::class, 'create'])->name('create');
                 Route::post('/', [ProductController::class, 'store'])->name('store');
 
@@ -667,6 +759,14 @@ Route::middleware(['auth'])->group(function () {
         Route::prefix('reports')
             ->as('reports.')
             ->group(function () {
+                // P56: GET-only retained Order Purge Audit history, admin-only by parent middleware.
+                // Static paths must precede the reports/{report} catch-all route.
+                Route::prefix('audit-logs')->as('audit-logs.')->middleware('role:admin')->group(function (): void {
+                    Route::get('/', [OrderPurgeAuditLogController::class, 'index'])->name('index');
+                    Route::get('/export', [OrderPurgeAuditLogController::class, 'export'])->name('export');
+                    Route::get('/{audit}', [OrderPurgeAuditLogController::class, 'show'])
+                        ->whereNumber('audit')->name('show');
+                });
                 Route::post('/multiple-action', [ReportController::class, 'multipleAction'])->name('multiple_action');
 
                 Route::get('/create', [ReportController::class, 'create'])->name('create');
@@ -701,6 +801,10 @@ Route::middleware(['auth'])->group(function () {
                 Route::get('/campaign/{section}', 'campaignSection')
                     ->whereIn('section', ['hero', 'section', 'product', 'review', 'gallery'])
                     ->name('campaign.section');
+
+                Route::get('/homepage', 'homepage')->name('homepage');
+                Route::get('/homepage/{section}', 'homepageSection')
+                    ->whereIn('section', ['hero', 'content', 'branding'])->name('homepage.section');
 
                 Route::get('/other', 'other')->name('other');
 

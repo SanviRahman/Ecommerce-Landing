@@ -1,0 +1,285 @@
+{
+  "note": "Manifest excludes both manifest documents to avoid self-hash recursion",
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "bytes": 7743,
+      "sha256": "311a6f79d18809b6a8cdf70814f490511cbb08d6ddbd44e9222744c1bc64c068"
+    },
+    {
+      "path": "ERD.md",
+      "bytes": 7364,
+      "sha256": "e23c1ef7238924b3dce1e1d3573a3ec82dc72bf27d64ca09d3256bb71998790d"
+    },
+    {
+      "path": "FIRST-CODEX-TASK.md",
+      "bytes": 1625,
+      "sha256": "6d92931c3a56048eeef4004364c8d58438bbe91bf77b77073d1fa10e40e478ea"
+    },
+    {
+      "path": "MEETING-MERGE-SUMMARY.md",
+      "bytes": 6456,
+      "sha256": "27c1adb21029a213c734379d56e54a9a84a2f64aa8a30b417c11478ebae9afde"
+    },
+    {
+      "path": "README-START-HERE.md",
+      "bytes": 6950,
+      "sha256": "c68181b550ea99e9d386f99a73ba42349334726cb31a115313cb6e684dc55070"
+    },
+    {
+      "path": "SOURCE-EVIDENCE.md",
+      "bytes": 39700,
+      "sha256": "f8b11cfc4a0ed275196e02700e823bae35f3e862eec71d9787d6a3c6dbb3c078"
+    },
+    {
+      "path": "START-HERE-BN.md",
+      "bytes": 9424,
+      "sha256": "3d2dc5e187486cd10e0498da3b27fa5024be9dac47fc99c84d7c82e5e06feceb"
+    },
+    {
+      "path": "agnet.md",
+      "bytes": 537,
+      "sha256": "68cc271eb61f0975681001bce94c8b04c49dabdc1aede5728545248f8371cecc"
+    },
+    {
+      "path": "bugfix.md",
+      "bytes": 530,
+      "sha256": "ea53b7764b89f3b0e1939924807cb0e3abaee3521bd7b12341bee46b5ce1dec0"
+    },
+    {
+      "path": "constraints.md",
+      "bytes": 1870,
+      "sha256": "761d46a4ed5aed80a38206426318ca97d5b1d200f92c3674d0a8cb0c9a35dacd"
+    },
+    {
+      "path": "database-schema.md",
+      "bytes": 19934,
+      "sha256": "c9b943e994bd2f6efb08c51bd5e8881a9a565f36808d5c63738f33dc3b1eb0c0"
+    },
+    {
+      "path": "databasechema.md",
+      "bytes": 417,
+      "sha256": "dcedf2406a2c8f1992c5a93446b70de5aef1f4bf79b1428bbce5fd03d83a98b3"
+    },
+    {
+      "path": "docs/00-source-audit.md",
+      "bytes": 5033,
+      "sha256": "058de99ec4c3b3250ba97f497d10fd45f89a01ff69d1642da02ff4614d937804"
+    },
+    {
+      "path": "docs/01-requirements.md",
+      "bytes": 6485,
+      "sha256": "96efde42e0e64b54866882d4be0794e1c34afbc5456a209ea5f554fb2cafe1f8"
+    },
+    {
+      "path": "docs/02-architecture.md",
+      "bytes": 5786,
+      "sha256": "ed42fa3dbc1ef696fb0fc7d11b490990e581fa1c252f0e41ca800c9368035026"
+    },
+    {
+      "path": "docs/03-bugfix-register.md",
+      "bytes": 5825,
+      "sha256": "a5033660efea9841f73a39f5a928209a89c29e84ad2ae7a98e434c2536660c8d"
+    },
+    {
+      "path": "docs/04-migrations-and-backfill.md",
+      "bytes": 6188,
+      "sha256": "70a34a28c7ce195be7ad02b51545fa149ba35bb702652cc17d4619aa2af24dae"
+    },
+    {
+      "path": "docs/05-products-and-inventory.md",
+      "bytes": 8735,
+      "sha256": "4057b2e9b9d02b0f895db11b41bd444665c0149cdecf8ae7559ca7fab5a3f3a7"
+    },
+    {
+      "path": "docs/06-homepage-builder.md",
+      "bytes": 7297,
+      "sha256": "1f49cf8aaf63a94c164c112696914b115269cb3743bcb69b954515d40bc61e4d"
+    },
+    {
+      "path": "docs/07-section-theme-and-widgets.md",
+      "bytes": 8380,
+      "sha256": "4280be625fcd7d3f623c0cf01f7de72574f86416f590062fdcda3845ae912e06"
+    },
+    {
+      "path": "docs/08-routes-and-contracts.md",
+      "bytes": 8197,
+      "sha256": "255326d7b84614f900135bcfa9d1f08e431b3c7d8efe9aa623a9c887915e3e88"
+    },
+    {
+      "path": "docs/09-cart-and-checkout.md",
+      "bytes": 6125,
+      "sha256": "4fbc93a053ed3bd1df2849eea50ef0c72482e9377275c29565fb07d43b943d14"
+    },
+    {
+      "path": "docs/10-security-and-media.md",
+      "bytes": 5251,
+      "sha256": "51e902db117a2cf058cf0362b3226c65c0c11619603bda9c56e4147878518111"
+    },
+    {
+      "path": "docs/11-file-impact-map.md",
+      "bytes": 11352,
+      "sha256": "f912f89bea6a8adc25110aaf7f36c39921fa80020ffccff8e713048c39f671f9"
+    },
+    {
+      "path": "docs/12-testing-and-acceptance.md",
+      "bytes": 10485,
+      "sha256": "6df6587dcaa8bbc9baa645c64fb248608d7aba24433bbe42d8430bfaf8c9fd73"
+    },
+    {
+      "path": "docs/13-deployment-and-rollback.md",
+      "bytes": 7161,
+      "sha256": "b1344768333612eb3308c8f90d3b3562a40fc956e9ca875d91ddc43473078493"
+    },
+    {
+      "path": "docs/14-implementation-sequence.md",
+      "bytes": 6156,
+      "sha256": "94caf5d24b9e2febd7233102223814d6d7fe6a8768688d5a13325e4ed73a22c0"
+    },
+    {
+      "path": "docs/15-codex-prompts.md",
+      "bytes": 11321,
+      "sha256": "444807e322350005607f891b1f5aa3f5b6dcae92fdf4a14b705dfb625e6eb333"
+    },
+    {
+      "path": "docs/16-decisions-and-open-items.md",
+      "bytes": 5353,
+      "sha256": "1bc7e735d91cac1f2b12d9ebd96f156717615dbddb11a489a4eec3b6a70494f9"
+    },
+    {
+      "path": "docs/17-progress.md",
+      "bytes": 2918,
+      "sha256": "7fa4ebd23871efcc90d389dada60a7d8b517ab04d0da450436b0eb7f2ffeb0e5"
+    },
+    {
+      "path": "docs/18-references.md",
+      "bytes": 3747,
+      "sha256": "d42e2b4e8d450deb09c5cb463fd8e27550acfadb7a142770e7a477a6b8b21cf3"
+    },
+    {
+      "path": "docs/19-meeting-source-and-coverage.md",
+      "bytes": 6192,
+      "sha256": "3e1543c5e3142c3b852e07231997aa237590daca898ac07812249bfd608c7599"
+    },
+    {
+      "path": "docs/20-meeting-traceability.md",
+      "bytes": 6349,
+      "sha256": "d7aecc69dd3af0e565f4b71eaab16eea8f0ab2d5f63ca4d5c73e603fda53035a"
+    },
+    {
+      "path": "docs/21-client-srs-merged.md",
+      "bytes": 16918,
+      "sha256": "5e841aad3f95eb25bbee152b2f8c0218fed05c7001826e067d63dcf462da5563"
+    },
+    {
+      "path": "docs/22-ui-workflows.md",
+      "bytes": 9934,
+      "sha256": "2162806b37d02335ae28efb1d75d05543574b38101f21b4eead78c3feebd9214"
+    },
+    {
+      "path": "docs/23-decisions-conflicts.md",
+      "bytes": 7280,
+      "sha256": "25d15c75e3e3ee7c7e9eae39c517f82168922e8608c1ee06bcd8bda39af30368"
+    },
+    {
+      "path": "docs/24-codex-meeting-integration-prompts.md",
+      "bytes": 7511,
+      "sha256": "ec2d8f66fac441dc8bba15737b140d5756780f7e1ed7843f1cd1da61b2890d7d"
+    },
+    {
+      "path": "docs/25-meeting-tests.md",
+      "bytes": 6915,
+      "sha256": "cbc40be527666ee815443f5250bd006e5227903650d243895576634c6ec6c71a"
+    },
+    {
+      "path": "docs/26-meeting-transcript-and-feedback-index.md",
+      "bytes": 4118,
+      "sha256": "601bebc00cbc0790dc4c229d48f12aa334a2d807b4147c5526ee4943cfdf806c"
+    },
+    {
+      "path": "docs/27-developer-tasks.md",
+      "bytes": 5665,
+      "sha256": "24d719cef65270c0a0737a8e5abf88ef2ee6e6f21c6b4ebb22fc9cbb332ff306"
+    },
+    {
+      "path": "project-overview.md",
+      "bytes": 6889,
+      "sha256": "35625490c9c7fe5f7cd0cc2eca8926818b29ca6df50f43dd9ee0d9bad3fd9cc3"
+    },
+    {
+      "path": "references/01-leatherket-section-admin.png",
+      "bytes": 119373,
+      "sha256": "0f348dcdd6dd9aeddc0a048b8704cefa277cccd53c716ce20888829f0b476c90"
+    },
+    {
+      "path": "references/02-htbazar-floating-cart.png",
+      "bytes": 675593,
+      "sha256": "5ff83fb34ea4eaba659d3a59c273de7aa9b1a9cf170be9618079ccaeb51bb0f9"
+    },
+    {
+      "path": "references/03-htbazar-mobile-nav-reviews.png",
+      "bytes": 578358,
+      "sha256": "a20be1d91b9705097e453d53b378a6f09838ddf16d6d8b1b0bc4118898223a35"
+    },
+    {
+      "path": "references/04-htbazar-contact-menu.png",
+      "bytes": 575986,
+      "sha256": "a8278b473f2cbb4219540edbf00c13e4239ae0aff27c6dd61942682c4ba6e227"
+    },
+    {
+      "path": "references/05-hero-admin-color-controls.png",
+      "bytes": 187115,
+      "sha256": "dbcd4e9166df19849d79ec8974a1039b6b0a1508f511a3e0161ff7e55cb3900f"
+    },
+    {
+      "path": "references/06-section-admin-color-controls.png",
+      "bytes": 184366,
+      "sha256": "a72518bba16c1d306a0d56e99b95f1a8682bab6ee641e157a6990b34896aad27"
+    },
+    {
+      "path": "references/README.md",
+      "bytes": 1400,
+      "sha256": "084915ed12429c76075f911691f547041e510e9ef8f4a35775217b9afd62bf4f"
+    },
+    {
+      "path": "reports/audit-summary.json",
+      "bytes": 1028,
+      "sha256": "8d589535d94c19ba091b73867bdcb8894367dac6888d903d635f3a78e8feb51d"
+    },
+    {
+      "path": "reports/baseline-document-validation.json",
+      "bytes": 376,
+      "sha256": "a49b868ebfbbe5eceb47499506a6b311e542fd876155550396036fe7a3375935"
+    },
+    {
+      "path": "reports/baseline-file-manifest.json",
+      "bytes": 6818,
+      "sha256": "0354749c59e665cfe1c5939f78d61f582e031dc9bd1d0b82e72ad21a240f7854"
+    },
+    {
+      "path": "reports/document-validation.json",
+      "bytes": 494,
+      "sha256": "85f1efa396eb400d49af8d1d5ba4627380b513f6417bc9eaa3bdcd0368a63359"
+    },
+    {
+      "path": "reports/meeting-merge-validation.json",
+      "bytes": 459,
+      "sha256": "1682b5e7bc846f588161fd0d64a97db3fc039b9925b955c548e8da30be562338"
+    },
+    {
+      "path": "reports/php-syntax-check.json",
+      "bytes": 47176,
+      "sha256": "54e71586f28a4bc006fd1fc511a690b9e7c3db58b6a3270633e0dc6369164b7d"
+    },
+    {
+      "path": "rules.md",
+      "bytes": 671,
+      "sha256": "83d96ffcffb76b2c09c41444808db3766c36f233b5b0d11f5e4988351595b0bf"
+    },
+    {
+      "path": "sources/client-meeting-provided.pdf",
+      "bytes": 620509,
+      "sha256": "d974c4f318c8bda0383d9756538a51c28243c11271180ed70706e163b6ba2611"
+    }
+  ]
+}

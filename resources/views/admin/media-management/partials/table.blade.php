@@ -98,6 +98,17 @@
                     <td>
                         <span class="badge badge-light border">{{ $collectionLabel }}</span>
                         <div class="text-muted small"><code>{{ $media->collection_name }}</code></div>
+                        @if(!empty($homepageMediaSectionLabels[$media->id]))
+                            <div class="mt-1"><span class="badge badge-success">Homepage: {{ implode(' / ', $homepageMediaSectionLabels[$media->id]) }}</span></div>
+                        @endif
+                        @if($media->model_type === \App\Models\SiteSetting::class && str_starts_with((string) $media->collection_name, 'storefront_'))
+                            <div class="text-muted small mt-1" style="overflow-wrap:anywhere;">
+                                <i class="fas fa-folder-open mr-1" aria-hidden="true"></i>
+                                {{ $media->getCustomProperty('homepage_named_path', false)
+                                    ? $media->getPathRelativeToRoot()
+                                    : 'Legacy ID folder /' . $media->id . ' (run media:organize-homepage for named folders)' }}
+                            </div>
+                        @endif
                     </td>
                     <td>
                         @if($isImage)

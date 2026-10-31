@@ -1,0 +1,20 @@
+/* P62: focused fixes to P61. The homepage's desktop header retains its
+   original three-column layout. Mobile alone receives the menu trigger. */
+@media (min-width: 761px) {
+    body.p34-storefront .p59-header-menu { display: none !important; }
+}
+
+/* P61 raised the backdrop above z-index:40 drawers. That made both the cart
+   and its Checkout link sit under a full-screen blur. Keep the active drawer
+   ABOVE the backdrop; never blur page/cart content. */
+body.p34-storefront .p19-drawer-backdrop {
+    z-index: 10000;
+    background: rgba(5, 25, 18, .18);
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
+body.p34-storefront .p19-drawer-backdrop[data-drawer-kind="cart"] {
+    background: transparent;
+}
+body.p34-storefront .p19-cart-drawer { z-index: 10001; }
+body.p34-storefront .p19-menu-drawer { z-index: 10001; }

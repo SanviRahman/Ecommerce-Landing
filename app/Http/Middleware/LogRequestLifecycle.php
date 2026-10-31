@@ -64,7 +64,7 @@ class LogRequestLifecycle
         $context = [
             'request_id' => $requestId,
             'method' => $request->method(),
-            'path' => $request->path(),
+            'path' => $this->redactedPath($request),
             'route_name' => null,
             'route_action' => null,
             'user_id' => null,
@@ -86,6 +86,19 @@ class LogRequestLifecycle
         }
 
         return $context;
+    }
+
+    private function redactedPath(Request $request): string
+    {
+        $path = $request->path();
+
+        // /success/{token} grants access to customer/order details. Never
+        // persist the bearer token in application lifecycle logs.
+        if (preg_match('~^success/[^/]+/?$~i', $path)) {
+            return 'success/[REDACTED]';
+        }
+
+        return $path;
     }
 
     private function safeLog(string $level, string $message, array $context = []): void

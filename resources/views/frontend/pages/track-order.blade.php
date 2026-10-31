@@ -21,92 +21,14 @@
 @section('meta_description', 'ফোন নম্বর দিয়ে আপনার অর্ডারের সর্বশেষ অবস্থা দেখুন।')
 
 @push('css')
-<style>
-    .track-page {
-        min-height: 70vh;
-        padding: 65px 0;
-        background: #f8fafc;
-    }
-
-    .track-box {
-        max-width: 860px;
-        margin: 0 auto;
-        padding: 34px;
-        border: 1px solid #e5e7eb;
-        border-radius: 18px;
-        background: #ffffff;
-        box-shadow: 0 18px 50px rgba(15, 23, 42, .07);
-    }
-
-    .track-title {
-        font-size: 30px;
-        font-weight: 900;
-        color: #334155;
-        text-align: center;
-    }
-
-    .track-subtitle {
-        color: #64748b;
-        text-align: center;
-        margin-bottom: 26px;
-    }
-
-    .track-input {
-        height: 50px;
-        border-radius: 10px;
-    }
-
-    .track-button {
-        min-width: 150px;
-        height: 50px;
-        border-radius: 10px;
-        font-weight: 800;
-    }
-
-    .track-order-card {
-        border: 1px solid #e5e7eb;
-        border-radius: 14px;
-        padding: 20px;
-        margin-top: 18px;
-    }
-
-    .track-status {
-        display: inline-block;
-        padding: 5px 10px;
-        border-radius: 999px;
-        background: #dcfce7;
-        color: #166534;
-        font-weight: 800;
-        font-size: 13px;
-    }
-
-    .track-meta {
-        color: #64748b;
-        font-size: 14px;
-        line-height: 1.8;
-    }
-
-    @media (max-width: 575px) {
-        .track-box {
-            padding: 24px 18px;
-        }
-
-        .track-form-row {
-            display: block !important;
-        }
-
-        .track-button {
-            width: 100%;
-            margin-top: 10px;
-        }
-    }
-</style>
+<link rel="stylesheet" href="{{ asset('frontend/css/track-order.css') }}?v=20261024-frontend2">
 @endpush
 
 @section('content')
 <section class="track-page">
     <div class="container">
         <div class="track-box">
+            <p><a href="{{ route('home') }}">← দোকানের হোমপেজে ফিরুন</a></p>
             <h1 class="track-title">অর্ডার ট্র্যাক করুন</h1>
             <p class="track-subtitle">অর্ডারে ব্যবহার করা ১১ সংখ্যার ফোন নম্বরটি লিখুন।</p>
 
@@ -115,9 +37,9 @@
                 <div class="d-flex track-form-row">
                     <input
                         type="tel"
-                        name="phone"
-                        value="{{ old('phone', $searchedPhone) }}"
-                        class="form-control track-input mr-sm-2 @error('phone') is-invalid @enderror"
+                        name="tracking_phone"
+                        value="{{ old('tracking_phone', $searchedPhone) }}"
+                        class="form-control track-input mr-sm-2 @error('tracking_phone') is-invalid @enderror"
                         placeholder="01XXXXXXXXX"
                         maxlength="11"
                         inputmode="numeric"
@@ -131,7 +53,7 @@
                     </button>
                 </div>
 
-                @error('phone')
+                @error('tracking_phone')
                     <div class="text-danger small mt-2">{{ $message }}</div>
                 @enderror
             </form>

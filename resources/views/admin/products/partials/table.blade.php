@@ -158,6 +158,14 @@
                                     <i class="fas fa-eye"></i>
                                 </a>
 
+                                @if(auth()->user()->isAdmin() && ($variantAdminAvailable ?? false))
+                                    <a href="{{ route('admin.products.variants.index', $product->id) }}"
+                                       class="btn btn-sm btn-white text-success"
+                                       title="Manage Variants / Stock" aria-label="Manage variants and stock for {{ $product->name }}">
+                                        <i class="fas fa-layer-group" aria-hidden="true"></i>
+                                    </a>
+                                @endif
+
                                 {{-- Only Admin can edit product --}}
                                 @if(auth()->user()->isAdmin())
                                     <button type="button"

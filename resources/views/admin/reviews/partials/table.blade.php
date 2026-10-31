@@ -29,7 +29,12 @@
                     </td>
                     <td>
                         <div class="small text-muted mb-1">{{ $review->campaign->title ?? 'General/Store Review' }}</div>
-                        <div class="text-orange small">
+                        @if($review->campaign_id === null)
+                            <span class="badge badge-info">Global / Storefront</span>
+                        @else
+                            <span class="badge badge-light border text-muted">Campaign only</span>
+                        @endif
+                        <div class="text-orange small mt-1">
                             @for($i=1; $i<=5; $i++)
                                 <i class="fa{{ $i <= $review->rating ? 's' : 'r' }} fa-star"></i>
                             @endfor

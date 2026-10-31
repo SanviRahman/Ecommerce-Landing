@@ -1,0 +1,1187 @@
+{
+  "php": "PHP 8.4.24 (cli) (built: Jul 31 2026 05:11:11) (NTS)",
+  "count": 234,
+  "passed": 234,
+  "failures": [],
+  "results": [
+    {
+      "path": "app/Observers/OrderBidirectionalSyncObserver.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Observers/OrderBidirectionalSyncObserver.php"
+    },
+    {
+      "path": "app/Providers/AppServiceProvider.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Providers/AppServiceProvider.php"
+    },
+    {
+      "path": "app/MediaLibrary/LandingMediaPathGenerator.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/MediaLibrary/LandingMediaPathGenerator.php"
+    },
+    {
+      "path": "app/MediaLibrary/ProductMediaPathGenerator.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/MediaLibrary/ProductMediaPathGenerator.php"
+    },
+    {
+      "path": "app/MediaLibrary/LandingMediaSectionMap.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/MediaLibrary/LandingMediaSectionMap.php"
+    },
+    {
+      "path": "app/Traits/HasSoftDeleteActions.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Traits/HasSoftDeleteActions.php"
+    },
+    {
+      "path": "app/Traits/HasMetadataTrait.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Traits/HasMetadataTrait.php"
+    },
+    {
+      "path": "app/Traits/HasMediaTrait.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Traits/HasMediaTrait.php"
+    },
+    {
+      "path": "app/Services/ExternalOrderSyncService.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Services/ExternalOrderSyncService.php"
+    },
+    {
+      "path": "app/Services/ExternalOrderImportService.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Services/ExternalOrderImportService.php"
+    },
+    {
+      "path": "app/Services/PublicMediaStorageService.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Services/PublicMediaStorageService.php"
+    },
+    {
+      "path": "app/Services/OrderBlockService.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Services/OrderBlockService.php"
+    },
+    {
+      "path": "app/Services/ProductMediaSectionOrganizerService.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Services/ProductMediaSectionOrganizerService.php"
+    },
+    {
+      "path": "app/Services/TodayReportSummaryService.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Services/TodayReportSummaryService.php"
+    },
+    {
+      "path": "app/Services/LandingMediaSectionOrganizerService.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Services/LandingMediaSectionOrganizerService.php"
+    },
+    {
+      "path": "app/Services/PathaoCourierService.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Services/PathaoCourierService.php"
+    },
+    {
+      "path": "app/Services/PathaoStatusService.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Services/PathaoStatusService.php"
+    },
+    {
+      "path": "app/Services/CampaignAutoSelectionService.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Services/CampaignAutoSelectionService.php"
+    },
+    {
+      "path": "app/Services/OrderManagementService.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Services/OrderManagementService.php"
+    },
+    {
+      "path": "app/Services/CustomerIdentityService.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Services/CustomerIdentityService.php"
+    },
+    {
+      "path": "app/Services/ExternalOrderPayloadBuilder.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Services/ExternalOrderPayloadBuilder.php"
+    },
+    {
+      "path": "app/Services/BdCourierFraudCheckerService.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Services/BdCourierFraudCheckerService.php"
+    },
+    {
+      "path": "app/Services/SteadfastCourierService.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Services/SteadfastCourierService.php"
+    },
+    {
+      "path": "app/Services/SteadfastStatusService.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Services/SteadfastStatusService.php"
+    },
+    {
+      "path": "app/Services/TrackingPixelService.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Services/TrackingPixelService.php"
+    },
+    {
+      "path": "app/Services/DynamicPricingService.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Services/DynamicPricingService.php"
+    },
+    {
+      "path": "app/Services/BulkOrderManagementService.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Services/BulkOrderManagementService.php"
+    },
+    {
+      "path": "app/Services/FakeOrderDetectionService.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Services/FakeOrderDetectionService.php"
+    },
+    {
+      "path": "app/Services/CourierWebhookLogger.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Services/CourierWebhookLogger.php"
+    },
+    {
+      "path": "app/Services/OrderAssignmentService.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Services/OrderAssignmentService.php"
+    },
+    {
+      "path": "app/Services/ExternalOrderSenderService.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Services/ExternalOrderSenderService.php"
+    },
+    {
+      "path": "app/Models/EmployeeAssignmentCursor.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Models/EmployeeAssignmentCursor.php"
+    },
+    {
+      "path": "app/Models/MediaLibraryAsset.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Models/MediaLibraryAsset.php"
+    },
+    {
+      "path": "app/Models/ExternalWebsite.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Models/ExternalWebsite.php"
+    },
+    {
+      "path": "app/Models/Category.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Models/Category.php"
+    },
+    {
+      "path": "app/Models/ShippingCharge.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Models/ShippingCharge.php"
+    },
+    {
+      "path": "app/Models/CourierAccount.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Models/CourierAccount.php"
+    },
+    {
+      "path": "app/Models/CreatePage.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Models/CreatePage.php"
+    },
+    {
+      "path": "app/Models/Order.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Models/Order.php"
+    },
+    {
+      "path": "app/Models/Customer.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Models/Customer.php"
+    },
+    {
+      "path": "app/Models/OrderStatusLog.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Models/OrderStatusLog.php"
+    },
+    {
+      "path": "app/Models/OrderField.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Models/OrderField.php"
+    },
+    {
+      "path": "app/Models/Courier.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Models/Courier.php"
+    },
+    {
+      "path": "app/Models/Brand.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Models/Brand.php"
+    },
+    {
+      "path": "app/Models/Review.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Models/Review.php"
+    },
+    {
+      "path": "app/Models/ExternalOrderSync.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Models/ExternalOrderSync.php"
+    },
+    {
+      "path": "app/Models/SocialMedia.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Models/SocialMedia.php"
+    },
+    {
+      "path": "app/Models/TrackingPixel.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Models/TrackingPixel.php"
+    },
+    {
+      "path": "app/Models/FakeOrderLog.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Models/FakeOrderLog.php"
+    },
+    {
+      "path": "app/Models/User.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Models/User.php"
+    },
+    {
+      "path": "app/Models/BlockedCustomer.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Models/BlockedCustomer.php"
+    },
+    {
+      "path": "app/Models/CourierWebhookLog.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Models/CourierWebhookLog.php"
+    },
+    {
+      "path": "app/Models/SiteSetting.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Models/SiteSetting.php"
+    },
+    {
+      "path": "app/Models/OrderItem.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Models/OrderItem.php"
+    },
+    {
+      "path": "app/Models/Campaign.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Models/Campaign.php"
+    },
+    {
+      "path": "app/Models/BulkOrder.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Models/BulkOrder.php"
+    },
+    {
+      "path": "app/Models/Product.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Models/Product.php"
+    },
+    {
+      "path": "app/Models/BulkOrderBatch.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Models/BulkOrderBatch.php"
+    },
+    {
+      "path": "app/Models/ReportExport.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Models/ReportExport.php"
+    },
+    {
+      "path": "app/Models/Faq.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Models/Faq.php"
+    },
+    {
+      "path": "app/Models/Banner.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Models/Banner.php"
+    },
+    {
+      "path": "app/Rules/SocialLink.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Rules/SocialLink.php"
+    },
+    {
+      "path": "app/Http/Controllers/Controller.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Http/Controllers/Controller.php"
+    },
+    {
+      "path": "app/Http/Middleware/LogRequestLifecycle.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Http/Middleware/LogRequestLifecycle.php"
+    },
+    {
+      "path": "app/Http/Middleware/LteContext.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Http/Middleware/LteContext.php"
+    },
+    {
+      "path": "app/Http/Middleware/AuthenticateExternalWebsiteToken.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Http/Middleware/AuthenticateExternalWebsiteToken.php"
+    },
+    {
+      "path": "app/Http/Middleware/RoleMiddleware.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Http/Middleware/RoleMiddleware.php"
+    },
+    {
+      "path": "app/Http/Requests/Admin/StoreExternalWebsiteRequest.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Http/Requests/Admin/StoreExternalWebsiteRequest.php"
+    },
+    {
+      "path": "app/Http/Requests/Api/StoreExternalOrderRequest.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Http/Requests/Api/StoreExternalOrderRequest.php"
+    },
+    {
+      "path": "app/Http/Controllers/Admin/ProductController.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Http/Controllers/Admin/ProductController.php"
+    },
+    {
+      "path": "app/Http/Controllers/Admin/MediaManagementController.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Http/Controllers/Admin/MediaManagementController.php"
+    },
+    {
+      "path": "app/Http/Controllers/Admin/CourierAccountController.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Http/Controllers/Admin/CourierAccountController.php"
+    },
+    {
+      "path": "app/Http/Controllers/Admin/OrderController.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Http/Controllers/Admin/OrderController.php"
+    },
+    {
+      "path": "app/Http/Controllers/Admin/ReviewController.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Http/Controllers/Admin/ReviewController.php"
+    },
+    {
+      "path": "app/Http/Controllers/Admin/CampaignOrderController.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Http/Controllers/Admin/CampaignOrderController.php"
+    },
+    {
+      "path": "app/Http/Controllers/Admin/FaqController.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Http/Controllers/Admin/FaqController.php"
+    },
+    {
+      "path": "app/Http/Controllers/Admin/UserController.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Http/Controllers/Admin/UserController.php"
+    },
+    {
+      "path": "app/Http/Controllers/Admin/CampaignController.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Http/Controllers/Admin/CampaignController.php"
+    },
+    {
+      "path": "app/Http/Controllers/Admin/BannerController.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Http/Controllers/Admin/BannerController.php"
+    },
+    {
+      "path": "app/Http/Controllers/Admin/CategoryController.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Http/Controllers/Admin/CategoryController.php"
+    },
+    {
+      "path": "app/Http/Controllers/Admin/BrandController.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Http/Controllers/Admin/BrandController.php"
+    },
+    {
+      "path": "app/Http/Controllers/Admin/DashboardController.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Http/Controllers/Admin/DashboardController.php"
+    },
+    {
+      "path": "app/Http/Controllers/Admin/SiteSettingController.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Http/Controllers/Admin/SiteSettingController.php"
+    },
+    {
+      "path": "app/Http/Controllers/Admin/BulkOrderController.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Http/Controllers/Admin/BulkOrderController.php"
+    },
+    {
+      "path": "app/Http/Controllers/Admin/TrackingPixelController.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Http/Controllers/Admin/TrackingPixelController.php"
+    },
+    {
+      "path": "app/Http/Controllers/Admin/CampaignPageController.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Http/Controllers/Admin/CampaignPageController.php"
+    },
+    {
+      "path": "app/Http/Controllers/Admin/BulkOrderEntryController.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Http/Controllers/Admin/BulkOrderEntryController.php"
+    },
+    {
+      "path": "app/Http/Controllers/Admin/CourierController.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Http/Controllers/Admin/CourierController.php"
+    },
+    {
+      "path": "app/Http/Controllers/Admin/BlockedCustomerController.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Http/Controllers/Admin/BlockedCustomerController.php"
+    },
+    {
+      "path": "app/Http/Controllers/Admin/ExternalWebsiteController.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Http/Controllers/Admin/ExternalWebsiteController.php"
+    },
+    {
+      "path": "app/Http/Controllers/Admin/ProfileController.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Http/Controllers/Admin/ProfileController.php"
+    },
+    {
+      "path": "app/Http/Controllers/Admin/CreatePageController.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Http/Controllers/Admin/CreatePageController.php"
+    },
+    {
+      "path": "app/Http/Controllers/Admin/SocialMediaController.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Http/Controllers/Admin/SocialMediaController.php"
+    },
+    {
+      "path": "app/Http/Controllers/Admin/ReportController.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Http/Controllers/Admin/ReportController.php"
+    },
+    {
+      "path": "app/Http/Controllers/Webhook/SteadfastWebhookController.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Http/Controllers/Webhook/SteadfastWebhookController.php"
+    },
+    {
+      "path": "app/Http/Controllers/Webhook/PathaoWebhookController.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Http/Controllers/Webhook/PathaoWebhookController.php"
+    },
+    {
+      "path": "app/Http/Controllers/Frontend/OrderSuccessController.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Http/Controllers/Frontend/OrderSuccessController.php"
+    },
+    {
+      "path": "app/Http/Controllers/Frontend/HomeController.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Http/Controllers/Frontend/HomeController.php"
+    },
+    {
+      "path": "app/Http/Controllers/Frontend/OrderTrackingController.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Http/Controllers/Frontend/OrderTrackingController.php"
+    },
+    {
+      "path": "app/Http/Controllers/Api/ExternalOrderController.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Http/Controllers/Api/ExternalOrderController.php"
+    },
+    {
+      "path": "app/Http/Controllers/Auth/VerificationController.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Http/Controllers/Auth/VerificationController.php"
+    },
+    {
+      "path": "app/Http/Controllers/Auth/ResetPasswordController.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Http/Controllers/Auth/ResetPasswordController.php"
+    },
+    {
+      "path": "app/Http/Controllers/Auth/LoginController.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Http/Controllers/Auth/LoginController.php"
+    },
+    {
+      "path": "app/Http/Controllers/Auth/ConfirmPasswordController.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Http/Controllers/Auth/ConfirmPasswordController.php"
+    },
+    {
+      "path": "app/Http/Controllers/Auth/RegisterController.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Http/Controllers/Auth/RegisterController.php"
+    },
+    {
+      "path": "app/Http/Controllers/Auth/ForgotPasswordController.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Http/Controllers/Auth/ForgotPasswordController.php"
+    },
+    {
+      "path": "app/Console/Commands/RepairPublicStorageLink.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Console/Commands/RepairPublicStorageLink.php"
+    },
+    {
+      "path": "app/Console/Commands/SyncSteadfastStatuses.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Console/Commands/SyncSteadfastStatuses.php"
+    },
+    {
+      "path": "app/Console/Commands/DiagnoseCampaignAutoSelection.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Console/Commands/DiagnoseCampaignAutoSelection.php"
+    },
+    {
+      "path": "app/Console/Commands/NormalizeBulkOrderAdminNotes.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Console/Commands/NormalizeBulkOrderAdminNotes.php"
+    },
+    {
+      "path": "app/Console/Commands/CleanupMissingMedia.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Console/Commands/CleanupMissingMedia.php"
+    },
+    {
+      "path": "app/Console/Commands/MediaStorageDoctor.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Console/Commands/MediaStorageDoctor.php"
+    },
+    {
+      "path": "app/Console/Commands/NormalizeCourierOrderStatuses.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Console/Commands/NormalizeCourierOrderStatuses.php"
+    },
+    {
+      "path": "app/Console/Commands/SyncPathaoStatuses.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Console/Commands/SyncPathaoStatuses.php"
+    },
+    {
+      "path": "app/Console/Commands/SeparateCourierCancelledOrders.php",
+      "success": true,
+      "detail": "No syntax errors detected in app/Console/Commands/SeparateCourierCancelledOrders.php"
+    },
+    {
+      "path": "bootstrap/runtime.php",
+      "success": true,
+      "detail": "No syntax errors detected in bootstrap/runtime.php"
+    },
+    {
+      "path": "bootstrap/providers.php",
+      "success": true,
+      "detail": "No syntax errors detected in bootstrap/providers.php"
+    },
+    {
+      "path": "bootstrap/app.php",
+      "success": true,
+      "detail": "No syntax errors detected in bootstrap/app.php"
+    },
+    {
+      "path": "bootstrap/cache/services.php",
+      "success": true,
+      "detail": "No syntax errors detected in bootstrap/cache/services.php"
+    },
+    {
+      "path": "bootstrap/cache/packages.php",
+      "success": true,
+      "detail": "No syntax errors detected in bootstrap/cache/packages.php"
+    },
+    {
+      "path": "config/filesystems.php",
+      "success": true,
+      "detail": "No syntax errors detected in config/filesystems.php"
+    },
+    {
+      "path": "config/cache.php",
+      "success": true,
+      "detail": "No syntax errors detected in config/cache.php"
+    },
+    {
+      "path": "config/mail.php",
+      "success": true,
+      "detail": "No syntax errors detected in config/mail.php"
+    },
+    {
+      "path": "config/queue.php",
+      "success": true,
+      "detail": "No syntax errors detected in config/queue.php"
+    },
+    {
+      "path": "config/campaign-routes.php",
+      "success": true,
+      "detail": "No syntax errors detected in config/campaign-routes.php"
+    },
+    {
+      "path": "config/media-library.php",
+      "success": true,
+      "detail": "No syntax errors detected in config/media-library.php"
+    },
+    {
+      "path": "config/session.php",
+      "success": true,
+      "detail": "No syntax errors detected in config/session.php"
+    },
+    {
+      "path": "config/steadfast.php",
+      "success": true,
+      "detail": "No syntax errors detected in config/steadfast.php"
+    },
+    {
+      "path": "config/services.php",
+      "success": true,
+      "detail": "No syntax errors detected in config/services.php"
+    },
+    {
+      "path": "config/logging.php",
+      "success": true,
+      "detail": "No syntax errors detected in config/logging.php"
+    },
+    {
+      "path": "config/couriers.php",
+      "success": true,
+      "detail": "No syntax errors detected in config/couriers.php"
+    },
+    {
+      "path": "config/database.php",
+      "success": true,
+      "detail": "No syntax errors detected in config/database.php"
+    },
+    {
+      "path": "config/permission.php",
+      "success": true,
+      "detail": "No syntax errors detected in config/permission.php"
+    },
+    {
+      "path": "config/auth.php",
+      "success": true,
+      "detail": "No syntax errors detected in config/auth.php"
+    },
+    {
+      "path": "config/app.php",
+      "success": true,
+      "detail": "No syntax errors detected in config/app.php"
+    },
+    {
+      "path": "config/adminlte.php",
+      "success": true,
+      "detail": "No syntax errors detected in config/adminlte.php"
+    },
+    {
+      "path": "routes/console.php",
+      "success": true,
+      "detail": "No syntax errors detected in routes/console.php"
+    },
+    {
+      "path": "routes/user.php",
+      "success": true,
+      "detail": "No syntax errors detected in routes/user.php"
+    },
+    {
+      "path": "routes/web.php",
+      "success": true,
+      "detail": "No syntax errors detected in routes/web.php"
+    },
+    {
+      "path": "routes/api.php",
+      "success": true,
+      "detail": "No syntax errors detected in routes/api.php"
+    },
+    {
+      "path": "routes/command.php",
+      "success": true,
+      "detail": "No syntax errors detected in routes/command.php"
+    },
+    {
+      "path": "routes/admin.php",
+      "success": true,
+      "detail": "No syntax errors detected in routes/admin.php"
+    },
+    {
+      "path": "database/seeders/ProductSeeder.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/seeders/ProductSeeder.php"
+    },
+    {
+      "path": "database/seeders/SocialMediaSeeder.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/seeders/SocialMediaSeeder.php"
+    },
+    {
+      "path": "database/seeders/ReportExportSeeder.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/seeders/ReportExportSeeder.php"
+    },
+    {
+      "path": "database/seeders/CategorySeeder.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/seeders/CategorySeeder.php"
+    },
+    {
+      "path": "database/seeders/ReviewSeeder.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/seeders/ReviewSeeder.php"
+    },
+    {
+      "path": "database/seeders/PageSeeder.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/seeders/PageSeeder.php"
+    },
+    {
+      "path": "database/seeders/EmployeeSeeder.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/seeders/EmployeeSeeder.php"
+    },
+    {
+      "path": "database/seeders/BrandSeeder.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/seeders/BrandSeeder.php"
+    },
+    {
+      "path": "database/seeders/CourierAccountSeeder.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/seeders/CourierAccountSeeder.php"
+    },
+    {
+      "path": "database/seeders/BulkOrderSeeder.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/seeders/BulkOrderSeeder.php"
+    },
+    {
+      "path": "database/seeders/FaqSeeder.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/seeders/FaqSeeder.php"
+    },
+    {
+      "path": "database/seeders/AdminUserSeeder.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/seeders/AdminUserSeeder.php"
+    },
+    {
+      "path": "database/seeders/DatabaseSeeder.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/seeders/DatabaseSeeder.php"
+    },
+    {
+      "path": "database/seeders/BannerSeeder.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/seeders/BannerSeeder.php"
+    },
+    {
+      "path": "database/seeders/OrderSeeder.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/seeders/OrderSeeder.php"
+    },
+    {
+      "path": "database/seeders/CourierSeeder.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/seeders/CourierSeeder.php"
+    },
+    {
+      "path": "database/seeders/TrackingPixelSeeder.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/seeders/TrackingPixelSeeder.php"
+    },
+    {
+      "path": "database/seeders/CampaignSeeder.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/seeders/CampaignSeeder.php"
+    },
+    {
+      "path": "database/migrations/2026_08_09_125343_add_source_ordered_at_to_orders_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_08_09_125343_add_source_ordered_at_to_orders_table.php"
+    },
+    {
+      "path": "database/migrations/2026_06_15_144321_add_custom_order_list_moved_at_to_orders_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_06_15_144321_add_custom_order_list_moved_at_to_orders_table.php"
+    },
+    {
+      "path": "database/migrations/2026_05_03_053526_create_order_status_logs_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_05_03_053526_create_order_status_logs_table.php"
+    },
+    {
+      "path": "database/migrations/2026_05_26_111357_create_order_fields_and_add_order_field_id_to_orders_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_05_26_111357_create_order_fields_and_add_order_field_id_to_orders_table.php"
+    },
+    {
+      "path": "database/migrations/2026_05_03_122546_add_role_to_users_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_05_03_122546_add_role_to_users_table.php"
+    },
+    {
+      "path": "database/migrations/2026_05_18_051741_add_hero_contact_fields_to_campaigns_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_05_18_051741_add_hero_contact_fields_to_campaigns_table.php"
+    },
+    {
+      "path": "database/migrations/2026_05_03_053537_create_fake_order_logs_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_05_03_053537_create_fake_order_logs_table.php"
+    },
+    {
+      "path": "database/migrations/2026_05_17_071838_add_frontend_section_fields_to_campaigns_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_05_17_071838_add_frontend_section_fields_to_campaigns_table.php"
+    },
+    {
+      "path": "database/migrations/2026_06_02_082402_create_employee_assignment_cursors_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_06_02_082402_create_employee_assignment_cursors_table.php"
+    },
+    {
+      "path": "database/migrations/2026_05_05_084244_add_script_code_to_tracking_pixels_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_05_05_084244_add_script_code_to_tracking_pixels_table.php"
+    },
+    {
+      "path": "database/migrations/2026_08_01_165217_add_public_route_fields_to_campaigns_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_08_01_165217_add_public_route_fields_to_campaigns_table.php"
+    },
+    {
+      "path": "database/migrations/0001_01_01_000002_create_jobs_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/0001_01_01_000002_create_jobs_table.php"
+    },
+    {
+      "path": "database/migrations/2026_08_01_140447_add_order_tracking_section_status_to_campaigns_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_08_01_140447_add_order_tracking_section_status_to_campaigns_table.php"
+    },
+    {
+      "path": "database/migrations/2026_05_03_052948_create_orders_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_05_03_052948_create_orders_table.php"
+    },
+    {
+      "path": "database/migrations/2026_05_04_133124_change_default_role_in_users_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_05_04_133124_change_default_role_in_users_table.php"
+    },
+    {
+      "path": "database/migrations/2026_05_10_163406_create_courier_accounts_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_05_10_163406_create_courier_accounts_table.php"
+    },
+    {
+      "path": "database/migrations/2026_09_03_144315_add_hero_video_and_footer_controls_to_campaigns_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_09_03_144315_add_hero_video_and_footer_controls_to_campaigns_table.php"
+    },
+    {
+      "path": "database/migrations/2026_06_01_095911_add_discount_amount_to_order_items_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_06_01_095911_add_discount_amount_to_order_items_table.php"
+    },
+    {
+      "path": "database/migrations/2026_05_03_050729_create_brands_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_05_03_050729_create_brands_table.php"
+    },
+    {
+      "path": "database/migrations/2026_05_17_114039_add_campaign_dynamic_fields_and_category_brand_pivots.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_05_17_114039_add_campaign_dynamic_fields_and_category_brand_pivots.php"
+    },
+    {
+      "path": "database/migrations/2026_05_03_052918_create_banners_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_05_03_052918_create_banners_table.php"
+    },
+    {
+      "path": "database/migrations/2026_06_18_093843_add_trash_columns_to_media_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_06_18_093843_add_trash_columns_to_media_table.php"
+    },
+    {
+      "path": "database/migrations/2026_08_09_080504_add_inbound_connection_approval_to_external_websites_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_08_09_080504_add_inbound_connection_approval_to_external_websites_table.php"
+    },
+    {
+      "path": "database/migrations/2026_07_17_172451_add_fraud_check_summary_to_orders_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_07_17_172451_add_fraud_check_summary_to_orders_table.php"
+    },
+    {
+      "path": "database/migrations/2026_06_19_180647_create_media_library_assets_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_06_19_180647_create_media_library_assets_table.php"
+    },
+    {
+      "path": "database/migrations/2026_09_05_223235_add_device_identifier_to_orders_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_09_05_223235_add_device_identifier_to_orders_table.php"
+    },
+    {
+      "path": "database/migrations/2026_05_03_122555_add_assigned_employee_id_to_orders_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_05_03_122555_add_assigned_employee_id_to_orders_table.php"
+    },
+    {
+      "path": "database/migrations/2026_05_03_050704_create_tracking_pixels_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_05_03_050704_create_tracking_pixels_table.php"
+    },
+    {
+      "path": "database/migrations/2026_06_20_115815_add_manual_order_tracking_to_orders_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_06_20_115815_add_manual_order_tracking_to_orders_table.php"
+    },
+    {
+      "path": "database/migrations/2026_05_03_050716_create_categories_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_05_03_050716_create_categories_table.php"
+    },
+    {
+      "path": "database/migrations/2026_07_21_102826_create_bulk_order_batches_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_07_21_102826_create_bulk_order_batches_table.php"
+    },
+    {
+      "path": "database/migrations/2026_05_12_084402_create_couriers_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_05_12_084402_create_couriers_table.php"
+    },
+    {
+      "path": "database/migrations/2026_05_26_174813_add_invoice_print_tracking_to_orders_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_05_26_174813_add_invoice_print_tracking_to_orders_table.php"
+    },
+    {
+      "path": "database/migrations/2026_05_15_074354_add_success_token_to_orders_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_05_15_074354_add_success_token_to_orders_table.php"
+    },
+    {
+      "path": "database/migrations/2026_05_06_104614_add_courier_service_to_orders_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_05_06_104614_add_courier_service_to_orders_table.php"
+    },
+    {
+      "path": "database/migrations/2026_05_26_102140_add_help_section_status_to_campaigns_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_05_26_102140_add_help_section_status_to_campaigns_table.php"
+    },
+    {
+      "path": "database/migrations/2026_06_19_164005_add_shipped_at_to_orders_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_06_19_164005_add_shipped_at_to_orders_table.php"
+    },
+    {
+      "path": "database/migrations/2026_05_03_051630_create_faqs_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_05_03_051630_create_faqs_table.php"
+    },
+    {
+      "path": "database/migrations/2026_07_21_102846_add_customer_and_bulk_order_fields_to_orders_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_07_21_102846_add_customer_and_bulk_order_fields_to_orders_table.php"
+    },
+    {
+      "path": "database/migrations/2026_06_24_134822_add_dashboard_reporting_columns_to_orders_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_06_24_134822_add_dashboard_reporting_columns_to_orders_table.php"
+    },
+    {
+      "path": "database/migrations/2026_05_03_051554_create_campaign_product_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_05_03_051554_create_campaign_product_table.php"
+    },
+    {
+      "path": "database/migrations/2026_08_02_055033_repair_courier_webhook_logs_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_08_02_055033_repair_courier_webhook_logs_table.php"
+    },
+    {
+      "path": "database/migrations/2026_05_11_095556_add_pathao_fields_to_courier_accounts_and_orders.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_05_11_095556_add_pathao_fields_to_courier_accounts_and_orders.php"
+    },
+    {
+      "path": "database/migrations/0001_01_01_000001_create_cache_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/0001_01_01_000001_create_cache_table.php"
+    },
+    {
+      "path": "database/migrations/2026_08_01_130556_create_courier_webhook_logs_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_08_01_130556_create_courier_webhook_logs_table.php"
+    },
+    {
+      "path": "database/migrations/2026_05_07_114740_add_steadfast_fields_to_orders_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_05_07_114740_add_steadfast_fields_to_orders_table.php"
+    },
+    {
+      "path": "database/migrations/2026_05_12_081956_add_settings_to_courier_accounts_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_05_12_081956_add_settings_to_courier_accounts_table.php"
+    },
+    {
+      "path": "database/migrations/2026_05_05_172701_create_report_exports_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_05_05_172701_create_report_exports_table.php"
+    },
+    {
+      "path": "database/migrations/2026_09_04_173038_backfill_campaign_shipping_charges_from_global_shipping_charges.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_09_04_173038_backfill_campaign_shipping_charges_from_global_shipping_charges.php"
+    },
+    {
+      "path": "database/migrations/2026_09_04_151918_add_campaign_id_to_shipping_charges_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_09_04_151918_add_campaign_id_to_shipping_charges_table.php"
+    },
+    {
+      "path": "database/migrations/2026_05_03_051531_create_products_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_05_03_051531_create_products_table.php"
+    },
+    {
+      "path": "database/migrations/0001_01_01_000000_create_users_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/0001_01_01_000000_create_users_table.php"
+    },
+    {
+      "path": "database/migrations/2026_07_21_094741_create_customers_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_07_21_094741_create_customers_table.php"
+    },
+    {
+      "path": "database/migrations/2026_05_03_043948_create_permission_tables.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_05_03_043948_create_permission_tables.php"
+    },
+    {
+      "path": "database/migrations/2026_08_05_153242_create_bidirectional_external_order_sync_structure.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_08_05_153242_create_bidirectional_external_order_sync_structure.php"
+    },
+    {
+      "path": "database/migrations/2026_07_24_174651_create_blocked_customers_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_07_24_174651_create_blocked_customers_table.php"
+    },
+    {
+      "path": "database/migrations/2026_08_02_122401_add_dynamic_pathao_credentials_to_courier_accounts_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_08_02_122401_add_dynamic_pathao_credentials_to_courier_accounts_table.php"
+    },
+    {
+      "path": "database/migrations/2026_05_30_064553_add_custom_order_list_to_orders_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_05_30_064553_add_custom_order_list_to_orders_table.php"
+    },
+    {
+      "path": "database/migrations/2026_05_03_050650_create_social_media_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_05_03_050650_create_social_media_table.php"
+    },
+    {
+      "path": "database/migrations/2026_05_03_053002_create_order_items_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_05_03_053002_create_order_items_table.php"
+    },
+    {
+      "path": "database/migrations/2026_05_03_053545_create_bulk_orders_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_05_03_053545_create_bulk_orders_table.php"
+    },
+    {
+      "path": "database/migrations/2026_05_03_052903_create_reviews_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_05_03_052903_create_reviews_table.php"
+    },
+    {
+      "path": "database/migrations/2026_06_13_153917_add_is_default_to_campaigns_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_06_13_153917_add_is_default_to_campaigns_table.php"
+    },
+    {
+      "path": "database/migrations/2026_05_15_125902_change_token_column_type_in_courier_accounts_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_05_15_125902_change_token_column_type_in_courier_accounts_table.php"
+    },
+    {
+      "path": "database/migrations/2026_05_03_051612_create_create_pages_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_05_03_051612_create_create_pages_table.php"
+    },
+    {
+      "path": "database/migrations/2026_08_19_081136_repair_fraud_check_summary_columns_on_orders_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_08_19_081136_repair_fraud_check_summary_columns_on_orders_table.php"
+    },
+    {
+      "path": "database/migrations/2026_05_03_052932_create_shipping_charges_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_05_03_052932_create_shipping_charges_table.php"
+    },
+    {
+      "path": "database/migrations/2026_05_03_050639_create_site_settings_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_05_03_050639_create_site_settings_table.php"
+    },
+    {
+      "path": "database/migrations/2026_05_03_051541_create_campaigns_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_05_03_051541_create_campaigns_table.php"
+    },
+    {
+      "path": "database/migrations/2026_07_29_103547_allow_shared_phone_numbers_for_customers.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_07_29_103547_allow_shared_phone_numbers_for_customers.php"
+    },
+    {
+      "path": "database/migrations/2026_05_10_163424_add_free_delivery_and_courier_account_fields.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_05_10_163424_add_free_delivery_and_courier_account_fields.php"
+    },
+    {
+      "path": "database/migrations/2026_05_12_120640_add_merchant_id_and_phone_number_to_couriers_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_05_12_120640_add_merchant_id_and_phone_number_to_couriers_table.php"
+    },
+    {
+      "path": "database/migrations/2026_05_03_043117_create_media_table.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/migrations/2026_05_03_043117_create_media_table.php"
+    },
+    {
+      "path": "database/factories/UserFactory.php",
+      "success": true,
+      "detail": "No syntax errors detected in database/factories/UserFactory.php"
+    }
+  ],
+  "not_run": [
+    "Composer install",
+    "Artisan boot",
+    "Database migrations",
+    "Feature tests",
+    "Browser tests",
+    "Build",
+    "Concurrency tests"
+  ]
+}

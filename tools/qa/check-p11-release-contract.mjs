@@ -1,0 +1,75 @@
+/** P11 source-only release contract, intentionally separate from MySQL/browser gates. */
+import fs from 'node:fs';
+import path from 'node:path';
+const root = path.resolve(import.meta.dirname, '../..');
+const read = (name) => fs.readFileSync(path.join(root, name), 'utf8');
+const exists = (name) => fs.existsSync(path.join(root, name));
+let count = 0;
+function check(label, value) {
+  if (!value) { console.error('FAIL ' + label); process.exitCode = 1; return; }
+  console.log('PASS ' + label); ++count;
+}
+const product = read('resources/views/storefront/pages/product.blade.php');
+const test = read('tests/Feature/Storefront/P10StorefrontIntegrationMySqlTest.php');
+const controller = read('app/Http/Controllers/Frontend/StorefrontCartController.php');
+const routes = read('routes/storefront.php');
+const flags = read('config/storefront.php');
+const policy = read('tools/qa/P11ReadinessPolicy.php');
+const review = read('tools/qa/p11-readiness-review.php');
+const fingerprint = read('tools/qa/p11-source-manifest.mjs');
+const startup = read('tools/qa/P02TestSchemaGate.php');
+const p09 = read('tools/qa/p09-checkout-race-smoke.php');
+const qa = read('tools/qa/check-p10-integration.mjs');
+const docs = read('docs/13-deployment-and-rollback.md');
+const notes = read('P11-START-HERE-BN.md');
+const adminValidationViews = [
+  'resources/views/admin/site-settings/index.blade.php',
+  'resources/views/admin/reports/create.blade.php',
+  'resources/views/admin/reports/edit.blade.php',
+  'resources/views/admin/tracking-pixels/partials/form.blade.php',
+].map(read);
+check('Admin validation errors are always Blade-escaped',
+  adminValidationViews.every((view) => view.includes('{{ $error }}')
+    && !/{!!\s*\$error\s*!!}/.test(view)));
+check('P10 product still renders genuine validation feedback', product.includes('$errors->any()') && product.includes('role="alert"'));
+check('P10 product remembers rejected quantity', product.includes("old('quantity', 1)"));
+check('P10 form carries scoped feedback origin', product.includes('name="storefront_product_origin"') && product.includes('{{ $product->slug }}'));
+check('P10 product shows validated flashed bag or scoped fallback', product.includes("old('storefront_product_origin') === $product->slug") && product.includes('$flashedProductErrors->all()') && product.includes('$rejectedProductForm'));
+check('P10 error feedback is server-rendered and escaped', product.includes('role="alert"') && product.includes('<li>{{ $error }}</li>') && !product.includes('{!! $error !!}'));
+check('P10 test enables real cart flow', test.includes("config()->set('storefront.p08_cart_test_enabled', true)"));
+check('P10 test submits a real invalid cart POST', test.includes("->post(route('storefront.cart.add')"));
+check('P10 test follows validation redirect', test.includes('assertSessionHasErrors') && test.includes('assertRedirect($productUrl)'));
+check('P10 test asserts no order or cart mutation', test.includes("DB::table('orders')->count()") && test.includes("DB::table('cart_items')->count()"));
+check('P10 test no longer injects an artificial error bag', !test.includes('new ViewErrorBag()'));
+check('Existing cart mutation uses real validation', controller.includes('$request->validate('));
+check('Cart and checkout routes still have CSRF-protected POST verbs', /Route::post\('\/cart\/items'/.test(routes) && /Route::post\('\/checkout'/.test(routes));
+check('Legacy campaigns still have independent one-segment routes', read('routes/web.php').includes("Route::get('/{customRoute}'"));
+check('P03 core stays OFF at baseline', flags.includes("'p03_core_test_enabled' => false"));
+check('P03 legacy writer stays OFF at baseline', flags.includes("'p03_order_writer_test_enabled' => false"));
+check('P07 and P08 flags default OFF', ['P07_CATALOG_TEST_ENABLED', 'P08_CART_TEST_ENABLED', 'P08_CHECKOUT_TEST_ENABLED'].every((s) => flags.includes(`env('${s}', false)`)));
+check('P11 requires explicit read-only opt-in', review.includes("P11_READ_ONLY_APPROVED') !== 'YES_ISOLATED_ONLY'"));
+check('P11 uses restricted local MySQL gate', review.includes('P02TestSchemaGate::connectFromEnvironment()') && review.includes('P02TestSchemaGate::evaluate('));
+check('P11 contains no ORM/database-writing path', !/\b(?:INSERT\s+INTO|UPDATE\s+\w+\s+SET|DELETE\s+FROM|TRUNCATE\s+TABLE|ALTER\s+TABLE|DROP\s+TABLE)\b/i.test(review));
+check('P11 reads only aggregate SQL counters', review.includes('COUNT(*)') && !review.includes('SELECT *'));
+check('P11 guards migration/schema consistency', review.includes("'ALREADY_APPLIED'"));
+check('P11 never reports full production ready', !policy.includes('PRODUCTION_READY') && policy.includes('STAGING_DATA_CANDIDATE_ONLY'));
+check('P11 fails closed when required metrics are absent', policy.includes('array_key_exists(') && policy.includes('InvalidArgumentException'));
+check('P11 blocks legacy active inventory', policy.includes('active_legacy_products'));
+check('P11 blocks variant stock mirror mismatches', policy.includes('managed_stock_mismatches'));
+check('P11 blocks invalid simple SKU/variable options', policy.includes('invalid_simple_defaults') && policy.includes('invalid_variable_options'));
+check('P11 blocks broken published revisions', policy.includes('broken_published_revisions'));
+check('P11 requires global shipping and published homepage', policy.includes('global_shipping_areas') && policy.includes('published_homepages'));
+check('P11 data blocker yields nonzero exit', review.includes('exit($result') && review.includes('? 0 : 3'));
+check('P11 manifest uses explicit source allowlist', fingerprint.includes('const roots = [') && fingerprint.includes("'public/frontend'"));
+check('P11 manifest excludes user media and .env', !fingerprint.includes("collect('.env')") && !fingerprint.includes("'public/storage'") && !fingerprint.includes("'storage'"));
+check('P11 manifest contains only file hashes and sizes', fingerprint.includes("createHash('sha256')") && fingerprint.includes('bytes: buffer.length'));
+check('P11 manifest is read-only unless --write passed', fingerprint.includes("cmd === '--write'"));
+check('Existing P09 independent race guard preserved', p09.includes('P09_RACE_WRITE_APPROVED'));
+check('Existing P10 source-checker preserved', qa.includes('P10 UI/integration source contracts'));
+check('Existing rollback policy warns about incompatible old code', docs.includes('schema/inventory-compatible'));
+check('P11 operator guide explicitly forbids unauthorised activation', notes.includes('Do not enable feature flags') && notes.includes('owner approval'));
+check('P11 pure policy unit test exists', exists('tools/qa/check-p11-readiness-policy.php'));
+check('P11 source fingerprint exists', exists('reports/p11-source-manifest.json'));
+check('P11 provides a single-command read-only regression gate', exists('tools/qa/p11-offline-gate.mjs') && read('tools/qa/p11-offline-gate.mjs').includes('CODE_REVIEW_ONLY'));
+check('P11 sign-off has no preapproved operations', read('docs/P11-release-signoff-template.md').includes('NO-GO for production') && !read('docs/P11-release-signoff-template.md').includes('- [x]'));
+console.log(`RESULT: ${count}/42 P11 static release safety contracts ${process.exitCode ? 'FAIL' : 'PASS'} (no database).`);

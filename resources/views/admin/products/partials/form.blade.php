@@ -17,6 +17,38 @@
     @method('PUT')
     @endif
 
+    <div class="alert alert-light border mb-3" role="note">
+        <strong>Category and variant setup:</strong> Select an existing parent/sub-category below.
+        <a href="{{ route('admin.categories.index') }}" target="_blank" rel="noopener">Manage sub-categories</a> ·
+        <a href="{{ route('admin.products.options.index') }}" target="_blank" rel="noopener">Color / Size / Weight values</a>.
+        @if($isEdit)
+            <a class="btn btn-sm btn-outline-success ml-2" href="{{ route('admin.products.variants.index', $product->id) }}">Set variant prices and stock</a>
+        @else
+            <span class="small d-block mt-1">For a NEW variable product select Color and/or Size below and set initial Stock to <b>0</b>. A draft SKU will be created automatically. More combinations and their prices can be managed under <b>Variants</b>. The new variable product starts inactive. Once SKU options and audited stock are ready, use Variants > Validate & Activate for Storefront on the approved database. Production checkout has its own separate release gate. Existing campaign inventory is never converted automatically.</span>
+        @endif
+    </div>
+    @if(!$isEdit && !empty($initialVariationOptions))
+        <section class="card border-success mb-3" aria-labelledby="p36-initial-variant-heading">
+            <div class="card-body">
+                <h2 class="h6 font-weight-bold text-success" id="p36-initial-variant-heading">Initial Color / Size Variation (optional)</h2>
+                <p class="small text-muted">Choose Color and/or Size while creating the product. A managed zero-stock SKU is created without changing any existing product. The variable product remains <strong>inactive / not purchasable</strong> until the administrator validates and activates its managed variants on the approved storefront database. Production sales remain independently gated. Review combinations and prices in Variant Manager.</p>
+                <div class="row">
+                    @foreach(['color' => 'Color', 'size' => 'Size'] as $optionCode => $optionLabel)
+                        <div class="col-sm-6 form-group">
+                            <label for="p36-option-{{ $optionCode }}">{{ $optionLabel }}</label>
+                            <select id="p36-option-{{ $optionCode }}" name="initial_variation[{{ $optionCode }}]" class="form-control @error('initial_variation.'.$optionCode) is-invalid @enderror">
+                                <option value="">No {{ strtolower($optionLabel) }} variation</option>
+                                @foreach(($initialVariationOptions[$optionCode]->values ?? []) as $value)
+                                    <option value="{{ $value->id }}" @selected((string) old('initial_variation.'.$optionCode) === (string) $value->id)>{{ $value->label }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    @endforeach
+                </div>
+                <small class="text-muted">For multiple combinations and separate prices use <a href="{{ route('admin.products.options.index') }}" target="_blank" rel="noopener">Option Values</a> and Variant Manager after creation.</small>
+            </div>
+        </section>
+    @endif
     <div class="row">
         <div class="col-md-6">
             <div class="form-group">
@@ -56,7 +88,7 @@
                     @foreach($categories as $category)
                     <option value="{{ $category->id }}" @selected(old('category_id', $product->category_id ?? '') ==
                         $category->id)>
-                        {{ $category->name }}
+                        {{ $category->parent_id ? '↳ ' : '' }}{{ $category->name }}
                     </option>
                     @endforeach
                 </select>
@@ -134,10 +166,13 @@
 
         <div class="col-md-4">
             <div class="form-group">
-                <label>Stock</label>
+                <label>Stock {{ $isEdit && (int) ($product->inventory_version ?? 0) === 1 ? '(managed)' : '' }}</label>
 
                 <input type="number" name="stock" value="{{ old('stock', $product->stock ?? 0) }}" class="form-control"
-                    min="0" placeholder="0">
+                    min="0" placeholder="0" @if($isEdit && (int) ($product->inventory_version ?? 0) === 1) readonly aria-readonly="true" @endif>
+                @if($isEdit && (int) ($product->inventory_version ?? 0) === 1)
+                    <small class="text-muted d-block">Adjust stock through the audited Variants page.</small>
+                @endif
             </div>
         </div>
 

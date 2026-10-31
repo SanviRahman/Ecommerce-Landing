@@ -97,6 +97,8 @@ class BulkOrderEntryController extends Controller
             $isEmployeeCreator,
             $customerIdentityService
         ) {
+            app(\App\Services\Inventory\ManagedOrderWriter::class)->assertTransactionReady();
+
             $batch = BulkOrderBatch::query()->create([
                 'batch_uid'       => $this->generateBatchUid(),
                 'created_by'      => $currentUser->id,
@@ -205,6 +207,8 @@ class BulkOrderEntryController extends Controller
                  * for an Employee-created bulk order it keeps the current employee.
                  * Save only the concise note requested by the client.
                  */
+                app(\App\Services\Inventory\ManagedOrderWriter::class)->allocateCreatedOrder($order->id, 'bulk_orders');
+
                 $order->loadMissing('assignedEmployee');
 
                 $bulkCompletionNote = $this->makeBulkCompletionNote(
