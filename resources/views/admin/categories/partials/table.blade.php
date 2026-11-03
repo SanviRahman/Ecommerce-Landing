@@ -9,7 +9,6 @@
                 <th>Category Detail</th>
                 <th>Slug</th>
                 <th>Products</th>
-                <th>Front View</th>
                 <th>Status</th>
                 <th width="160" class="text-right px-4">Actions</th>
             </tr>
@@ -67,14 +66,6 @@
                 </td>
 
                 <td>
-                    @if($category->is_front_view)
-                    <span class="badge badge-primary px-3">Front View</span>
-                    @else
-                    <span class="badge badge-light border text-muted px-3">Hidden</span>
-                    @endif
-                </td>
-
-                <td>
                     @if(isset($isTrash) && $isTrash)
                     <span class="badge badge-danger px-3">Deleted</span>
                     @else
@@ -118,7 +109,7 @@
             </tr>
             @empty
             <tr>
-                <td colspan="7" class="text-center py-5">
+                <td colspan="6" class="text-center py-5">
                     <div class="py-4">
                         <i class="fas fa-list fa-3x text-light mb-3"></i>
                         <h6 class="text-muted">No categories found matching your criteria.</h6>

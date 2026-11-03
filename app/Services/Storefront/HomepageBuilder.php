@@ -280,10 +280,9 @@ final class HomepageBuilder
                 if ($limit < 1 || $limit > 24) {
                     $this->reject('Select between 1 and 24 products.', 'product_limit');
                 }
-                $sort = (string) ($data['product_sort'] ?? 'newest');
-                if (! in_array($sort, ['newest', 'name', 'price_asc', 'price_desc'], true)) {
-                    $this->reject('Unsupported product sorting.', 'product_sort');
-                }
+                // Category shelf order is now maintained in one admin screen.
+                // This preference stays in the schema for older published revisions.
+                $sort = 'manual';
                 DB::table('homepage_sections')->where('id', $section->id)->update([
                     'category_id' => $categoryId,
                     'include_descendants' => (bool) ($data['include_descendants'] ?? false),
@@ -563,7 +562,7 @@ final class HomepageBuilder
                 if (! $category || ($category->parent_id !== null && ! DB::table('categories')->where('id', $category->parent_id)
                     ->where('status', true)->whereNull('deleted_at')->whereNull('parent_id')->exists())
                     || (int) $section->product_limit < 1 || (int) $section->product_limit > 24
-                    || ! in_array($section->product_sort, ['newest', 'name', 'price_asc', 'price_desc'], true)) {
+                    || ! in_array($section->product_sort, ['manual', 'newest', 'name', 'price_asc', 'price_desc'], true)) {
                     $this->reject('Category product section needs an active category and valid limit/sort.');
                 }
             } elseif ($section->type === 'category_grid' || $section->type === 'product_list') {

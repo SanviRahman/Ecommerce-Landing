@@ -499,6 +499,12 @@ return [
                     'icon' => 'far fa-fw fa-circle',
                     'can'  => 'admin-only',
                 ],
+                [
+                    'text' => 'Category & Product Order',
+                    'url'  => 'admin/catalog-order',
+                    'icon' => 'fas fa-fw fa-sort',
+                    'can'  => 'admin-only',
+                ],
             ],
         ],
         [

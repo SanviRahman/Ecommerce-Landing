@@ -25,13 +25,12 @@
         <button type="button" class="p59-header-menu" data-menu-open aria-label="Open category menu" aria-controls="p19-category-menu-drawer" aria-expanded="false">
             @include('storefront.partials.icon', ['name'=>'menu'])
         </button>
-        <a class="p07-brand p33-logo-brand" href="{{ route('home') }}" aria-label="{{ $brandName }} homepage">
+        <a class="p07-brand p33-logo-brand {{ $brandLogo ? 'p33-logo-only' : 'p33-name-only' }}" href="{{ route('home') }}" aria-label="{{ $brandName }} homepage">
             @if($brandLogo)
-                <img class="p33-site-logo" src="{{ $brandLogo }}" alt="" loading="eager" decoding="async">
+                <img class="p33-site-logo" src="{{ $brandLogo }}" alt="{{ $brandName }}" loading="eager" decoding="async">
             @else
-                <span class="p07-brand-logo" aria-hidden="true">{{ mb_strtoupper(mb_substr($brandName, 0, 1)) }}</span>
+                <span class="p33-brand-name">{{ $brandName }}<small>Shop smart · Live better</small></span>
             @endif
-            <span class="p33-brand-name">{{ $brandName }}<small>Shop smart · Live better</small></span>
         </a>
         <form class="p07-search p19-search" method="GET" action="{{ route('storefront.shop') }}" role="search" id="p19-search-form">
             <label class="p07-visually-hidden" for="p07-header-search">Search products and categories</label>

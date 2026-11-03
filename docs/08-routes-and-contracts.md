@@ -240,3 +240,13 @@ All mutations require Laravel CSRF, authenticated active Admin, required area/BD
 | GET `/admin/reports/audit-logs/{audit}` | `admin.reports.audit-logs.show` | active `admin` only | Read-only snapshot detail |
 
 No POST/PATCH/PUT/DELETE audit viewer endpoints, no new audit schema, no modification to order deletion service.
+
+### 2026-11-03 — Unified catalog merchandising order
+
+| Method/path | Route name | Behavior |
+|---|---|---|
+| GET `/admin/catalog-order` | `admin.catalog-order.index` | Authenticated active Admin only; choose category and see order lists (read-only GET) |
+| PATCH `/admin/catalog-order/categories` | `admin.catalog-order.categories` | CSRF, active Admin, full distinct set of category IDs, transactional sibling `sort_order` updates; parent IDs preserved |
+| PATCH `/admin/catalog-order/products` | `admin.catalog-order.products` | CSRF, active Admin, category-scoped full product ID permutation, transactional `products.sort_order` updates |
+
+Existing GET `/storefront/category/{slug}`, `/storefront/shop` and public homepage use central ordering by default. Visitor `?sort=newest|name|price_asc|price_desc` remains an optional read-only override. The saved homepage source-category membership and publishing routes are not mutated by order updates.

@@ -143,7 +143,7 @@ final class HomepageBuilderController extends Controller
             'product_ids.*' => ['integer', 'min:1', 'distinct'],
             'source_category_id' => ['nullable', 'integer', 'min:1'],
             'include_descendants' => ['nullable', 'boolean'],
-            'product_sort' => ['nullable', 'in:newest,name,price_asc,price_desc'],
+            'product_sort' => ['nullable', 'in:manual,newest,name,price_asc,price_desc'],
             'product_limit' => ['nullable', 'integer', 'between:1,24'],
             'styles' => ['sometimes', 'array:' . implode(',', HomeSectionSchema::STYLE_KEYS)],
         ], $this->colorRules('styles')));
@@ -387,7 +387,7 @@ final class HomepageBuilderController extends Controller
         }
         $products = $catalog->eligibleProducts()->with('media', 'variants.optionValues.option')
             ->whereIn('products.id', array_unique($productIds))->get()->keyBy('id');
-        $categories = $catalog->eligibleCategories()->with('media')
+        $categories = $catalog->eligibleCategories()->with(['media', 'parent'])
             ->whereIn('id', array_unique($categoryIds))->get()->keyBy('id');
         $reviews = Review::query()->whereIn('id', array_unique($reviewIds))->where('status', true)
             ->whereNull('campaign_id')->with('media')->get()->keyBy('id');
@@ -401,7 +401,7 @@ final class HomepageBuilderController extends Controller
                 $categoryShelves[$section['section_key']] = $shelves->productsFor($section);
             }
         }
-        return response()->view('storefront.preview.home', compact('revision', 'products', 'categories', 'reviews', 'media', 'categoryShelves'))
+        return response()->view('storefront.preview.home', compact('revision', 'products', 'categories', 'reviews', 'media', 'categoryShelves', 'catalog'))
             ->header('Cache-Control', 'private, no-store, max-age=0')
             ->header('X-Robots-Tag', 'noindex, nofollow')
             ->header('Referrer-Policy', 'same-origin');

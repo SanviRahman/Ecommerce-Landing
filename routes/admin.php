@@ -7,6 +7,7 @@ use App\Http\Controllers\Admin\BulkOrderController;
 use App\Http\Controllers\Admin\BulkOrderEntryController;
 use App\Http\Controllers\Admin\CampaignController;
 use App\Http\Controllers\Admin\CategoryController;
+use App\Http\Controllers\Admin\CatalogOrderController;
 use App\Http\Controllers\Admin\CourierAccountController;
 use App\Http\Controllers\Admin\CourierController;
 use App\Http\Controllers\Admin\CreatePageController;
@@ -480,6 +481,14 @@ Route::middleware(['auth', 'role:admin,employee'])->group(function () {
                 Route::delete('/{category}', [CategoryController::class, 'destroy'])->name('destroy');
 
                 Route::get('/{category}', [CategoryController::class, 'show'])->name('show');
+            });
+
+        // One admin CRUD for category and category-product merchandising order.
+        Route::middleware('role:admin')->prefix('catalog-order')->as('catalog-order.')
+            ->group(function (): void {
+                Route::get('/', [CatalogOrderController::class, 'index'])->name('index');
+                Route::patch('/categories', [CatalogOrderController::class, 'categories'])->name('categories');
+                Route::patch('/products', [CatalogOrderController::class, 'products'])->name('products');
             });
 
         /*

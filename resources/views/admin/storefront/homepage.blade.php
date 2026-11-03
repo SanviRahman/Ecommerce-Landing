@@ -183,12 +183,10 @@
                     </div><div class="form-group col-lg-3">
                         <label>Products to show</label>
                         <input class="form-control" type="number" name="product_limit" min="1" max="24" value="{{ $section['product_limit'] ?: 8 }}">
-                    </div><div class="form-group col-lg-4"><label>Sort products</label>
-                        <select name="product_sort" class="form-control">
-                            @foreach(['newest'=>'Newest', 'name'=>'Name', 'price_asc'=>'Price: low to high', 'price_desc'=>'Price: high to low'] as $sortKey=>$sortTitle)
-                                <option value="{{ $sortKey }}" @selected($section['product_sort']===$sortKey)>{{ $sortTitle }}</option>
-                            @endforeach
-                        </select>
+                    </div><div class="form-group col-lg-4"><label>Product order</label>
+                        <input type="hidden" name="product_sort" value="manual">
+                        <p class="small text-muted mb-1">Uses the same admin order as the category page.</p>
+                        <a href="{{ route('admin.catalog-order.index', ['category_id' => $section['category_id'] ?: null]) }}" class="btn btn-outline-success btn-sm">Manage Category &amp; Product Order</a>
                     </div></div>
                     <label><input type="checkbox" name="include_descendants" value="1" @checked($section['include_descendants'])> Include direct subcategory products</label>
                 </fieldset>

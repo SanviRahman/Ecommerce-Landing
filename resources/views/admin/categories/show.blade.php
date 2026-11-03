@@ -69,17 +69,6 @@
                             </tr>
 
                             <tr>
-                                <th>Front View</th>
-                                <td>
-                                    @if($category->is_front_view)
-                                        <span class="badge badge-primary">Yes</span>
-                                    @else
-                                        <span class="badge badge-light border text-muted">No</span>
-                                    @endif
-                                </td>
-                            </tr>
-
-                            <tr>
                                 <th>Total Products</th>
                                 <td>{{ $category->products_count ?? 0 }}</td>
                             </tr>
@@ -192,10 +181,6 @@
                         {{ $category->status ? 'Active' : 'Inactive' }}
                     </p>
 
-                    <p class="mb-0">
-                        <strong>Front View:</strong>
-                        {{ $category->is_front_view ? 'Yes' : 'No' }}
-                    </p>
                 </div>
             </div>
         </div>

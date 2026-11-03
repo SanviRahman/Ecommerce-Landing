@@ -1,0 +1,15 @@
+/* Logo and name are mutually exclusive; allow the uploaded logo to occupy the brand area. */
+body.p34-storefront .p33-logo-brand.p33-logo-only .p33-site-logo {
+    display: block;
+    width: auto;
+    height: auto;
+    max-height: 59px;
+    max-width: min(175px, 100%);
+    object-fit: contain;
+}
+@media (max-width: 620px) {
+    body.p34-storefront .p33-logo-brand.p33-logo-only .p33-site-logo {
+        max-height: 42px;
+        max-width: min(125px, 100%);
+    }
+}

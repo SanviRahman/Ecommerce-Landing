@@ -48,15 +48,15 @@
                             </select>
                             <small class="form-text text-muted">Choose a parent to create a subcategory. Leave blank for a main category. Maximum two levels.</small>
                         </div>
-                        <div class="form-group col-md-4">
-                            <label class="font-weight-bold small text-uppercase text-muted" for="category_order">Sort Order</label>
-                            <input class="form-control" type="number" min="0" max="1000000" id="category_order" name="sort_order"
-                                value="{{ old('sort_order', $category->sort_order ?? 0) }}">
+                        <div class="form-group col-md-4 d-flex flex-column justify-content-end">
+                            <a href="{{ route('admin.catalog-order.index', ['category_id' => $category->id ?? null]) }}"
+                               class="btn btn-outline-success btn-sm">Category &amp; Product Order</a>
+                            <small class="form-text text-muted">Manage category and product display order from one screen.</small>
                         </div>
                     </div>
                     @endif
                     <div class="row">
-                        <div class="col-md-6 form-group">
+                        <div class="col-md-12 form-group">
                             <div class="custom-control custom-switch" style="padding-left: 3.5rem;">
                                 <input type="checkbox"
                                        name="status"
@@ -71,20 +71,6 @@
                             </div>
                         </div>
 
-                        <div class="col-md-6 form-group">
-                            <div class="custom-control custom-switch" style="padding-left: 3.5rem;">
-                                <input type="checkbox"
-                                       name="is_front_view"
-                                       class="custom-control-input"
-                                       id="frontViewSwitch"
-                                       value="1"
-                                       {{ isset($category) && $category?->is_front_view ? 'checked' : '' }}>
-
-                                <label class="custom-control-label font-weight-bold" for="frontViewSwitch">
-                                    Show Front View
-                                </label>
-                            </div>
-                        </div>
                     </div>
                 </div>
 

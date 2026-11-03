@@ -25,10 +25,11 @@ final class CategoryShelf
             $children = $this->catalog->eligibleCategories()->where('parent_id', $sourceId)->pluck('id')->all();
             $ids = array_merge($ids, $children);
         }
-        $sort = (string) ($section['product_sort'] ?? 'newest');
-        if (! in_array($sort, ['newest', 'name', 'price_asc', 'price_desc'], true)) $sort = 'newest';
+        // A single admin order is authoritative for this shelf AND category pages.
+        // Historical section-level sort preferences remain stored for compatibility,
+        // but do not override the centrally managed merchandising order.
         $limit = max(1, min(24, (int) ($section['product_limit'] ?? 8)));
-        return $this->catalog->sortedProducts($this->catalog->eligibleProducts()->whereIn('products.category_id', $ids), $sort)
+        return $this->catalog->sortedProducts($this->catalog->eligibleProducts()->whereIn('products.category_id', $ids), 'manual')
             ->limit($limit)->get();
     }
 }

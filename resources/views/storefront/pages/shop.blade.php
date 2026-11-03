@@ -58,6 +58,7 @@
                 @if($q !== '')<input type="hidden" name="q" value="{{ $q }}">@endif
                 <label for="p07-sort">Sort</label>
                 <select name="sort" id="p07-sort" data-auto-submit>
+                    <option value="manual" @selected($sort==='manual')>Recommended (Admin Order)</option>
                     <option value="newest" @selected($sort==='newest')>Newest</option>
                     <option value="price_asc" @selected($sort==='price_asc')>Price: low to high</option>
                     <option value="price_desc" @selected($sort==='price_desc')>Price: high to low</option>

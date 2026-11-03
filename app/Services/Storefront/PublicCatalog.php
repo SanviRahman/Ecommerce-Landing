@@ -10,10 +10,13 @@ use App\Models\ProductVariant;
 use App\Services\Inventory\StorefrontDeferredStock;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Schema;
 
 /** Read-only P07 browse contract. Checkout and legacy campaigns remain independent. */
 final class PublicCatalog
 {
+    private ?bool $manualOrderColumnAvailable = null;
+
     /** Public read-only pages, with no QA consent or admin session required.
      * No inventory, cart or checkout capability is granted by this check.
      */
@@ -59,7 +62,7 @@ final class PublicCatalog
     /** Products must be active and belong to an eligible active category. */
     public function eligibleProducts(): Builder
     {
-        return Product::query()->where('status', true)
+        return Product::query()->where('products.status', true)
             ->whereHas('category', function (Builder $category): void {
                 $category->where('status', true)
                     ->where(function (Builder $query): void {
@@ -96,12 +99,48 @@ final class PublicCatalog
             . 'ELSE products.new_price END';
     }
 
-    /** No user-provided SQL fragments. Stable ties by products.id. */
+    /**
+     * Published homepage category selections are membership-only: display order
+     * is owned by the same category sort_order used in public navigation.
+     */
+    public function orderedCategoryIds(array $ids, Collection $categories): array
+    {
+        return collect($ids)->filter(static fn ($id): bool => $categories->has($id))
+            ->sort(static function ($leftId, $rightId) use ($categories): int {
+                $left = $categories->get($leftId);
+                $right = $categories->get($rightId);
+                $position = static fn (Category $category): array => [
+                    (int) ($category->parent?->sort_order ?? $category->sort_order),
+                    $category->parent_id === null ? 0 : 1,
+                    $category->parent_id === null ? 0 : (int) $category->sort_order,
+                    (string) ($category->parent?->name ?? $category->name),
+                    (string) $category->name,
+                    (int) $category->id,
+                ];
+                return $position($left) <=> $position($right);
+            })->values()->all();
+    }
+
+    /** Sorting inputs are allowlisted; no raw user SQL is interpolated. */
     public function sortedProducts(Builder $query, string $sort): Builder
     {
+        // Existing public catalog keeps working if code is deployed before the
+        // reviewed additive migration; manual ordering activates after migrate.
+        if ($sort === 'manual' && ! ($this->manualOrderColumnAvailable ??= Schema::hasColumn('products', 'sort_order'))) {
+            $sort = 'newest';
+        }
         $query->select('products.*')->selectRaw('(' . $this->priceExpression() . ') AS catalog_price')
             ->with(['category', 'media', 'variants.optionValues.option']);
         return match ($sort) {
+            'manual' => $query
+                // Parent category -> direct products -> ordered subcategories -> ordered products.
+                // All joins are one-to-one and do not widen public product eligibility.
+                ->join('categories as merch_category', 'merch_category.id', '=', 'products.category_id')
+                ->leftJoin('categories as merch_parent', 'merch_parent.id', '=', 'merch_category.parent_id')
+                ->orderByRaw('COALESCE(merch_parent.sort_order, merch_category.sort_order) ASC')
+                ->orderByRaw('CASE WHEN merch_category.parent_id IS NULL THEN 0 ELSE 1 END ASC')
+                ->orderBy('merch_category.sort_order')->orderBy('merch_category.name')
+                ->orderBy('products.sort_order')->orderByDesc('products.id'),
             'price_asc' => $query->orderBy('catalog_price')->orderBy('products.id'),
             'price_desc' => $query->orderByDesc('catalog_price')->orderBy('products.id'),
             'name' => $query->orderBy('products.name')->orderBy('products.id'),

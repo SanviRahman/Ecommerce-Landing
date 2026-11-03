@@ -491,3 +491,15 @@ Prepared changed-files patch for user-provided `website(20261027-040404).zip`: a
 - Implemented three Admin-only GET routes, AdminLTE Reports submenu, filterable/paginated audit list, detail snapshot UI and bounded CSV summary export.
 - Reused existing P55 `order_purge_audits`; **no new schema/migration, order deletion code or inventory changes**.
 - Added guarded MySQL HTTP feature tests and offline contract checks. See `P56-QA-REPORT-BN.md` for results/limitations; real Laravel/MySQL tests pending in approved staging environment.
+
+### 2026-11-03 — Scoped merchandising and branding implementation (source verified; runtime pending)
+
+- [x] Compared new uploaded ZIP SHA-256 against prior ZIP: identical baseline.
+- [x] Implemented mutually exclusive storefront logo/name UI, optional website name validation and safe NULL normalization.
+- [x] Added additive migration for nullable site name and `products.sort_order` index/default.
+- [x] Added one admin-only category/product ordering page, PATCH routes, sibling/category ownership and complete-permutation/transaction locks.
+- [x] Wired public category/shop default, homepage category-grid and dynamic category shelves to the same order.
+- [x] Preserved public explicit sort modes, product-list member order, hero sections, homepage publish contract and campaign/checkout/inventory code paths.
+- [x] PHP syntax, JS syntax, front-end source checks, and standalone new contract checks passed; baseline historical contract failures were compared rather than reclassified as new bugs.
+- [ ] Actual Laravel HTTP + MySQL tests: BLOCKED (vendor/ missing, no approved isolated database attached).
+- [ ] Local migration and browser verification/deployment: owner approval/backed-up environment required.

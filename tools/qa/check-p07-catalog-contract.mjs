@@ -38,7 +38,7 @@ const tests = [
   ['Public products require active category and parent', () => file.service.includes("->whereHas('category'") && file.service.includes("->orWhereHas('parent'")],
   ['No deleted variants or options shown', () => file.service.includes('variant->trashed()') && file.service.includes('! $value->is_active') && file.service.includes('! $value->option->is_active')],
   ['Variants rejected without exact assigned option cardinality', () => file.service.includes('$values->count() !== count($assignedOptionIds)')],
-  ['User input sort mode allowlisted', () => file.controller.includes('in:newest,price_asc,price_desc,name')],
+  ['User input sort mode allowlisted', () => file.controller.includes('in:manual,newest,price_asc,price_desc,name')],
   ['User search has a maximum length and query binding', () => file.controller.includes("'max:80'") && file.controller.includes("->where('products.name', 'like'")],
   ['Sort tied deterministically to product id', () => file.service.includes("->orderBy('products.id')")],
   ['Staged pages are noindex and no-store', () => file.controller.includes("'private, no-store, max-age=0'") && file.controller.includes("'noindex, nofollow'")],

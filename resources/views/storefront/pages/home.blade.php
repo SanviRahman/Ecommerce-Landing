@@ -47,6 +47,7 @@
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p61.css') }}?v=p63">
     {{-- P63: public homepage shares the same drawer stacking and desktop header rules as the catalog/checkout. --}}
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p62.css') }}?v=p63">
+    <link rel="stylesheet" href="{{ asset('frontend/css/storefront-merchandising.css') }}?v=1">
     <script src="{{ asset('frontend/js/storefront-p51-loader.js') }}?v=p52"></script>
 </head>
 <body class="p34-storefront">
@@ -187,7 +188,7 @@
                     @if($section['type']==='category_grid')
                         <span id="categories" class="p07-visually-hidden" aria-hidden="true"></span>
                         <div class="sf-grid sf-grid-categories" data-reveal-stagger>
-                            @foreach($section['categories'] as $catId)
+                            @foreach($catalog->orderedCategoryIds($section['categories'], $categories) as $catId)
                                 @if($categories->has($catId))
                                     @php $cat = $categories[$catId]; @endphp
                                     <article class="sf-tile">

@@ -53,7 +53,7 @@
         {{-- Filter --}}
         <div class="px-4 py-3 border-top bg-white">
             <div class="row">
-                <div class="col-md-3 col-sm-6 mb-2">
+                <div class="col-md-4 col-sm-6 mb-2">
                     <label class="small font-weight-bold text-muted text-uppercase">Status</label>
                     <select id="filter_status" class="form-control border-0 bg-light shadow-none">
                         <option value="all">All Status</option>
@@ -62,16 +62,7 @@
                     </select>
                 </div>
 
-                <div class="col-md-3 col-sm-6 mb-2">
-                    <label class="small font-weight-bold text-muted text-uppercase">Front View</label>
-                    <select id="filter_front_view" class="form-control border-0 bg-light shadow-none">
-                        <option value="all">All Categories</option>
-                        <option value="1">Front View Only</option>
-                        <option value="0">Not Front View</option>
-                    </select>
-                </div>
-
-                <div class="col-md-4 col-sm-8 mb-2">
+                <div class="col-md-6 col-sm-8 mb-2">
                     <label class="small font-weight-bold text-muted text-uppercase">Search</label>
                     <input type="text" id="table_search" class="form-control shadow-none"
                         placeholder="Search category name or slug...">
@@ -98,8 +89,6 @@
                 <option value="delete" class="opt-active text-danger">Move to Trash</option>
                 <option value="active" class="opt-active text-success">Set Active</option>
                 <option value="inactive" class="opt-active text-warning">Set Inactive</option>
-                <option value="front_view" class="opt-active">Mark Front View</option>
-                <option value="remove_front_view" class="opt-active">Remove Front View</option>
 
                 <option value="restore" class="opt-trash d-none text-success">Restore Selected</option>
                 <option value="force_delete" class="opt-trash d-none text-danger">Purge Permanently</option>
@@ -180,8 +169,7 @@ $(document).ready(function() {
         return {
             page: page,
             search: $('#table_search').val(),
-            status: $('#filter_status').val(),
-            front_view: $('#filter_front_view').val()
+            status: $('#filter_status').val()
         };
     }
 
@@ -240,7 +228,7 @@ $(document).ready(function() {
         }
     }
 
-    $('#filter_status, #filter_front_view').on('change', function() {
+    $('#filter_status').on('change', function() {
         reloadTable(1);
     });
 

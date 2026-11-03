@@ -84,10 +84,6 @@ class CategoryController extends Controller
             $query->where('status', (bool) $request->status);
         }
 
-        if ($request->filled('front_view') && $request->front_view !== 'all') {
-            $query->where('is_front_view', (bool) $request->front_view);
-        }
-
         return $query;
     }
 
@@ -197,7 +193,6 @@ class CategoryController extends Controller
                 'slug' => $request->slug
                     ? Str::slug($request->slug)
                     : Str::slug($request->name) . '-' . time(),
-                'is_front_view' => $request->has('is_front_view'),
                 'status' => $request->has('status'),
             ]);
 
@@ -305,7 +300,6 @@ class CategoryController extends Controller
                 'slug' => $request->slug
                     ? Str::slug($request->slug)
                     : Str::slug($request->name) . '-' . $category->id,
-                'is_front_view' => $request->has('is_front_view'),
                 'status' => $request->has('status'),
             ]);
 
@@ -390,7 +384,7 @@ class CategoryController extends Controller
         $this->adminOnly();
 
         $request->validate([
-            'action' => ['required', 'in:delete,restore,force_delete,active,inactive,front_view,remove_front_view'],
+            'action' => ['required', 'in:delete,restore,force_delete,active,inactive'],
             'ids' => ['required', 'array'],
             'ids.*' => ['integer'],
         ]);
@@ -442,8 +436,6 @@ class CategoryController extends Controller
         $updateData = match ($action) {
             'active' => ['status' => true],
             'inactive' => ['status' => false],
-            'front_view' => ['is_front_view' => true],
-            'remove_front_view' => ['is_front_view' => false],
             default => [],
         };
 

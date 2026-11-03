@@ -73,16 +73,16 @@
 
                     <div class="form-group mb-4">
                         <label>
-                            Website Name <span class="text-danger">*</span>
+                            Website Name <span class="text-muted small">(optional)</span>
                         </label>
 
                         <input type="text"
                                name="website_name"
                                value="{{ old('website_name', $siteSetting->website_name ?? '') }}"
                                class="form-control @error('website_name') is-invalid @enderror"
-                               placeholder="Example: Shanto Gift Shop"
-                               required>
+                               placeholder="Example: Shanto Gift Shop">
 
+                        <small class="form-text text-muted">Logo uploaded হলে storefront header-এ শুধু logo দেখাবে। Logo না থাকলে website name দেখাবে। Name blank রাখলে configured application name fallback হবে।</small>
                         @error('website_name')
                             <span class="invalid-feedback">{{ $message }}</span>
                         @enderror

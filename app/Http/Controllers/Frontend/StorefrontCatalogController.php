@@ -44,7 +44,7 @@ final class StorefrontCatalogController extends Controller
         }
         $products = $catalog->eligibleProducts()->with('media', 'variants.optionValues.option')
             ->whereIn('products.id', array_unique($productIds))->get()->keyBy('id');
-        $categories = $catalog->eligibleCategories()->with('media')
+        $categories = $catalog->eligibleCategories()->with(['media', 'parent'])
             ->whereIn('id', array_unique($categoryIds))->get()->keyBy('id');
         $reviews = Review::query()->where('status', true)->whereNull('campaign_id')
             ->with('media')->whereIn('id', array_unique($reviewIds))->get()->keyBy('id');
@@ -93,10 +93,10 @@ final class StorefrontCatalogController extends Controller
         $catalog->assertAvailable();
         $data = $request->validate([
             'q' => ['nullable', 'string', 'max:80'],
-            'sort' => ['nullable', 'in:newest,price_asc,price_desc,name'],
+            'sort' => ['nullable', 'in:manual,newest,price_asc,price_desc,name'],
         ]);
         $q = trim($data['q'] ?? '');
-        $sort = $data['sort'] ?? 'newest';
+        $sort = $data['sort'] ?? 'manual';
         $products = $catalog->sortedProducts($catalog->eligibleProducts()
             ->when($q !== '', static function ($builder) use ($q): void {
                 $builder->where('products.name', 'like', '%' . addcslashes($q, '%_\\') . '%');
@@ -112,14 +112,14 @@ final class StorefrontCatalogController extends Controller
     public function category(Request $request, string $slug, PublicCatalog $catalog): Response
     {
         $catalog->assertAvailable();
-        $data = $request->validate(['sort' => ['nullable', 'in:newest,price_asc,price_desc,name']]);
+        $data = $request->validate(['sort' => ['nullable', 'in:manual,newest,price_asc,price_desc,name']]);
         $category = $catalog->eligibleCategories()->with(['media', 'parent'])->where('slug', $slug)->firstOrFail();
         $categoryIds = [$category->id];
         if ($category->parent_id === null) {
             $children = $catalog->eligibleCategories()->where('parent_id', $category->id)->pluck('id')->all();
             $categoryIds = array_merge($categoryIds, $children);
         }
-        $sort = $data['sort'] ?? 'newest';
+        $sort = $data['sort'] ?? 'manual';
         $products = $catalog->sortedProducts($catalog->eligibleProducts()
             ->whereIn('products.category_id', $categoryIds), $sort)->paginate(16)->withQueryString();
         $cartVersion = $this->cartVersion($request);

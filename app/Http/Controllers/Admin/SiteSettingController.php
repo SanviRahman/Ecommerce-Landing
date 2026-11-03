@@ -121,21 +121,24 @@ class SiteSettingController extends Controller
 
     private function settingsPayload(Request $request): array
     {
-        return $request->only([
+        $name = trim((string) $request->input('website_name', ''));
+
+        return array_merge($request->only([
             'website_name', 'phone', 'hotline', 'whatsapp_number', 'messenger_link',
             'email', 'address', 'business_short_description', 'working_hours',
             'footer_youtube_url', 'footer_facebook_url',
             'footer_instagram_url', 'footer_linkedin_url',
-        ]) + [
+        ]), [
+            'website_name' => $name === '' ? null : $name,
             'status' => $request->boolean('status'),
             'footer_social_managed' => true,
-        ];
+        ]);
     }
 
     private function validationRules(): array
     {
         return [
-            'website_name' => ['required', 'string', 'max:255'],
+            'website_name' => ['nullable', 'string', 'max:255'],
             'phone' => ['nullable', 'string', 'max:25', 'regex:/\A\+?[0-9() .-]+\z/D'],
             'hotline' => ['nullable', 'string', 'max:25', 'regex:/\A\+?[0-9() .-]+\z/D'],
             'whatsapp_number' => ['nullable', 'string', 'max:25', 'regex:/\A\+?[0-9() .-]+\z/D'],
