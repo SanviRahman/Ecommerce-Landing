@@ -7,12 +7,6 @@ use App\Models\Campaign;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
-use App\Models\ProductVariant;
-use App\Services\Inventory\InventoryAllocator;
-use App\Services\Inventory\ManagedOrderWriter;
-use App\Services\Inventory\StorefrontDeferredStock;
-use App\Services\Storefront\PublicCatalog;
-use Illuminate\Support\Facades\Schema;
 use App\Models\ShippingCharge;
 use App\Services\CustomerIdentityService;
 use App\Services\OrderAssignmentService;
@@ -218,7 +212,6 @@ class CampaignOrderController extends Controller
             'products'            => ['required', 'array', 'min:1'],
             'products.*.id'       => ['required', 'integer', 'exists:products,id'],
             'products.*.quantity' => ['required', 'integer', 'min:1', 'max:1000'],
-            'products.*.variant_id' => ['nullable', 'integer', 'min:1'],
         ]);
 
         $activeBlock = $orderBlockService->findActiveBlock(
@@ -247,25 +240,18 @@ class CampaignOrderController extends Controller
 
             $campaignProducts = $campaign->products->keyBy('id');
 
-            // Preserve individual option combinations. Group only identical
-            // product+SKU pairs; a different color/size is a distinct order line.
             $submittedProducts = collect($request->products)
-                ->groupBy(fn ($line) => (int) $line['id'].':'.(int) ($line['variant_id'] ?? 0))
+                ->groupBy('id')
                 ->map(function ($items) {
                     return [
-                        'id' => (int) $items->first()['id'],
-                        'variant_id' => isset($items->first()['variant_id'])
-                            ? (int) $items->first()['variant_id'] : null,
+                        'id'       => (int) $items->first()['id'],
                         'quantity' => (int) $items->sum('quantity'),
                     ];
-                })->values();
+                })
+                ->values();
 
             $subTotal = 0;
             $orderItems = [];
-            $variantSchemaReady = Schema::hasColumn('order_items', 'product_variant_id')
-                && Schema::hasColumn('order_items', 'variant_sku')
-                && Schema::hasColumn('order_items', 'variant_options');
-            $catalog = app(PublicCatalog::class);
 
             foreach ($submittedProducts as $submittedProduct) {
                 $productId = (int) $submittedProduct['id'];
@@ -279,66 +265,23 @@ class CampaignOrderController extends Controller
                     ]);
                 }
 
+                // Campaign checkout does not have a variant-aware inventory writer.
+                // Never charge a product's base price and create an unallocated
+                // order when the customer actually needs a specific priced SKU.
+                if ($product->has_variants) {
+                    throw ValidationException::withMessages([
+                        'products' => 'This product has individually priced variations. Please select and order it from its storefront product page.',
+                    ]);
+                }
+
                 $quantity = (int) $submittedProduct['quantity'];
                 if ($quantity < 1 || $quantity > 1000) {
                     throw ValidationException::withMessages([
                         'products' => 'Please select a valid quantity (1-1000) for each product.',
                     ]);
                 }
-                $selectedVariant = null;
-                $optionLabels = [];
-                $optionSnapshot = [];
-                $requestedVariantId = (int) ($submittedProduct['variant_id'] ?? 0);
-                if ($product->has_variants) {
-                    if ((int) $product->inventory_version !== 1 || $requestedVariantId < 1) {
-                        throw ValidationException::withMessages([
-                            'products' => 'Choose a valid Color / Size / Weight / Piece combination for each variable product.',
-                        ]);
-                    }
-                    if (! $variantSchemaReady) {
-                        throw ValidationException::withMessages([
-                            'products' => 'SKU order snapshot columns are missing. Complete the approved inventory migration before selling variants.',
-                        ]);
-                    }
-                    $product->loadMissing('variants.optionValues.option');
-                    $selectedVariant = ProductVariant::query()->with('optionValues.option')
-                        ->where('product_id', $productId)->where('is_active', true)
-                        ->whereKey($requestedVariantId)->lockForUpdate()->first();
-                    if (! $selectedVariant || ! $catalog->eligibleVariants($product)
-                        ->contains('id', $selectedVariant->id)) {
-                        throw ValidationException::withMessages([
-                            'products' => 'This product variation is not available in the campaign. Select another option.',
-                        ]);
-                    }
-                    if (StorefrontDeferredStock::availableForVariant(
-                        (int) $selectedVariant->id, (int) $selectedVariant->stock) < $quantity) {
-                        throw ValidationException::withMessages([
-                            'products' => 'Not enough stock for the selected Color / Size combination.',
-                        ]);
-                    }
-                    foreach ($selectedVariant->optionValues as $value) {
-                        $optionSnapshot[(int) $value->product_option_id] = (int) $value->id;
-                        $optionLabels[] = ($value->option?->name ?? 'Option').': '.$value->label;
-                    }
-                } elseif ($requestedVariantId !== 0) {
-                    // Never trust a foreign or stale SKU sent for a simple product.
-                    throw ValidationException::withMessages([
-                        'products' => 'A variation was submitted for a simple product. Reload the order form.',
-                    ]);
-                } elseif ((int) $product->inventory_version === 1) {
-                    // Maintain the existing verified default-SKU inventory path.
-                    $selectedVariant = ProductVariant::query()->where('product_id', $productId)
-                        ->where('is_default', true)->where('option_signature', 'default')
-                        ->where('is_active', true)->lockForUpdate()->first();
-                    if (ManagedOrderWriter::enabled() && ! $selectedVariant) {
-                        throw ValidationException::withMessages([
-                            'products' => 'This product has no active default SKU. Reload the campaign.',
-                        ]);
-                    }
-                }
                 $campaignPrice = isset($product->pivot) ? (int) ($product->pivot->campaign_price ?? 0) : 0;
-                $unitPrice = $campaignPrice > 0 ? $campaignPrice
-                    : (int) ($selectedVariant?->price_override ?? $product->new_price);
+                $unitPrice = $campaignPrice > 0 ? $campaignPrice : (int) $product->new_price;
 
                 if ($unitPrice <= 0) {
                     throw ValidationException::withMessages([
@@ -351,9 +294,6 @@ class CampaignOrderController extends Controller
 
                 $orderItems[] = [
                     'product'          => $product,
-                    'variant'          => $selectedVariant,
-                    'variation_label'  => implode(' / ', $optionLabels),
-                    'option_snapshot'  => $optionSnapshot,
                     'quantity'         => $quantity,
                     'unit_price'       => $unitPrice,
                     'line_total'       => $lineTotal,
@@ -447,53 +387,18 @@ class CampaignOrderController extends Controller
                 'source_url'        => url()->previous(),
             ]);
 
-            $variantByOrderItem = [];
-            $containsOptionedProduct = collect($orderItems)->contains(
-                fn (array $item) => (bool) $item['product']->has_variants
-            );
             foreach ($orderItems as $item) {
-                $record = OrderItem::create([
+                OrderItem::create([
                     'order_id'     => $order->id,
                     'product_id'   => $item['product']->id,
-                    'product_name' => Str::limit($item['product']->name
-                        .($item['variation_label'] !== '' ? ' — '.$item['variation_label'] : ''), 255, ''),
+                    'product_name' => $item['product']->name,
                     'unit_price'   => $item['unit_price'],
                     'quantity'     => $item['quantity'],
                     'total_price'  => $item['line_total'],
                 ]);
-                if ($item['variant'] !== null && $variantSchemaReady) {
-                    $variantByOrderItem[(int) $record->id] = (int) $item['variant']->id;
-                    // The legacy simple-product allocator requires an EMPTY
-                    // product_variant_id before it maps the default SKU itself.
-                    // In optioned orders, our explicit mapping owns the snapshot.
-                    if (ManagedOrderWriter::enabled() && ! $containsOptionedProduct) {
-                        continue;
-                    }
-                    // Keep immutable SKU/option identity in the original P02 order
-                    // snapshot columns, even if managed allocation is disabled.
-                    DB::table('order_items')->where('id', $record->id)->update([
-                        'product_variant_id' => $item['variant']->id,
-                        'variant_sku' => $item['variant']->sku,
-                        'variant_options' => json_encode(
-                            $item['option_snapshot'] === [] ? new \stdClass() : $item['option_snapshot'], JSON_THROW_ON_ERROR
-                        ),
-                    ]);
-                }
             }
 
-            if ($containsOptionedProduct && ManagedOrderWriter::enabled()) {
-                // The legacy default-variant allocator intentionally rejects
-                // variable products. Use the explicit SKU-aware path in the
-                // SAME isolated inventory transaction instead of guessing a SKU.
-                if (count($variantByOrderItem) !== count($orderItems)) {
-                    throw ValidationException::withMessages([
-                        'products' => 'All campaign products require reconciled SKU inventory for this checkout.',
-                    ]);
-                }
-                app(InventoryAllocator::class)->allocateStorefrontOrder($order->id, $variantByOrderItem, true);
-            } else {
-                app(ManagedOrderWriter::class)->allocateCreatedOrder($order->id, 'products');
-            }
+            app(\App\Services\Inventory\ManagedOrderWriter::class)->allocateCreatedOrder($order->id, 'products');
 
             app(OrderAssignmentService::class)->assign($order);
 

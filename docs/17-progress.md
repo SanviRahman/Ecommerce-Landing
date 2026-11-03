@@ -512,3 +512,12 @@ Prepared changed-files patch for user-provided `website(20261027-040404).zip`: a
 - [x] Kept managed SKU ledger, reserved-stock guards, admin access and release gates; no checkout/order/courier or inventory confirmation code changed.
 - [x] New PHP feature tests (unrun isolated-MySQL harness), source contract and standalone UI smoke tests added.
 - [ ] Integration/browser verification on actual configured MySQL + full Composer dependencies: BLOCKED in this sandbox.
+
+### 2026-11-03 — Scoped admin Add Variation UX & validation patch
+
+- Input: user-supplied `website(20261103-134439).zip` (current snapshot, not the stale baseline docs).
+- Root cause: the existing product edit AJAX modal only edited one current SKU, while the working `/admin/products/{product}/variants` SKU-creation form was not linked from the main management flow.
+- Changes: Add Variation shortcut in product list/Edit; guided clone-options form; required explicit price/stock for guided creates; secure random SKU when left blank; duplicate combination client messaging and unchanged authoritative server rejection; checkbox off is saved as inactive. The existing catalog transaction and audited inventory service are reused.
+- Actual QA: PHP syntax lint 317/317 PASS; JS Node tests 7/7 PASS; dependency-free mocked PHP controller flow assertions 9/9 PASS; JS syntax PASS. First test run failed before helper was implemented (expected regression red phase). A Chromium headless attempt timed out; not a pass.
+- Blockers: full Laravel Blade render, MySQL feature/stock tests, campaign/cart regressions and browser QA were NOT RUN (no `vendor/`, Composer, mbstring or pdo_mysql in inspection environment). No production database operations or deploy.
+- Handover: `ADD-VARIATION-FIX-BN.md` in patch/project ZIP; backup and manual acceptance steps required.

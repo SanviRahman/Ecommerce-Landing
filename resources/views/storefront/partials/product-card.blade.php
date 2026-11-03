@@ -3,17 +3,16 @@
     $available = $catalog->displayStock($product);
     $price = $catalog->displayPrice($product);
     $productUrl = route('storefront.product', $product->slug);
-    $cardActionText = $product->is_free_delivery ? 'Free Delivery' : 'Buy Now';
     $wishlistState = app(\App\Support\StorefrontWishlistState::class);
     $wishSignedIn = $wishlistState->authenticated();
     $saved = $wishSignedIn && $wishlistState->contains((int) $product->id);
-    $quickVariants = (int) $product->inventory_version === 1
-        ? ($product->has_variants
-            ? $catalog->eligibleVariants($product)->filter(fn ($v) => \App\Services\Inventory\StorefrontDeferredStock::availableForVariant((int) $v->id, (int) $v->stock) > 0)->values()
-            : $product->variants->filter(fn ($v) => $v->is_default && $v->is_active
-                && !$v->trashed() && \App\Services\Inventory\StorefrontDeferredStock::availableForVariant((int) $v->id, (int) $v->stock) > 0)->values())
+    // Only simple products can be added directly from listing cards.
+    // SKU/price selection for variant products stays on the detail page.
+    $quickVariants = (int) $product->inventory_version === 1 && !$product->has_variants
+        ? $product->variants->filter(fn ($v) => $v->is_default && $v->is_active
+            && !$v->trashed() && \App\Services\Inventory\StorefrontDeferredStock::availableForVariant((int) $v->id, (int) $v->stock) > 0)->values()
         : collect();
-    $canAdd = ($cartVersion ?? null) !== null && $quickVariants->count() === 1;
+    $canAdd = ($cartVersion ?? null) !== null && $quickVariants->isNotEmpty();
     $canCheckout = $canAdd && config('storefront.p08_checkout_test_enabled', false) === true
         && config('storefront.p03_core_test_enabled', false) === true;
 @endphp
@@ -55,17 +54,17 @@
                         @include('storefront.partials.icon', ['name'=>'cart-plus'])
                     </button>
                     @if($canCheckout)
-                        <button type="submit" name="intent" value="checkout" class="p07-card-action p34-buy-button">{{ $cardActionText }} @include('storefront.partials.icon', ['name'=>'arrow-right'])</button>
+                        <button type="submit" name="intent" value="checkout" class="p07-card-action p34-buy-button">Buy Now @include('storefront.partials.icon', ['name'=>'arrow-right'])</button>
                     @else
-                        <a class="p07-card-action p34-buy-button" href="{{ $productUrl }}">{{ $cardActionText }} @include('storefront.partials.icon', ['name'=>'arrow-right'])</a>
+                        <a class="p07-card-action p34-buy-button" href="{{ $productUrl }}">View Product @include('storefront.partials.icon', ['name'=>'arrow-right'])</a>
                     @endif
                 </form>
             @else
-                <a class="p19-cart-action" href="{{ $product->has_variants ? $productUrl.'#p07-variant-picker' : $productUrl }}" aria-label="{{ $product->has_variants ? 'Choose options for' : 'View' }} {{ $product->name }}" title="{{ $product->has_variants ? 'Choose options on product page' : 'View product details' }}">
+                <a class="p19-cart-action" href="{{ $productUrl }}" aria-label="{{ $product->has_variants ? 'Choose options for' : 'View' }} {{ $product->name }}" title="{{ $product->has_variants ? 'Choose options first' : 'View product details' }}">
                     @include('storefront.partials.icon', ['name'=>'cart-plus'])
                 </a>
-                <a class="p07-card-action p34-buy-button" href="{{ $product->has_variants ? $productUrl.'#p07-variant-picker' : $productUrl }}">
-                    {{ $cardActionText }}
+                <a class="p07-card-action p34-buy-button" href="{{ $productUrl }}">
+                    {{ $product->has_variants ? 'Choose Options' : 'View Product' }}
                     @include('storefront.partials.icon', ['name'=>'arrow-right'])
                 </a>
             @endif

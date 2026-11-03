@@ -158,6 +158,20 @@
                                     <i class="fas fa-eye"></i>
                                 </a>
 
+                                {{-- One-click SKU creation for managed variable products only. --}}
+                                @if(($variantAdminAvailable ?? false) && (int) $product->inventory_version === 1 && $product->has_variants && auth()->user()->isAdmin())
+                                    <a href="{{ route('admin.products.variants.index', $product->id) }}#add-variation"
+                                       class="btn btn-sm btn-white text-success"
+                                       title="Add Variation" aria-label="Add variation to {{ $product->name }}">
+                                        <i class="fas fa-layer-group" aria-hidden="true"></i>
+                                    </a>
+                                    <a href="{{ route('admin.products.variants.index', $product->id) }}#bulk-variations"
+                                       class="btn btn-sm btn-white text-primary"
+                                       title="Build multiple variations" aria-label="Build multiple SKU combinations for {{ $product->name }}">
+                                        <i class="fas fa-th" aria-hidden="true"></i>
+                                    </a>
+                                @endif
+
                                 {{-- Only Admin can edit product --}}
                                 @if(auth()->user()->isAdmin())
                                     <button type="button"

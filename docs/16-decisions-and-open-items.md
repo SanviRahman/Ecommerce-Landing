@@ -385,3 +385,9 @@ Open item: Execute real MySQL transaction, duplicate checkout, last-unit concurr
 - **Pricing:** 1 Piece is the initial product base price; each SKU stores its separately entered override. The public product selection retains server-computed variant price. Admin may still use the original Variant Options/Manager for additional Color/Size/Weight/Piece Count values.
 - **Compatibility:** Existing P33 verified-DB admin gate, P48 explicit activation, P58/P32 checkout release gates, P64 Admin Confirm stock consumption, legacy stock, existing campaign order handling, product option manager and SKU ledger remain unchanged. The existing audited delta POST remains accepted for backwards compatibility.
 - **Tests/gate:** Source contracts, JS UI smoke and syntax checks run without a database. New MySQL HTTP tests are included but **not run** here because the ZIP does not contain Composer dependencies and no approved isolated MySQL DB is available. Approval on owner local verified DB is required before claiming operational correctness.
+
+### 2026-11-03 — Guided Add Variation administration
+
+- **D18:** Expose the already-guarded managed SKU creation route directly from Product List/Edit, rather than implementing a second stock-writing route inside the Edit modal. Keep CSRF, administrator authorization, verified DB access, duplicate option signature checks, and the existing inventory movement ledger.
+- Copying a SKU copies **only option value selections**; it never copies SKU ID, price, order history, or stock. The guided form requires a new explicit price and exact stock. An omitted SKU code is auto-generated with a product-scoped random identifier; old/manual clients still supply a code.
+- No schema or migration changes. No changes to storefront, campaign/order processing, or public pricing semantics. Laravel/MySQL end-to-end integration remains a deployment gate.

@@ -42,11 +42,11 @@
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p53.css') }}?v=p53">
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p54.css') }}?v=p60">
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p61.css') }}?v=p63">
+    <link rel="stylesheet" href="{{ asset('frontend/css/variant-choices.css') }}?v=20261103-variations">
     {{-- P62: desktop-only header restore and correctly stacked, non-blurring mini-cart. --}}
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p62.css') }}?v=p63">
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-merchandising.css') }}?v=1">
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-card-sizing.css') }}?v=2">
-    <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p64-fixes.css') }}?v=1">
     {{-- P60 header-only safety rules: protect against a stale external CSS copy in the cPanel document root. --}}
     <style>
         @media (max-width: 760px) {
@@ -127,7 +127,8 @@
             <div hidden data-p53-added-item="{{ json_encode($p53FlashedItem, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_THROW_ON_ERROR) }}"></div>
         @endif
     @endunless
-    <script src="{{ asset('frontend/js/storefront-catalog.js') }}?v=p65" defer></script>
+    <script src="{{ asset('frontend/js/storefront-variant-matcher.js') }}?v=20261103-combo" defer></script>
+    <script src="{{ asset('frontend/js/storefront-catalog.js') }}?v=20261103-combo" defer></script>
     <script src="{{ asset('frontend/js/storefront-p35.js') }}" defer></script>
     <script src="{{ asset('frontend/js/storefront-next.js') }}?v=p63" defer></script>
     <script src="{{ asset('frontend/js/storefront-premium.js') }}" defer></script>

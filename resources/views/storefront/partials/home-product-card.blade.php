@@ -3,20 +3,16 @@
     $price = $productPreview ? (int) $product->new_price : $catalog->displayPrice($product);
     $photo = $product->getFirstMediaUrl('product_thumbnail') ?: asset('frontend/images/no-image.svg');
     $productUrl = route('storefront.product', $product->slug);
-    $cardActionText = $product->is_free_delivery ? 'Free Delivery' : 'Buy Now';
     $wishlistState = app(\App\Support\StorefrontWishlistState::class);
     $wishSignedIn = $wishlistState->authenticated();
     $saved = $wishSignedIn && $wishlistState->contains((int) $product->id);
-    $quickVariants = !$productPreview && (int) $product->inventory_version === 1
-        ? ($product->has_variants
-            ? $catalog->eligibleVariants($product)->filter(fn ($v) => \App\Services\Inventory\StorefrontDeferredStock::availableForVariant((int) $v->id, (int) $v->stock) > 0)->values()
-            : $product->variants->filter(fn ($v) => $v->is_default && $v->is_active
-                && !$v->trashed() && \App\Services\Inventory\StorefrontDeferredStock::availableForVariant((int) $v->id, (int) $v->stock) > 0)->values())
+    // Product cards intentionally have no option selector. Quick-add is safe
+    // for simple products only; variant products open the detail picker.
+    $quickVariants = !$productPreview && (int) $product->inventory_version === 1 && !$product->has_variants
+        ? $product->variants->filter(fn ($v) => $v->is_default && $v->is_active
+            && !$v->trashed() && \App\Services\Inventory\StorefrontDeferredStock::availableForVariant((int) $v->id, (int) $v->stock) > 0)->values()
         : collect();
-    // Homepage cards never display SKU/option selectors. Direct cart writes are
-    // allowed only for an unambiguous, available SKU. Multiple eligible SKUs
-    // are chosen on the product detail page (no guessed customer selection).
-    $canQuickAdd = !$productPreview && ($cartVersion ?? null) !== null && $quickVariants->count() === 1;
+    $canQuickAdd = !$productPreview && ($cartVersion ?? null) !== null && $quickVariants->isNotEmpty();
     $selectionUrl = $product->has_variants ? $productUrl.'#p07-variant-picker' : $productUrl;
     $canCheckout = $canQuickAdd && config('storefront.p08_checkout_test_enabled', false) === true
         && config('storefront.p03_core_test_enabled', false) === true;
@@ -58,15 +54,15 @@
                     <input type="hidden" name="quantity" value="1">
                     <button type="submit" name="intent" value="cart" class="sf-secondary" aria-label="Add {{ $product->name }} to cart" title="Add to Cart">@include('storefront.partials.icon', ['name'=>'cart-plus'])</button>
                     @if($canCheckout)
-                        <button type="submit" name="intent" value="checkout" class="sf-cta p34-buy-button">{{ $cardActionText }} @include('storefront.partials.icon', ['name'=>'arrow-right'])</button>
+                        <button type="submit" name="intent" value="checkout" class="sf-cta p34-buy-button">Buy Now @include('storefront.partials.icon', ['name'=>'arrow-right'])</button>
                     @else
-                        <a class="sf-cta p34-buy-button" href="{{ $productUrl }}">{{ $cardActionText }} @include('storefront.partials.icon', ['name'=>'arrow-right'])</a>
+                        <a class="sf-cta p34-buy-button" href="{{ $productUrl }}">View Product @include('storefront.partials.icon', ['name'=>'arrow-right'])</a>
                     @endif
                 </form>
             @else
                 <a class="sf-secondary" href="{{ $selectionUrl }}" aria-label="{{ $product->has_variants ? 'Select a variation for' : 'View' }} {{ $product->name }}" title="{{ $product->has_variants ? 'Select size or color on product page' : 'View product details' }}">@include('storefront.partials.icon', ['name'=>'cart-plus'])</a>
                 <a class="sf-cta p34-buy-button" href="{{ $selectionUrl }}">
-                    {{ $cardActionText }}
+                    {{ $product->has_variants ? 'Choose Options' : 'View Product' }}
                     @include('storefront.partials.icon', ['name'=>'arrow-right'])
                 </a>
             @endif

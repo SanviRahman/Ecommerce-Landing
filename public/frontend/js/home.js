@@ -417,19 +417,11 @@ $(document).ready(function() {
 
     function addProductFromCard(card) {
         const id = String(card.data('id'));
-        const selector = $('.campaign-variant-select[data-product-id="' + id + '"]');
-        const selectedOption = selector.length ? selector.find('option:selected') : null;
-        if (selector.length && !selector.val()) {
-            selector.trigger('focus');
-            showOrderWarningPopup('এই পণ্যের Color / Size / Weight / Piece Count নির্বাচন করুন।');
-            return null;
-        }
+
         selectedProducts[id] = {
             id: id,
             name: String(card.data('name') || ''),
-            price: selector.length ? number(selectedOption.data('price')) : number(card.data('price') || 0),
-            variantId: selector.length ? Number(selector.val()) : null,
-            optionLabel: selector.length ? String(selectedOption.data('label') || '') : '',
+            price: number(card.data('price') || 0),
             weight: String(card.data('weight') || ''),
             image: card.data('image') || noImage,
             isFreeDelivery: Number(card.data('free-delivery') || 0) === 1,
@@ -457,7 +449,7 @@ $(document).ready(function() {
     }
 
     function getAllOrderItems() {
-        return $('.order-product-card').map(function() {
+        return $('.order-product-card:not([data-variant-preview-only])').map(function() {
             const card = $(this);
 
             return {
@@ -588,7 +580,7 @@ $(document).ready(function() {
                         <img src="${safeSummaryImage(item.image)}" alt="${escapeSummaryText(item.name)}">
                         <div>
                             <h5>${escapeSummaryText(item.name)}</h5>
-                            <span>${escapeSummaryText(item.optionLabel || item.weight)}</span><br>
+                            <span>${escapeSummaryText(item.weight)}</span><br>
                             <strong>${escapeSummaryText(money(item.price))}</strong>
                             ${item.isFreeDelivery ? '<br><span class="badge badge-success mt-1">ফ্রি ডেলিভারি</span>' : ''}
                         </div>
@@ -613,7 +605,6 @@ $(document).ready(function() {
             inputsHtml += `
                 <input type="hidden" name="products[${index}][id]" value="${escapeSummaryText(item.id)}">
                 <input type="hidden" name="products[${index}][quantity]" value="${escapeSummaryText(item.quantity)}">
-                ${item.variantId ? `<input type="hidden" name="products[${index}][variant_id]" value="${escapeSummaryText(item.variantId)}">` : ''}
             `;
 
             index++;
@@ -654,6 +645,7 @@ $(document).ready(function() {
 
     $(document).on('click', '.order-product-card', function() {
         const card = $(this);
+        if (card.is('[data-variant-preview-only]')) return;
         const id = String(card.data('id'));
 
         if (selectedProducts[id]) {
@@ -661,7 +653,6 @@ $(document).ready(function() {
             card.removeClass('active');
         } else {
             const item = addProductFromCard(card);
-            if (!item) return;
             card.addClass('active');
             trackAddToCart(item);
         }
@@ -675,10 +666,7 @@ $(document).ready(function() {
 
         if (orderCard.length) {
             const item = addProductFromCard(orderCard);
-            if (!item) {
-                $('#order-section').get(0)?.scrollIntoView({behavior: 'smooth', block: 'start'});
-                return;
-            }
+
             orderCard.addClass('active');
             renderSummary();
             trackAddToCart(item);
@@ -695,24 +683,6 @@ $(document).ready(function() {
 
     $(document).on('click', 'a[href="#order-section"]', function() {
         trackBeginCheckout();
-    });
-
-    // Changing a selected product's SKU updates its price and order snapshot.
-    // No variant is auto-selected: customers choose an actual available option.
-    $(document).on('change', '.campaign-variant-select', function() {
-        const id = String($(this).data('product-id'));
-        const card = $('.order-product-card[data-id="' + id + '"]');
-        const selection = $(this).find('option:selected');
-        if (!$(this).val()) {
-            delete selectedProducts[id];
-            card.removeClass('active');
-        } else if (selectedProducts[id]) {
-            const existingQuantity = selectedProducts[id].quantity;
-            addProductFromCard(card);
-            selectedProducts[id].quantity = existingQuantity;
-        }
-        card.find('.order-product-price').text(money(selection.data('price') || card.data('price')));
-        renderSummary();
     });
 
     $(document).on('click', '.remove-summary-item', function() {
@@ -923,10 +893,7 @@ $(document).ready(function() {
         sessionStorage.removeItem(orderResetStorageKey);
     } else {
         suppressTracking = true;
-        const firstCard = $('.order-product-card').first();
-        const firstVariantSelector = $('.campaign-variant-select[data-product-id="' + String(firstCard.data('id')) + '"]');
-        // Do not implicitly pick a SKU for an optioned product.
-        if (!firstVariantSelector.length) firstCard.trigger('click');
+        $('.order-product-card:not([data-variant-preview-only])').first().trigger('click');
         suppressTracking = false;
     }
 

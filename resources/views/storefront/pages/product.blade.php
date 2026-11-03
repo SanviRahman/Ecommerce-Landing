@@ -64,9 +64,11 @@
                             <div class="p61-choice-flex" role="group" aria-label="Choose {{ $option['name'] }}">
                                 @foreach($option['values'] as $value)
                                     @php $swatch = isset($value['swatch']) && preg_match('/\A#[0-9a-fA-F]{6}\z/D', (string) $value['swatch']) ? $value['swatch'] : null; @endphp
-                                    <label class="p61-choice-label">
+                                    <label class="p61-choice-label {{ empty($value['configured']) ? 'p61-choice-unconfigured' : '' }}"
+                                           title="{{ empty($value['configured']) ? 'This product has no SKU or price for this value yet' : $value['label'] }}">
                                         <input type="radio" name="option_{{ $option['id'] }}" data-option-id="{{ $option['id'] }}"
-                                            value="{{ $value['id'] }}" aria-label="{{ $value['label'] }}">
+                                            value="{{ $value['id'] }}" aria-label="{{ $value['label'] }}{{ empty($value['configured']) ? ' (not configured for this product)' : '' }}"
+                                            @disabled(empty($value['configured']))>
                                         <span class="p61-choice-chip">
                                             @if($swatch)<span class="p61-color-dot" style="--p61-swatch:{{ $swatch }}" aria-hidden="true"></span>@endif
                                             {{ $value['label'] }}
@@ -76,7 +78,8 @@
                             </div>
                         </fieldset>
                     @endforeach
-                    <p class="p07-variant-status" id="p07-variant-status" role="status" aria-live="polite">Select all options to view exact price and stock.</p>
+                    <p class="small text-muted p07-choice-help">Choose any available color, size, weight or pack. If needed, other selections will adjust to a real SKU; its exact price and stock appear below.</p>
+                    <p class="p07-variant-status" id="p07-variant-status" role="status" aria-live="polite">Checking available options…</p>
                     <p class="p07-sku" id="p07-variant-sku"></p>
                 </div>
             @else
@@ -113,7 +116,7 @@
                     @if($product->has_variants)
                         {{-- SKU is derived strictly from the checked option chips in the matrix. --}}
                         <input type="hidden" name="product_variant_id" id="p08-variant-id"
-                            value="{{ old('product_variant_id', '') }}">
+                            value="{{ old('product_variant_id', request()->query('variant', '')) }}">
                     @else
                         <input type="hidden" name="product_variant_id" value="{{ $simpleDefault?->id }}">
                     @endif

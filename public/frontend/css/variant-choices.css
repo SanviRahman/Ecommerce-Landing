@@ -1,0 +1,14 @@
+.sfa-card-variation{margin:10px 0;padding:8px 0;border-top:1px solid #e6efe9}
+.sfa-card-variation-group{border:0;padding:0;margin:0 0 8px;min-width:0}
+.sfa-card-variation-group legend{font-size:11px;font-weight:750;color:#224e34;margin-bottom:5px}
+.sfa-card-variation-values{display:flex;align-items:center;flex-wrap:wrap;gap:5px}
+.sfa-card-variation-values label{position:relative;margin:0;cursor:pointer}
+.sfa-card-variation-values input{position:absolute;opacity:0;width:1px;height:1px}
+.sfa-variant-chip{display:inline-flex;align-items:center;gap:4px;padding:5px 8px;border-radius:7px;border:1px solid #c6d8cc;background:#fff;color:#254c39;font-size:11px;font-weight:700}
+.sfa-card-variation-values input:checked+.sfa-variant-chip{color:#fff;background:#17693d;border-color:#17693d}
+.sfa-card-variation-values input:focus-visible+.sfa-variant-chip{outline:2px solid #f6a342;outline-offset:2px}
+.sfa-card-variation-values input:disabled+.sfa-variant-chip{opacity:.48;cursor:not-allowed;text-decoration:line-through}
+.sfa-variant-swatch{display:inline-block;flex:0 0 10px;width:10px;height:10px;border-radius:50%;background:var(--sfa-variant-swatch);border:1px solid #c4c4c4}
+.sfa-card-variation-status{font-size:11px;line-height:1.4;color:#597262;margin:3px 0 0}
+.p61-choice-unconfigured .p61-choice-chip{opacity:.45;cursor:not-allowed;text-decoration:line-through}
+@media(max-width:550px){.sfa-variant-chip{padding:5px 6px;font-size:10px}}

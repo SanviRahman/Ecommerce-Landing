@@ -1,0 +1,14 @@
+.sfa-campaign-variant-preview{margin:10px 0 8px;padding:7px 0;border-top:1px solid #e2e7e2;text-align:left}
+.sfa-campaign-choice-group{margin:0 0 8px;padding:0;border:0;min-width:0}
+.sfa-campaign-choice-group legend{font-size:12px;font-weight:700;color:#193c2b;margin:0 0 4px}
+.sfa-campaign-choice-row{display:flex;flex-wrap:wrap;gap:5px}
+.sfa-campaign-choice-row label{display:inline-flex;cursor:pointer;margin:0;position:relative}
+.sfa-campaign-choice-row input{position:absolute;opacity:0;width:1px;height:1px}
+.sfa-campaign-choice-chip{display:flex;gap:5px;align-items:center;border:1px solid #c8d5ce;border-radius:6px;padding:5px 7px;font-size:11px;font-weight:650;background:#fff;color:#194c31}
+.sfa-campaign-choice-chip i{display:inline-block;width:10px;height:10px;flex-shrink:0;border:1px solid #ddd;border-radius:50%;background:var(--sfa-swatch)}
+.sfa-campaign-choice-row input:checked+.sfa-campaign-choice-chip{background:#227a42;border-color:#227a42;color:white}
+.sfa-campaign-choice-row input:disabled+.sfa-campaign-choice-chip{opacity:.44;text-decoration:line-through;cursor:not-allowed}
+.sfa-campaign-choice-row input:focus-visible+.sfa-campaign-choice-chip{outline:2px solid #f5a524;outline-offset:2px}
+.sfa-campaign-choice-status{font-size:11px;color:#345b40;margin:5px 0}
+.sfa-campaign-variant-warning{display:block;color:#72552a;font-size:11px;line-height:1.35}
+.order-product-card[data-variant-preview-only]{cursor:default}

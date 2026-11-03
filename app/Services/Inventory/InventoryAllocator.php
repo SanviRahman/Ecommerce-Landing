@@ -209,16 +209,9 @@ final class InventoryAllocator
      *
      * @param array<int,int> $variantByOrderItem
      */
-    public function allocateStorefrontOrder(int $orderId, array $variantByOrderItem, bool $forCampaign = false): void
+    public function allocateStorefrontOrder(int $orderId, array $variantByOrderItem): void
     {
-        if ($forCampaign) {
-            // Campaign checkout is NOT granted production storefront permissions.
-            // This branch is isolated to the existing P03 test-only writer flag.
-            $this->assertTestTransaction();
-            if (! config('storefront.p03_order_writer_test_enabled', false)) {
-                throw new LogicException('Managed campaign variant allocation is not enabled.');
-            }
-        } elseif (request()->attributes->get('p58_production_checkout') === true) {
+        if (request()->attributes->get('p58_production_checkout') === true) {
             app(\App\Support\P58ProductionStorefrontAccess::class)->assertStorefrontCheckout();
             if (DB::transactionLevel() < 1) {
                 throw new LogicException('Production inventory allocation must share the checkout transaction.');
@@ -231,8 +224,7 @@ final class InventoryAllocator
         } else {
             $this->assertTestTransaction();
         }
-        if ((! $forCampaign && ! config('storefront.p08_checkout_test_enabled', false))
-            || $orderId < 1 || $variantByOrderItem === []) {
+        if (! config('storefront.p08_checkout_test_enabled', false) || $orderId < 1 || $variantByOrderItem === []) {
             throw new LogicException('Storefront inventory allocation is not enabled or has no order.');
         }
         foreach ($variantByOrderItem as $itemId => $variantId) {
@@ -241,8 +233,7 @@ final class InventoryAllocator
             }
         }
         $order = DB::table('orders')->where('id', $orderId)->lockForUpdate()->first();
-        if (! $order || $order->deleted_at !== null
-            || ($forCampaign ? $order->campaign_id === null : $order->campaign_id !== null)
+        if (! $order || $order->deleted_at !== null || $order->campaign_id !== null
             || $order->created_via !== 'frontend' || (int) $order->inventory_version !== 0) {
             throw new DomainException('Order is not an unallocated storefront order.');
         }
@@ -277,15 +268,12 @@ final class InventoryAllocator
         $eligible = [];
         foreach ($products as $product) {
             if (! $product->status || $product->deleted_at !== null || (int) $product->inventory_version !== 1
-                || ($forCampaign
-                    ? ! DB::table('campaign_product')->where('campaign_id', $order->campaign_id)
-                        ->where('product_id', $product->id)->exists()
-                    : ! $catalog->eligibleProducts()->where('products.id', $product->id)->exists())) {
+                || ! $catalog->eligibleProducts()->where('products.id', $product->id)->exists()) {
                 throw new DomainException('Storefront product is inactive or inventory is not reconciled.');
             }
             if ((bool) $product->has_variants) {
                 $model = \App\Models\Product::query()->with('variants.optionValues.option')->find($product->id);
-                $eligible[(int) $product->id] = $catalog->eligibleVariants($model)->pluck('id')->map('intval')->all();
+                $eligible[(int) $product->id] = $catalog->eligibleVariants($model)->pluck('id')->map(static fn ($value) => (int) $value)->all();
             }
         }
         $subtotal = 0;
@@ -305,7 +293,7 @@ final class InventoryAllocator
                     throw new DomainException('Incomplete or inactive storefront option combination.');
                 }
                 $selected = DB::table('product_variant_values')->where('product_variant_id', $variantId)
-                    ->pluck('product_option_value_id', 'product_option_id')->map('intval')->all();
+                    ->pluck('product_option_value_id', 'product_option_id')->map(static fn ($value) => (int) $value)->all();
                 if ($selected === [] || \App\Support\VariantSignature::fromOptionValues($selected) !== $variant->option_signature) {
                     throw new DomainException('Variant option identity has changed.');
                 }
@@ -315,11 +303,7 @@ final class InventoryAllocator
                 }
                 $selected = [];
             }
-            $campaignPrice = $forCampaign
-                ? (int) DB::table('campaign_product')->where('campaign_id', $order->campaign_id)
-                    ->where('product_id', $product->id)->value('campaign_price') : 0;
-            $unitMinor = \App\Support\ExactBdt::fromDecimal((string) ($campaignPrice > 0
-                ? $campaignPrice : ($variant->price_override ?? $product->new_price)));
+            $unitMinor = \App\Support\ExactBdt::fromDecimal((string) ($variant->price_override ?? $product->new_price));
             $lineMinor = \App\Support\ExactBdt::multiply($unitMinor, (int) $item->quantity);
             if ($unitMinor < 1 || \App\Support\ExactBdt::fromDecimal((string) $item->unit_price) !== $unitMinor
                 || \App\Support\ExactBdt::fromDecimal((string) $item->total_price) !== $lineMinor
@@ -361,8 +345,7 @@ final class InventoryAllocator
                 'operation_key' => 'allocate:v1:item:' . $itemId,
                 'kind' => 'allocation', 'quantity_delta' => -$quantity,
                 'stock_before' => $before, 'stock_after' => $after,
-                'actor_id' => null, 'reason' => $forCampaign
-                    ? 'P03 campaign selected-variant allocation' : 'P08 storefront COD checkout',
+                'actor_id' => null, 'reason' => 'P08 storefront COD checkout',
                 'metadata' => json_encode(['order_id' => $orderId], JSON_THROW_ON_ERROR),
                 'created_at' => now(),
             ]);

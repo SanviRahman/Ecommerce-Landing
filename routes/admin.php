@@ -316,12 +316,13 @@ Route::middleware(['auth', 'role:admin,employee'])->group(function () {
                 Route::post('/options/{option}/values', [ProductOptionController::class, 'value'])->name('options.values.store');
                 Route::patch('/options/{option}/values/{value}', [ProductOptionController::class, 'updateValue'])->name('options.values.update');
                 Route::delete('/options/{option}/values/{value}', [ProductOptionController::class, 'destroyValue'])->name('options.values.destroy');
-                // Legacy GET: redirects to Product Details; the separate Variants Blade view is retired.
+                // Audited SKU editor: admins can add priced combinations without rewriting existing orders.
                 Route::get('/{product}/variants', [ProductVariantController::class, 'index'])->name('variants.index');
                 Route::post('/{product}/variants/prepare', [ProductVariantController::class, 'prepare'])->name('variants.prepare');
                 Route::post('/{product}/variants/convert', [ProductVariantController::class, 'convert'])->name('variants.convert');
                 Route::post('/{product}/variants/activate', [ProductVariantController::class, 'activate'])->name('variants.activate');
                 Route::post('/{product}/variants/pause', [ProductVariantController::class, 'pause'])->name('variants.pause');
+                Route::post('/{product}/variants/bulk', [ProductVariantController::class, 'bulkStore'])->name('variants.bulk');
                 Route::post('/{product}/variants', [ProductVariantController::class, 'store'])->name('variants.store');
                 Route::patch('/{product}/variants/{variant}', [ProductVariantController::class, 'update'])->name('variants.update');
                 Route::post('/{product}/variants/{variant}/stock', [ProductVariantController::class, 'stock'])->name('variants.stock');

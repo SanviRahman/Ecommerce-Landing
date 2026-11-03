@@ -324,7 +324,8 @@
 <script src="{{ asset('frontend/js/storefront-p36.js') }}?v=p43" defer></script>
 <script src="{{ asset('frontend/js/storefront-premium.js') }}" defer></script>
 @unless($isPreview ?? false)
-    <script src="{{ asset('frontend/js/storefront-catalog.js') }}?v=p65" defer></script>
+    <script src="{{ asset('frontend/js/storefront-variant-matcher.js') }}?v=20261103-combo" defer></script>
+    <script src="{{ asset('frontend/js/storefront-catalog.js') }}?v=20261103-combo" defer></script>
 @endunless
 <script src="{{ asset('frontend/js/storefront-p38.js') }}" defer></script>
 <script src="{{ asset('frontend/js/storefront-p39.js') }}" defer></script>

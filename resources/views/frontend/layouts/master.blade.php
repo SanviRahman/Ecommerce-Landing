@@ -80,6 +80,7 @@
     {{-- Loaded last so polished green actions override older page rules. --}}
     <link rel="stylesheet" href="{{ asset('frontend/css/buttons.css') }}?v=20261024-frontend2">
     <link rel="stylesheet" href="{{ asset('frontend/css/public-description-p53.css') }}?v=p53">
+    <link rel="stylesheet" href="{{ asset('frontend/css/campaign-variant-preview.css') }}?v=20261103-variations">
     <link rel="stylesheet" href="{{ asset('frontend/css/campaign-offcanvas-p62.css') }}?v=p62">
 </head>
 

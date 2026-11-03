@@ -500,7 +500,7 @@ return [
                     'can'  => 'admin-only',
                 ],
                 [
-                    'text' => 'Category & Product Order',
+                    'text' => 'Category & Product Sorting',
                     'url'  => 'admin/catalog-order',
                     'icon' => 'fas fa-fw fa-sort',
                     'can'  => 'admin-only',

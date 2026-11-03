@@ -6,6 +6,7 @@ namespace App\Services\Storefront;
 
 use App\Models\Category;
 use App\Models\Product;
+use App\Models\ProductOption;
 use App\Models\ProductVariant;
 use App\Services\Inventory\StorefrontDeferredStock;
 use Illuminate\Database\Eloquent\Builder;
@@ -165,7 +166,7 @@ final class PublicCatalog
             return collect();
         }
         $assignedOptionIds = \Illuminate\Support\Facades\DB::table('product_option_assignments')
-            ->where('product_id', $product->id)->pluck('product_option_id')->map('intval')->all();
+            ->where('product_id', $product->id)->pluck('product_option_id')->map(static fn ($value) => (int) $value)->all();
         if ($assignedOptionIds === [] || count($assignedOptionIds) > 4) {
             return collect();
         }
@@ -268,6 +269,7 @@ final class PublicCatalog
                     'id' => (int) $value->id, 'label' => $value->label,
                     'swatch' => $value->swatch_hex,
                     'sort_order' => (int) $value->sort_order,
+                    'configured' => true,
                 ];
                 $selected[$optionId] = (int) $value->id;
             }
@@ -281,6 +283,32 @@ final class PublicCatalog
                 'physical_stock' => max(0, (int) $variant->stock),
                 'selected' => $selected,
             ];
+        }
+        // Option Values is the shared admin vocabulary, not a priced SKU table.
+        // Display all currently active values of each dimension that belongs to
+        // this product, while keeping the purchasable variant rows authoritative.
+        // A newly added value is visible, but it will not invent stock or price.
+        if ($options !== []) {
+            $assigned = ProductOption::query()->whereIn('id', array_keys($options))
+                ->where('is_active', true)
+                ->with(['values' => static fn ($query) => $query->where('is_active', true)])
+                ->get();
+            foreach ($assigned as $option) {
+                $values = [];
+                foreach ($option->values as $value) {
+                    $values[(int) $value->id] = [
+                        'id' => (int) $value->id,
+                        'label' => $value->label,
+                        'swatch' => $value->swatch_hex,
+                        'sort_order' => (int) $value->sort_order,
+                        'configured' => collect($rows)->contains(
+                            static fn (array $row): bool =>
+                                ($row['selected'][(int) $option->id] ?? null) === (int) $value->id
+                        ),
+                    ];
+                }
+                $options[(int) $option->id]['values'] = $values;
+            }
         }
         uasort($options, static fn ($a, $b) => [$a['sort_order'], $a['id']] <=> [$b['sort_order'], $b['id']]);
         foreach ($options as &$option) {

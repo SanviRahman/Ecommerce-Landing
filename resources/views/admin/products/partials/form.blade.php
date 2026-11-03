@@ -70,8 +70,16 @@
     @if($editingVariation)
         <section class="card border-success mb-3" aria-labelledby="edit-variation-heading" id="edit-variant-options">
             <div class="card-body">
-                <h2 class="h6 font-weight-bold text-success" id="edit-variation-heading">Product Variations (Edit)</h2>
-                <p class="small text-muted mb-2">Choose the SKU under <strong>Stock applies to</strong> to switch combinations. Save one selected SKU's Color, Size, Weight and Piece Count at a time; its stock and price remain separate.</p>
+                <div class="d-flex justify-content-between align-items-center flex-wrap mb-2" style="gap:.75rem">
+                    <h2 class="h6 font-weight-bold text-success mb-0" id="edit-variation-heading">Product Variations (Edit)</h2>
+                    @if($isManagedInventory && ($initialVariationEnabled ?? false) && auth()->user()?->isAdmin())
+                        <a class="btn btn-success btn-sm" href="{{ route('admin.products.variants.index', $product->id) }}#add-variation"
+                           aria-label="Add a new variation to {{ $product->name }}">
+                            <i class="fas fa-plus-circle mr-1" aria-hidden="true"></i> Add New Variation
+                        </a>
+                    @endif
+                </div>
+                <p class="small text-muted mb-2">Choose the SKU under <strong>Stock applies to</strong> to edit its existing combination. To create 2 Pieces / 3 Pieces with separate prices, use <strong>Add New Variation</strong> instead. Save other product edits before opening that page.</p>
                 <input type="hidden" name="expected_variation_signature" id="expected-variation-signature"
                     value="{{ old('expected_variation_signature', $selectedStockSku->option_signature) }}">
                 <div class="row">
