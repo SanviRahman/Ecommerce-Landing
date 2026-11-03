@@ -601,14 +601,18 @@ class ProductController extends Controller
                     throw ValidationException::withMessages(['variant_stocks' => 'This product has no managed SKU inventory.']);
                 }
                 $catalog->assertTestSchema();
-                foreach ([$variantStocks, $variantPrices] as $values) {
+                // Price rows include a price snapshot for every SKU; the form only
+                // sends the stock snapshot for the SELECTED stock SKU. Requiring
+                // expected_variant_stocks[] for price-only rows prevents every
+                // managed multi-SKU product from being edited.
+                foreach (['variant_stocks' => [$variantStocks, $expectedStocks],
+                          'variant_prices' => [$variantPrices, $expectedPrices]] as $field => [$values, $expected]) {
                     foreach (array_keys($values) as $id) {
                         if (! ctype_digit((string) $id) || (int) $id < 1) {
-                            throw ValidationException::withMessages(['variant_stocks' => 'Invalid SKU identifier.']);
+                            throw ValidationException::withMessages([$field => 'Invalid SKU identifier.']);
                         }
-                        if (! array_key_exists($id, $expectedStocks)
-                            || ! array_key_exists($id, $expectedPrices)) {
-                            throw ValidationException::withMessages(['variant_stocks' => 'Reload the product before editing SKU stock and prices.']);
+                        if (! array_key_exists($id, $expected)) {
+                            throw ValidationException::withMessages([$field => 'Reload the product before editing SKU stock and prices.']);
                         }
                     }
                 }

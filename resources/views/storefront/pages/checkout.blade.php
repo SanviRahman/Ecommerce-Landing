@@ -1,7 +1,10 @@
 @extends('storefront.layouts.catalog')
 @section('title', 'Secure Checkout')
 @section('content')
-    @php $shopper = \Illuminate\Support\Facades\Auth::guard('storefront')->user(); @endphp
+    @php
+        $shopper = \Illuminate\Support\Facades\Auth::guard('storefront')->user();
+        $orderHasFreeDelivery = collect($cart['lines'])->contains(fn ($line) => $line['is_free_delivery']);
+    @endphp
     <div hidden data-p53-checkout-tracking="{{ json_encode([
         'currency' => 'BDT',
         'value' => (float) $cart['subtotal'],
@@ -27,7 +30,8 @@
         <ul>@foreach($errors->all() as $message)<li>{{ $message }}</li>@endforeach</ul></div>@endif
     <div class="p08-checkout-grid p19-checkout-grid">
         <form id="p08-checkout-form" method="POST" action="{{ route('storefront.checkout.place') }}"
-            class="p08-checkout-form p19-checkout-form" data-checkout-stepper>
+            class="p08-checkout-form p19-checkout-form" data-checkout-stepper
+            data-free-delivery="{{ $orderHasFreeDelivery ? '1' : '0' }}">
             @csrf
             <input type="hidden" name="checkout_key" value="{{ old('checkout_key', $checkoutKey) }}">
             <input type="hidden" name="cart_version" value="{{ $cart['version'] }}">
@@ -46,7 +50,7 @@
                     autocomplete="street-address" required>{{ old('address', $shopper?->address) }}</textarea>
                 <fieldset class="p61-shipping-areas" aria-describedby="p61-shipping-hint">
                     <legend>Delivery Area <span aria-hidden="true">*</span></legend>
-                    <p id="p61-shipping-hint">Select one delivery location to calculate the charge.</p>
+                    <p id="p61-shipping-hint">{{ $orderHasFreeDelivery ? 'Free Delivery applies to all products in this cart. Select your delivery area for address confirmation.' : 'Select one delivery location to calculate the charge.' }}</p>
                     <div class="p61-area-grid" id="p08-area">
                         @foreach($areas as $area)
                             <label class="p61-area-option">
@@ -97,6 +101,7 @@
                 <div class="p19-summary-product"><span>{{ $line['name'] }}<small>Qty: {{ $line['quantity'] }}</small></span><strong>৳{{ $line['line_total'] }}</strong></div>
             @endforeach
             <hr><p>Subtotal <strong>৳{{ $cart['subtotal'] }}</strong></p>
+            @if($orderHasFreeDelivery)<p class="p64-free-delivery-label">Free Delivery on the whole order</p>@endif
             <p>Shipping <strong data-shipping-preview>Choose delivery area</strong></p>
             <p class="p19-summary-total">Estimated Total <strong data-checkout-total-preview data-subtotal-bdt="{{ $cart['subtotal'] }}" aria-live="polite">Choose delivery area</strong></p>
             <p class="p54-total-note">Final total, shipping and stock are confirmed by the server when you place the order.</p>

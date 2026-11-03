@@ -871,6 +871,7 @@
 
 @push('css')
 <link rel="stylesheet" href="{{ asset('frontend/css/home.css') }}?v=20261024-frontend2">
+<link rel="stylesheet" href="{{ asset('frontend/css/campaign-variants.css') }}?v=1">
 @endpush
 
 @section('content')
@@ -1177,6 +1178,9 @@
                             @endif
                         </div>
 
+                        @if($product->has_variants && $isOrderSectionActive)
+                            <div class="campaign-variant-hint">Choose Color / Size in the order form</div>
+                        @endif
                         @if($isOrderSectionActive)
                             <button type="button"
                                 class="btn btn-success btn-block add-order-btn add-product-to-order {{ $product->is_free_delivery ? 'free-delivery-btn' : '' }}"
@@ -1463,8 +1467,13 @@
                         $campaignPrice = (int) optional($product->pivot)->campaign_price;
                         $unitPrice = $campaignPrice > 0 ? $campaignPrice : (int) $product->new_price;
                         $weight = $product->weight_size ?: ($product->weight ?? ($product->size ?? ''));
+                        $campaignSkuChoices = $product->has_variants && (int) $product->inventory_version === 1
+                            ? app(\App\Services\Storefront\PublicCatalog::class)->eligibleVariants($product)->filter(
+                                fn ($sku) => \App\Services\Inventory\StorefrontDeferredStock::availableForVariant((int) $sku->id, (int) $sku->stock) > 0
+                            ) : collect();
                         @endphp
 
+                        <div class="campaign-order-product-shell">
                         <div class="order-product-card" role="button" tabindex="0" aria-pressed="false"
                             aria-label="Select {{ $product->name }}"
                             data-id="{{ $product->id }}" data-name="{{ $product->name }}"
@@ -1493,6 +1502,29 @@
                             <span class="selected-check">
                                 <i class="fas fa-check"></i>
                             </span>
+                        </div>
+                        @if($product->has_variants)
+                        <label class="campaign-variant-field" for="campaign-variant-{{ $product->id }}">
+                            <span>Choose Color / Size / Weight / Piece</span>
+                            <select id="campaign-variant-{{ $product->id }}" class="campaign-variant-select form-control"
+                                data-product-id="{{ $product->id }}" aria-label="Choose {{ $product->name }} variation">
+                                <option value="">Select a variation</option>
+                                @foreach($campaignSkuChoices as $sku)
+                                    @php
+                                        $variantLabel = $sku->optionValues->map(fn ($v) => ($v->option?->name ?? 'Option').': '.$v->label)->implode(' / ');
+                                        $variantPrice = $campaignPrice > 0 ? $campaignPrice : (int) ($sku->price_override ?? $product->new_price);
+                                        $variantStock = \App\Services\Inventory\StorefrontDeferredStock::availableForVariant((int) $sku->id, (int) $sku->stock);
+                                    @endphp
+                                    <option value="{{ $sku->id }}" data-label="{{ $variantLabel }}" data-price="{{ $variantPrice }}">
+                                        {{ $variantLabel }} — ৳{{ number_format($variantPrice) }} ({{ $variantStock }} available)
+                                    </option>
+                                @endforeach
+                            </select>
+                            @if($campaignSkuChoices->isEmpty())
+                                <small class="text-danger">No purchasable combinations available.</small>
+                            @endif
+                        </label>
+                        @endif
                         </div>
                         @endforeach
                     </div>
@@ -1716,6 +1748,6 @@
     ];
 @endphp
 <div id="sfaHomeConfig" hidden data-config="{{ json_encode($sfaHomeClientConfig, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) }}"></div>
-<script src="{{ asset('frontend/js/home.js') }}?v=20261024-frontend2" defer></script>
+<script src="{{ asset('frontend/js/home.js') }}?v=20261103-campaign-variants" defer></script>
 @endpush
 @endif

@@ -22,6 +22,41 @@
 
 @section('content')
 
+@if(!($isTrash ?? false))
+<div class="card shadow-sm border-0 mb-3" id="homepage_mode_panel" style="border-radius: 12px;" aria-label="Root homepage display settings">
+    <div class="card-body d-flex align-items-center justify-content-between flex-wrap" style="gap: 16px;">
+        <div style="flex: 1 1 260px; min-width: 0;">
+            <h5 class="mb-1 font-weight-bold text-dark">
+                <i class="fas fa-home text-primary mr-2" aria-hidden="true"></i> Homepage Display
+            </h5>
+            <p id="homepage_mode_help" class="text-muted small mb-1">
+                ON = Published Storefront homepage at / &nbsp;|&nbsp;
+                OFF = Default active campaign at /.
+            </p>
+            <small class="text-muted" id="homepage_default_campaign_note">
+                @if($activeDefaultCampaign)
+                    Default campaign: <strong>{{ $activeDefaultCampaign->title }}</strong>
+                @else
+                    No active default selected. When OFF, the latest active campaign is used.
+                @endif
+            </small>
+        </div>
+        <div class="text-md-right">
+            <div class="custom-control custom-switch campaign-default-switch d-inline-block">
+                <input type="checkbox" class="custom-control-input" id="homepage_mode_toggle"
+                       aria-describedby="homepage_mode_help"
+                       @checked(($homepageMode ?? 'storefront') === 'storefront')>
+                <label class="custom-control-label font-weight-bold" for="homepage_mode_toggle">{{ ($homepageMode ?? 'storefront') === 'storefront' ? 'Homepage ON' : 'Homepage OFF' }}</label>
+            </div>
+            <div id="homepage_mode_status" class="small font-weight-bold mt-1" role="status" aria-live="polite">
+                {{ ($homepageMode ?? 'storefront') === 'storefront' ? 'Published Homepage Active' : 'Default Campaign Active' }}
+            </div>
+            <a class="d-block small mt-1" href="{{ route('home') }}" target="_blank" rel="noopener noreferrer">View Website</a>
+        </div>
+    </div>
+</div>
+@endif
+
 <div class="card shadow-sm border-0" style="border-radius: 12px;">
     <div class="card-header bg-white py-3 border-0">
         <div class="row align-items-center">
@@ -190,6 +225,7 @@ $(document).ready(function() {
     }
 
     function updateUIState() {
+        $('#homepage_mode_panel').toggleClass('d-none', currentView === 'trash');
         if (currentView === 'trash') {
             $('.opt-active').addClass('d-none');
             $('.opt-trash').removeClass('d-none');
@@ -243,6 +279,58 @@ $(document).ready(function() {
 
         let page = $(this).attr('href').split('page=')[1];
         reloadTable(page);
+    });
+
+    $('#homepage_mode_toggle').on('change', function() {
+        const $toggle = $(this);
+        const wasOn = !$toggle.prop('checked');
+        const nextMode = $toggle.prop('checked') ? 'storefront' : 'campaign';
+        const $label = $('label[for="homepage_mode_toggle"]');
+        $toggle.prop('disabled', true);
+
+        Swal.fire({
+            title: nextMode === 'storefront' ? 'Show Storefront homepage?' : 'Show default campaign?',
+            text: nextMode === 'storefront'
+                ? 'Your published homepage will be shown at the root domain.'
+                : 'Your active default campaign will be shown at the root domain.',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, Switch',
+        }).then(function(result) {
+            if (!(result.isConfirmed || result.value)) {
+                $toggle.prop('checked', wasOn).prop('disabled', false);
+                return;
+            }
+            $.ajax({
+                url: "{{ route('admin.campaigns.homepage_mode.update') }}",
+                type: 'PATCH',
+                data: {
+                    _token: '{{ csrf_token() }}',
+                    mode: nextMode,
+                    expected_mode: wasOn ? 'storefront' : 'campaign'
+                },
+                success: function(response) {
+                    if (!response.status) {
+                        $toggle.prop('checked', wasOn);
+                        showToast('error', response.message || 'Homepage switch failed.');
+                    } else {
+                        const isOn = response.mode === 'storefront';
+                        $toggle.prop('checked', isOn);
+                        $label.text(isOn ? 'Homepage ON' : 'Homepage OFF');
+                        $('#homepage_mode_status').text(isOn
+                            ? 'Published Homepage Active' : 'Default Campaign Active');
+                        showToast('success', response.message);
+                    }
+                },
+                error: function(xhr) {
+                    $toggle.prop('checked', wasOn);
+                    let message = xhr.responseJSON?.errors?.mode?.[0]
+                        || xhr.responseJSON?.message || 'Homepage switch failed.';
+                    showToast('error', message);
+                },
+                complete: function() { $toggle.prop('disabled', false); },
+            });
+        });
     });
 
     $('#btnToggleTrash').on('click', function() {
@@ -335,6 +423,11 @@ $(document).ready(function() {
                     success: function(res) {
                         if (res.status) {
                             reloadTable();
+                            if (makeDefault) {
+                                $('#homepage_default_campaign_note').text('Default campaign updated. Reload this page to view its title.');
+                            } else {
+                                $('#homepage_default_campaign_note').text('Default cleared. The latest active campaign is used when Homepage is OFF.');
+                            }
                             showToast('success', res.message);
                         } else {
                             $toggle.prop('checked', wasDefault).prop('disabled', false);

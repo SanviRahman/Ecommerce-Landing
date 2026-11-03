@@ -48,6 +48,7 @@
     {{-- P63: public homepage shares the same drawer stacking and desktop header rules as the catalog/checkout. --}}
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p62.css') }}?v=p63">
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-merchandising.css') }}?v=1">
+    <link rel="stylesheet" href="{{ asset('frontend/css/storefront-card-sizing.css') }}?v=2">
     <script src="{{ asset('frontend/js/storefront-p51-loader.js') }}?v=p52"></script>
 </head>
 <body class="p34-storefront">
@@ -194,10 +195,10 @@
                                     <article class="sf-tile">
                                         <div class="sf-square"><img src="{{ ($isPreview ?? false) ? ($cat->getFirstMediaUrl('category_image') ?: asset('frontend/images/no-image.svg')) : $catalog->categoryImage($cat) }}" data-image-fallback="{{ asset('frontend/images/no-image.svg') }}" alt="" loading="lazy"></div>
                                         @if($isPreview ?? false)
-                                            <h3>{{ $cat->name }}</h3>
+                                            <h3 title="{{ $cat->name }}">{{ $cat->name }}</h3>
                                             <span class="sf-meta">Browse category</span>
                                         @else
-                                            <h3><a href="{{ route('storefront.category', $cat->slug) }}">{{ $cat->name }}</a></h3>
+                                            <h3><a href="{{ route('storefront.category', $cat->slug) }}" title="{{ $cat->name }}">{{ $cat->name }}</a></h3>
                                             <a class="sf-meta sf-meta-link" href="{{ route('storefront.category', $cat->slug) }}">Browse category</a>
                                         @endif
                                     </article>

@@ -44,7 +44,7 @@ class CampaignPageController extends Controller
                     ->orderByPivot('sort_order');
             },
             'products' => function ($query) {
-                $query->with(['category', 'brand'])
+                $query->with(['category', 'brand', 'variants.optionValues.option'])
                     ->where('products.status', true)
                     ->orderByPivot('sort_order');
             },

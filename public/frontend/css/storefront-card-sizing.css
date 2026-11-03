@@ -1,0 +1,46 @@
+/* Homepage and storefront cards only. Campaign landing/admin CSS is untouched. */
+/* Height increases with card width; no hard-coded pixels or distortion. */
+body.p34-storefront .sf-grid-categories .sf-square,
+body.p34-storefront .sf-grid-categories .p33-category-tile .sf-square {
+    aspect-ratio: 5 / 6;
+    width: 100%;
+    overflow: hidden;
+}
+body.p34-storefront .sf-product-image,
+body.p34-storefront .p07-card-link {
+    aspect-ratio: 4 / 5;
+    display: block;
+    overflow: hidden;
+}
+body.p34-storefront :is(.sf-grid-categories .sf-square, .sf-product-image, .p07-card-link) img {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: cover;
+}
+/* Titles stay readable: one line, ellipsis for genuinely long names. */
+body.p34-storefront :is(.sf-grid-categories .sf-tile > h3, .sf-product-copy h3, .p07-card-body h3) {
+    display: block;
+    min-width: 0;
+    max-width: 100%;
+    width: 100%;
+    min-height: 1.45em;
+    line-height: 1.45;
+    font-size: clamp(14px, 1.25vw, 16px);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    overflow-wrap: normal;
+    word-break: normal;
+}
+body.p34-storefront :is(.sf-grid-categories .sf-tile > h3, .sf-product-copy h3, .p07-card-body h3) > a {
+    display: block;
+    min-width: 0;
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+body.p34-storefront :is(.sf-grid-categories .sf-tile, .sf-product-copy, .p07-card-body) {
+    min-width: 0;
+}

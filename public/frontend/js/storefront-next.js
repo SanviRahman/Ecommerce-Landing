@@ -342,6 +342,9 @@
     const selectedShipping = () => shippingOptions.find((option) => option.checked);
     const getStep = (index) => panels.find(panel => Number(panel.dataset.checkoutStep) === index);
     const totalPreview = $('[data-checkout-total-preview][data-subtotal-bdt]');
+    // Mirrored from the server cart summary; the backend still recalculates
+    // free delivery from locked, authoritative product rows at order placement.
+    const freeDelivery = checkout.dataset.freeDelivery === '1';
     // Parse decimal BDT into integer paisa; never infer a total from formatted
     // strings with commas or from the browser's cart widget. Server is final.
     const asPaisa = (raw) => {
@@ -355,12 +358,12 @@
       {minimumFractionDigits: 2, maximumFractionDigits: 2});
     const updateEstimate = () => {
       const fee = selectedShipping()?.dataset.shippingCost;
-      const shippingPaisa = asPaisa(fee);
+      const shippingPaisa = freeDelivery ? 0 : asPaisa(fee);
       const subtotalPaisa = asPaisa(totalPreview?.dataset.subtotalBdt);
       const valid = shippingPaisa !== null && subtotalPaisa !== null
         && Number.isSafeInteger(shippingPaisa + subtotalPaisa);
       $$('[data-shipping-preview]').forEach(el => {
-        el.textContent = valid ? `Est. ${bdt(shippingPaisa)}` : 'Choose delivery area';
+        el.textContent = valid ? (freeDelivery ? 'Free Delivery' : `Est. ${bdt(shippingPaisa)}`) : 'Choose delivery area';
       });
       $$('[data-checkout-total-preview]').forEach(el => {
         el.textContent = valid ? `Est. ${bdt(subtotalPaisa + shippingPaisa)}` : 'Choose delivery area';

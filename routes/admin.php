@@ -553,6 +553,9 @@ Route::middleware(['auth', 'role:admin,employee'])->group(function () {
             ->as('campaigns.')
             ->group(function () {
                 Route::get('/', [CampaignController::class, 'index'])->name('index');
+                // Explicit admin-only + CSRF-protected root homepage mode change.
+                Route::patch('/homepage-mode', [CampaignController::class, 'updateHomepageMode'])
+                    ->middleware('role:admin')->name('homepage_mode.update');
                 Route::get('/create', [CampaignController::class, 'create'])->name('create');
                 Route::post('/', [CampaignController::class, 'store'])->name('store');
 

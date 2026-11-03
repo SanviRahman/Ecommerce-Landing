@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\CampaignOrderController;
 use App\Http\Controllers\Admin\CampaignPageController;
 use App\Http\Controllers\Frontend\StorefrontCatalogController;
+use App\Http\Controllers\Frontend\RootHomepageController;
 use App\Http\Middleware\P32LocalStorefrontCommerceMiddleware;
 use App\Http\Middleware\P58ProductionStorefrontCommerceMiddleware;
 use App\Http\Controllers\Frontend\OrderSuccessController;
@@ -23,7 +24,7 @@ use Illuminate\View\Middleware\ShareErrorsFromSession;
 */
 
 // Public storefront homepage: reads only the pinned published revision.
-Route::get('/', [StorefrontCatalogController::class, 'home'])
+Route::get('/', RootHomepageController::class)
     ->middleware([P32LocalStorefrontCommerceMiddleware::class, P58ProductionStorefrontCommerceMiddleware::class])->name('home');
 
 /* Public browsing needs no admin preview session or isolated QA server. */

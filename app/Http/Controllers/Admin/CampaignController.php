@@ -13,12 +13,16 @@ use App\Models\ShippingCharge;
 use App\Models\SiteSetting;
 use App\Models\SocialMedia;
 use App\Rules\SocialLink;
+use App\Services\Storefront\HomepageBuilder;
+use App\Support\StorefrontHomepageMode;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
@@ -673,6 +677,8 @@ class CampaignController extends Controller
             'title'      => $title,
             'breadcrumb' => $breadcrumb,
             'isTrash'    => $isTrash,
+            'homepageMode' => app(StorefrontHomepageMode::class)->current(),
+            'activeDefaultCampaign' => Campaign::query()->active()->default()->latest('id')->first(),
         ]);
     }
 
@@ -887,6 +893,91 @@ class CampaignController extends Controller
         });
     }
 
+
+    /** Switch only the ROOT URL between existing published storefront and existing campaign renderer. */
+    public function updateHomepageMode(Request $request)
+    {
+        $this->adminOnly();
+
+        $validated = $request->validate([
+            'mode' => ['required', Rule::in([
+                StorefrontHomepageMode::STOREFRONT,
+                StorefrontHomepageMode::CAMPAIGN,
+            ])],
+            'expected_mode' => ['required', Rule::in([
+                StorefrontHomepageMode::STOREFRONT,
+                StorefrontHomepageMode::CAMPAIGN,
+            ])],
+        ]);
+
+        if (! Schema::hasTable('storefront_pages') || ! Schema::hasTable('storefront_revisions')) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Homepage tables are unavailable. Complete the approved existing database setup first.',
+            ], 409);
+        }
+
+        $newMode = $validated['mode'];
+        $expectedMode = $validated['expected_mode'];
+
+        DB::transaction(function () use ($newMode, $expectedMode): void {
+            $page = DB::table('storefront_pages')
+                ->where('slug', HomepageBuilder::PAGE_SLUG)
+                ->lockForUpdate()->first();
+
+            if (StorefrontHomepageMode::normalize($page?->mode) !== $expectedMode) {
+                abort(409, 'Homepage setting changed in another tab. Reload and try again.');
+            }
+
+            if ($page === null && $newMode === StorefrontHomepageMode::CAMPAIGN) {
+                // The builder has not been initialized. Do not create/publish any draft here.
+                DB::table('storefront_pages')->insertOrIgnore([
+                    'slug' => HomepageBuilder::PAGE_SLUG,
+                    'mode' => StorefrontHomepageMode::CAMPAIGN,
+                    'lock_version' => 1,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+                $page = DB::table('storefront_pages')
+                    ->where('slug', HomepageBuilder::PAGE_SLUG)->lockForUpdate()->first();
+            }
+
+            if ($newMode === StorefrontHomepageMode::STOREFRONT) {
+                // Never display a draft or an empty public homepage as a successful switch.
+                $published = $page !== null && $page->published_revision_id !== null
+                    && DB::table('storefront_revisions')
+                        ->where('id', $page->published_revision_id)
+                        ->where('storefront_page_id', $page->id)
+                        ->where('status', 'published')
+                        ->whereNull('deleted_at')
+                        ->exists();
+                if (! $published) {
+                    throw ValidationException::withMessages([
+                        'mode' => 'Publish a storefront homepage from Homepage Builder before turning it on.',
+                    ]);
+                }
+            }
+
+            // No-op for repeated submissions. Never touch revisions or default campaigns.
+            if ($page === null || $page->mode === $newMode) {
+                return;
+            }
+
+            DB::table('storefront_pages')->where('id', $page->id)->update([
+                'mode' => $newMode,
+                'lock_version' => DB::raw('lock_version + 1'),
+                'updated_at' => now(),
+            ]);
+        });
+
+        return response()->json([
+            'status' => true,
+            'mode' => $newMode,
+            'message' => $newMode === StorefrontHomepageMode::STOREFRONT
+                ? 'Homepage is ON. The published storefront will open at your domain.'
+                : 'Homepage is OFF. The active default campaign is shown, or the website-off page when none is selected.',
+        ]);
+    }
 
     public function setDefault(Request $request, Campaign $campaign)
     {

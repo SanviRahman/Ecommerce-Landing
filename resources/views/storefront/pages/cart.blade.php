@@ -11,6 +11,7 @@
                 @if($line['option_label'])<p>{{ $line['option_label'] }}</p>@endif
                 <p>SKU: {{ $line['sku'] ?? 'Unavailable' }}</p>
                 <p>Quoted: ৳{{ $line['unit_price'] }} each · Line total: ৳{{ $line['line_total'] }}</p>
+                @if($line['is_free_delivery'])<p class="p64-free-delivery-label">Free Delivery</p>@endif
                 @unless($line['available'])<p class="p08-error">This product is unavailable. Remove it to continue.</p>@endunless
                 @if($line['price_changed'])<p class="p08-warning">Price changed to ৳{{ $line['current_price'] }}. Update to accept the latest price.</p>@endif
                 @if(!$line['sufficient'] && $line['available'])<p class="p08-warning">Available stock: {{ $line['stock'] }}. Reduce quantity to continue.</p>@endif
@@ -29,7 +30,11 @@
     @if(count($cart['lines']))
         <div class="p08-summary">
             <p>Merchandise subtotal <strong>৳{{ $cart['subtotal'] }}</strong></p>
-            <small>Shipping is calculated from the current delivery area at checkout.</small>
+            @if(collect($cart['lines'])->contains(fn ($line) => $line['is_free_delivery']))
+                <small class="p64-free-delivery-label">Free Delivery on this entire order, including other products.</small>
+            @else
+                <small>Shipping is calculated from the current delivery area at checkout.</small>
+            @endif
             @if($cart['can_checkout'] && config('storefront.p08_checkout_test_enabled', false) && config('storefront.p03_core_test_enabled', false))
                 <a class="p08-primary" href="{{ route('storefront.checkout') }}">Continue to Checkout</a>
             @else

@@ -3,6 +3,7 @@
     $price = $productPreview ? (int) $product->new_price : $catalog->displayPrice($product);
     $photo = $product->getFirstMediaUrl('product_thumbnail') ?: asset('frontend/images/no-image.svg');
     $productUrl = route('storefront.product', $product->slug);
+    $cardActionText = $product->is_free_delivery ? 'Free Delivery' : 'Buy Now';
     $wishlistState = app(\App\Support\StorefrontWishlistState::class);
     $wishSignedIn = $wishlistState->authenticated();
     $saved = $wishSignedIn && $wishlistState->contains((int) $product->id);
@@ -43,7 +44,7 @@
     @endunless
     <div class="sf-product-copy">
         <p class="sf-product-category">{{ $product->category?->name }}</p>
-        <h3><a href="{{ $productPreview ? '#' : $productUrl }}" @if($productPreview) tabindex="-1" aria-disabled="true" @endif>{{ $product->name }}</a></h3>
+        <h3><a title="{{ $product->name }}" href="{{ $productPreview ? '#' : $productUrl }}" @if($productPreview) tabindex="-1" aria-disabled="true" @endif>{{ $product->name }}</a></h3>
         <div class="sf-price">{{ $product->has_variants ? 'From ' : '' }}৳{{ number_format($price) }}</div>
         <div class="sf-product-actions p34-product-actions">
             @if($productPreview)
@@ -57,15 +58,15 @@
                     <input type="hidden" name="quantity" value="1">
                     <button type="submit" name="intent" value="cart" class="sf-secondary" aria-label="Add {{ $product->name }} to cart" title="Add to Cart">@include('storefront.partials.icon', ['name'=>'cart-plus'])</button>
                     @if($canCheckout)
-                        <button type="submit" name="intent" value="checkout" class="sf-cta p34-buy-button">Buy Now @include('storefront.partials.icon', ['name'=>'arrow-right'])</button>
+                        <button type="submit" name="intent" value="checkout" class="sf-cta p34-buy-button">{{ $cardActionText }} @include('storefront.partials.icon', ['name'=>'arrow-right'])</button>
                     @else
-                        <a class="sf-cta p34-buy-button" href="{{ $productUrl }}">View Product @include('storefront.partials.icon', ['name'=>'arrow-right'])</a>
+                        <a class="sf-cta p34-buy-button" href="{{ $productUrl }}">{{ $cardActionText }} @include('storefront.partials.icon', ['name'=>'arrow-right'])</a>
                     @endif
                 </form>
             @else
                 <a class="sf-secondary" href="{{ $selectionUrl }}" aria-label="{{ $product->has_variants ? 'Select a variation for' : 'View' }} {{ $product->name }}" title="{{ $product->has_variants ? 'Select size or color on product page' : 'View product details' }}">@include('storefront.partials.icon', ['name'=>'cart-plus'])</a>
                 <a class="sf-cta p34-buy-button" href="{{ $selectionUrl }}">
-                    {{ $product->has_variants ? 'Choose Options' : 'View Product' }}
+                    {{ $cardActionText }}
                     @include('storefront.partials.icon', ['name'=>'arrow-right'])
                 </a>
             @endif

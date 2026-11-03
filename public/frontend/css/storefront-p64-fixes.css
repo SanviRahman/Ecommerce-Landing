@@ -1,0 +1,19 @@
+/* Targeted P64 storefront card badge. Existing variant product-page controls unchanged. */
+body.p34-storefront .p64-free-delivery-note {
+  grid-column: 1 / -1;
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  color: #11643d;
+  background: #eafaf0;
+  border: 1px solid #b5eccb;
+  border-radius: 6px;
+  padding: 3px 7px;
+  font-size: 11px;
+  font-weight: 750;
+  line-height: 1.4;
+}
+body.p34-storefront .p64-free-delivery-label {
+  color: #117247;
+  font-weight: 700;
+}
