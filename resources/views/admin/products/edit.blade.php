@@ -20,5 +20,6 @@
 @endsection
 
 @section('js')
+<script src="{{ asset('frontend/js/product-variation-edit.js') }}" defer></script>
 <script src="{{ asset('frontend/js/product-page-standalone.js') }}" defer></script>
 @stop

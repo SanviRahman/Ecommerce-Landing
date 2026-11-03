@@ -1,6 +1,6 @@
 @extends('adminlte::page')
 
-@section('title', 'Color, Size & Product Options')
+@section('title', 'Product Options · Color, Size, Weight & Piece Count')
 
 @section('content_header')
 <div class="d-flex justify-content-between align-items-center flex-wrap">
@@ -37,7 +37,7 @@
     <div class="sf-options-info" role="note">
         <i class="fas fa-shield-alt mr-1"></i>
         <strong>Safe catalog management:</strong> Existing variant values cannot be permanently deleted or have their codes changed. Deactivate active variants before disabling a referenced option. Stock and historical orders are untouched.
-        <a class="ml-1" href="{{ route('admin.products.index') }}">Manage product variants from each product's Variants action.</a>
+        <a class="ml-1" href="{{ route('admin.products.index') }}">Choose these values on the Product Create form; edit a product to manage its Stock and price.</a>
     </div>
     @if(session('success'))<div class="alert alert-success" role="status">{{ session('success') }}</div>@endif
     @if($errors->any())
@@ -62,7 +62,7 @@
                     <div class="card-header d-flex align-items-center justify-content-between flex-wrap">
                         <div><h2 class="h5 mb-0" id="sf-option-title-{{ $option->id }}">
                             <i class="fas {{ $option->code === 'color' ? 'fa-palette' : ($option->code === 'size' ? 'fa-ruler-combined' : 'fa-tags') }} mr-2"></i>{{ $option->name }} Values</h2>
-                            <small>{{ $option->values->count() }} total values · Used in Product Create and Variant Manager</small>
+                            <small>{{ $option->values->count() }} total values · Used in Product Create; existing selections remain in Product Edit</small>
                         </div>
                         <span class="badge badge-light px-3 py-2">{{ ucfirst($option->code) }}</span>
                     </div>
@@ -123,10 +123,10 @@
                             <h3 class="h6 font-weight-bold mb-3"><i class="fas fa-plus-circle text-success mr-1"></i> Add {{ $option->name }} Value</h3>
                             <div class="form-row align-items-end">
                                 <div class="form-group col-md-4"><label for="new-label-{{ $option->id }}">Display label</label>
-                                    <input id="new-label-{{ $option->id }}" class="form-control" name="label" type="text" maxlength="100" placeholder="e.g. Black / XL / 500g" required>
+                                    <input id="new-label-{{ $option->id }}" class="form-control" name="label" type="text" maxlength="100" placeholder="{{ $option->code === 'piece_count' ? 'e.g. 3 Pieces' : ($option->code === 'color' ? 'e.g. Black' : ($option->code === 'size' ? 'e.g. XL' : 'e.g. 500g')) }}" required>
                                 </div>
                                 <div class="form-group col-md-3"><label for="new-code-{{ $option->id }}">Unique code</label>
-                                    <input id="new-code-{{ $option->id }}" class="form-control" name="code" maxlength="80" pattern="[a-z0-9][a-z0-9_-]*" placeholder="black / xl / 500g" required>
+                                    <input id="new-code-{{ $option->id }}" class="form-control" name="code" maxlength="80" pattern="[a-z0-9][a-z0-9_-]*" placeholder="{{ $option->code === 'piece_count' ? 'e.g. 3-piece' : ($option->code === 'color' ? 'e.g. black' : ($option->code === 'size' ? 'e.g. xl' : 'e.g. 500g')) }}" required>
                                 </div>
                                 @if($option->code === 'color')
                                 <div class="form-group col-md-3"><label for="new-swatch-{{ $option->id }}">HEX color (optional)</label>

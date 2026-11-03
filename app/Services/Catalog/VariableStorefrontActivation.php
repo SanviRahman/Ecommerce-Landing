@@ -43,7 +43,7 @@ final class VariableStorefrontActivation
     {
         P33CatalogAdminAccess::assertAllowed();
         if (! $product->status) {
-            $this->reject('The product is not active. Use the explicit activation action.');
+            $this->reject('The product is not active. Enable Active in Product Edit and save.');
         }
         $this->assertReady($product, requireStock: false);
         $this->assertStorefrontCheckoutReady();

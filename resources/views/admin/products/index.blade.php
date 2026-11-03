@@ -203,6 +203,7 @@
 @section('plugins.Sweetalert2', true)
 
 @section('js')
+<script src="{{ asset('frontend/js/product-variation-edit.js') }}" defer></script>
 <script>
 $(document).ready(function () {
     let currentView = "{{ isset($isTrash) && $isTrash ? 'trash' : 'active' }}";
@@ -399,6 +400,15 @@ $(document).ready(function () {
         openProductModal(url);
     });
 
+    // Edit supports old multi-SKU products with one visible Stock input.
+    $(document).on('change', '#managed-stock-sku', function () {
+        const option = this.selectedOptions[0];
+        if (!option) return;
+        const currentStock = option.dataset.currentStock;
+        $('#base-product-stock').val(currentStock);
+        $('#expected-variant-stock').val(currentStock);
+    });
+
     $(document).on('submit', '#productForm', function (e) {
         e.preventDefault();
 
@@ -422,10 +432,6 @@ $(document).ready(function () {
                     $('#ajaxModal').modal('hide');
                     reloadTable();
                     showToast('success', res.message || 'Product saved successfully.');
-                    if (res.variant_url) {
-                        // Server-issued same-origin route; opened only for initial variant setup.
-                        window.location.assign(res.variant_url);
-                    }
                 } else {
                     btn.prop('disabled', false).html(oldHtml);
                     showToast('error', res.message || 'Product save failed.');

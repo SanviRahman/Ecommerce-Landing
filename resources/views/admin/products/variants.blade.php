@@ -19,7 +19,7 @@
 <div class="alert alert-info" role="note">
     <strong>Managed variants:</strong> Admin-only on the verified test/local database or approved P58 production database. On a live inventory database, only a NEW zero-stock product without campaign/order history can be prepared. Legacy campaign inventory remains separate.
     Conversion temporarily deactivates the product. After checking a complete, stocked SKU combination and checkout readiness, activate it explicitly. No historical orders or inventory are rewritten.
-    Every variant starts at zero stock. Never assume a 2-piece pack is the same as cart quantity 2.
+    Newly added variants start at zero stock, then use the exact Stock field to enter their current sellable pack quantity. Never assume a 2-piece pack is the same as cart quantity 2.
 </div>
 @if(session('success'))
     <div class="alert alert-success" role="status">{{ session('success') }}</div>
@@ -98,6 +98,11 @@
                             <label for="variant-old-price">Old BDT (optional)</label>
                             <input id="variant-old-price" type="number" min="0" name="old_price_override" value="{{ old('old_price_override') }}" class="form-control">
                         </div>
+                        <div class="form-group col-md-4 col-sm-6">
+                            <label for="new-variant-stock">Initial Stock (exact packs/SKUs)</label>
+                            <input id="new-variant-stock" type="number" name="stock" min="0" max="1000000" step="1" value="{{ old('stock', 0) }}" required class="form-control" aria-describedby="new-variant-stock-help">
+                            <small id="new-variant-stock-help" class="text-muted">Enter 25 to start with 25; no second stock step.</small>
+                        </div>
                         @foreach($options as $option)
                         <div class="form-group col-md-3 col-sm-6">
                             <label for="option-{{ $option->id }}">{{ $option->name }}</label>
@@ -114,8 +119,8 @@
                         <input type="checkbox" class="custom-control-input" name="is_active" value="1" id="variant-active" @checked(old('is_active', true))>
                         <label for="variant-active" class="custom-control-label">Variant active</label>
                     </div>
-                    <button type="submit" class="btn btn-success">Create Zero-Stock Variant</button>
-                    <p class="small text-muted mt-2 mb-0">Choose at least one dimension. Missing prices inherit the product base price; zero is an explicit zero.</p>
+                    <button type="submit" class="btn btn-success">Create Variant &amp; Save Stock</button>
+                    <p class="small text-muted mt-2 mb-0">Choose at least one dimension. Missing prices inherit the product base price. Then set an exact stock quantity on the SKU row below.</p>
                 </form>
             @else
                 <p class="text-muted mb-0">Prepare and convert the product before adding size/color/weight/pack combinations.</p>
@@ -181,17 +186,12 @@
                     <form method="POST" action="{{ route('admin.products.variants.stock', [$product->id, $variant->id]) }}">
                         @csrf
                         <input type="hidden" name="expected_stock" value="{{ $variant->stock }}">
-                        <div class="form-row">
-                            <div class="form-group col-sm-4">
-                                <label for="delta-{{ $variant->id }}">Stock + / -</label>
-                                <input id="delta-{{ $variant->id }}" type="number" name="delta" min="-1000000" max="1000000" required class="form-control form-control-sm" placeholder="+10 / -2">
-                            </div>
-                            <div class="form-group col-sm-8">
-                                <label for="reason-{{ $variant->id }}">Reason (min 8 chars)</label>
-                                <input id="reason-{{ $variant->id }}" type="text" name="reason" minlength="8" maxlength="255" required class="form-control form-control-sm" placeholder="Warehouse count correction">
-                            </div>
+                        <div class="form-group mb-2">
+                            <label for="exact-stock-{{ $variant->id }}">Stock (set exact quantity)</label>
+                            <input id="exact-stock-{{ $variant->id }}" type="number" name="stock" min="0" max="1000000" step="1" value="{{ $variant->stock }}" required class="form-control form-control-sm" aria-describedby="stock-help-{{ $variant->id }}">
+                            <small id="stock-help-{{ $variant->id }}" class="text-muted">Example: enter 25 to keep 25 in stock. Previous stock will not be added again.</small>
                         </div>
-                        <button type="submit" class="btn btn-success btn-sm">Save Audited Stock Delta</button>
+                        <button type="submit" class="btn btn-success btn-sm">Save Stock</button>
                     </form>
                 </div>
             </div>

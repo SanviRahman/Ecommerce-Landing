@@ -503,3 +503,12 @@ Prepared changed-files patch for user-provided `website(20261027-040404).zip`: a
 - [x] PHP syntax, JS syntax, front-end source checks, and standalone new contract checks passed; baseline historical contract failures were compared rather than reclassified as new bugs.
 - [ ] Actual Laravel HTTP + MySQL tests: BLOCKED (vendor/ missing, no approved isolated database attached).
 - [ ] Local migration and browser verification/deployment: owner approval/backed-up environment required.
+
+### 2026-11-03 — Piece-pack prices and exact SKU stock (scoped source patch)
+
+- [x] Reviewed ProductController/VariantCatalogManager/ProductVariantController, managed SKU schema, Product Create/Edit partial, standalone JS and existing confirmation-time stock services.
+- [x] Added optional 1/2 Piece pack prices plus exact per-pack stock input while retaining the original Color/Size picker and Variant Manager.
+- [x] Product Edit shows per-variant SKU price and exact quantity, and existing Variants UI supports direct stock (no manual delta).
+- [x] Kept managed SKU ledger, reserved-stock guards, admin access and release gates; no checkout/order/courier or inventory confirmation code changed.
+- [x] New PHP feature tests (unrun isolated-MySQL harness), source contract and standalone UI smoke tests added.
+- [ ] Integration/browser verification on actual configured MySQL + full Composer dependencies: BLOCKED in this sandbox.

@@ -305,6 +305,204 @@ final class VariantCatalogManager
         }, 3);
     }
 
+    /**
+     * Edit one existing combination from Product Edit (not a new SKU).
+     * Preserve its SKU ID, exact stock, inventory ledger and historical orders.
+     * A SKU already referenced by an order cannot have its option identity
+     * rewritten; that would misrepresent a customer's original selection.
+     *
+     * @param array<string,int> $selectedByCode
+     * @return bool Whether the selected combination actually changed.
+     */
+    public function updateVariantOptionValues(Product $product, ProductVariant $variant,
+        array $selectedByCode, string $expectedSignature): bool
+    {
+        $this->assertTestSchema();
+
+        return DB::transaction(function () use ($product, $variant, $selectedByCode, $expectedSignature): bool {
+            $locked = Product::query()->whereKey($product->id)->lockForUpdate()->firstOrFail();
+            if (! $locked->has_variants || (int) $locked->inventory_version !== 1) {
+                $this->reject('Only an existing managed variable SKU can change its variation.', 'edit_variation');
+            }
+            $row = ProductVariant::query()->where('product_id', $locked->id)
+                ->whereKey($variant->id)->lockForUpdate()->first();
+            if (! $row || $row->is_default || $row->option_signature === 'default') {
+                $this->reject('Choose a valid sellable SKU for this product.', 'edit_variation');
+            }
+            if ($row->option_signature !== $expectedSignature) {
+                $this->reject('SKU options changed in another tab. Reload Product Edit.', 'edit_variation');
+            }
+            if (count($selectedByCode) < 1 || count($selectedByCode) > 4
+                || count(array_diff(array_keys($selectedByCode), array_keys(self::OPTIONS))) > 0) {
+                $this->reject('Choose at least one valid Color, Size, Weight or Piece Count.', 'edit_variation');
+            }
+            $options = ProductOption::query()->whereIn('code', array_keys($selectedByCode))
+                ->get()->keyBy('code');
+            if ($options->count() !== count($selectedByCode)) {
+                $this->reject('An option is missing. Reload Product Edit.', 'edit_variation');
+            }
+            $byOption = [];
+            foreach ($selectedByCode as $code => $id) {
+                if (! is_int($id) || $id < 1) {
+                    $this->reject('Invalid option value.', 'edit_variation');
+                }
+                $option = $options->get($code);
+                $value = ProductOptionValue::query()->whereKey($id)
+                    ->where('product_option_id', $option->id)->first();
+                if (! $value) {
+                    $this->reject('Selected value does not belong to ' . self::OPTIONS[$code] . '.', 'edit_variation');
+                }
+                $byOption[(int) $option->id] = (int) $value->id;
+            }
+
+            try {
+                $signature = VariantSignature::fromOptionValues($byOption);
+            } catch (InvalidArgumentException $error) {
+                $this->reject($error->getMessage(), 'edit_variation');
+            }
+            if ($signature === $row->option_signature) {
+                return false; // Allow unchanged old options without rewriting history.
+            }
+            foreach ($selectedByCode as $code => $id) {
+                $option = $options->get($code);
+                if (! $option->is_active || ! ProductOptionValue::query()->whereKey($id)
+                    ->where('product_option_id', $option->id)->where('is_active', true)->exists()) {
+                    $this->reject('Activate the selected ' . self::OPTIONS[$code]
+                        . ' value in Variant Options before saving.', 'edit_variation');
+                }
+            }
+            if (DB::table('order_items')->where('product_variant_id', $row->id)->exists()) {
+                $this->reject('This SKU is used by an order. Its variation cannot be changed without altering order history.', 'edit_variation');
+            }
+            if (ProductVariant::query()->withTrashed()->where('product_id', $locked->id)
+                ->where('id', '!=', $row->id)->where('option_signature', $signature)->exists()) {
+                $this->reject('Another SKU already uses this option combination.', 'edit_variation');
+            }
+
+            $currentAssigned = DB::table('product_option_assignments')
+                ->where('product_id', $locked->id)->pluck('product_option_id')
+                ->map(static fn ($id) => (int) $id)->sort()->values()->all();
+            $requestedAssigned = array_map('intval', array_keys($byOption));
+            sort($requestedAssigned, SORT_NUMERIC);
+            if ($currentAssigned !== $requestedAssigned) {
+                // Re-assigning a dimension would invalidate every other SKU.
+                // Limit it to a product that has never had another variable SKU
+                // or an order, including archived/history records.
+                $otherVariations = ProductVariant::query()->withTrashed()
+                    ->where('product_id', $locked->id)
+                    ->where('id', '!=', $row->id)
+                    ->where('option_signature', '!=', 'default')->exists();
+                if ($otherVariations || DB::table('order_items')
+                    ->where('product_id', $locked->id)->exists()) {
+                    $this->reject('This product has other/historical SKUs. Keep the same variation dimensions and edit their values only.', 'edit_variation');
+                }
+                DB::table('product_option_assignments')->where('product_id', $locked->id)->delete();
+                foreach ($requestedAssigned as $optionId) {
+                    DB::table('product_option_assignments')->insert([
+                        'product_id' => $locked->id, 'product_option_id' => $optionId,
+                        'sort_order' => 0, 'created_at' => now(), 'updated_at' => now(),
+                    ]);
+                }
+            }
+
+            // Existing product variant ID/SKU/price/stock never change here.
+            // The transaction and the unique signature index protect integrity.
+            DB::table('product_variant_values')->where('product_variant_id', $row->id)->delete();
+            foreach ($byOption as $optionId => $valueId) {
+                DB::table('product_variant_values')->insert([
+                    'product_variant_id' => $row->id,
+                    'product_option_id' => $optionId,
+                    'product_option_value_id' => $valueId,
+                    'created_at' => now(), 'updated_at' => now(),
+                ]);
+            }
+            $row->update(['option_signature' => $signature]);
+            return true;
+        }, 3);
+    }
+
+    /**
+     * Common 1/2-piece labels for the Product Create form. These are separate
+     * sellable pack SKUs, not an assumed conversion of individual-unit stock.
+     * The existing Option Values manager remains available for other packs.
+     *
+     * @return array<int,int> Piece count => option value ID
+     */
+    public function standardPieceCountValues(): array
+    {
+        $this->assertTestSchema();
+
+        return DB::transaction(function (): array {
+            $option = ProductOption::query()->firstOrCreate(
+                ['code' => 'piece_count'],
+                ['name' => 'Piece Count', 'input_type' => 'select', 'is_active' => true]
+            );
+            $option = ProductOption::query()->whereKey($option->id)->lockForUpdate()->firstOrFail();
+            if (! $option->is_active) {
+                $this->reject('Enable Piece Count in Variant Options before adding piece packs.', 'initial_piece_variations');
+            }
+
+            $ids = [];
+            foreach ([1, 2] as $count) {
+                $value = ProductOptionValue::query()->firstOrCreate(
+                    ['product_option_id' => $option->id, 'code' => 'pack_' . $count],
+                    ['label' => $count . ' Piece' . ($count === 1 ? '' : 's'),
+                        'is_active' => true, 'sort_order' => $count]
+                );
+                if (! $value->is_active) {
+                    $this->reject('Reactivate ' . $count . '-piece value in Variant Options first.', 'initial_piece_variations');
+                }
+                $ids[$count] = (int) $value->id;
+            }
+            return $ids;
+        }, 3);
+    }
+
+    /**
+     * Set the displayed stock to an exact quantity while reusing the existing
+     * optimistic-lock and inventory-ledger adjustment path. No checkout or
+     * order status transitions occur here.
+     */
+    public function setStockQuantity(Product $product, ProductVariant $variant,
+        int $quantity, int $expectedStock, int $actorId, string $reason = 'Admin entered exact SKU stock count'): void
+    {
+        $this->assertTestSchema();
+        if ($quantity < 0 || $quantity > 1_000_000 || $expectedStock < 0) {
+            $this->reject('Stock must be a nonnegative number up to 1,000,000.', 'stock');
+        }
+
+        DB::transaction(function () use ($product, $variant, $quantity, $expectedStock, $actorId, $reason): void {
+            // Other writers use product -> variant lock order too.
+            $locked = Product::query()->whereKey($product->id)->lockForUpdate()->firstOrFail();
+            $row = ProductVariant::query()->where('product_id', $locked->id)
+                ->whereKey($variant->id)->lockForUpdate()->firstOrFail();
+            if ((int) $row->stock !== $expectedStock) {
+                $this->reject('Stock changed in another order or browser tab. Reload and try again.', 'stock');
+            }
+            if ($locked->has_variants && $row->option_signature === 'default') {
+                $this->reject('The retired default SKU cannot receive stock.', 'stock');
+            }
+            if ($quantity === $expectedStock) {
+                return; // No fabricated audit delta for an unchanged number.
+            }
+            // Never reduce a SKU below quantities already reserved by unconfirmed
+            // storefront orders. Such reductions would make confirmation fail.
+            if (Schema::hasColumn('orders', 'storefront_stock_state')) {
+                $reserved = (int) DB::table('order_items as i')
+                    ->join('orders as o', 'o.id', '=', 'i.order_id')
+                    ->where('i.product_variant_id', $row->id)
+                    ->where('o.storefront_stock_state', \App\Services\Inventory\StorefrontDeferredStock::RESERVED)
+                    ->whereNull('o.deleted_at')->whereNull('i.deleted_at')
+                    ->sum('i.quantity');
+                if ($quantity < $reserved) {
+                    $this->reject('Stock cannot be lower than ' . $reserved . ' units reserved in pending orders.', 'stock');
+                }
+            }
+            $this->adjustStock($locked, $row, $quantity - $expectedStock,
+                $expectedStock, $reason, $actorId);
+        }, 3);
+    }
+
     public function updateVariant(Product $product, ProductVariant $variant, array $attributes): void
     {
         $this->assertTestSchema();

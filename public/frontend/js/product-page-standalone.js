@@ -11,6 +11,18 @@
         const csrfToken = page.dataset.csrfToken;
         if (!form || !returnUrl || !csrfToken) return;
 
+        // Switching an existing managed SKU updates the *one* Stock input.
+        const stockSku = form.querySelector('#managed-stock-sku');
+        stockSku?.addEventListener('change', () => {
+            const selected = stockSku.selectedOptions[0];
+            if (!selected) return;
+            const exactStock = selected.dataset.currentStock;
+            const stockField = form.querySelector('#base-product-stock');
+            const expectedField = form.querySelector('#expected-variant-stock');
+            if (stockField) stockField.value = exactStock;
+            if (expectedField) expectedField.value = exactStock;
+        });
+
         // On standalone pages Bootstrap's modal dismissal has nothing to close.
         const cancel = form.querySelector('[data-dismiss="modal"]');
         cancel?.addEventListener('click', () => {

@@ -8,7 +8,9 @@ use App\Models\Category;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\ProductOption;
+use App\Models\ProductOptionValue;
 use App\Services\Catalog\VariantCatalogManager;
+use App\Services\Catalog\VariableStorefrontActivation;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -262,6 +264,7 @@ class ProductController extends Controller
             'brands'     => $this->activeBrands(),
             'isEdit'     => false,
             'initialVariationOptions' => $this->initialVariationOptions(),
+            'initialVariationEnabled' => $this->variantAdminAvailable(),
             'action'     => route('admin.products.store'),
             'title'      => 'Product Create',
             'breadcrumb' => [
@@ -281,12 +284,14 @@ class ProductController extends Controller
         return view('admin.products.create', $data);
     }
 
-    /** Only reviewed, active Color/Size values are selectable during new product creation. */
+    /** Active Color, Size, Weight and Piece Count options share one source of truth. */
     private function initialVariationOptions(): array
     {
         try {
             \App\Support\P33CatalogAdminAccess::assertAllowed();
-            return ProductOption::query()->whereIn('code', ['color', 'size'])
+
+            return ProductOption::query()
+                ->whereIn('code', array_keys(VariantCatalogManager::OPTIONS))
                 ->where('is_active', true)
                 ->with(['values' => static fn ($query) => $query->where('is_active', true)])
                 ->get()->keyBy('code')->all();
@@ -295,7 +300,7 @@ class ProductController extends Controller
         }
     }
 
-    public function store(Request $request, VariantCatalogManager $catalog)
+    public function store(Request $request, VariantCatalogManager $catalog, VariableStorefrontActivation $release)
     {
         $this->adminOnly();
 
@@ -309,14 +314,21 @@ class ProductController extends Controller
 
             'purchase_price'    => ['nullable', 'integer', 'min:0'],
             'old_price'         => ['nullable', 'integer', 'min:0'],
-            'new_price'         => ['required', 'integer', 'min:0'],
+            'new_price'         => ['required', 'integer', 'min:0', 'max:4294967295'],
 
-            'stock'             => ['nullable', 'integer', 'min:0'],
+            // One Stock input always means one sellable SKU (not a conversion of packs).
+            'stock'             => ['required', 'integer', 'min:0', 'max:1000000'],
             'sold_quantity'     => ['nullable', 'integer', 'min:0'],
             'weight_size'       => ['nullable', 'string', 'max:255'],
-            'initial_variation' => ['nullable', 'array:color,size'],
+            'initial_variation' => ['nullable', 'array:color,size,weight,piece_count'],
             'initial_variation.color' => ['nullable', 'integer', 'min:1'],
             'initial_variation.size' => ['nullable', 'integer', 'min:1'],
+            'initial_variation.weight' => ['nullable', 'integer', 'min:1'],
+            'initial_variation.piece_count' => ['nullable', 'integer', 'min:1'],
+            // Do not silently accept the former hard-coded two-pack stock contract.
+            'initial_piece_variations' => ['prohibited'],
+            'pack_prices' => ['prohibited'],
+            'pack_stocks' => ['prohibited'],
 
             'short_description' => ['nullable', 'string'],
             'full_description'  => ['nullable', 'string'],
@@ -338,19 +350,27 @@ class ProductController extends Controller
         $selected = array_filter([
             'color' => $request->input('initial_variation.color'),
             'size' => $request->input('initial_variation.size'),
+            'weight' => $request->input('initial_variation.weight'),
+            'piece_count' => $request->input('initial_variation.piece_count'),
         ], static fn ($value) => $value !== null && $value !== '');
         $hasNewVariation = $selected !== [];
-        // No implicit stock split: a newly optioned product starts at zero.
+        // The form always sends 0/1. Preserve legacy API defaults when omitted:
+        // simple products default active; new variable products default inactive.
+        $requestedActive = $request->exists('status')
+            ? $request->boolean('status')
+            : ! $hasNewVariation;
+
         if ($hasNewVariation) {
             $catalog->assertTestSchema();
-            if ((int) $request->input('stock', 0) !== 0) {
-                throw \Illuminate\Validation\ValidationException::withMessages([
-                    'stock' => 'Set Stock to 0 for a new Color/Size variation. After stock is audited, use Variants > Validate & Activate for Local Storefront.',
-                ]);
-            }
         }
 
-        return DB::transaction(function () use ($request, $catalog, $selected, $hasNewVariation) {
+        return DB::transaction(function () use ($request, $catalog, $release, $selected, $hasNewVariation, $requestedActive) {
+            // The legacy Weight / Size string is populated from the selected
+            // Weight (or Size) option; no second input is necessary in the UI.
+            $weightOrSizeValueId = $selected['weight'] ?? $selected['size'] ?? null;
+            $displayWeightOrSize = $weightOrSizeValueId !== null
+                ? ProductOptionValue::query()->whereKey((int) $weightOrSizeValueId)->value('label')
+                : $request->input('weight_size');
             $product = Product::create([
                 'category_id'       => $request->category_id,
                 'brand_id'          => $request->brand_id,
@@ -366,9 +386,9 @@ class ProductController extends Controller
                 'old_price'         => $request->old_price ?: 0,
                 'new_price'         => $request->new_price,
 
-                'stock'             => $request->stock ?: 0,
+                'stock'             => $hasNewVariation ? 0 : ($request->stock ?: 0),
                 'sold_quantity'     => $request->sold_quantity ?: 0,
-                'weight_size'       => $request->weight_size,
+                'weight_size'       => $displayWeightOrSize,
 
                 'short_description' => $request->short_description,
                 'full_description'  => $request->full_description,
@@ -377,20 +397,34 @@ class ProductController extends Controller
                 'is_feature'        => $request->boolean('is_feature'),
                 'is_flash_sale'     => $request->boolean('is_flash_sale'),
                 'is_free_delivery'  => $request->boolean('is_free_delivery'),
-                'status'            => $request->has('status') ? $request->boolean('status') : true,
+                // A variable product is released only after its audited SKU,
+                // price and checkout readiness have all been validated.
+                'status'            => $hasNewVariation ? false : $requestedActive,
 
                 'meta_title'        => $request->meta_title,
                 'meta_description'  => $request->meta_description,
             ]);
 
-            // Reuse the ledger-backed P04 transitions; no historical product is touched.
-            // prepareSimple creates a zero-stock default; conversion retires it; the
-            // selected Color/Size SKU starts with its own zero-stock opening ledger.
+            // All SKU opening movements and stock entries stay in the SAME
+            // transaction as product creation; no order or checkout writer changes.
             if ($hasNewVariation) {
                 $catalog->prepareSimple($product);
                 $catalog->convertToVariable($product);
-                $catalog->createVariant($product, 'P' . $product->id . '-V' . implode('-', array_values($selected)),
-                    array_map('intval', $selected), null, null, true);
+                $variant = $catalog->createVariant(
+                    $product,
+                    'P' . $product->id . '-V' . implode('-', array_map('intval', array_values($selected))),
+                    array_map('intval', $selected),
+                    null, null, true
+                );
+                $catalog->setStockQuantity(
+                    $product, $variant, (int) $request->input('stock'), 0,
+                    (int) auth()->id(), 'Opening SKU stock entered during product creation'
+                );
+                if ($requestedActive) {
+                    // Atomic: if activation fails, do not save a product whose
+                    // form said Active. No untracked stock or half-created SKUs.
+                    $release->activate($product);
+                }
             }
             $this->uploadProductMedia($product, $request);
 
@@ -398,16 +432,15 @@ class ProductController extends Controller
                 return response()->json([
                     'status'  => true,
                     'message' => $hasNewVariation
-                        ? 'Color/Size variation saved as a zero-stock, inactive product. You can review SKU and pricing in Variant Manager; use Variants > Validate & Activate for Storefront after audited stock is ready.'
+                        ? ($requestedActive ? 'Product created and activated.' : 'Product created as inactive.')
                         : 'Product created successfully.',
-                    'variant_url' => $hasNewVariation ? route('admin.products.variants.index', $product->id) : null,
                 ]);
             }
 
-            return $hasNewVariation
-                ? redirect()->route('admin.products.variants.index', $product->id)
-                    ->with('success', 'Initial Color/Size SKU saved with zero stock; activate from Variants after SKU and checkout readiness checks.')
-                : redirect()->route('admin.products.index')->with('success', 'Product created successfully.');
+            return redirect()->route('admin.products.index')
+                ->with('success', $hasNewVariation
+                    ? ($requestedActive ? 'Product created and activated.' : 'Product created as inactive.')
+                    : 'Product created successfully.');
         });
     }
 
@@ -428,11 +461,26 @@ class ProductController extends Controller
 
         $product->load(['category', 'brand']);
 
+        $managedVariants = $this->variantAdminAvailable() && (int) $product->inventory_version === 1
+            ? ProductVariant::query()->where('product_id', $product->id)
+                ->when($product->has_variants, fn ($query) => $query->where('option_signature', '!=', 'default'))
+                ->with('optionValues.option')->orderBy('id')->get()
+            : collect();
+
         $data = [
             'product'    => $product,
             'categories' => $this->activeCategories(),
             'brands'     => $this->activeBrands(),
             'isEdit'     => true,
+            'managedVariants' => $managedVariants,
+            // Create and Edit use the same active values from Variant Options.
+            'initialVariationOptions' => $this->initialVariationOptions(),
+            'initialVariationEnabled' => $this->variantAdminAvailable(),
+            // Preserve an inactive value's label if an older SKU still references it.
+            'referencedVariationValues' => $managedVariants->flatMap(
+                fn ($variant) => $variant->optionValues
+            )->filter(fn ($value) => $value->option !== null)
+                ->unique('id')->groupBy(fn ($value) => $value->option->code),
             'action'     => route('admin.products.update', $product->id),
             'title'      => 'Product Edit',
             'breadcrumb' => [
@@ -452,7 +500,7 @@ class ProductController extends Controller
         return view('admin.products.edit', $data);
     }
 
-    public function update(Request $request, Product $product)
+    public function update(Request $request, Product $product, VariantCatalogManager $catalog, VariableStorefrontActivation $release)
     {
         /*
          * Blocks direct or manipulated employee update requests.
@@ -481,9 +529,25 @@ class ProductController extends Controller
             'old_price'         => ['nullable', 'integer', 'min:0'],
             'new_price'         => ['required', 'integer', 'min:0'],
 
-            'stock'             => ['nullable', 'integer', 'min:0'],
+            'stock'             => ['nullable', 'integer', 'min:0', 'max:1000000'],
+            'stock_variant_id' => ['nullable', 'integer', 'min:1'],
+            'expected_variant_stock' => ['nullable', 'integer', 'min:0', 'max:4294967295'],
+            'edit_variation' => ['nullable', 'array:color,size,weight,piece_count'],
+            'edit_variation.color' => ['nullable', 'integer', 'min:1'],
+            'edit_variation.size' => ['nullable', 'integer', 'min:1'],
+            'edit_variation.weight' => ['nullable', 'integer', 'min:1'],
+            'edit_variation.piece_count' => ['nullable', 'integer', 'min:1'],
+            'expected_variation_signature' => ['nullable', 'string', 'max:191'],
             'sold_quantity'     => ['nullable', 'integer', 'min:0'],
             'weight_size'       => ['nullable', 'string', 'max:255'],
+            'variant_stocks' => ['nullable', 'array'],
+            'variant_stocks.*' => ['required', 'integer', 'min:0', 'max:1000000'],
+            'expected_variant_stocks' => ['nullable', 'array'],
+            'expected_variant_stocks.*' => ['required', 'integer', 'min:0', 'max:4294967295'],
+            'variant_prices' => ['nullable', 'array'],
+            'variant_prices.*' => ['required', 'integer', 'min:1', 'max:4294967295'],
+            'expected_variant_prices' => ['nullable', 'array'],
+            'expected_variant_prices.*' => ['required', 'integer', 'min:0', 'max:4294967295'],
 
             'short_description' => ['nullable', 'string'],
             'full_description'  => ['nullable', 'string'],
@@ -502,21 +566,52 @@ class ProductController extends Controller
             'product_gallery.*' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
         ]);
 
-        return DB::transaction(function () use ($request, $product) {
+        return DB::transaction(function () use ($request, $product, $catalog, $release) {
             // Managed stock is variant-backed. The generic Product Edit form must
             // never overwrite a newer stock balance from a checkout or adjustment.
             $locked = Product::query()->whereKey($product->id)->lockForUpdate()->firstOrFail();
             $managed = (int) ($locked->inventory_version ?? 0) === 1;
-            if ((bool) ($locked->has_variants ?? false) && ! $locked->status && $request->boolean('status')) {
+            $originalBasePrice = (int) $locked->new_price;
+            $wasActive = (bool) $locked->status;
+            $requestedActive = $request->boolean('status');
+            // Parent stock is a sum of SKUs. Never overwrite that sum directly.
+            // Form submits exact per-SKU stock and an expected snapshot instead.
+            $variantStocks = (array) $request->input('variant_stocks', []);
+            $expectedStocks = (array) $request->input('expected_variant_stocks', []);
+            $variantPrices = (array) $request->input('variant_prices', []);
+            $expectedPrices = (array) $request->input('expected_variant_prices', []);
+            $stockVariantId = $request->input('stock_variant_id');
+            if ($request->has('edit_variation') && (! $managed || ! $locked->has_variants
+                || ! $stockVariantId || ! $request->filled('expected_variation_signature'))) {
                 throw ValidationException::withMessages([
-                    'status' => 'Use Variants > Validate & Activate for Storefront to verify options, price, inventory and checkout readiness first.',
+                    'edit_variation' => 'Choose an existing managed SKU before editing its Color, Size, Weight or Piece Count.',
                 ]);
             }
-            if ($managed && $request->has('stock')
-                && (int) $request->input('stock') !== (int) $locked->stock) {
-                throw ValidationException::withMessages([
-                    'stock' => 'Managed stock is read-only here. Use Variants > Audited Stock Adjustment.',
-                ]);
+            if ($stockVariantId !== null && $stockVariantId !== '') {
+                if (! $managed || $request->input('stock') === null
+                    || $request->input('expected_variant_stock') === null
+                    || $variantStocks !== []) {
+                    throw ValidationException::withMessages([
+                        'stock' => 'Select a managed SKU and enter its current Stock quantity. Reload the product if needed.',
+                    ]);
+                }
+            }
+            if ($variantStocks !== [] || $variantPrices !== []) {
+                if (! $managed) {
+                    throw ValidationException::withMessages(['variant_stocks' => 'This product has no managed SKU inventory.']);
+                }
+                $catalog->assertTestSchema();
+                foreach ([$variantStocks, $variantPrices] as $values) {
+                    foreach (array_keys($values) as $id) {
+                        if (! ctype_digit((string) $id) || (int) $id < 1) {
+                            throw ValidationException::withMessages(['variant_stocks' => 'Invalid SKU identifier.']);
+                        }
+                        if (! array_key_exists($id, $expectedStocks)
+                            || ! array_key_exists($id, $expectedPrices)) {
+                            throw ValidationException::withMessages(['variant_stocks' => 'Reload the product before editing SKU stock and prices.']);
+                        }
+                    }
+                }
             }
             $locked->update([
                 'category_id'       => $request->category_id,
@@ -535,7 +630,7 @@ class ProductController extends Controller
 
                 'stock'             => $managed ? $locked->stock : ($request->stock ?: 0),
                 'sold_quantity'     => $request->sold_quantity ?: 0,
-                'weight_size'       => $request->weight_size,
+                'weight_size'       => $request->input('weight_size', $locked->weight_size),
 
                 'short_description' => $request->short_description,
                 'full_description'  => $request->full_description,
@@ -544,17 +639,105 @@ class ProductController extends Controller
                 'is_feature'        => $request->boolean('is_feature'),
                 'is_flash_sale'     => $request->boolean('is_flash_sale'),
                 'is_free_delivery'  => $request->boolean('is_free_delivery'),
-                'status'            => $request->has('status') ? $request->boolean('status') : false,
+                // Inactive managed products remain paused until validated below.
+                'status'            => $managed && $locked->has_variants && ! $wasActive
+                    ? false : $requestedActive,
 
                 'meta_title'        => $request->meta_title,
                 'meta_description'  => $request->meta_description,
             ]);
 
-            // Once explicitly released, normal Product Edit must remain usable,
-            // but cannot break a sellable variant, active category or checkout.
-            if ($managed && $locked->has_variants && $locked->status) {
-                app(\App\Services\Catalog\VariableStorefrontActivation::class)
-                    ->verifyActive($locked);
+            // Update the selected SKU's combination before price/stock and release
+            // validation. Do not touch order history, inventory balances or SKU IDs.
+            if ($request->has('edit_variation')) {
+                $selectedVariant = ProductVariant::query()->where('product_id', $locked->id)
+                    ->whereKey((int) $stockVariantId)->lockForUpdate()->first();
+                if (! $selectedVariant || $selectedVariant->option_signature === 'default') {
+                    throw ValidationException::withMessages([
+                        'edit_variation' => 'The selected SKU no longer exists. Reload Product Edit.',
+                    ]);
+                }
+                $selectedOptions = array_filter((array) $request->input('edit_variation'),
+                    static fn ($value) => $value !== null && $value !== '');
+                $changed = $catalog->updateVariantOptionValues(
+                    $locked, $selectedVariant, array_map('intval', $selectedOptions),
+                    (string) $request->input('expected_variation_signature')
+                );
+                if ($changed && ProductVariant::query()->where('product_id', $locked->id)
+                    ->where('option_signature', '!=', 'default')->count() === 1) {
+                    // Legacy display string is meaningful only for a single combination.
+                    $weightOrSizeId = $selectedOptions['weight'] ?? $selectedOptions['size'] ?? null;
+                    $locked->update(['weight_size' => $weightOrSizeId
+                        ? ProductOptionValue::query()->whereKey((int) $weightOrSizeId)->value('label')
+                        : null]);
+                }
+            }
+
+            // Update only SKUs of THIS product (never inventory of another item).
+            // The existing VariantCatalogManager writes every stock adjustment
+            // with an actor, before/after value, and movement reason.
+            if ($variantStocks !== [] || $variantPrices !== []) {
+                $ids = array_unique(array_merge(array_keys($variantStocks), array_keys($variantPrices)));
+                sort($ids, SORT_NUMERIC);
+                foreach ($ids as $id) {
+                    $variant = ProductVariant::query()->where('product_id', $locked->id)
+                        ->whereKey((int) $id)->lockForUpdate()->first();
+                    if (! $variant || ($locked->has_variants && $variant->option_signature === 'default')) {
+                        throw ValidationException::withMessages(['variant_stocks' => 'Invalid or retired SKU for this product.']);
+                    }
+                    if (array_key_exists($id, $variantPrices)) {
+                        // Use the base price from when this form was opened; a
+                        // base-price edit in this same request is not a stale SKU.
+                        $current = (int) ($variant->price_override ?? $originalBasePrice);
+                        if ($current !== (int) $expectedPrices[$id]) {
+                            throw ValidationException::withMessages(['variant_prices' => 'Variant price was updated elsewhere. Reload before saving.']);
+                        }
+                        if ((int) $variantPrices[$id] !== $current) {
+                            if ($variant->is_default || $variant->option_signature === 'default') {
+                                throw ValidationException::withMessages(['variant_prices' => 'Edit the base product price for the default SKU.']);
+                            }
+                            $catalog->updateVariant($locked, $variant, [
+                                'sku' => $variant->sku,
+                                'price_override' => (int) $variantPrices[$id],
+                                'old_price_override' => $variant->old_price_override,
+                                'is_active' => (bool) $variant->is_active,
+                            ]);
+                        }
+                    }
+                    if (array_key_exists($id, $variantStocks)) {
+                        $catalog->setStockQuantity($locked, $variant,
+                            (int) $variantStocks[$id], (int) $expectedStocks[$id],
+                            (int) auth()->id(), 'Exact SKU stock set from Product Edit');
+                    }
+                }
+                $locked->refresh();
+            }
+
+            // New simple UI submits exactly one Stock field. Existing multi-SKU
+            // products can choose which SKU to edit without showing stock per row.
+            if ($stockVariantId !== null && $stockVariantId !== '') {
+                $variant = ProductVariant::query()->where('product_id', $locked->id)
+                    ->whereKey((int) $stockVariantId)->lockForUpdate()->first();
+                if (! $variant || ($locked->has_variants && $variant->option_signature === 'default')) {
+                    throw ValidationException::withMessages(['stock_variant_id' => 'Select a valid SKU belonging to this product.']);
+                }
+                $catalog->setStockQuantity(
+                    $locked, $variant, (int) $request->input('stock'),
+                    (int) $request->input('expected_variant_stock'), (int) auth()->id(),
+                    'Exact SKU stock set from the single Product Edit Stock field'
+                );
+                $locked->refresh();
+            }
+
+            // The Product form's Active switch is the ONLY admin release action.
+            // Reuse the original fail-closed validation rather than bypassing
+            // option, ledger, category, price or checkout requirements.
+            if ($managed && $locked->has_variants && $requestedActive) {
+                if ($wasActive) {
+                    $release->verifyActive($locked);
+                } else {
+                    $release->activate($locked);
+                }
             }
 
             $product->refresh();
@@ -690,7 +873,7 @@ class ProductController extends Controller
             && Product::whereIn('id', $ids)->where('has_variants', true)->exists()) {
             return response()->json([
                 'status' => false,
-                'message' => 'Use the verified Variants > Validate & Activate for Local Storefront action instead of bulk activation.',
+                'message' => 'To activate a variable product, open Product Edit and turn Active on. Each product must pass the existing catalog safety checks.',
             ], 422);
         }
 

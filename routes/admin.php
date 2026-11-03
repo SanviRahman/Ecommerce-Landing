@@ -316,6 +316,7 @@ Route::middleware(['auth', 'role:admin,employee'])->group(function () {
                 Route::post('/options/{option}/values', [ProductOptionController::class, 'value'])->name('options.values.store');
                 Route::patch('/options/{option}/values/{value}', [ProductOptionController::class, 'updateValue'])->name('options.values.update');
                 Route::delete('/options/{option}/values/{value}', [ProductOptionController::class, 'destroyValue'])->name('options.values.destroy');
+                // Legacy GET: redirects to Product Details; the separate Variants Blade view is retired.
                 Route::get('/{product}/variants', [ProductVariantController::class, 'index'])->name('variants.index');
                 Route::post('/{product}/variants/prepare', [ProductVariantController::class, 'prepare'])->name('variants.prepare');
                 Route::post('/{product}/variants/convert', [ProductVariantController::class, 'convert'])->name('variants.convert');
