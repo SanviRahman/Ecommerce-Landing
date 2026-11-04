@@ -1,5 +1,5 @@
 (function () {
-    const settings = document.getElementById('sfaTrackingConfig');
+    const settings = document.getElementById('gtmTrackingConfig') || document.getElementById('sfaTrackingConfig');
     let config = {};
     try {
         config = settings ? JSON.parse(settings.getAttribute('data-config') || '{}') : {};
@@ -8,6 +8,17 @@
         return;
     }
     window.dataLayer = window.dataLayer || [];
+    // Prevent a duplicated partial/script from firing PageView and conversions twice.
+    if (window.__GTM_TRACKING_BRIDGE_READY__ || window.__SFA_TRACKING_BRIDGE_READY__) return;
+    window.__GTM_TRACKING_BRIDGE_READY__ = true;
+    window.__SFA_TRACKING_BRIDGE_READY__ = true;
+
+    const META_EVENT_NAMES = {
+        page_view: 'PageView', view_content: 'ViewContent',
+        add_to_cart: 'AddToCart', begin_checkout: 'InitiateCheckout', purchase: 'Purchase'
+    };
+    let checkoutTracked = false;
+    const purchasesTracked = new Set();
 
     const DEBUG = Boolean(config.debug);
     const DEFAULT_CURRENCY = 'BDT';
@@ -65,7 +76,7 @@
 
     function debugLog(eventName, payload) {
         if (DEBUG && window.console) {
-            console.log('[SFA Tracking]', eventName, payload);
+            console.log('[GTM Tracking Bridge]', eventName, payload);
         }
     }
 
@@ -78,10 +89,12 @@
         const safeTransaction = cleanString(transactionId).replace(/[^a-zA-Z0-9_-]/g, '_');
 
         if (safeTransaction) {
-            return 'sfa_' + safeName + '_' + safeTransaction;
+            // Keep the established Purchase ID for previously placed orders so that a
+            // success-page revisit cannot create a new deduplication identity.
+            return (safeName === 'purchase' ? 'sfa_' : 'gtm_') + safeName + '_' + safeTransaction;
         }
 
-        return 'sfa_' + safeName + '_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
+        return 'gtm_' + safeName + '_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
     }
 
     function totalQuantity(items) {
@@ -168,60 +181,106 @@
     }
 
     function sendMetaTrack(eventName, payload, options) {
+        const configured = window.GTM_META_PIXEL_IDS || window.SFA_META_PIXEL_IDS;
+        const pixelIds = Array.isArray(configured) ? configured.filter(Boolean) : [];
+        // An external GTM tag may own fbq, but an absent admin Meta integration
+        // must never trigger that unrelated Pixel a second time.
+        if (!pixelIds.length) return;
         if (typeof window.fbq !== 'function') {
             debugLog('meta_not_loaded_' + eventName, payload);
             return;
         }
-
-        const pixelIds = Array.isArray(window.SFA_META_PIXEL_IDS)
-            ? window.SFA_META_PIXEL_IDS.filter(Boolean)
-            : [];
-
-        if (pixelIds.length) {
-            pixelIds.forEach(function (pixelId) {
-                window.fbq('trackSingle', String(pixelId), eventName, payload || {}, options || {});
-            });
-
-            return;
+        const diagnostics = window.GTM_TRACKING_DIAGNOSTICS || window.SFA_META_DIAGNOSTICS;
+        if (diagnostics) {
+            diagnostics.events_queued += 1;
+            diagnostics.last_event = {name: eventName, event_id: options && options.eventID};
         }
 
-        window.fbq('track', eventName, payload || {}, options || {});
+        pixelIds.forEach(function (pixelId) {
+            window.fbq('trackSingle', String(pixelId), eventName, payload || {}, options || {});
+        });
     }
 
-    function sendMetaEvent(eventName, ecommerce, extra) {
+    // The browser's eventID and CAPI's event_id MUST be the same for each action.
+    // Purchase is sent from the actual order on the server, never from untrusted JS data.
+    function sendConversionsEvent(eventName, eventId, payload) {
+        // Purchase is dispatched using the saved order by the Laravel service.
+        if (!config.capiUrl || eventName === 'Purchase') return;
+        const diagnostics = window.GTM_TRACKING_DIAGNOSTICS;
+        const capi = diagnostics && diagnostics.capi;
+        if (typeof window.fetch !== 'function') {
+            if (capi) { capi.state = 'fetch_unavailable'; capi.failures++; }
+            return;
+        }
+        const csrf = document.querySelector('meta[name="csrf-token"]');
+        if (!csrf || !csrf.content) {
+            if (capi) { capi.state = 'csrf_missing'; capi.failures++; }
+            return;
+        }
+        const requestStatus = {name: eventName, event_id: eventId, status: 'pending'};
+        if (capi) {
+            capi.state = 'sending';
+            capi.requests++;
+            capi.recent.push(requestStatus);
+            if (capi.recent.length > 20) capi.recent.shift();
+        }
+        const customData = {};
+        ['value', 'currency', 'content_type', 'content_ids', 'contents', 'num_items'].forEach(function (key) {
+            if (payload && payload[key] !== undefined) customData[key] = payload[key];
+        });
+        window.fetch(config.capiUrl, {
+            method: 'POST', credentials: 'same-origin', keepalive: true,
+            headers: {'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf.content,
+                'Accept': 'application/json'},
+            body: JSON.stringify({event_name: eventName, event_id: eventId,
+                custom_data: customData})
+        }).then(function (response) {
+            requestStatus.http_status = response.status;
+            if (!response.ok) {
+                requestStatus.status = 'http_error';
+                if (capi) { capi.state = 'http_error'; capi.failures++; }
+                debugLog('capi_http_error_' + eventName, {status: response.status});
+                return;
+            }
+            // Laravel accepted the request; Meta's response decides actual delivery.
+            return response.json().then(function (result) {
+                const received = Number(result && result.server_events_delivered || 0);
+                requestStatus.status = received > 0 ? 'meta_accepted' : 'not_delivered';
+                requestStatus.delivered_to = received;
+                if (capi) {
+                    capi.state = requestStatus.status;
+                    if (received > 0) capi.delivered += received;
+                    else capi.failures++;
+                }
+                if (!received) debugLog('capi_delivery_unconfirmed_' + eventName, {event_id: eventId});
+            });
+        }).catch(function () {
+            requestStatus.status = 'network_error';
+            if (capi) { capi.state = 'network_error'; capi.failures++; }
+            debugLog('capi_unavailable_' + eventName, {event_id: eventId});
+        });
+    }
+
+    function sendMetaEvent(eventName, ecommerce, extra, eventId) {
         ecommerce = ecommerce || {};
         extra = extra || {};
 
-        const eventMap = {
-            page_view: 'PageView',
-            view_content: 'ViewContent',
-            add_to_cart: 'AddToCart',
-            begin_checkout: 'InitiateCheckout',
-            purchase: 'Purchase'
-        };
-
-        if (!eventMap[eventName]) {
-            return;
-        }
-
-        const transactionId = ecommerce.transaction_id || null;
-        const eventId = makeEventId(eventName, transactionId);
+        if (!META_EVENT_NAMES[eventName]) return;
 
         if (eventName === 'page_view') {
-            sendMetaTrack('PageView', {
+            const pagePayload = {
                 page_type: extra.page_type || 'other',
                 page_title: extra.page_title || document.title,
                 event_source_url: extra.page_url || currentUrl()
-            }, {
-                eventID: eventId
-            });
-
+            };
+            sendMetaTrack('PageView', pagePayload, {eventID: eventId});
+            sendConversionsEvent('PageView', eventId, {});
             return;
         }
 
-        sendMetaTrack(eventMap[eventName], metaPayloadFrom(eventName, ecommerce, extra), {
-            eventID: eventId
-        });
+        const payload = metaPayloadFrom(eventName, ecommerce, extra);
+        sendMetaTrack(META_EVENT_NAMES[eventName], payload, {eventID: eventId});
+        sendConversionsEvent(META_EVENT_NAMES[eventName], eventId, payload);
     }
 
     function sendTikTokEvent(eventName, ecommerce, extra) {
@@ -329,16 +388,23 @@
         ecommerce = ecommerce || {};
         extra = extra || {};
 
-        const payload = pushDataLayer(eventName, ecommerce, extra);
+        // Generate ONCE and reuse in dataLayer, browser Pixel and server CAPI.
+        const eventId = META_EVENT_NAMES[eventName]
+            ? makeEventId(eventName, ecommerce.transaction_id || null)
+            : null;
+        const dataLayerExtras = eventId ? Object.assign({}, extra, {
+            event_id: eventId, meta_event_name: META_EVENT_NAMES[eventName]
+        }) : extra;
+        const payload = pushDataLayer(eventName, ecommerce, dataLayerExtras);
 
-        sendMetaEvent(eventName, ecommerce, extra);
+        sendMetaEvent(eventName, ecommerce, extra, eventId);
         sendTikTokEvent(eventName, ecommerce, extra);
         sendGA4Event(eventName, ecommerce, extra);
 
         return payload;
     }
 
-    window.SFATracking = {
+    window.GTMTracking = {
         track: track,
 
         pageView: function (data) {
@@ -397,8 +463,12 @@
 
         beginCheckout: function (data) {
             data = data || {};
+            // Campaign order anchor and form submit can both invoke this action.
+            if (checkoutTracked) return null;
 
             const items = cleanItems(data.items || []);
+            if (!items.length) return null;
+            checkoutTracked = true;
             const value = cleanNumber(data.value || totalValue(items) || 0);
 
             return track('begin_checkout', {
@@ -425,13 +495,15 @@
 
             if (transactionId) {
                 const storageKey = 'sfa_purchase_' + transactionId;
-
-                if (sessionStorage.getItem(storageKey)) {
-                    debugLog('purchase_duplicate_skipped', data);
-                    return null;
+                if (purchasesTracked.has(transactionId)) return null;
+                try {
+                    // Storage may be denied by browser privacy settings: do not stop conversion.
+                    if (window.sessionStorage.getItem(storageKey)) return null;
+                    window.sessionStorage.setItem(storageKey, '1');
+                } catch (error) {
+                    debugLog('purchase_storage_unavailable', {});
                 }
-
-                sessionStorage.setItem(storageKey, '1');
+                purchasesTracked.add(transactionId);
             }
 
             return track('purchase', {
@@ -452,9 +524,22 @@
         }
     };
 
-    window.SFATracking.pageView({
+    // Existing campaign, checkout and storefront JS still calls SFATracking.
+    // Preserve that API while exposing the preferred GTMTracking name.
+    window.SFATracking = window.GTMTracking;
+    const diagnostics = window.GTM_TRACKING_DIAGNOSTICS;
+    if (diagnostics && diagnostics.capi) {
+        diagnostics.capi.state = config.capiUrl ? 'ready' : 'disabled';
+        diagnostics.capi.local_test_mode = Boolean(config.localTestMode);
+    }
+
+    window.GTMTracking.pageView({
         page_type: config.pageType,
         page_title: config.pageTitle,
         page_url: config.pageUrl
     });
+
+    // GTM's own container is responsible for gtm.js, gtm.dom and gtm.load.
+    // No synthetic lifecycle events: only genuine ecommerce interactions
+    // are pushed by the first-party tracking bridge.
 })();

@@ -15,10 +15,17 @@ class TrackingPixel extends Model
         'pixel_id',
         'script_code',
         'status',
+        'capi_enabled',
+        'capi_access_token',
+        'capi_test_event_code',
     ];
+
+    protected $hidden = ['capi_access_token'];
 
     protected $casts = [
         'status' => 'boolean',
+        'capi_enabled' => 'boolean',
+        'capi_access_token' => 'encrypted',
     ];
 
     public function scopeActive($query)

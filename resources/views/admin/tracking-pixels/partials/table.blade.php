@@ -11,7 +11,7 @@
                 <th style="width: 70px;">SL</th>
                 <th>Name</th>
                 <th>Platform</th>
-                <th>Pixel ID</th>
+                <th>Pixel / Container ID</th>
                 <th>Script</th>
                 <th style="width: 120px;">Status</th>
                 <th style="width: 230px;">Action</th>
@@ -49,7 +49,10 @@
 
                     <td>
                         <div class="script-preview text-muted">
-                            {{ \Illuminate\Support\Str::limit(strip_tags($trackingPixel->script_code), 80) }}
+                            {{ $trackingPixel->script_code ? \Illuminate\Support\Str::limit(strip_tags($trackingPixel->script_code), 80) : ($trackingPixel->platform === 'gtm' ? 'Official GTM loader (automatic)' : 'ID only') }}
+                            @if($trackingPixel->platform === 'meta' && $trackingPixel->capi_enabled)
+                                <span class="badge badge-success ml-1">CAPI</span>
+                            @endif
                         </div>
                     </td>
 
@@ -87,6 +90,22 @@
                                title="Edit">
                                 <i class="fas fa-edit"></i>
                             </a>
+
+                            @if($trackingPixel->platform === 'meta' && $trackingPixel->status
+                                && $trackingPixel->capi_enabled && $trackingPixel->capi_access_token
+                                && $trackingPixel->capi_test_event_code)
+                                <form method="POST"
+                                      action="{{ route('admin.tracking-pixels.test_capi', $trackingPixel) }}"
+                                      class="d-inline-block m-0">
+                                    @csrf
+                                    <button type="submit" class="btn btn-sm btn-outline-success"
+                                            title="Send server-side Meta Test Event"
+                                            aria-label="Send test event for {{ $trackingPixel->name ?: $trackingPixel->pixel_id }}">
+                                        <i class="fas fa-paper-plane" aria-hidden="true"></i>
+                                        <span>Send Test</span>
+                                    </button>
+                                </form>
+                            @endif
 
                             <button type="button"
                                     class="btn btn-sm btn-danger btnDelete"

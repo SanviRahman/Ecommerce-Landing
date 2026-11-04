@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+
+    {{-- Load GTM as high in the head as possible; the partial also prepares Meta/GA/TikTok config. --}}
+    @includeIf('frontend.partials.tracking-pixels')
 
     <title>@yield('title', config('app.name'))</title>
 
@@ -67,8 +71,6 @@
     {{-- Capture image errors before content loads. All handler code lives in public/. --}}
     <script src="{{ asset('frontend/js/image-fallback.js') }}?v=20261024-frontend2"></script>
 
-    {{-- Dynamic Tracking Scripts --}}
-    @includeIf('frontend.partials.tracking-pixels')
 
     <link rel="stylesheet" href="{{ asset('frontend/css/layout.css') }}?v=20261024-frontend2">
 
@@ -86,6 +88,7 @@
 </head>
 
 <body>
+    @stack('sfa-meta-noscript')
 
     @includeIf('frontend.partials.header')
 

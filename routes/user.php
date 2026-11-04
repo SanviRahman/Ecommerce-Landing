@@ -7,6 +7,7 @@ use App\Http\Controllers\Frontend\RootHomepageController;
 use App\Http\Middleware\P32LocalStorefrontCommerceMiddleware;
 use App\Http\Middleware\P58ProductionStorefrontCommerceMiddleware;
 use App\Http\Controllers\Frontend\OrderSuccessController;
+use App\Http\Controllers\Frontend\MetaTrackingEventController;
 use App\Http\Controllers\Frontend\OrderTrackingController;
 use App\Http\Controllers\Webhook\PathaoWebhookController;
 use App\Http\Controllers\Webhook\SteadfastWebhookController;
@@ -45,6 +46,10 @@ Route::get('/campaign/{campaign:slug}', [CampaignPageController::class, 'show'])
 */
 Route::post('/campaign/{campaign:slug}/order', [CampaignOrderController::class, 'store'])
     ->name('campaign.order.store');
+
+// First-party, CSRF-protected and rate-limited browser -> Conversions API bridge.
+Route::post('/tracking/meta/event', [MetaTrackingEventController::class, 'store'])
+    ->middleware('throttle:60,1')->name('tracking.meta.event');
 
 /*
 |--------------------------------------------------------------------------

@@ -4,10 +4,12 @@ namespace App\Http\Controllers\Frontend;
 
 use App\Http\Controllers\Controller;
 use App\Models\Order;
+use App\Services\MetaConversionsApiService;
+use Illuminate\Http\Request;
 
 class OrderSuccessController extends Controller
 {
-    public function show(string $token)
+    public function show(string $token, Request $request, MetaConversionsApiService $conversions)
     {
         $order = Order::query()
             ->with([
@@ -17,6 +19,9 @@ class OrderSuccessController extends Controller
             ])
             ->where('success_token', $token)
             ->firstOrFail();
+
+        // Fallback for a bookmarked success URL; the shared cache avoids duplicate sends.
+        $conversions->dispatchPurchaseAfterResponse($order, $request);
 
         return response()
             ->view('frontend.pages.success', [

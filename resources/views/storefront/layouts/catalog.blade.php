@@ -11,6 +11,11 @@
     @endif
     <meta name="theme-color" content="#21653f">
     <title>@yield('title', 'Shop') — {{ config('app.name', 'Storefront') }}</title>
+
+    {{-- Load GTM as high in the head as possible; Meta/GA/TikTok config shares this partial. --}}
+    @unless(request()->attributes->get('p25_local_readonly_browse', false))
+        @include('storefront.partials.meta-pixel')
+    @endunless
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -19,9 +24,6 @@
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-next.css') }}">
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-premium.css') }}">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    @unless(request()->attributes->get('p25_local_readonly_browse', false))
-        @include('storefront.partials.meta-pixel')
-    @endunless
     @if(config('storefront.p08_cart_test_enabled', false))
         <link rel="stylesheet" href="{{ asset('frontend/css/storefront-cart.css') }}">
     @endif

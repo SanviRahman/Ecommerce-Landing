@@ -8,6 +8,7 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\ProductVariant;
 use App\Services\CampaignVariantCatalog;
+use App\Services\MetaConversionsApiService;
 use App\Services\Catalog\OptionWiseSelections;
 use App\Services\Storefront\PublicCatalog;
 use App\Services\Inventory\CampaignOrderInventoryAllocator;
@@ -475,6 +476,9 @@ class CampaignOrderController extends Controller
             }
 
             app(OrderAssignmentService::class)->assign($order);
+
+            // CAPI reads the committed order after the checkout response, not client prices.
+            app(MetaConversionsApiService::class)->dispatchPurchaseAfterResponse($order, $request);
 
             return redirect()
                 ->route('order.success', $order->success_token)

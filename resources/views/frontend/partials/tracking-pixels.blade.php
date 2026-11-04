@@ -16,7 +16,7 @@
 
     $gtmPixels = $activePixels
         ->where('platform', 'gtm')
-        ->filter(fn ($pixel) => ! empty($pixel->script_code))
+        ->unique('pixel_id')
         ->values();
 
     $metaPixels = $activePixels
@@ -47,23 +47,27 @@
         'ga' => $gaPixels->pluck('pixel_id')->filter()->values()->all(),
     ];
 @endphp
-<meta id="sfaPixelConfig" name="sfa-pixel-configuration"
+<meta id="gtmPixelConfig" name="gtm-pixel-configuration"
       content="{{ json_encode($sfaPixelConfig, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) }}">
 
-{{-- Admin-managed GTM snippets are dynamic database content, not application JS. --}}
+{{-- A configured GTM container (ID or legacy script) owns its official lifecycle events. --}}
+<script>window.dataLayer = window.dataLayer || [];</script>
 @foreach($gtmPixels as $pixel)
-    @if(! empty($pixel->script_code))
-        {!! $pixel->script_code !!}
-    @endif
+    @include('frontend.partials.gtm-container', [
+        'container' => $pixel, 'noscriptStack' => 'sfa-meta-noscript',
+    ])
 @endforeach
 
+{{-- The no-JS fallback belongs inside <body>, not inside <head>. --}}
 @if($metaPixels->isNotEmpty())
-    <noscript>
-        @foreach($metaPixels as $pixel)
-            <img height="1" width="1" class="sfa-tracking-pixel-image" alt=""
-                 src="https://www.facebook.com/tr?id={{ urlencode($pixel->pixel_id) }}&ev=PageView&noscript=1">
-        @endforeach
-    </noscript>
+    @push('sfa-meta-noscript')
+        <noscript>
+            @foreach($metaPixels as $pixel)
+                <img height="1" width="1" class="sfa-tracking-pixel-image" alt=""
+                     src="https://www.facebook.com/tr?id={{ rawurlencode((string) $pixel->pixel_id) }}&amp;ev=PageView&amp;noscript=1">
+            @endforeach
+        </noscript>
+    @endpush
 @endif
 
 @if($gaPixels->isNotEmpty())
@@ -72,4 +76,4 @@
 @endif
 
 {{-- First-party pixel bootstrap code is a versioned public asset. --}}
-<script src="{{ asset('frontend/js/tracking-pixels.js') }}?v=20261024-frontend2" defer></script>
+<script src="{{ asset('frontend/js/tracking-pixels.js') }}?v=20261104-tracking-v4"></script>

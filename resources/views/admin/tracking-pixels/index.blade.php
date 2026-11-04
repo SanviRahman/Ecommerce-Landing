@@ -45,7 +45,7 @@
                    class="btn btn-primary btn-sm px-4 shadow-sm ml-2"
                    id="btnAddPixel"
                    style="border-radius: 8px;">
-                    <i class="fas fa-plus-circle mr-1"></i> Add Pixel
+                    <i class="fas fa-plus-circle mr-1"></i> Add Integration
                 </a>
             </div>
         </div>

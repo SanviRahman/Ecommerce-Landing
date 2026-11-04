@@ -652,6 +652,8 @@ Route::middleware(['auth', 'role:admin,employee'])->group(function () {
                 Route::get('/', [TrackingPixelController::class, 'index'])->name('index');
 
                 Route::patch('/{trackingPixel}/status', [TrackingPixelController::class, 'updateStatus'])->name('update_status');
+                Route::post('/{trackingPixel}/test-capi', [TrackingPixelController::class, 'testCapi'])
+                    ->middleware('throttle:6,1')->name('test_capi');
                 Route::get('/{trackingPixel}/edit', [TrackingPixelController::class, 'edit'])->name('edit');
                 Route::put('/{trackingPixel}', [TrackingPixelController::class, 'update'])->name('update');
                 Route::patch('/{trackingPixel}', [TrackingPixelController::class, 'update']);

@@ -35,6 +35,11 @@ return [
         ],
     ],
 
+    // Per-pixel CAPI access tokens are encrypted in tracking_pixels; never put them in Blade.
+    'meta_capi' => [
+        'graph_version' => env('META_CAPI_GRAPH_VERSION', 'v25.0'),
+    ],
+
     'bdcourier' => [
         'url'             => env('BDCOURIER_API_URL', 'https://api.bdcourier.com'),
         'token'           => env('BDCOURIER_API_TOKEN'),

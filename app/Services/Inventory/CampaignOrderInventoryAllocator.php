@@ -119,7 +119,10 @@ final class CampaignOrderInventoryAllocator
             $optionWise = app(OptionWiseSelections::class);
             if ($optionWise->configured($product)) {
                 $selected = json_decode((string)($item->variant_options ?? '{}'), true) ?: [];
-                $unit = (int)$optionWise->quoteSnapshot($product, $selected)['price'];
+                // OptionWise quotes are in whole BDT; every stored order monetary
+                // field is compared here in minor units (poisha). Previously the
+                // unconverted quote triggered a false price-change rollback.
+                $unit = ExactBdt::fromDecimal((string) $optionWise->quoteSnapshot($product, $selected)['price']);
             } else {
                 $unit = ExactBdt::fromDecimal((string) CampaignVariantCatalog::resolvedUnitPrice(
                     (int)$product->new_price,

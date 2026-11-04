@@ -4,8 +4,9 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\TrackingPixel;
 use Illuminate\Database\Eloquent\Builder;
+use App\Services\MetaConversionsApiService;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class TrackingPixelController extends Controller
@@ -116,11 +117,11 @@ class TrackingPixelController extends Controller
             'platforms'     => $this->platforms(),
             'isEdit'        => false,
             'action'        => route('admin.tracking-pixels.store'),
-            'title'         => 'Create Tracking Pixel',
+            'title'         => 'Create Tracking Integration',
             'breadcrumb'    => [
                 ['text' => 'Dashboard', 'url' => route('admin.dashboard')],
                 ['text' => 'Tracking Pixels', 'url' => route('admin.tracking-pixels.index')],
-                ['text' => 'Create Pixel', 'url' => route('admin.tracking-pixels.create')],
+                ['text' => 'Create Integration', 'url' => route('admin.tracking-pixels.create')],
             ],
         ]);
     }
@@ -128,76 +129,75 @@ class TrackingPixelController extends Controller
     public function store(Request $request)
     {
         $this->adminOnly();
+        try {
+            return $this->storeValidated($request);
+        } catch (ValidationException $exception) {
+            return $this->safeValidationRedirect($request, $exception);
+        }
+    }
 
-        $request->validate([
-            'platform'    => ['required', 'string', 'in:meta,tiktok,gtm,google_analytics'],
-            'name'        => ['nullable', 'string', 'max:255'],
-            'pixel_id'    => ['nullable', 'string', 'max:255'],
-            'script_code' => ['required', 'string'],
-            'status'      => ['nullable', 'boolean'],
-        ]);
-
-        $scriptBlocks = $this->extractScriptBlocks($request->script_code, $request->platform);
-
-        if (empty($scriptBlocks)) {
-            throw ValidationException::withMessages([
-                'script_code' => 'Please paste at least one valid tracking script.',
-            ]);
+    private function storeValidated(Request $request)
+    {
+        // New Add More form; legacy single-field submissions remain supported.
+        if ($request->has('pixels')) {
+            $validated = $request->validate(array_merge([
+                'pixels' => ['required', 'array', 'min:1', 'max:20'],
+            ], $this->pixelValidationRules('pixels.*.')));
+            $rows = $validated['pixels'];
+            $multipleForm = true;
+        } else {
+            $rows = [$request->validate($this->pixelValidationRules())];
+            $multipleForm = false;
         }
 
         $created = 0;
         $updated = 0;
 
-        foreach ($scriptBlocks as $scriptBlock) {
-            $pixelId = $this->extractIdentifier(
-                $scriptBlock,
-                $request->platform,
-                $request->pixel_id
-            );
-
-            if (! $pixelId) {
-                continue;
-            }
-
-            $trackingPixel = TrackingPixel::withTrashed()
-                ->where('platform', $request->platform)
-                ->where('pixel_id', $pixelId)
-                ->first();
-
-            if ($trackingPixel) {
-                if ($trackingPixel->trashed()) {
-                    $trackingPixel->restore();
+        DB::transaction(function () use ($rows, $multipleForm, &$created, &$updated): void {
+            foreach ($rows as $index => $row) {
+                $platform = $row['platform'];
+                $script = trim((string) ($row['script_code'] ?? ''));
+                $blocks = $script !== '' ? $this->extractScriptBlocks($script, $platform) : [];
+                if ($blocks === []) {
+                    $blocks = [$script]; // ID-only integrations are valid (except GTM).
                 }
 
-                $trackingPixel->update([
-                    'name'        => $request->name ?: $this->defaultPixelName($request->platform, $pixelId),
-                    'script_code' => $scriptBlock,
-                    'status'      => $request->has('status') ? $request->boolean('status') : true,
-                ]);
+                $path = $multipleForm ? "pixels.{$index}.pixel_id" : 'pixel_id';
+                if (count($blocks) > 1 && trim((string) ($row['pixel_id'] ?? '')) !== '') {
+                    throw ValidationException::withMessages([
+                        $path => 'For multiple scripts in one field, leave manual ID empty or use Add More.',
+                    ]);
+                }
 
-                $updated++;
-            } else {
-                TrackingPixel::create([
-                    'platform'    => $request->platform,
-                    'name'        => $request->name ?: $this->defaultPixelName($request->platform, $pixelId),
-                    'pixel_id'    => $pixelId,
-                    'script_code' => $scriptBlock,
-                    'status'      => $request->has('status') ? $request->boolean('status') : true,
-                ]);
+                foreach ($blocks as $block) {
+                    $pixelId = $this->extractIdentifier($block, $platform, $row['pixel_id'] ?? null);
+                    $this->assertValidPixel($platform, $pixelId, $block, $path);
 
-                $created++;
+                    $pixel = TrackingPixel::withTrashed()
+                        ->where('platform', $platform)
+                        ->where('pixel_id', $pixelId)
+                        ->first();
+                    $attributes = $this->pixelAttributes($row, $pixelId, $block, $pixel, $path);
+
+                    if ($pixel) {
+                        if ($pixel->trashed()) {
+                            $pixel->restore();
+                        }
+                        $pixel->update($attributes);
+                        $updated++;
+                    } else {
+                        TrackingPixel::create(array_merge($attributes, [
+                            'platform' => $platform,
+                            'pixel_id' => $pixelId,
+                        ]));
+                        $created++;
+                    }
+                }
             }
-        }
+        });
 
-        if ($created === 0 && $updated === 0) {
-            throw ValidationException::withMessages([
-                'script_code' => 'No valid pixel ID was found inside the script.',
-            ]);
-        }
-
-        return redirect()
-            ->route('admin.tracking-pixels.index')
-            ->with('success', "{$created} pixel created and {$updated} pixel updated successfully.");
+        return redirect()->route('admin.tracking-pixels.index')
+            ->with('success', "{$created} integration created and {$updated} integration updated successfully.");
     }
 
     public function show(TrackingPixel $trackingPixel)
@@ -207,7 +207,7 @@ class TrackingPixelController extends Controller
         return view('admin.tracking-pixels.show', [
             'trackingPixel' => $trackingPixel,
             'platforms'     => $this->platforms(),
-            'title'         => 'Tracking Pixel Details',
+            'title'         => 'Tracking Integration Details',
             'breadcrumb'    => [
                 ['text' => 'Dashboard', 'url' => route('admin.dashboard')],
                 ['text' => 'Tracking Pixels', 'url' => route('admin.tracking-pixels.index')],
@@ -225,11 +225,11 @@ class TrackingPixelController extends Controller
             'platforms'     => $this->platforms(),
             'isEdit'        => true,
             'action'        => route('admin.tracking-pixels.update', $trackingPixel->id),
-            'title'         => 'Edit Tracking Pixel',
+            'title'         => 'Edit Tracking Integration',
             'breadcrumb'    => [
                 ['text' => 'Dashboard', 'url' => route('admin.dashboard')],
                 ['text' => 'Tracking Pixels', 'url' => route('admin.tracking-pixels.index')],
-                ['text' => 'Edit Pixel', 'url' => route('admin.tracking-pixels.edit', $trackingPixel->id)],
+                ['text' => 'Edit Integration', 'url' => route('admin.tracking-pixels.edit', $trackingPixel->id)],
             ],
         ]);
     }
@@ -237,49 +237,164 @@ class TrackingPixelController extends Controller
     public function update(Request $request, TrackingPixel $trackingPixel)
     {
         $this->adminOnly();
+        try {
+            return $this->updateValidated($request, $trackingPixel);
+        } catch (ValidationException $exception) {
+            return $this->safeValidationRedirect($request, $exception);
+        }
+    }
 
-        $request->validate([
-            'platform'    => ['required', 'string', 'in:meta,tiktok,gtm,google_analytics'],
-            'name'        => ['nullable', 'string', 'max:255'],
-            'pixel_id'    => ['nullable', 'string', 'max:255'],
-            'script_code' => ['required', 'string'],
-            'status'      => ['nullable', 'boolean'],
-        ]);
+    private function updateValidated(Request $request, TrackingPixel $trackingPixel)
+    {
+        $row = $request->validate($this->pixelValidationRules());
+        $platform = $row['platform'];
+        $script = trim((string) ($row['script_code'] ?? ''));
+        $pixelId = $this->extractIdentifier($script, $platform, $row['pixel_id'] ?? null);
+        $this->assertValidPixel($platform, $pixelId, $script, 'pixel_id');
 
-        $pixelId = $this->extractIdentifier(
-            $request->script_code,
-            $request->platform,
-            $request->pixel_id
-        );
+        if (TrackingPixel::withTrashed()
+            ->where('platform', $platform)->where('pixel_id', $pixelId)
+            ->where('id', '!=', $trackingPixel->id)->exists()) {
+            throw ValidationException::withMessages([
+                'pixel_id' => 'Another tracking integration already uses this platform and ID.',
+            ]);
+        }
+
+        $trackingPixel->update(array_merge(
+            ['platform' => $platform, 'pixel_id' => $pixelId],
+            $this->pixelAttributes($row, $pixelId, $script, $trackingPixel, 'pixel_id'),
+        ));
+
+        return redirect()->route('admin.tracking-pixels.index')
+            ->with('success', 'Tracking integration updated successfully.');
+    }
+
+    public function testCapi(Request $request, TrackingPixel $trackingPixel, MetaConversionsApiService $conversions)
+    {
+        $this->adminOnly();
+        if ($trackingPixel->platform !== 'meta' || ! $trackingPixel->capi_enabled
+            || ! $trackingPixel->capi_access_token || ! $trackingPixel->capi_test_event_code) {
+            return back()->with('error', 'Enable Meta CAPI and save a token plus Test Event Code first.');
+        }
+
+        $sent = $conversions->sendTestEvent($trackingPixel, $request);
+
+        return back()->with($sent ? 'success' : 'error', $sent
+            ? 'Test event accepted by Meta. Check Events Manager -> Test Events.'
+            : 'Meta did not accept the test event. Check the token, code and server logs.');
+    }
+
+    /** Never flash CAPI tokens into Laravel's old_input session on validation errors. */
+    private function safeValidationRedirect(Request $request, ValidationException $exception)
+    {
+        $input = $request->except(['capi_access_token', '_token']);
+        if (isset($input['pixels']) && is_array($input['pixels'])) {
+            foreach ($input['pixels'] as &$row) {
+                if (is_array($row)) {
+                    unset($row['capi_access_token']);
+                }
+            }
+            unset($row);
+        }
+
+        return redirect()->back()->withErrors($exception->errors())->withInput($input);
+    }
+
+    private function pixelValidationRules(string $prefix = ''): array
+    {
+        return [
+            $prefix . 'platform' => ['required', 'string', 'in:meta,tiktok,gtm,google_analytics'],
+            $prefix . 'name' => ['nullable', 'string', 'max:255'],
+            $prefix . 'pixel_id' => ['nullable', 'string', 'max:255'],
+            $prefix . 'script_code' => ['nullable', 'string', 'max:20000'],
+            $prefix . 'status' => ['nullable', 'boolean'],
+            $prefix . 'capi_enabled' => ['nullable', 'boolean'],
+            $prefix . 'capi_access_token' => ['nullable', 'string', 'max:4096'],
+            $prefix . 'capi_test_event_code' => ['nullable', 'string', 'max:100'],
+        ];
+    }
+
+    private function assertValidPixel(string $platform, ?string $pixelId, string $script, string $path): void
+    {
+        if ($platform === 'gtm') {
+            $normalizedId = strtoupper(trim((string) $pixelId));
+
+            if (! preg_match('/\AGTM-[A-Z0-9]+\z/D', $normalizedId)) {
+                throw ValidationException::withMessages([
+                    $path => 'Enter a valid GTM Container ID such as GTM-TS7Q7WGG. A full script is optional.',
+                ]);
+            }
+
+            // If an administrator keeps a legacy full snippet, make sure it
+            // targets the same container as the separately saved ID.
+            preg_match_all('/\bGTM-[A-Z0-9]+\b/i', $script, $matches);
+            $scriptIds = array_values(array_unique(array_map('strtoupper', $matches[0] ?? [])));
+
+            if (count($scriptIds) > 1 || (count($scriptIds) === 1 && $scriptIds[0] !== $normalizedId)) {
+                throw ValidationException::withMessages([
+                    $path => 'The GTM Container ID must match the ID inside the optional tracking script.',
+                ]);
+            }
+
+            return;
+        }
 
         if (! $pixelId) {
             throw ValidationException::withMessages([
-                'script_code' => 'No valid pixel ID was found inside the script.',
+                $path => 'Enter a manual pixel ID or provide a script containing a valid ID.',
             ]);
         }
 
-        $exists = TrackingPixel::where('platform', $request->platform)
-            ->where('pixel_id', $pixelId)
-            ->where('id', '!=', $trackingPixel->id)
-            ->exists();
-
-        if ($exists) {
+        $pattern = $platform === 'meta'
+            ? '/\A[0-9]{5,30}\z/D'
+            : '/\A[A-Za-z0-9:_-]{3,255}\z/D';
+        if (! preg_match($pattern, $pixelId)) {
             throw ValidationException::withMessages([
-                'script_code' => 'This tracking pixel already exists.',
+                $path => $platform === 'meta'
+                    ? 'Meta Pixel ID must contain 5-30 digits.'
+                    : 'Invalid tracking identifier format.',
+            ]);
+        }
+    }
+
+    private function pixelAttributes(array $row, string $pixelId, string $script, ?TrackingPixel $existing, string $path): array
+    {
+        $platform = $row['platform'];
+        $enabled = $platform === 'meta' && (bool) ($row['capi_enabled'] ?? false);
+        $token = trim((string) ($row['capi_access_token'] ?? ''));
+        $previousToken = $existing && $existing->platform === 'meta'
+            ? $existing->capi_access_token : null;
+
+        if ($enabled && $token === '' && ! $previousToken) {
+            throw ValidationException::withMessages([
+                str_replace('pixel_id', 'capi_access_token', $path)
+                    => 'A CAPI access token is required when Meta CAPI is enabled.',
+            ]);
+        }
+        if ($platform !== 'meta' && (bool) ($row['capi_enabled'] ?? false)) {
+            throw ValidationException::withMessages([
+                str_replace('pixel_id', 'capi_enabled', $path)
+                    => 'Conversions API is available for Meta Pixels only.',
             ]);
         }
 
-        $trackingPixel->update([
-            'platform'    => $request->platform,
-            'name'        => $request->name ?: $this->defaultPixelName($request->platform, $pixelId),
-            'pixel_id'    => $pixelId,
-            'script_code' => $request->script_code,
-            'status'      => $request->has('status') ? $request->boolean('status') : true,
-        ]);
+        $attributes = [
+            'name' => trim((string) ($row['name'] ?? '')) ?: $this->defaultPixelName($platform, $pixelId),
+            'script_code' => $script !== '' ? $script : null,
+            'status' => array_key_exists('status', $row) ? (bool) $row['status'] : true,
+            'capi_enabled' => $enabled,
+            'capi_test_event_code' => $platform === 'meta'
+                ? (trim((string) ($row['capi_test_event_code'] ?? '')) ?: null) : null,
+        ];
 
-        return redirect()
-            ->route('admin.tracking-pixels.index')
-            ->with('success', 'Tracking pixel updated successfully.');
+        // Blank on Edit means keep the old encrypted token, not erase it.
+        if ($platform !== 'meta') {
+            $attributes['capi_access_token'] = null;
+        } elseif ($token !== '') {
+            $attributes['capi_access_token'] = $token;
+        }
+
+        return $attributes;
     }
 
     public function updateStatus(Request $request, TrackingPixel $trackingPixel)
@@ -446,8 +561,10 @@ class TrackingPixelController extends Controller
 
     private function extractIdentifier(string $script, string $platform, ?string $manualPixelId = null): ?string
     {
-        if ($manualPixelId) {
-            return trim($manualPixelId);
+        if ($manualPixelId !== null && trim($manualPixelId) !== '') {
+            $manualPixelId = trim($manualPixelId);
+
+            return $platform === 'gtm' ? strtoupper($manualPixelId) : $manualPixelId;
         }
 
         if ($platform === 'meta') {
@@ -518,7 +635,7 @@ class TrackingPixelController extends Controller
             }
         }
 
-        return 'script-' . Str::random(12);
+        return null;
     }
 
     private function defaultPixelName(string $platform, string $pixelId): string

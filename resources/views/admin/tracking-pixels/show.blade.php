@@ -1,11 +1,11 @@
 @extends('adminlte::page')
 
-@section('title', $title ?? 'Tracking Pixel Details')
+@section('title', $title ?? 'Tracking Integration Details')
 
 @section('content_header')
 <div class="d-flex justify-content-between align-items-center">
     <div>
-        <h1 class="mb-0">{{ $title ?? 'Tracking Pixel Details' }}</h1>
+        <h1 class="mb-0">{{ $title ?? 'Tracking Integration Details' }}</h1>
 
         @if(isset($breadcrumb))
             <ol class="breadcrumb mt-2 mb-0 bg-transparent p-0">
@@ -45,7 +45,7 @@
             </tr>
 
             <tr>
-                <th>Pixel ID</th>
+                <th>{{ $trackingPixel->platform === 'gtm' ? 'GTM Container ID' : 'Pixel / Tracking ID' }}</th>
                 <td><code>{{ $trackingPixel->pixel_id }}</code></td>
             </tr>
 
@@ -66,9 +66,22 @@
             </tr>
         </table>
 
-        <h5 class="mt-4">Full Script Code</h5>
+        @if($trackingPixel->platform === 'gtm')
+            <h5 class="mt-4">Google Tag Manager Setup</h5>
+            <p class="mb-2">The official GTM container loader is generated automatically from this ID on public Campaign and Storefront pages.</p>
+            <p class="text-muted small mb-0">To verify the live browser connection, open the website with <a href="https://tagassistant.google.com/" target="_blank" rel="noopener noreferrer">Google Tag Assistant</a> or use Preview in your GTM workspace. Saving this record does not publish the GTM container itself.</p>
+        @endif
 
-        <pre class="bg-dark text-light p-3 rounded" style="max-height: 500px; overflow:auto;"><code>{{ $trackingPixel->script_code }}</code></pre>
+        @if($trackingPixel->platform === 'meta')
+            <h5 class="mt-4">Meta Conversions API</h5>
+            <p><strong>Status:</strong> {{ $trackingPixel->capi_enabled ? 'Enabled' : 'Disabled' }}<br>
+            <strong>Access Token:</strong> {{ $trackingPixel->capi_access_token ? 'Saved securely (hidden)' : 'Not configured' }}<br>
+            <strong>Test Event Code:</strong> {{ $trackingPixel->capi_test_event_code ?: 'Not configured' }}</p>
+            <p class="text-muted small">Send Test Event is available under Tracking Pixels &rarr; Action.</p>
+        @endif
+        <h5 class="mt-4">Full Script Code (Optional)</h5>
+
+        <pre class="bg-dark text-light p-3 rounded" style="max-height: 500px; overflow:auto;"><code>{{ $trackingPixel->script_code ?: 'ID-only integration (no custom script).' }}</code></pre>
     </div>
 </div>
 @endsection

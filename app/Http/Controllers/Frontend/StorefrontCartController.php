@@ -6,6 +6,8 @@ namespace App\Http\Controllers\Frontend;
 
 use App\Http\Controllers\Controller;
 use App\Models\ShippingCharge;
+use App\Models\Order;
+use App\Services\MetaConversionsApiService;
 use App\Services\Cart\GuestCartOwner;
 use App\Services\Cart\GuestCartService;
 use App\Services\Checkout\StorefrontCheckout;
@@ -175,6 +177,15 @@ final class StorefrontCartController extends Controller
                 'cart' => 'Checkout details or totals are invalid. Please review your cart.',
             ]);
         }
+        // The checkout service has already committed the order. Never trust posted prices.
+        $conversions = app(MetaConversionsApiService::class);
+        if ($conversions->isEnabled()) {
+            $order = Order::query()->where('success_token', $successToken)->first();
+            if ($order) {
+                $conversions->dispatchPurchaseAfterResponse($order, $request);
+            }
+        }
+
         return redirect()->route('order.success', $successToken)
             ->with('success', 'Your order has been received.');
     }

@@ -1,11 +1,11 @@
 @extends('adminlte::page')
 
-@section('title', $title ?? 'Edit Tracking Pixel')
+@section('title', $title ?? 'Edit Tracking Integration')
 
 @section('content_header')
 <div class="d-flex justify-content-between align-items-center">
     <div>
-        <h1 class="mb-0">{{ $title ?? 'Edit Tracking Pixel' }}</h1>
+        <h1 class="mb-0">{{ $title ?? 'Edit Tracking Integration' }}</h1>
 
         @if(isset($breadcrumb))
             <ol class="breadcrumb mt-2 mb-0 bg-transparent p-0">
@@ -29,7 +29,7 @@
     <div class="card-header bg-white">
         <h5 class="mb-0 font-weight-bold">
             <i class="fas fa-edit text-primary mr-1"></i>
-            Update Pixel Script
+            Update Tracking Integration
         </h5>
     </div>
 
@@ -40,6 +40,7 @@
             'isEdit' => true,
             'action' => $action,
         ])
+        {{-- CAPI connectivity testing is now in Index > Action for each integration. --}}
     </div>
 </div>
 @endsection
