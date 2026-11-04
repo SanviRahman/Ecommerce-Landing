@@ -870,7 +870,7 @@
 @endpush
 
 @push('css')
-<link rel="stylesheet" href="{{ asset('frontend/css/home.css') }}?v=20261024-frontend2">
+<link rel="stylesheet" href="{{ asset('frontend/css/home.css') }}?v=20261104-campaign-mobile-clean">
 @endpush
 
 @section('content')
@@ -986,6 +986,8 @@
                             <iframe id="campaignHeroEmbedVideo"
                                     src="{{ $videoEmbedUrl }}"
                                     title="{{ $heroTitle }}"
+                                    {{-- Homepage fallback uses a same-origin Referrer-Policy; YouTube embeds require the origin Referer. --}}
+                                    referrerpolicy="strict-origin-when-cross-origin"
                                     data-autoplay="{{ $heroVideoAutoplay ? '1' : '0' }}"
                                     data-admin-muted="{{ $heroVideoMuted ? '1' : '0' }}"
                                     allowfullscreen
@@ -1509,9 +1511,6 @@
 @if($product->is_free_delivery)
     <span class="badge badge-success order-free-delivery-badge mt-1">ফ্রি ডেলিভারি</span>
 @endif
-@if($product->has_variants || (($campaignVariantMatrices[$product->id]['mode'] ?? '') === 'option_wise'))
-    <small class="d-block text-success mt-2">কালার, সাইজ, ওজন ও পিস নির্বাচন করুন; দাম বদলাবে শুধু পিস অনুযায়ী</small>
-@endif
                             </div>
 
                             <span class="selected-check">
@@ -1741,6 +1740,6 @@
 @endphp
 <div id="sfaHomeConfig" hidden data-config="{{ json_encode($sfaHomeClientConfig, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) }}"></div>
 <script src="{{ asset('frontend/js/storefront-variant-matcher.js') }}?v=20261104-campaign" defer></script>
-<script src="{{ asset('frontend/js/home.js') }}?v=20261104-campaign-order" defer></script>
+<script src="{{ asset('frontend/js/home.js') }}?v=20261104-campaign-mobile-clean" defer></script>
 @endpush
 @endif

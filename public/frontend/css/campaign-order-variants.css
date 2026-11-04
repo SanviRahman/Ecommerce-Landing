@@ -11,6 +11,10 @@
 .campaign-summary-options input:focus-visible+.campaign-chip{outline:3px solid #e4a520;outline-offset:2px}
 .campaign-summary-options .campaign-chip i{width:11px;height:11px;border-radius:50%;border:1px solid #dedede;background:var(--campaign-chip-swatch)}
 .campaign-variant-summary-meta{color:#4f6054;font-size:11px;margin-top:5px}
+.campaign-line-total{color:#204734;font-size:16px;font-weight:700;line-height:1.45;margin-top:6px;overflow-wrap:anywhere}
+.campaign-line-total strong{color:#17663f;font-weight:800}
+/* Campaign-only badge: readable Bengali text without clipping on mobile. */
+.campaign-summary-product .summary-product-info .campaign-summary-delivery-badge{display:inline-flex;align-items:center;max-width:100%;width:max-content;white-space:nowrap;margin-top:8px!important;padding:5px 9px;color:#fff!important;font-size:12px!important;line-height:1.4;font-weight:800}
 .campaign-variant-summary-alert{color:#b13c2d;font-size:12px;font-weight:600;margin-top:5px}
 @media(max-width:576px){.campaign-summary-options .campaign-chip{min-height:34px}.campaign-summary-variants{gap:10px}}
 

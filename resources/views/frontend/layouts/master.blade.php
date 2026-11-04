@@ -81,7 +81,7 @@
     <link rel="stylesheet" href="{{ asset('frontend/css/buttons.css') }}?v=20261024-frontend2">
     <link rel="stylesheet" href="{{ asset('frontend/css/public-description-p53.css') }}?v=p53">
     <link rel="stylesheet" href="{{ asset('frontend/css/campaign-variant-preview.css') }}?v=20261103-variations">
-    <link rel="stylesheet" href="{{ asset('frontend/css/campaign-order-variants.css') }}?v=20261104-campaign">
+    <link rel="stylesheet" href="{{ asset('frontend/css/campaign-order-variants.css') }}?v=20261104-campaign-mobile-clean">
     <link rel="stylesheet" href="{{ asset('frontend/css/campaign-offcanvas-p62.css') }}?v=p62">
 </head>
 

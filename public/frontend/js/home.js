@@ -505,14 +505,8 @@ $(document).ready(function() {
             });
             html += '</div></fieldset>';
         });
-        const selectedLabels = item.matrix.options.map(function(option) {
-            const value = option.values.find(function(v) {
-                return String(v.id) === String(row.selected?.[option.id]);
-            });
-            return value ? option.name + ': ' + value.label : '';
-        }).filter(Boolean).join(' / ');
-        html += '</div><div class="campaign-variant-summary-meta">' +
-            escapeSummaryText(selectedLabels) + ' · Available stock: ' + escapeSummaryText(row.stock) + '</div>';
+        // Selected chips already communicate the chosen values. Keep the cart compact.
+        html += '</div>';
         return html;
     }
 
@@ -666,10 +660,10 @@ $(document).ready(function() {
                         <img src="${safeSummaryImage(item.image)}" alt="${escapeSummaryText(item.name)}">
                         <div>
                             <h5>${escapeSummaryText(item.name)}</h5>
-                            ${item.matrix ? '' : '<span>' + escapeSummaryText(item.weight) + '</span><br>'}
-                            <strong>${escapeSummaryText(money(item.price))} / selected option</strong>
-                            <div class="campaign-variant-summary-meta">Line total: ${escapeSummaryText(money(item.price * item.quantity))}</div>
-                            ${item.isFreeDelivery ? '<br><span class="badge badge-success mt-1">ফ্রি ডেলিভারি</span>' : ''}
+                            ${item.matrix || !item.weight ? '' : '<span class="campaign-summary-weight">' + escapeSummaryText(item.weight) + '</span>'}
+                            <strong>${escapeSummaryText(money(item.price))}</strong>
+                            <div class="campaign-variant-summary-meta campaign-line-total">Line total: <strong>${escapeSummaryText(money(item.price * item.quantity))}</strong></div>
+                            ${item.isFreeDelivery ? '<span class="badge badge-success campaign-summary-delivery-badge">ফ্রি ডেলিভারি</span>' : ''}
                             ${renderVariantGroups(item)}
                         </div>
                     </div>
