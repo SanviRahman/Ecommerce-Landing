@@ -23,6 +23,11 @@
             <i class="fas fa-arrow-left mr-1"></i> Back
         </a>
 
+        @if(auth()->user()->isAdmin() && ($variantAdminAvailable ?? false) && ! $product->has_variants)
+        <a class="btn btn-outline-success btn-sm" href="{{ route('admin.products.variants.index', $product->id) }}#option-wise-pricing">
+            <i class="fas fa-tags mr-1" aria-hidden="true"></i>{{ (int) $product->inventory_version === 0 ? 'Add Option-wise Pricing' : 'Option-wise Pricing' }}
+        </a>
+        @endif
         @if(auth()->user()->isAdmin())
         <button type="button" class="btn btn-primary btn-sm btnEditFromShow"
             data-url="{{ route('admin.products.edit', $product->id) }}">

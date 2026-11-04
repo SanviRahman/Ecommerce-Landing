@@ -6,6 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Models\Campaign;
 use App\Models\Order;
 use App\Models\OrderItem;
+use App\Models\ProductVariant;
+use App\Services\CampaignVariantCatalog;
+use App\Services\Catalog\OptionWiseSelections;
+use App\Services\Storefront\PublicCatalog;
+use App\Services\Inventory\CampaignOrderInventoryAllocator;
 use App\Models\Product;
 use App\Models\ShippingCharge;
 use App\Services\CustomerIdentityService;
@@ -212,6 +217,9 @@ class CampaignOrderController extends Controller
             'products'            => ['required', 'array', 'min:1'],
             'products.*.id'       => ['required', 'integer', 'exists:products,id'],
             'products.*.quantity' => ['required', 'integer', 'min:1', 'max:1000'],
+            'products.*.variant_id' => ['nullable', 'integer', 'exists:product_variants,id'],
+            'products.*.selected_options' => ['nullable', 'array:color,size,weight,piece_count'],
+            'products.*.selected_options.*' => ['integer', 'min:1'],
         ]);
 
         $activeBlock = $orderBlockService->findActiveBlock(
@@ -234,24 +242,33 @@ class CampaignOrderController extends Controller
             app(\App\Services\Inventory\ManagedOrderWriter::class)->assertTransactionReady();
             $campaign->load([
                 'products' => function ($query) {
-                    $query->where('products.status', true);
+                    $query->with('variants.optionValues.option')
+                        ->where('products.status', true);
                 },
             ]);
 
             $campaignProducts = $campaign->products->keyBy('id');
 
+            // A campaign can contain several SKUs of the same product.
+            // Group by (product, SKU), never by product alone.
             $submittedProducts = collect($request->products)
-                ->groupBy('id')
-                ->map(function ($items) {
+                ->groupBy(static fn (array $item) => (int) $item['id'] . ':' . (int) ($item['variant_id'] ?? 0)
+                    . ':' . hash('sha256', json_encode($item['selected_options'] ?? [], JSON_THROW_ON_ERROR)))
+                ->map(static function ($items) {
                     return [
-                        'id'       => (int) $items->first()['id'],
+                        'id' => (int) $items->first()['id'],
+                        'variant_id' => (int) ($items->first()['variant_id'] ?? 0),
+                        'selected_options' => (array) ($items->first()['selected_options'] ?? []),
                         'quantity' => (int) $items->sum('quantity'),
                     ];
-                })
-                ->values();
+                })->values();
 
             $subTotal = 0;
             $orderItems = [];
+            $hasVariantItems = false;
+            $variantCatalog = app(CampaignVariantCatalog::class);
+            $publicCatalog = app(PublicCatalog::class);
+            $optionWise = app(OptionWiseSelections::class);
 
             foreach ($submittedProducts as $submittedProduct) {
                 $productId = (int) $submittedProduct['id'];
@@ -265,12 +282,32 @@ class CampaignOrderController extends Controller
                     ]);
                 }
 
-                // Campaign checkout does not have a variant-aware inventory writer.
-                // Never charge a product's base price and create an unallocated
-                // order when the customer actually needs a specific priced SKU.
-                if ($product->has_variants) {
+                $variantId = (int) ($submittedProduct['variant_id'] ?? 0);
+                $variant = null;
+                $optionQuote = null;
+                if ($optionWise->configured($product)) {
+                    // All independently offered colors/sizes/weights share the one
+                    // physical balance; the selected Piece Count supplies price.
+                    $hasVariantItems = true;
+                    $optionQuote = $optionWise->quote($product, $submittedProduct['selected_options']);
+                    $variant = $optionWise->defaultInventory($product);
+                    if (!$variant || ($variantId && (int)$variant->id !== $variantId)) {
+                        throw ValidationException::withMessages(['products' => 'Shared product inventory is unavailable.']);
+                    }
+                } elseif ($product->has_variants) {
+                    $hasVariantItems = true;
+                    // Validate the exact SKU through the same catalog rules as the storefront.
+                    // Never trust a customer-supplied SKU, price, option name or campaign ID.
+                    $variant = $publicCatalog->eligibleVariants($product)
+                        ->first(static fn (ProductVariant $row): bool => (int) $row->id === $variantId);
+                    if (! $variant) {
+                        throw ValidationException::withMessages([
+                            'products' => 'Select an active, complete variation for this campaign product.',
+                        ]);
+                    }
+                } elseif ($variantId !== 0) {
                     throw ValidationException::withMessages([
-                        'products' => 'This product has individually priced variations. Please select and order it from its storefront product page.',
+                        'products' => 'This simple product does not accept a variation ID.',
                     ]);
                 }
 
@@ -280,8 +317,7 @@ class CampaignOrderController extends Controller
                         'products' => 'Please select a valid quantity (1-1000) for each product.',
                     ]);
                 }
-                $campaignPrice = isset($product->pivot) ? (int) ($product->pivot->campaign_price ?? 0) : 0;
-                $unitPrice = $campaignPrice > 0 ? $campaignPrice : (int) $product->new_price;
+                $unitPrice = $optionQuote['price'] ?? $variantCatalog->unitPrice($product, $variant);
 
                 if ($unitPrice <= 0) {
                     throw ValidationException::withMessages([
@@ -294,6 +330,8 @@ class CampaignOrderController extends Controller
 
                 $orderItems[] = [
                     'product'          => $product,
+                    'variant_id'       => $variant?->id,
+                    'option_snapshot' => $optionQuote['snapshot'] ?? null,
                     'quantity'         => $quantity,
                     'unit_price'       => $unitPrice,
                     'line_total'       => $lineTotal,
@@ -304,6 +342,27 @@ class CampaignOrderController extends Controller
             if (empty($orderItems)) {
                 throw ValidationException::withMessages([
                     'products' => 'Please select at least one valid campaign product.',
+                ]);
+            }
+
+            // Managed Campaign and Storefront use the SAME deferred-confirmation
+            // inventory state. Unreconciled legacy campaigns are untouched.
+            $allManaged = collect($orderItems)->every(static fn (array $item): bool =>
+                (int) $item['product']->inventory_version === 1);
+            $approvedDatabase = app(\App\Support\P32LocalStorefrontAccess::class)->allows($request)
+                || app(\App\Support\P58ProductionStorefrontAccess::class)->allows($request);
+            $deferManagedStock = $allManaged && $approvedDatabase;
+            if ($hasVariantItems && ! $deferManagedStock) {
+                throw ValidationException::withMessages([
+                    'products' => 'Campaign variations need approved, fully managed inventory before ordering.',
+                ]);
+            }
+            // The existing deferred confirmation contract supports up to 30
+            // distinct order lines. Reject oversized managed carts BEFORE
+            // creating an order that would later be impossible to confirm.
+            if ($deferManagedStock && count($orderItems) > 30) {
+                throw ValidationException::withMessages([
+                    'products' => 'A managed campaign order can contain at most 30 different selections.',
                 ]);
             }
 
@@ -351,6 +410,7 @@ class CampaignOrderController extends Controller
                 'success_token'     => Str::random(40),
                 'campaign_id'       => $campaign->id,
                 'customer_id'       => $customer->id,
+                'created_via'       => Order::CREATED_VIA_FRONTEND,
 
                 'customer_name'     => $customer->name,
                 'phone'             => $customer->phone,
@@ -388,7 +448,7 @@ class CampaignOrderController extends Controller
             ]);
 
             foreach ($orderItems as $item) {
-                OrderItem::create([
+                $createdItem = OrderItem::create([
                     'order_id'     => $order->id,
                     'product_id'   => $item['product']->id,
                     'product_name' => $item['product']->name,
@@ -396,9 +456,23 @@ class CampaignOrderController extends Controller
                     'quantity'     => $item['quantity'],
                     'total_price'  => $item['line_total'],
                 ]);
+                if ($item['variant_id'] !== null) {
+                    // Stock allocation happens below, only after ALL lines are persisted.
+                    DB::table('order_items')->where('id', $createdItem->id)->update([
+                        'product_variant_id' => (int) $item['variant_id'],
+                        'variant_options' => $item['option_snapshot'] !== null
+                            ? json_encode($item['option_snapshot'], JSON_THROW_ON_ERROR) : null,
+                    ]);
+                }
             }
 
-            app(\App\Services\Inventory\ManagedOrderWriter::class)->allocateCreatedOrder($order->id, 'products');
+            if ($deferManagedStock) {
+                // Reserve stock without physical deduction; Confirmed consumes it.
+                app(CampaignOrderInventoryAllocator::class)->allocate((int) $order->id, true);
+            } else {
+                // Existing unreconciled simple-only campaigns remain unchanged.
+                app(\App\Services\Inventory\ManagedOrderWriter::class)->allocateCreatedOrder($order->id, 'products');
+            }
 
             app(OrderAssignmentService::class)->assign($order);
 

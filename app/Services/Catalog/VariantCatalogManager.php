@@ -3,6 +3,7 @@
 namespace App\Services\Catalog;
 
 use App\Models\Product;
+use App\Models\Order;
 use App\Models\ProductOption;
 use App\Models\ProductOptionValue;
 use App\Models\ProductVariant;
@@ -99,7 +100,9 @@ final class VariantCatalogManager
                 $this->reject('Only Color can have a swatch.', 'swatch_hex');
             }
             $referenced = DB::table('product_variant_values')
-                ->where('product_option_value_id', $row->id)->exists();
+                ->where('product_option_value_id', $row->id)->exists()
+                || DB::table('product_option_choices')->where('product_option_value_id', $row->id)->exists()
+                || DB::table('product_piece_prices')->where('product_option_value_id', $row->id)->exists();
             if ($referenced && $row->code !== $data['code']) {
                 $this->reject('The code is locked because existing variants use this value.', 'code');
             }
@@ -108,10 +111,12 @@ final class VariantCatalogManager
                 $this->reject('This code already exists within the option.', 'code');
             }
             if ($referenced && ! $data['is_active'] && $row->is_active
-                && DB::table('product_variant_values as pvv')
+                && (DB::table('product_option_choices')->where('product_option_value_id', $row->id)->exists()
+                || DB::table('product_piece_prices')->where('product_option_value_id', $row->id)->exists()
+                || DB::table('product_variant_values as pvv')
                     ->join('product_variants as pv', 'pv.id', '=', 'pvv.product_variant_id')
                     ->where('pvv.product_option_value_id', $row->id)
-                    ->whereNull('pv.deleted_at')->where('pv.is_active', true)->exists()) {
+                    ->whereNull('pv.deleted_at')->where('pv.is_active', true)->exists())) {
                 $this->reject('Active variants use this value. Deactivate those variants first.', 'is_active');
             }
             $row->update([
@@ -131,7 +136,9 @@ final class VariantCatalogManager
             $row = ProductOptionValue::query()->whereKey($value->id)
                 ->where('product_option_id', $option->id)->lockForUpdate()->firstOrFail();
             if (DB::table('product_variant_values')
-                ->where('product_option_value_id', $row->id)->exists()) {
+                ->where('product_option_value_id', $row->id)->exists()
+                || DB::table('product_option_choices')->where('product_option_value_id', $row->id)->exists()
+                || DB::table('product_piece_prices')->where('product_option_value_id', $row->id)->exists()) {
                 $this->reject('Value is used by a variant. Keep it for history; archive the variant before disabling this choice.', 'value');
             }
             $row->delete();
@@ -141,11 +148,13 @@ final class VariantCatalogManager
     /**
      * Prepare an unreconciled legacy/simple product without touching historic orders.
      * A positive opening balance is recorded as unverified until physically checked.
+     * The explicit option-wise flag is ONLY used by the validated, transactional
+     * Option-wise Pricing save action. All existing callers keep the old safety gate.
      */
-    public function prepareSimple(Product $product): void
+    public function prepareSimple(Product $product, bool $approvedOptionWisePromotion = false): void
     {
         $this->assertTestSchema();
-        DB::transaction(function () use ($product): void {
+        DB::transaction(function () use ($product, $approvedOptionWisePromotion): void {
             $locked = Product::whereKey($product->id)->lockForUpdate()->firstOrFail();
             if ((int) $locked->inventory_version !== 0 || (bool) $locked->has_variants
                 || ProductVariant::withTrashed()->where('product_id', $locked->id)->exists()) {
@@ -160,7 +169,26 @@ final class VariantCatalogManager
                     (string) config('app.env'), config('app.debug') === true,
                     (string) request()->ip(), (string) request()->getHost(), (int) request()->getPort()
                 );
-            if ($mainInventoryDatabase && ($stock !== 0
+            if ($approvedOptionWisePromotion) {
+                // Legacy orders do not carry a managed SKU reservation. An open
+                // order could later consume physical stock without using this
+                // shared ledger. Block conversion until it is closed/reconciled.
+                $unfinishedOrders = DB::table('order_items as i')
+                    ->join('orders as o', 'o.id', '=', 'i.order_id')
+                    ->where('i.product_id', $locked->id)
+                    ->where(static function ($query): void {
+                        $query->whereNull('o.order_status')->orWhereNotIn('o.order_status', [
+                            Order::STATUS_DELIVERED, Order::STATUS_CANCELLED,
+                            Order::STATUS_CANCELED, Order::STATUS_FAKE,
+                            Order::STATUS_COURIER_CANCELLED,
+                        ]);
+                    })->exists();
+                if ($unfinishedOrders) {
+                    $this->reject('Finish or reconcile pending orders for this product before adding Option-wise Pricing. Existing physical stock cannot be safely reserved twice.', 'options');
+                }
+                // Existing stock is retained AS IS and becomes the opening
+                // shared balance; past completed order items are not touched.
+            } elseif ($mainInventoryDatabase && ($stock !== 0
                 || DB::table('order_items')->where('product_id', $locked->id)->exists()
                 || DB::table('campaign_product')->where('product_id', $locked->id)->exists())) {
                 $this->reject('On the main inventory database, only new zero-stock products with no campaign/order history can be prepared. Reconcile legacy inventory separately.');
@@ -183,7 +211,10 @@ final class VariantCatalogManager
             ]);
             $this->recordMovement($variant, 'opening', $stock, 0, $stock,
                 'opening:v1:product:' . $locked->id,
-                'Legacy opening balance, not independently reconciled');
+                $approvedOptionWisePromotion
+                    ? 'Simple Product converted to Option-wise shared stock (existing balance, unverified)'
+                    : 'Legacy opening balance, not independently reconciled',
+                $approvedOptionWisePromotion ? (int) auth()->id() : null);
             $locked->update(['inventory_version' => 1, 'has_variants' => false]);
         }, 3);
     }
@@ -553,6 +584,19 @@ final class VariantCatalogManager
             $after = $before + $delta;
             if ($after < 0 || $after > 4_294_967_295) {
                 $this->reject('Stock cannot be negative or exceed database capacity.', 'delta');
+            }
+            // All writers (including the standalone Stock page) must respect
+            // unconfirmed campaign/storefront holds before reducing inventory.
+            if ($delta < 0 && Schema::hasColumn('orders', 'storefront_stock_state')) {
+                $reserved = (int) DB::table('order_items as i')
+                    ->join('orders as o', 'o.id', '=', 'i.order_id')
+                    ->where('i.product_variant_id', $row->id)
+                    ->where('o.storefront_stock_state', \App\Services\Inventory\StorefrontDeferredStock::RESERVED)
+                    ->whereNull('i.deleted_at')->whereNull('o.deleted_at')
+                    ->sum('i.quantity');
+                if ($after < $reserved) {
+                    $this->reject('Stock cannot be lowered below quantities held by unconfirmed orders.', 'stock');
+                }
             }
             $last = DB::table('inventory_movements')->where('product_variant_id', $row->id)
                 ->orderByDesc('id')->first();

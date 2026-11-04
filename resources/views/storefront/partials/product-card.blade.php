@@ -8,7 +8,8 @@
     $saved = $wishSignedIn && $wishlistState->contains((int) $product->id);
     // Only simple products can be added directly from listing cards.
     // SKU/price selection for variant products stays on the detail page.
-    $quickVariants = (int) $product->inventory_version === 1 && !$product->has_variants
+    $isOptionWise = app(\App\Services\Catalog\OptionWiseSelections::class)->configured($product);
+    $quickVariants = (int) $product->inventory_version === 1 && !$product->has_variants && !$isOptionWise
         ? $product->variants->filter(fn ($v) => $v->is_default && $v->is_active
             && !$v->trashed() && \App\Services\Inventory\StorefrontDeferredStock::availableForVariant((int) $v->id, (int) $v->stock) > 0)->values()
         : collect();
@@ -38,7 +39,7 @@
         <span class="p07-card-category">{{ $product->category?->name }}</span>
         <h3><a href="{{ $productUrl }}" title="{{ $product->name }}">{{ $product->name }}</a></h3>
         <div class="p07-card-prices">
-            <strong>{{ $product->has_variants ? 'From ' : '' }}৳{{ number_format($price) }}</strong>
+            <strong>{{ ($product->has_variants || $isOptionWise) ? 'From ' : '' }}৳{{ number_format($price) }}</strong>
             <span class="p07-stock {{ $available > 0 ? 'p07-instock' : 'p07-outstock' }}">
                 {{ $available > 0 ? 'In stock' : 'Out of stock' }}
             </span>
@@ -60,11 +61,11 @@
                     @endif
                 </form>
             @else
-                <a class="p19-cart-action" href="{{ $productUrl }}" aria-label="{{ $product->has_variants ? 'Choose options for' : 'View' }} {{ $product->name }}" title="{{ $product->has_variants ? 'Choose options first' : 'View product details' }}">
+                <a class="p19-cart-action" href="{{ $productUrl }}" aria-label="{{ ($product->has_variants || $isOptionWise) ? 'Choose options for' : 'View' }} {{ $product->name }}" title="{{ ($product->has_variants || $isOptionWise) ? 'Choose options first' : 'View product details' }}">
                     @include('storefront.partials.icon', ['name'=>'cart-plus'])
                 </a>
                 <a class="p07-card-action p34-buy-button" href="{{ $productUrl }}">
-                    {{ $product->has_variants ? 'Choose Options' : 'View Product' }}
+                    {{ ($product->has_variants || $isOptionWise) ? 'Choose Options' : 'View Product' }}
                     @include('storefront.partials.icon', ['name'=>'arrow-right'])
                 </a>
             @endif

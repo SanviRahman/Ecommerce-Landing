@@ -540,6 +540,18 @@ return [
 |--------------------------------------------------------------------------
 */
         [
+            'header' => 'INVENTORY MANAGEMENT',
+            'can' => 'admin-only',
+        ],
+        [
+            'text' => 'Stock Management',
+            'url' => 'admin/stock',
+            'icon' => 'fas fa-fw fa-boxes',
+            'can' => 'admin-only',
+            'active' => ['admin/stock*'],
+        ],
+
+        [
             'header' => 'HOMEPAGE MANAGEMENT',
             'can'    => 'isolated-homepage-builder',
         ],

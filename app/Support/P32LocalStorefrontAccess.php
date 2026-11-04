@@ -44,15 +44,17 @@ final class P32LocalStorefrontAccess
             $this->assertActualMainDatabase($request);
             foreach ([
                 'storefront_accounts', 'carts', 'cart_items', 'checkout_requests',
-                'inventory_movements', 'product_variants', 'product_variant_values',
-                'products', 'categories', 'orders', 'order_items', 'shipping_charges',
-                'storefront_pages', 'storefront_revisions',
+                'inventory_movements', 'product_options', 'product_option_values',
+                'product_option_assignments', 'product_option_choices', 'product_piece_prices',
+                'product_variants', 'product_variant_values', 'products', 'categories',
+                'orders', 'order_items', 'shipping_charges', 'storefront_pages',
+                'storefront_revisions',
             ] as $table) {
                 if (! Schema::hasTable($table)) {
                     return false;
                 }
             }
-            return true;
+            return $this->checkoutReady();
         } catch (Throwable) {
             return false;
         }
@@ -116,19 +118,31 @@ final class P32LocalStorefrontAccess
     }
 
     /**
-     * Read-only release check. Existing legacy campaign products can stay
-     * unreconciled; new storefront checkout only accepts inventory_version=1
-     * products and revalidates every row under the order transaction.
+     * Local checkout capability is a SCHEMA check only. Product/category state,
+     * global shipping setup and homepage publication are not global customer
+     * permission gates; each cart line and the final order are validated live.
+     * P58 production release continues to use productionDataReady().
      */
     public function checkoutReady(): bool
     {
         try {
-            // Browse/cart remain available before P61 migration; CHECKOUT is
-            // disabled rather than silently falling back to immediate deduction.
-            if (! Schema::hasColumn('orders', 'storefront_stock_state')) {
+            return Schema::hasColumn('orders', 'storefront_stock_state')
+                && Schema::hasColumn('cart_items', 'selection_key')
+                && Schema::hasColumn('cart_items', 'selected_options')
+                && Schema::hasTable('product_option_choices')
+                && Schema::hasTable('product_piece_prices');
+        } catch (Throwable) {
+            return false;
+        }
+    }
+
+    /** Strict production cutover review retained behind the explicit P58 host/DB approval. */
+    public function productionDataReady(): bool
+    {
+        try {
+            if (! $this->checkoutReady()) {
                 return false;
             }
-            // No global checkout unless basic stock and shipping are coherent.
             if (! DB::table('shipping_charges')->whereNull('campaign_id')
                 ->where('status', 1)->whereNull('deleted_at')->exists()) {
                 return false;
@@ -157,7 +171,6 @@ final class P32LocalStorefrontAccess
                 ->exists()) {
                 return false;
             }
-            // Optioned products need assigned, active, complete variant combinations.
             if (DB::table('products as p')->where('p.status', 1)
                 ->whereNull('p.deleted_at')->where('p.has_variants', 1)
                 ->whereRaw("(NOT EXISTS (SELECT 1 FROM product_option_assignments a WHERE a.product_id=p.id) OR NOT EXISTS (SELECT 1 FROM product_variants v WHERE v.product_id=p.id AND v.is_active=1 AND v.is_default=0 AND v.deleted_at IS NULL AND (SELECT COUNT(*) FROM product_variant_values vv WHERE vv.product_variant_id=v.id)=(SELECT COUNT(*) FROM product_option_assignments a WHERE a.product_id=p.id) AND NOT EXISTS (SELECT 1 FROM product_variant_values vv JOIN product_option_values ov ON ov.id=vv.product_option_value_id JOIN product_options o ON o.id=ov.product_option_id WHERE vv.product_variant_id=v.id AND (ov.is_active <> 1 OR o.is_active <> 1 OR NOT EXISTS (SELECT 1 FROM product_option_assignments a WHERE a.product_id=p.id AND a.product_option_id=vv.product_option_id)))))")
@@ -179,7 +192,7 @@ final class P32LocalStorefrontAccess
         }
         $this->assertActualMainDatabase($request);
         if (! $this->checkoutReady()) {
-            throw new RuntimeException('Local storefront checkout data is not ready (stock or shipping).');
+            throw new RuntimeException('Local storefront checkout schema is incomplete. Apply the reviewed storefront migrations first.');
         }
     }
 }

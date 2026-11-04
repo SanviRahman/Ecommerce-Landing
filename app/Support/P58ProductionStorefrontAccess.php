@@ -96,10 +96,10 @@ final class P58ProductionStorefrontAccess
         }
     }
 
-    /** Same strict read-only stock/shipping/published-home checks as local P32. */
+    /** Strict production stock/shipping/published-home readiness after explicit P58 approval. */
     public function checkoutReady(): bool
     {
-        return app(P32LocalStorefrontAccess::class)->checkoutReady();
+        return app(P32LocalStorefrontAccess::class)->productionDataReady();
     }
 
     /** Independent verification inside every order/stock/idempotency writer. */

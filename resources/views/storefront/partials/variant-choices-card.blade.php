@@ -11,7 +11,7 @@
                 <div class="sfa-card-variation-values">
                     @foreach($option['values'] as $value)
                         @php $swatch = isset($value['swatch']) && preg_match('/\A#[0-9a-fA-F]{6}\z/D', (string) $value['swatch']) ? $value['swatch'] : null; @endphp
-                        <label title="{{ empty($value['configured']) ? 'No SKU configured for this value' : $value['label'] }}">
+                        <label title="{{ empty($value['configured']) ? 'Not available for this product' : $value['label'] }}">
                             <input type="radio" name="{{ $optionGroupPrefix }}-option-{{ $option['id'] }}" data-option-id="{{ $option['id'] }}"
                                    value="{{ $value['id'] }}" @disabled(empty($value['configured']))>
                             <span class="sfa-variant-chip">

@@ -8,12 +8,13 @@
     $saved = $wishSignedIn && $wishlistState->contains((int) $product->id);
     // Product cards intentionally have no option selector. Quick-add is safe
     // for simple products only; variant products open the detail picker.
-    $quickVariants = !$productPreview && (int) $product->inventory_version === 1 && !$product->has_variants
+    $isOptionWise = app(\App\Services\Catalog\OptionWiseSelections::class)->configured($product);
+    $quickVariants = !$productPreview && (int) $product->inventory_version === 1 && !$product->has_variants && !$isOptionWise
         ? $product->variants->filter(fn ($v) => $v->is_default && $v->is_active
             && !$v->trashed() && \App\Services\Inventory\StorefrontDeferredStock::availableForVariant((int) $v->id, (int) $v->stock) > 0)->values()
         : collect();
     $canQuickAdd = !$productPreview && ($cartVersion ?? null) !== null && $quickVariants->isNotEmpty();
-    $selectionUrl = $product->has_variants ? $productUrl.'#p07-variant-picker' : $productUrl;
+    $selectionUrl = ($product->has_variants || $isOptionWise) ? $productUrl.'#p07-variant-picker' : $productUrl;
     $canCheckout = $canQuickAdd && config('storefront.p08_checkout_test_enabled', false) === true
         && config('storefront.p03_core_test_enabled', false) === true;
 @endphp
@@ -41,7 +42,7 @@
     <div class="sf-product-copy">
         <p class="sf-product-category">{{ $product->category?->name }}</p>
         <h3><a title="{{ $product->name }}" href="{{ $productPreview ? '#' : $productUrl }}" @if($productPreview) tabindex="-1" aria-disabled="true" @endif>{{ $product->name }}</a></h3>
-        <div class="sf-price">{{ $product->has_variants ? 'From ' : '' }}৳{{ number_format($price) }}</div>
+        <div class="sf-price">{{ ($product->has_variants || $isOptionWise) ? 'From ' : '' }}৳{{ number_format($price) }}</div>
         <div class="sf-product-actions p34-product-actions">
             @if($productPreview)
                 <span class="sf-secondary sf-inert" title="Preview only">@include('storefront.partials.icon', ['name'=>'cart-plus'])</span>
@@ -60,9 +61,9 @@
                     @endif
                 </form>
             @else
-                <a class="sf-secondary" href="{{ $selectionUrl }}" aria-label="{{ $product->has_variants ? 'Select a variation for' : 'View' }} {{ $product->name }}" title="{{ $product->has_variants ? 'Select size or color on product page' : 'View product details' }}">@include('storefront.partials.icon', ['name'=>'cart-plus'])</a>
+                <a class="sf-secondary" href="{{ $selectionUrl }}" aria-label="{{ ($product->has_variants || $isOptionWise) ? 'Select a variation for' : 'View' }} {{ $product->name }}" title="{{ ($product->has_variants || $isOptionWise) ? 'Select size or color on product page' : 'View product details' }}">@include('storefront.partials.icon', ['name'=>'cart-plus'])</a>
                 <a class="sf-cta p34-buy-button" href="{{ $selectionUrl }}">
-                    {{ $product->has_variants ? 'Choose Options' : 'View Product' }}
+                    {{ ($product->has_variants || $isOptionWise) ? 'Choose Options' : 'View Product' }}
                     @include('storefront.partials.icon', ['name'=>'arrow-right'])
                 </a>
             @endif

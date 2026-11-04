@@ -303,7 +303,15 @@ final class InventoryAllocator
                 }
                 $selected = [];
             }
-            $unitMinor = \App\Support\ExactBdt::fromDecimal((string) ($variant->price_override ?? $product->new_price));
+            $savedChoices = json_decode((string)($item->variant_options ?? '{}'), true) ?: [];
+            if (\Illuminate\Support\Facades\DB::table('product_piece_prices')->where('product_id', $product->id)->exists()) {
+                $optionWise = app(\App\Services\Catalog\OptionWiseSelections::class);
+                $quote = $optionWise->quoteSnapshot(\App\Models\Product::findOrFail($product->id), $savedChoices);
+                $unitMinor = (int)$quote['price'];
+                $selected = $quote['snapshot'];
+            } else {
+                $unitMinor = \App\Support\ExactBdt::fromDecimal((string) ($variant->price_override ?? $product->new_price));
+            }
             $lineMinor = \App\Support\ExactBdt::multiply($unitMinor, (int) $item->quantity);
             if ($unitMinor < 1 || \App\Support\ExactBdt::fromDecimal((string) $item->unit_price) !== $unitMinor
                 || \App\Support\ExactBdt::fromDecimal((string) $item->total_price) !== $lineMinor
@@ -370,6 +378,11 @@ final class InventoryAllocator
             app(\App\Support\P58ProductionStorefrontAccess::class)->assertAdminManaged();
             if (DB::transactionLevel() < 1) {
                 throw new LogicException('Production cancellation and stock release must share one transaction.');
+            }
+        } elseif (app(\App\Support\P32LocalStorefrontAccess::class)->allowsAdminManaged()) {
+            app(\App\Support\P32LocalStorefrontAccess::class)->assertAdminManaged();
+            if (DB::transactionLevel() < 1) {
+                throw new LogicException('Local cancellation and stock release must share one transaction.');
             }
         } else {
             $this->assertTestTransaction();

@@ -415,21 +415,107 @@ $(document).ready(function() {
         }
     }
 
+    function variantMatrixFromCard(card) {
+        if (Number(card.attr('data-has-variants') || 0) !== 1) return null;
+        try {
+            const matrix = JSON.parse(card.attr('data-variant-matrix') || '{}');
+            return Array.isArray(matrix.variants) ? matrix : { options: [], variants: [] };
+        } catch (error) {
+            return { options: [], variants: [] };
+        }
+    }
+
     function addProductFromCard(card) {
         const id = String(card.data('id'));
+        const matrix = variantMatrixFromCard(card);
+        const previous = selectedProducts[id] || null;
+        const optionWise = matrix?.mode === 'option_wise';
+        const selectedOptions = optionWise ? { ...(previous?.selectedOptions || matrix.selected || {}) } : null;
+        const selectedVariant = optionWise ? {
+            id: Number(matrix.inventory_variant_id || 0),
+            price: Number((matrix.prices || {})[selectedOptions.piece_count] || 0),
+            stock: Number(matrix.stock || 0),
+            selected: Object.fromEntries((matrix.options || []).map(function(o) {
+                return [String(o.id), Number(selectedOptions[o.code] || 0)];
+            }))
+        } : matrix && window.SfaVariantMatcher
+            ? window.SfaVariantMatcher.initial(matrix.variants, previous?.variantId)
+            : null;
+        if (matrix && (!selectedVariant || selectedVariant.stock < 1 || selectedVariant.price < 1 ||
+            (!optionWise && !window.SfaVariantMatcher.purchasable(selectedVariant)))) {
+            showOrderWarningPopup('এই প্রোডাক্টের কোনো উপলব্ধ variation নেই। অন্য প্রোডাক্ট বেছে নিন।', 'স্টক নেই');
+            return null;
+        }
 
         selectedProducts[id] = {
             id: id,
             name: String(card.data('name') || ''),
-            price: number(card.data('price') || 0),
+            price: matrix ? number(selectedVariant.price) : number(card.data('price') || 0),
             weight: String(card.data('weight') || ''),
             image: card.data('image') || noImage,
             isFreeDelivery: Number(card.data('free-delivery') || 0) === 1,
-            quantity: selectedProducts[id] ? Number(selectedProducts[id].quantity || 1) : 1
+            quantity: previous ? Number(previous.quantity || 1) : 1,
+            matrix: matrix,
+            selectedOptions: selectedOptions,
+            variantId: selectedVariant ? Number(selectedVariant.id) : null,
+            stock: selectedVariant ? Number(selectedVariant.stock) : null
         };
-
+        if (selectedVariant) {
+            selectedProducts[id].quantity = Math.max(1,
+                Math.min(selectedProducts[id].quantity, selectedProducts[id].stock, 10));
+        }
         return selectedProducts[id];
     }
+
+    function selectedVariant(item) {
+        if (item.matrix?.mode === 'option_wise') return {
+            id: Number(item.matrix.inventory_variant_id),
+            selected: Object.fromEntries(item.matrix.options.map(function(o) {
+                return [String(o.id), Number(item.selectedOptions?.[o.code] || 0)];
+            })),
+            stock: Number(item.matrix.stock || 0),
+            price: Number(item.matrix.prices?.[item.selectedOptions?.piece_count] || 0),
+        };
+        return item.matrix?.variants?.find(function(row) {
+            return String(row.id) === String(item.variantId);
+        }) || null;
+    }
+
+    function renderVariantGroups(item) {
+        const row = selectedVariant(item);
+        if (!row || !item.matrix || (item.matrix.mode !== 'option_wise' && !window.SfaVariantMatcher)) return '';
+        const optionIds = item.matrix.options.map(function(option) { return String(option.id); });
+        let html = '<div class="campaign-summary-variants">';
+        item.matrix.options.forEach(function(option) {
+            html += '<fieldset><legend>' + escapeSummaryText(option.name) + '</legend>';
+            html += '<div class="campaign-summary-options">';
+            option.values.forEach(function(value) {
+                const available = item.matrix.mode === 'option_wise' || item.matrix.variants.some(function(candidate) {
+                    return String(candidate.selected?.[option.id]) === String(value.id);
+                });
+                const checked = String(row.selected?.[option.id]) === String(value.id);
+                const swatch = /^#[0-9a-fA-F]{6}$/.test(value.swatch || '')
+                    ? '<i style="--campaign-chip-swatch:' + value.swatch + '" aria-hidden="true"></i>' : '';
+                html += '<label><input type="radio" class="summary-option" data-id="' +
+                    escapeSummaryText(item.id) + '" data-option-id="' + escapeSummaryText(option.id) +
+                    '" name="campaign-choice-' + escapeSummaryText(item.id) + '-' + escapeSummaryText(option.id) +
+                    '" value="' + escapeSummaryText(value.id) + '"' +
+                    (checked ? ' checked' : '') + (available ? '' : ' disabled') +
+                    '><span class="campaign-chip">' + swatch + escapeSummaryText(value.label) + '</span></label>';
+            });
+            html += '</div></fieldset>';
+        });
+        const selectedLabels = item.matrix.options.map(function(option) {
+            const value = option.values.find(function(v) {
+                return String(v.id) === String(row.selected?.[option.id]);
+            });
+            return value ? option.name + ': ' + value.label : '';
+        }).filter(Boolean).join(' / ');
+        html += '</div><div class="campaign-variant-summary-meta">' +
+            escapeSummaryText(selectedLabels) + ' · Available stock: ' + escapeSummaryText(row.stock) + '</div>';
+        return html;
+    }
+
 
     function itemPayload(item) {
         return {
@@ -449,7 +535,7 @@ $(document).ready(function() {
     }
 
     function getAllOrderItems() {
-        return $('.order-product-card:not([data-variant-preview-only])').map(function() {
+        return $('.order-product-card').map(function() {
             const card = $(this);
 
             return {
@@ -575,14 +661,16 @@ $(document).ready(function() {
 
         Object.values(selectedProducts).forEach(function(item) {
             itemsHtml += `
-                <div class="summary-product" data-id="${escapeSummaryText(item.id)}">
+                <div class="summary-product ${item.matrix ? 'campaign-summary-product' : ''}" data-id="${escapeSummaryText(item.id)}">
                     <div class="summary-product-info">
                         <img src="${safeSummaryImage(item.image)}" alt="${escapeSummaryText(item.name)}">
                         <div>
                             <h5>${escapeSummaryText(item.name)}</h5>
-                            <span>${escapeSummaryText(item.weight)}</span><br>
-                            <strong>${escapeSummaryText(money(item.price))}</strong>
+                            ${item.matrix ? '' : '<span>' + escapeSummaryText(item.weight) + '</span><br>'}
+                            <strong>${escapeSummaryText(money(item.price))} / selected option</strong>
+                            <div class="campaign-variant-summary-meta">Line total: ${escapeSummaryText(money(item.price * item.quantity))}</div>
                             ${item.isFreeDelivery ? '<br><span class="badge badge-success mt-1">ফ্রি ডেলিভারি</span>' : ''}
+                            ${renderVariantGroups(item)}
                         </div>
                     </div>
 
@@ -594,7 +682,9 @@ $(document).ready(function() {
 
                         <select class="summary-qty" data-id="${escapeSummaryText(item.id)}"
                                 aria-label="Quantity for ${escapeSummaryText(item.name)}">
-                            ${[1,2,3,4,5,6,7,8,9,10].map(function(qty) {
+                            ${[1,2,3,4,5,6,7,8,9,10].filter(function(qty) {
+                                return !item.matrix || qty <= item.stock;
+                            }).map(function(qty) {
                                 return `<option value="${qty}" ${qty === Number(item.quantity) ? 'selected' : ''}>${qty}</option>`;
                             }).join('')}
                         </select>
@@ -605,6 +695,10 @@ $(document).ready(function() {
             inputsHtml += `
                 <input type="hidden" name="products[${index}][id]" value="${escapeSummaryText(item.id)}">
                 <input type="hidden" name="products[${index}][quantity]" value="${escapeSummaryText(item.quantity)}">
+                ${item.matrix ? `<input type="hidden" name="products[${index}][variant_id]" value="${escapeSummaryText(item.variantId)}">` : ''}
+                ${item.matrix?.mode === 'option_wise' ? item.matrix.options.map(function(o) {
+                    return `<input type="hidden" name="products[${index}][selected_options][${escapeSummaryText(o.code)}]" value="${escapeSummaryText(item.selectedOptions?.[o.code] || '')}">`;
+                }).join('') : ''}
             `;
 
             index++;
@@ -645,7 +739,6 @@ $(document).ready(function() {
 
     $(document).on('click', '.order-product-card', function() {
         const card = $(this);
-        if (card.is('[data-variant-preview-only]')) return;
         const id = String(card.data('id'));
 
         if (selectedProducts[id]) {
@@ -653,6 +746,7 @@ $(document).ready(function() {
             card.removeClass('active');
         } else {
             const item = addProductFromCard(card);
+            if (!item) return;
             card.addClass('active');
             trackAddToCart(item);
         }
@@ -666,6 +760,7 @@ $(document).ready(function() {
 
         if (orderCard.length) {
             const item = addProductFromCard(orderCard);
+            if (!item) return;
 
             orderCard.addClass('active');
             renderSummary();
@@ -695,12 +790,62 @@ $(document).ready(function() {
         renderSummary();
     });
 
+    // Keep the option the customer clicked, then select the closest REAL SKU.
+    // Never invent a combination or derive a price from the number of pieces.
+    $(document).on('change', '.summary-option', function() {
+        const id = String($(this).data('id'));
+        const item = selectedProducts[id];
+        if (!item || !item.matrix) return;
+        if (item.matrix.mode === 'option_wise') {
+            const optionId = String($(this).data('option-id'));
+            const option = item.matrix.options.find(function(o) { return String(o.id) === optionId; });
+            if (!option) return;
+            item.selectedOptions[option.code] = Number($(this).val());
+            item.price = Number(item.matrix.prices[item.selectedOptions.piece_count] || 0);
+            if (item.price < 1) { showOrderWarningPopup('Please select an available Piece Count.'); return; }
+            item.stock = Number(item.matrix.stock);
+            item.quantity = Math.min(item.quantity, Math.max(1, item.stock), 10);
+            renderSummary();
+            $('#selectedProductsBox .summary-option').filter(function() {
+                return String($(this).data('id')) === id &&
+                    String($(this).data('option-id')) === optionId &&
+                    String($(this).val()) === String(item.selectedOptions[option.code]);
+            }).first().trigger('focus');
+            return;
+        }
+        if (!window.SfaVariantMatcher) return;
+        const previous = selectedVariant(item);
+        const optionId = String($(this).data('option-id'));
+        const optionIds = item.matrix.options.map(function(option) { return String(option.id); });
+        const row = window.SfaVariantMatcher.forChangeExact(
+            item.matrix.variants, optionIds, previous?.selected || {}, optionId, String($(this).val())
+        );
+        if (!row || !window.SfaVariantMatcher.purchasable(row)) {
+            showOrderWarningPopup('এই option combination-টি বর্তমানে পাওয়া যাচ্ছে না অথবা স্টক নেই। আগের selection অপরিবর্তিত আছে।');
+            renderSummary();
+            return;
+        }
+        item.variantId = Number(row.id);
+        item.price = number(row.price);
+        item.stock = Number(row.stock);
+        item.quantity = Math.min(item.quantity, Math.max(1, item.stock), 10);
+        renderSummary();
+        // Re-rendering radios destroys the old focused input; restore keyboard focus.
+        $('#selectedProductsBox .summary-option').filter(function() {
+            return String($(this).data('id')) === id &&
+                String($(this).data('option-id')) === optionId &&
+                String($(this).val()) === String(row.selected?.[optionId]);
+        }).first().trigger('focus');
+    });
+
     $(document).on('change', '.summary-qty', function() {
         const id = String($(this).data('id'));
         const quantity = Number($(this).val() || 1);
 
         if (selectedProducts[id]) {
-            selectedProducts[id].quantity = quantity;
+            selectedProducts[id].quantity = selectedProducts[id].matrix
+                ? Math.min(quantity, selectedProducts[id].stock, 10)
+                : quantity;
         }
 
         renderSummary();
@@ -893,7 +1038,14 @@ $(document).ready(function() {
         sessionStorage.removeItem(orderResetStorageKey);
     } else {
         suppressTracking = true;
-        $('.order-product-card:not([data-variant-preview-only])').first().trigger('click');
+        // Never auto-add an unavailable variable SKU on first page load.
+        $('.order-product-card').filter(function() {
+            const card = $(this);
+            const matrix = variantMatrixFromCard(card);
+            return !matrix || (window.SfaVariantMatcher && matrix.variants.some(function(row) {
+                return window.SfaVariantMatcher.purchasable(row);
+            }));
+        }).first().trigger('click');
         suppressTracking = false;
     }
 

@@ -14,7 +14,7 @@
                 <th>Stock</th>
                 <th>Flags</th>
                 <th>Status</th>
-                <th width="160" class="text-right px-4">Actions</th>
+                <th width="200" class="text-right px-4">Actions</th>
             </tr>
         </thead>
 
@@ -158,17 +158,29 @@
                                     <i class="fas fa-eye"></i>
                                 </a>
 
-                                {{-- One-click SKU creation for managed variable products only. --}}
-                                @if(($variantAdminAvailable ?? false) && (int) $product->inventory_version === 1 && $product->has_variants && auth()->user()->isAdmin())
-                                    <a href="{{ route('admin.products.variants.index', $product->id) }}#add-variation"
+                                {{-- Existing untracked Simple Products need one explicit, audited
+                                     admin POST to enable Cart/Buy without inventing variants.
+                                     New Simple Products are initialized during creation. --}}
+                                @if(auth()->user()->isAdmin() && ($variantAdminAvailable ?? false)
+                                    && (int) $product->inventory_version === 0 && ! $product->has_variants)
+                                    <form method="POST" action="{{ route('admin.products.enable_online_ordering', $product->id) }}"
+                                          class="d-inline" onsubmit="return confirm('Enable online cart for this Simple Product? Existing stock and price will be retained.');">
+                                        @csrf
+                                        <button type="submit" class="btn btn-sm btn-white text-success"
+                                                title="Enable Online Cart / Buy Now" aria-label="Enable online checkout for {{ $product->name }}">
+                                            <i class="fas fa-cart-plus" aria-hidden="true"></i>
+                                        </button>
+                                    </form>
+                                @endif
+
+                                {{-- Both simple and managed products can configure Piece Count prices.
+                                     The first save prepares a simple product without losing its stock. --}}
+                                @if(($variantAdminAvailable ?? false) && ! $product->has_variants && auth()->user()->isAdmin())
+                                    <a href="{{ route('admin.products.variants.index', $product->id) }}#option-wise-pricing"
                                        class="btn btn-sm btn-white text-success"
-                                       title="Add Variation" aria-label="Add variation to {{ $product->name }}">
-                                        <i class="fas fa-layer-group" aria-hidden="true"></i>
-                                    </a>
-                                    <a href="{{ route('admin.products.variants.index', $product->id) }}#bulk-variations"
-                                       class="btn btn-sm btn-white text-primary"
-                                       title="Build multiple variations" aria-label="Build multiple SKU combinations for {{ $product->name }}">
-                                        <i class="fas fa-th" aria-hidden="true"></i>
+                                       title="{{ (int) $product->inventory_version === 0 ? 'Add Option-wise Pricing' : 'Edit Option-wise Pricing' }}"
+                                       aria-label="{{ (int) $product->inventory_version === 0 ? 'Add options and prices to' : 'Manage options and prices for' }} {{ $product->name }}">
+                                        <i class="fas fa-tags" aria-hidden="true"></i>
                                     </a>
                                 @endif
 

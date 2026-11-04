@@ -320,6 +320,7 @@ class ProductController extends Controller
             'stock'             => ['required', 'integer', 'min:0', 'max:1000000'],
             'sold_quantity'     => ['nullable', 'integer', 'min:0'],
             'weight_size'       => ['nullable', 'string', 'max:255'],
+            'create_for_options' => ['nullable', 'boolean'],
             'initial_variation' => ['nullable', 'array:color,size,weight,piece_count'],
             'initial_variation.color' => ['nullable', 'integer', 'min:1'],
             'initial_variation.size' => ['nullable', 'integer', 'min:1'],
@@ -354,17 +355,34 @@ class ProductController extends Controller
             'piece_count' => $request->input('initial_variation.piece_count'),
         ], static fn ($value) => $value !== null && $value !== '');
         $hasNewVariation = $selected !== [];
+        if ($hasNewVariation) {
+            throw ValidationException::withMessages([
+                'initial_variation' => 'The old per-combination variation creator is retired. Choose Option-wise Pricing instead.',
+            ]);
+        }
+        $createForOptions = $request->boolean('create_for_options');
+        // Public Cart already requires inventory_version=1 and one active default
+        // inventory row. Set that up for NORMAL products at creation time on an
+        // approved local/production commerce database, too. Non-approved/legacy
+        // environments keep their original product-creation behavior.
+        $prepareManagedSimple = ! $createForOptions && ! $hasNewVariation && (
+            app(\App\Support\P32LocalStorefrontAccess::class)->allows($request)
+            || app(\App\Support\P58ProductionStorefrontAccess::class)->allows($request)
+        );
+        // Option-wise products may receive audited opening stock during creation.
+        // Do not write it directly to products.stock: prepare the zero-stock
+        // shared inventory first, then record the quantity through the ledger.
         // The form always sends 0/1. Preserve legacy API defaults when omitted:
         // simple products default active; new variable products default inactive.
         $requestedActive = $request->exists('status')
             ? $request->boolean('status')
-            : ! $hasNewVariation;
+            : ! ($hasNewVariation || $createForOptions);
 
-        if ($hasNewVariation) {
+        if ($hasNewVariation || $createForOptions || $prepareManagedSimple) {
             $catalog->assertTestSchema();
         }
 
-        return DB::transaction(function () use ($request, $catalog, $release, $selected, $hasNewVariation, $requestedActive) {
+        return DB::transaction(function () use ($request, $catalog, $release, $selected, $hasNewVariation, $requestedActive, $createForOptions, $prepareManagedSimple) {
             // The legacy Weight / Size string is populated from the selected
             // Weight (or Size) option; no second input is necessary in the UI.
             $weightOrSizeValueId = $selected['weight'] ?? $selected['size'] ?? null;
@@ -386,7 +404,7 @@ class ProductController extends Controller
                 'old_price'         => $request->old_price ?: 0,
                 'new_price'         => $request->new_price,
 
-                'stock'             => $hasNewVariation ? 0 : ($request->stock ?: 0),
+                'stock'             => ($hasNewVariation || $createForOptions || $prepareManagedSimple) ? 0 : ($request->stock ?: 0),
                 'sold_quantity'     => $request->sold_quantity ?: 0,
                 'weight_size'       => $displayWeightOrSize,
 
@@ -399,11 +417,33 @@ class ProductController extends Controller
                 'is_free_delivery'  => $request->boolean('is_free_delivery'),
                 // A variable product is released only after its audited SKU,
                 // price and checkout readiness have all been validated.
-                'status'            => $hasNewVariation ? false : $requestedActive,
+                'status'            => ($hasNewVariation || $createForOptions) ? false : $requestedActive,
 
                 'meta_title'        => $request->meta_title,
                 'meta_description'  => $request->meta_description,
             ]);
+
+            // First prepare one zero-stock shared inventory balance, then add
+            // any opening stock through the SAME audited writer as Product Edit
+            // and Stock Management. The surrounding transaction is atomic.
+            if ($createForOptions || $prepareManagedSimple) {
+                $catalog->prepareSimple($product);
+                $sharedInventory = ProductVariant::query()
+                    ->where('product_id', $product->id)
+                    ->where('is_default', true)
+                    ->where('option_signature', 'default')
+                    ->lockForUpdate()->firstOrFail();
+                // The hidden inventory record is usable for Simple Product cart
+                // immediately, or after Option-wise Piece Count pricing is saved.
+                $sharedInventory->update(['is_active' => true]);
+                $openingStock = (int) $request->input('stock', 0);
+                if ($openingStock > 0) {
+                    $catalog->setStockQuantity(
+                        $product, $sharedInventory, $openingStock, 0,
+                        (int) auth()->id(), 'Audited opening stock from Product Create'
+                    );
+                }
+            }
 
             // All SKU opening movements and stock entries stay in the SAME
             // transaction as product creation; no order or checkout writer changes.
@@ -428,6 +468,19 @@ class ProductController extends Controller
             }
             $this->uploadProductMedia($product, $request);
 
+            if ($createForOptions) {
+                $url = route('admin.products.variants.index', $product->id) . '#option-wise-pricing';
+                if ($request->ajax()) {
+                    return response()->json([
+                        'status' => true,
+                        'message' => 'Product created with audited opening stock. Set Piece Count prices next; successful Save will activate it by default. Color, Size and Weight remain optional.',
+                        'option_pricing_url' => $url,
+                    ]);
+                }
+                return redirect()->to($url)->with('success',
+                    'Product created with its opening stock recorded. Configure Piece Count prices next; it will become Active automatically when the pricing form is saved with activation enabled.');
+            }
+
             if ($request->ajax()) {
                 return response()->json([
                     'status'  => true,
@@ -442,6 +495,35 @@ class ProductController extends Controller
                     ? ($requestedActive ? 'Product created and activated.' : 'Product created as inactive.')
                     : 'Product created successfully.');
         });
+    }
+
+    /**
+     * Explicitly onboard a pre-existing Simple Product into the existing
+     * transaction-safe storefront cart inventory. Never change its price,
+     * physical stock, product status or historical orders. The catalog service
+     * blocks conversion if unfinished legacy orders would be double-reserved.
+     */
+    public function enableOnlineOrdering(Product $product, VariantCatalogManager $catalog)
+    {
+        $this->adminOnly();
+        $catalog->assertTestSchema();
+
+        DB::transaction(function () use ($product, $catalog): void {
+            $locked = Product::query()->whereKey($product->id)->lockForUpdate()->firstOrFail();
+            if ($locked->has_variants || (int) $locked->inventory_version !== 0
+                || ProductVariant::withTrashed()->where('product_id', $locked->id)->exists()) {
+                throw ValidationException::withMessages([
+                    'product' => 'Only an unmanaged Simple Product can be enabled. Existing variant/order data is unchanged.',
+                ]);
+            }
+            // Uses the audited single default stock row and existing inventory
+            // ledger. The approval flag does NOT bypass unfinished-order checks.
+            $catalog->prepareSimple($locked, true);
+        }, 3);
+
+        return redirect()->route('admin.products.index')->with('success',
+            'Online cart inventory enabled for ' . $product->name
+            . '. Stock and price were preserved. Available in the storefront when the product/category are Active and stock is available.');
     }
 
     /*
@@ -571,6 +653,12 @@ class ProductController extends Controller
             // never overwrite a newer stock balance from a checkout or adjustment.
             $locked = Product::query()->whereKey($product->id)->lockForUpdate()->firstOrFail();
             $managed = (int) ($locked->inventory_version ?? 0) === 1;
+            if ($managed && $locked->has_variants
+                && ($request->has('edit_variation') || $request->has('variant_prices'))) {
+                throw ValidationException::withMessages([
+                    'variant_prices' => 'Use Option-wise Pricing to set one price per Piece Count. Individual SKU combinations and prices cannot be edited here.',
+                ]);
+            }
             $originalBasePrice = (int) $locked->new_price;
             $wasActive = (bool) $locked->status;
             $requestedActive = $request->boolean('status');

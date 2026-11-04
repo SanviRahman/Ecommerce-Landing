@@ -16,8 +16,9 @@ use Illuminate\Validation\ValidationException;
 
 /**
  * Explicit, admin-approved activation of an audited variable SKU catalog.
- * Requires the existing P33 admin role and verified test/local or P58
- * production database identity. It never reconciles legacy stock automatically.
+ * Local activation requires the verified main DB and checkout schema only;
+ * production activation retains P58 data-readiness review. It never reconciles
+ * legacy stock automatically.
  */
 final class VariableStorefrontActivation
 {
@@ -31,9 +32,8 @@ final class VariableStorefrontActivation
             $this->assertReady($locked);
             $locked->update(['status' => true]);
 
-            // The P32 request middleware grants checkout only when EVERY global
-            // readiness condition is true. Validate that same gate *after* this
-            // product becomes active, but before the transaction commits.
+            // Local storefront access is schema-scoped; product stock/options are
+            // checked above. Production still performs the strict P58 release review.
             $this->assertStorefrontCheckoutReady();
         }, 3);
     }
@@ -83,7 +83,7 @@ final class VariableStorefrontActivation
         $access = app(P32LocalStorefrontAccess::class);
         $access->assertActualMainDatabase();
         if (! $access->checkoutReady()) {
-            $this->reject('Checkout readiness failed. Check global shipping charges, published homepage, managed stock totals and active option combinations before retrying. No product change was saved.');
+            $this->reject('Storefront checkout schema is incomplete. Apply the reviewed migrations before activating this product.');
         }
     }
 

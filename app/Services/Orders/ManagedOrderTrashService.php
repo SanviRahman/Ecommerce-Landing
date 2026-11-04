@@ -104,7 +104,6 @@ final class ManagedOrderTrashService
             if ((int) $order->storefront_stock_state !== StorefrontDeferredStock::RESERVED
                 || (int) $order->inventory_version !== 0
                 || (string) $order->created_via !== Order::CREATED_VIA_FRONTEND
-                || $order->campaign_id !== null
                 || ! in_array((string) $order->order_status, ['processing', 'pending'], true)) {
                 throw ValidationException::withMessages([
                     'orders' => "Order #{$order->id} has an inconsistent pending stock reservation. Restore was cancelled.",

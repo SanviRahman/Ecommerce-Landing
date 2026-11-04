@@ -9,6 +9,7 @@ use App\Models\OrderItem;
 use App\Models\ProductVariant;
 use App\Models\ShippingCharge;
 use App\Services\Cart\GuestCartService;
+use App\Services\Catalog\OptionWiseSelections;
 use App\Services\CustomerIdentityService;
 use App\Services\Inventory\InventoryAllocator;
 use App\Services\Inventory\StorefrontDeferredStock;
@@ -54,7 +55,7 @@ final class StorefrontCheckout
         $address = trim((string) $data['address']);
         $note = trim((string) ($data['customer_note'] ?? ''));
         $expected = (int) $data['cart_version'];
-        $shippingId = (int) $data['shipping_area_id'];
+        $shippingId = (int) ($data['shipping_area_id'] ?? 0);
         $key = (string) $data['checkout_key'];
         if ($this->blocked->findActiveBlock($phone, $request->ip())) {
             throw ValidationException::withMessages(['phone' => 'Checkout is unavailable for this contact.']);
@@ -113,7 +114,10 @@ final class StorefrontCheckout
                     || $qty > (int) $variant->stock || (int) $line->product_id !== (int) $product->id) {
                     throw ValidationException::withMessages(['cart' => 'A cart item has changed or is out of stock.']);
                 }
-                $unit = $this->carts->price($product, $variant);
+                $selectedOptions = json_decode((string)($line->selected_options ?? '{}'), true) ?: [];
+                $choiceQuote = app(OptionWiseSelections::class)->configured($product)
+                    ? app(OptionWiseSelections::class)->quote($product, $selectedOptions) : null;
+                $unit = $this->carts->price($product, $variant, $selectedOptions);
                 if ($unit < 1 || ExactBdt::fromDecimal((string) $line->quoted_unit_price) !== $unit) {
                     throw ValidationException::withMessages([
                         'cart' => 'A price changed. Update the cart line to accept the new quote first.',
@@ -122,16 +126,39 @@ final class StorefrontCheckout
                 $lineTotal = ExactBdt::multiply($unit, $qty);
                 $subTotal = ExactBdt::add($subTotal, $lineTotal);
                 $freeDelivery = $freeDelivery || (bool) $product->is_free_delivery;
-                $checked[] = [$product, $variant, $qty, $unit, $lineTotal];
+                $checked[] = [$product, $variant, $qty, $unit, $lineTotal,
+                    $choiceQuote['snapshot'] ?? null];
             }
-            // Shipping area must be configured and active, even for free-delivery orders.
-            $shipping = ShippingCharge::resolvedForCampaign(null)->first(
+            // Multiple differently selected cart lines can share ONE physical product.
+            // Check their combined demand, never only each line separately.
+            $combinedRequired = [];
+            foreach ($checked as [, $variant, $qty]) {
+                $id = (int)$variant->id;
+                $combinedRequired[$id] = ($combinedRequired[$id] ?? 0) + $qty;
+                if ($combinedRequired[$id] > (int)$variant->stock) {
+                    throw ValidationException::withMessages(['cart' => 'The selected quantities exceed shared product stock.']);
+                }
+            }
+            // Prefer an explicitly configured active delivery area. On the approved
+            // local development storefront only, an empty shipping setup must not
+            // block all COD orders: accept the visible sentinel and mark the area
+            // for admin/customer confirmation. Production still requires P58 readiness.
+            $shippingOptions = ShippingCharge::resolvedForCampaign(null);
+            $shipping = $shippingOptions->first(
                 static fn (ShippingCharge $charge) => (int) $charge->id === $shippingId
             );
-            if (! $shipping) {
+            $localShippingFallback = $shipping === null
+                && $shippingOptions->isEmpty()
+                && $shippingId === 0
+                && $request->attributes->get('p32_local_commerce') === true;
+            if (! $shipping && ! $localShippingFallback) {
                 throw ValidationException::withMessages(['shipping_area_id' => 'Select a currently available delivery area.']);
             }
-            $shippingMinor = $freeDelivery ? 0 : ExactBdt::fromDecimal((string) $shipping->delivery_charge);
+            $shippingMinor = $localShippingFallback || $freeDelivery
+                ? 0 : ExactBdt::fromDecimal((string) $shipping->delivery_charge);
+            $deliveryArea = $localShippingFallback
+                ? ($freeDelivery ? 'To Be Confirmed (Free Delivery)' : 'To Be Confirmed (Delivery Charge Pending)')
+                : $shipping->area_name;
             $total = ExactBdt::add($subTotal, $shippingMinor);
             // Production: lock all physical SKUs and account for prior pending
             // storefront reservations BEFORE recording this new reservation.
@@ -153,7 +180,7 @@ final class StorefrontCheckout
                 'storefront_account_id' => \Illuminate\Support\Facades\Auth::guard('storefront')->id(),
                 'created_via' => Order::CREATED_VIA_FRONTEND,
                 'customer_name' => $customer->name, 'phone' => $customer->phone,
-                'address' => $address, 'delivery_area' => $shipping->area_name,
+                'address' => $address, 'delivery_area' => $deliveryArea,
                 'sub_total' => ExactBdt::toDecimal($subTotal),
                 'shipping_charge' => ExactBdt::toDecimal($shippingMinor),
                 'is_free_delivery' => $freeDelivery, 'cod_charge' => '0.00',
@@ -167,7 +194,7 @@ final class StorefrontCheckout
                 'source_url' => route('storefront.checkout'),
             ]);
             $mapped = [];
-            foreach ($checked as [$product, $variant, $qty, $unit, $lineTotal]) {
+            foreach ($checked as [$product, $variant, $qty, $unit, $lineTotal, $optionSnapshot]) {
                 $item = OrderItem::create([
                     'order_id' => $order->id, 'product_id' => $product->id,
                     'product_name' => $product->name,
@@ -177,10 +204,12 @@ final class StorefrontCheckout
                 ]);
                 DB::table('order_items')->where('id', $item->id)->update([
                     'product_variant_id' => $variant->id,
+                    'variant_options' => $optionSnapshot !== null
+                        ? json_encode($optionSnapshot, JSON_THROW_ON_ERROR) : null,
                 ]);
                 $mapped[(int) $item->id] = (int) $variant->id;
                 if ($deferStock) {
-                    $selected = $variant->optionValues->mapWithKeys(
+                    $selected = $optionSnapshot ?? $variant->optionValues->mapWithKeys(
                         static fn ($value) => [(int) $value->product_option_id => (int) $value->id]
                     )->all();
                     DB::table('order_items')->where('id', $item->id)->update([

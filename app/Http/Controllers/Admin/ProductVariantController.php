@@ -20,47 +20,81 @@ class ProductVariantController extends Controller
     {
         $this->adminOnly();
 
-        $product->load('variants.optionValues.option');
+        $product->load('variants');
         $options = ProductOption::query()->where('is_active', true)
+            ->whereIn('code', \App\Services\Catalog\OptionWiseSelections::CODES)
             ->with(['values' => static fn ($query) => $query->where('is_active', true)])
             ->orderBy('sort_order')->orderBy('id')->get();
-
-        // A live product cannot gain a new dimension without being paused.
-        if ($product->has_variants && $product->status) {
-            $assigned = DB::table('product_option_assignments')
-                ->where('product_id', $product->id)->pluck('product_option_id')->all();
-            $options = $options->whereIn('id', $assigned)->values();
+        $choices = DB::table('product_option_choices as c')
+            ->join('product_option_values as v', 'v.id', '=', 'c.product_option_value_id')
+            ->join('product_options as o', 'o.id', '=', 'v.product_option_id')
+            ->where('c.product_id', $product->id)
+            ->orderBy('o.sort_order')->orderBy('v.sort_order')->orderBy('v.id')
+            ->get(['o.code', 'v.id', 'v.label', 'v.is_active', 'o.is_active as group_active']);
+        $configuredSelections = [];
+        $configuredOptionLabels = [];
+        foreach ($choices as $choice) {
+            $configuredSelections[$choice->code][] = (int) $choice->id;
+            $configuredOptionLabels[$choice->code][] = [
+                'label' => (string) $choice->label,
+                'active' => (bool) $choice->is_active && (bool) $choice->group_active,
+            ];
         }
+        $configuredPrices = DB::table('product_piece_prices')
+            ->where('product_id', $product->id)->pluck('price', 'product_option_value_id')->all();
 
-        // The batch builder only combines dimensions already assigned to this
-        // product. Never introduce a new dimension behind a live cart/order.
-        $assignedOptionIds = DB::table('product_option_assignments')
-            ->where('product_id', $product->id)->pluck('product_option_id')
-            ->map(static fn ($id) => (int) $id)->all();
-        $matrixOptions = $assignedOptionIds === [] ? $options
-            : $options->whereIn('id', $assignedOptionIds)->values();
-        $allExisting = ProductVariant::withTrashed()->where('product_id', $product->id)
-            ->with('optionValues.option')->get();
-        $existingMatrix = $allExisting->filter(static fn ($variant) =>
-            $variant->option_signature !== 'default' && $variant->optionValues->isNotEmpty()
-        )->map(static function ($variant): array {
-            $selected = [];
-            foreach ($variant->optionValues as $value) {
-                if ($value->option && isset(VariantCatalogManager::OPTIONS[$value->option->code])) {
-                    $selected[$value->option->code] = (int) $value->id;
+        // First setup only: 1 Piece inherits Product Create's New Price.
+        // Never overwrite previously saved Piece Count prices or selections.
+        $prefilledOnePiecePrice = false;
+        if ($configuredPrices === []) {
+            $pieceCountOption = $options->firstWhere('code', 'piece_count');
+            $onePiece = $pieceCountOption?->values->first(static function ($value): bool {
+                foreach ([$value->code, $value->label] as $text) {
+                    if (preg_match('/\A(?:1|১)[ _-]*(?:piece|pieces|pcs|pic|পিস)\z/ui', trim((string) $text))) {
+                        return true;
+                    }
+                }
+                return false;
+            });
+            if ($onePiece !== null) {
+                $configuredSelections['piece_count'] = [(int) $onePiece->id];
+                if ((int) $product->new_price > 0) {
+                    $configuredPrices[(int) $onePiece->id] = (int) $product->new_price;
+                    $prefilledOnePiecePrice = true;
                 }
             }
-            return ['values' => $selected, 'sku' => $variant->sku, 'archived' => $variant->trashed()];
-        })->values()->all();
+        }
 
-        return view('admin.products.variants', [
-            'product' => $product,
-            'variants' => $product->variants,
-            'options' => $options,
-            'matrixOptions' => $matrixOptions,
-            'existingMatrix' => $existingMatrix,
-            'remainingVariantSlots' => max(0, 200 - $allExisting->count()),
-        ]);
+        // Read-only saved price rows for this product (including values later deactivated).
+        $savedPiecePrices = DB::table('product_piece_prices as p')
+            ->join('product_option_values as v', 'v.id', '=', 'p.product_option_value_id')
+            ->join('product_options as o', 'o.id', '=', 'v.product_option_id')
+            ->where('p.product_id', $product->id)
+            ->where('o.code', 'piece_count')
+            ->orderBy('v.sort_order')->orderBy('v.id')
+            ->get(['v.label', 'v.is_active as value_active', 'o.is_active as group_active',
+                'p.price', 'p.old_price']);
+
+        // Compact global index: one row per option-wise product, not one row per SKU.
+        // The grouped subquery prevents duplicate rows and avoids N+1 pricing queries.
+        $priceSummary = DB::table('product_piece_prices')
+            ->select('product_id')
+            ->selectRaw('COUNT(*) as option_count, MIN(price) as min_price, MAX(price) as max_price')
+            ->groupBy('product_id');
+        $optionWiseProducts = Product::query()
+            ->joinSub($priceSummary, 'price_summary', static function ($join): void {
+                $join->on('price_summary.product_id', '=', 'products.id');
+            })
+            ->select(['products.id', 'products.name', 'products.product_code',
+                'products.stock', 'products.status', 'price_summary.option_count',
+                'price_summary.min_price', 'price_summary.max_price'])
+            ->orderBy('products.name')->orderBy('products.id')
+            ->paginate(10, ['*'], 'optionwise_page');
+
+        return view('admin.products.variants', compact(
+            'product', 'options', 'configuredSelections', 'configuredOptionLabels',
+            'configuredPrices', 'prefilledOnePiecePrice', 'savedPiecePrices', 'optionWiseProducts'
+        ));
     }
 
     public function prepare(Product $product, VariantCatalogManager $catalog): RedirectResponse
@@ -73,48 +107,14 @@ class ProductVariantController extends Controller
     public function convert(Product $product, VariantCatalogManager $catalog): RedirectResponse
     {
         $this->adminOnly();
-        $catalog->convertToVariable($product);
-        return back()->with('success', 'Product converted to variable; add exact option combinations.');
+        abort(410, 'The SKU-matrix conversion flow has been retired. Use Option-wise Pricing with shared inventory.');
     }
 
+    /** Old single-SKU creation is deliberately retired. */
     public function store(Request $request, Product $product, VariantCatalogManager $catalog): RedirectResponse
     {
         $this->adminOnly();
-        // The guided form may generate a SKU. Existing API/form callers still supply one.
-        $quickAdd = $request->boolean('quick_add');
-        $validated = $request->validate([
-            'quick_add' => ['sometimes', 'boolean'],
-            'sku' => [$quickAdd ? 'nullable' : 'required', 'string', 'max:100', 'regex:/\A[A-Za-z0-9][A-Za-z0-9._-]*\z/D'],
-            'options' => ['required', 'array:color,size,weight,piece_count'],
-            'options.color' => ['nullable', 'integer', 'min:1'],
-            'options.size' => ['nullable', 'integer', 'min:1'],
-            'options.weight' => ['nullable', 'integer', 'min:1'],
-            'options.piece_count' => ['nullable', 'integer', 'min:1'],
-            'price_override' => [$quickAdd ? 'required' : 'nullable', 'integer', 'min:' . ($quickAdd ? 1 : 0), 'max:4294967295'],
-            'old_price_override' => ['nullable', 'integer', 'min:0', 'max:4294967295'],
-            'stock' => [$quickAdd ? 'required' : 'nullable', 'integer', 'min:0', 'max:1000000'],
-            'is_active' => ['nullable', 'boolean'],
-        ]);
-        $selected = [];
-        foreach (VariantCatalogManager::OPTIONS as $code => $name) {
-            if (isset($validated['options'][$code]) && $validated['options'][$code] !== null) {
-                $selected[$code] = (int) $validated['options'][$code];
-            }
-        }
-        // An SKU is global and immutable once referenced. A random, product-scoped
-        // 64-bit suffix avoids changing business codes or assuming an available counter.
-        $enteredSku = trim((string) ($validated['sku'] ?? ''));
-        $sku = $enteredSku !== '' ? $enteredSku : 'PV-' . $product->id . '-' . strtoupper(bin2hex(random_bytes(8)));
-        DB::transaction(function () use ($catalog, $product, $validated, $selected, $request, $sku, $quickAdd): void {
-            $variant = $catalog->createVariant($product, $sku, $selected,
-                array_key_exists('price_override', $validated) ? $validated['price_override'] : null,
-                array_key_exists('old_price_override', $validated) ? $validated['old_price_override'] : null,
-                $request->boolean('is_active', ! $quickAdd));
-            $catalog->setStockQuantity($product, $variant, (int) ($validated['stock'] ?? 0),
-                0, (int) auth()->id(), 'Initial stock entered while adding new variant');
-        }, 3);
-
-        return back()->with('success', 'Variant created. Stock quantity saved exactly as entered.');
+        abort(410, 'Single-SKU variation creation has been replaced by Option-wise Pricing.');
     }
 
     /**
@@ -126,86 +126,15 @@ class ProductVariantController extends Controller
     public function bulkStore(Request $request, Product $product, VariantCatalogManager $catalog): RedirectResponse
     {
         $this->adminOnly();
-        $validated = $request->validate([
-            'variants' => ['required', 'array', 'min:1', 'max:60'],
-            'variants.*.options' => ['required', 'array:color,size,weight,piece_count'],
-            'variants.*.options.color' => ['nullable', 'integer', 'min:1'],
-            'variants.*.options.size' => ['nullable', 'integer', 'min:1'],
-            'variants.*.options.weight' => ['nullable', 'integer', 'min:1'],
-            'variants.*.options.piece_count' => ['nullable', 'integer', 'min:1'],
-            'variants.*.price_override' => ['required', 'integer', 'min:1', 'max:4294967295'],
-            'variants.*.old_price_override' => ['nullable', 'integer', 'min:0', 'max:4294967295'],
-            'variants.*.stock' => ['required', 'integer', 'min:0', 'max:1000000'],
-            'is_active' => ['sometimes', 'boolean'],
-        ]);
-
-        // Require a complete, consistent set of the already assigned dimensions.
-        // This check also applies while the product is paused.
-        $assigned = DB::table('product_option_assignments as assignments')
-            ->join('product_options as options', 'options.id', '=', 'assignments.product_option_id')
-            ->where('assignments.product_id', $product->id)->pluck('options.code')->all();
-        $required = $assigned;
-        sort($required);
-        $rowSelections = [];
-        foreach ($validated['variants'] as $index => $row) {
-            $selected = [];
-            foreach (VariantCatalogManager::OPTIONS as $code => $name) {
-                if (isset($row['options'][$code]) && $row['options'][$code] !== null) {
-                    $selected[$code] = (int) $row['options'][$code];
-                }
-            }
-            $codes = array_keys($selected);
-            sort($codes);
-            if ($required === [] && $rowSelections === []) {
-                $required = $codes;
-            }
-            if ($codes === [] || $codes !== $required) {
-                throw \Illuminate\Validation\ValidationException::withMessages([
-                    'variants' => 'Each combination must select exactly the same active product dimensions.',
-                ]);
-            }
-            $rowSelections[$index] = $selected;
-        }
-
-        $count = count($rowSelections);
-        DB::transaction(function () use ($catalog, $product, $validated, $rowSelections, $request): void {
-            // Catalog service locks the product row for each insert and enforces
-            // the total-200 ceiling, signature uniqueness and active value IDs.
-            $actor = (int) auth()->id();
-            foreach ($validated['variants'] as $index => $row) {
-                $sku = 'PV-' . $product->id . '-' . strtoupper(bin2hex(random_bytes(8)));
-                $variant = $catalog->createVariant(
-                    $product, $sku, $rowSelections[$index],
-                    (int) $row['price_override'],
-                    isset($row['old_price_override']) ? (int) $row['old_price_override'] : null,
-                    $request->boolean('is_active', true)
-                );
-                $catalog->setStockQuantity($product, $variant, (int) $row['stock'], 0,
-                    $actor, 'Initial stock entered in the SKU combination builder');
-            }
-        }, 3);
-
-        return redirect()->route('admin.products.variants.index', $product->id)
-            ->with('success', $count . ' new SKU combinations created with independent prices and stock.');
+        abort(410, 'The bulk SKU editor has been replaced by Option-wise Pricing.');
     }
 
+    /** Individual SKU prices must not bypass the single Piece Count price. */
     public function update(Request $request, Product $product, ProductVariant $variant,
         VariantCatalogManager $catalog): RedirectResponse
     {
         $this->adminOnly();
-        $validated = $request->validate([
-            'sku' => ['required', 'string', 'max:100', 'regex:/\A[A-Za-z0-9][A-Za-z0-9._-]*\z/D'],
-            'price_override' => ['nullable', 'integer', 'min:0', 'max:4294967295'],
-            'old_price_override' => ['nullable', 'integer', 'min:0', 'max:4294967295'],
-            'is_active' => ['nullable', 'boolean'],
-        ]);
-        $catalog->updateVariant($product, $variant, [
-            'sku' => $validated['sku'],
-            'price_override' => $validated['price_override'] ?? null,
-            'old_price_override' => $validated['old_price_override'] ?? null,
-            'is_active' => $request->boolean('is_active'),
-        ]);
-        return back()->with('success', 'Variant properties updated. Historic order snapshots unchanged.');
+        abort(410, 'Individual variation editing is retired. Use Option-wise Pricing and Stock Management.');
     }
 
     public function stock(Request $request, Product $product, ProductVariant $variant,

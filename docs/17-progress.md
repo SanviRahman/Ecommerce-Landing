@@ -521,3 +521,16 @@ Prepared changed-files patch for user-provided `website(20261027-040404).zip`: a
 - Actual QA: PHP syntax lint 317/317 PASS; JS Node tests 7/7 PASS; dependency-free mocked PHP controller flow assertions 9/9 PASS; JS syntax PASS. First test run failed before helper was implemented (expected regression red phase). A Chromium headless attempt timed out; not a pass.
 - Blockers: full Laravel Blade render, MySQL feature/stock tests, campaign/cart regressions and browser QA were NOT RUN (no `vendor/`, Composer, mbstring or pdo_mysql in inspection environment). No production database operations or deploy.
 - Handover: `ADD-VARIATION-FIX-BN.md` in patch/project ZIP; backup and manual acceptance steps required.
+
+
+### 2026-11-04 - Option-wise pricing + Stock Management (source implementation)
+
+- [x] Reanalyzed newest SFA ZIP against owner-provided Leatherket reference flow, current P33 catalog, P32/P58 checkout gates, P03 ledger and Admin status transitions.
+- [x] Added option-wise price editor creating complete zero-stock SKU combinations and per-Piece Count uniform prices; preserved existing advanced variant management.
+- [x] Added admin-only Stock sidebar and purchase / exact adjustment / safe latest-purchase reversal using audited SKU stock authority; admin forms include CSRF, labels and status feedback.
+- [x] Updated approved managed Campaign order creation to hold (not physically deduct) until Admin Confirmed, sharing the Storefront deferred state; cancellation / trash restore guards support Campaign pending orders.
+- [x] Added reservation-aware stock reduction guard, 30-order-line limit and protected historical order allocation.
+- [x] 302/302 PHP syntax checks PASSED; 14/14 new targeted standalone contract tests PASSED. No Laravel migrations, production writes, seed or auth bypass performed.
+- [ ] Laravel Blade view + actual MySQL HTTP campaign/storefront confirmation, concurrent last-stock, cancellation, restoration and shipment integration tests: NOT RUN (missing Composer vendor and approved DB).
+- [ ] Old unrelated offline suites include pre-existing failures in both baseline and modified projects; do not treat them as passed.
+- [ ] Production acceptance and staged deployment sign-off NOT DONE. Read the release notes and make a verified backup before applying.

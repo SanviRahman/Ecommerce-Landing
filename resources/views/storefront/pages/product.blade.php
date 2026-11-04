@@ -10,6 +10,7 @@
         // A marker from this exact product form is flashed ONLY on validation
         // failure. Do not show a warning from unrelated cart/checkout forms.
         $rejectedProductForm = old('storefront_product_origin') === $product->slug;
+        $isOptionWise = ($selection['mode'] ?? '') === 'option_wise';
     @endphp
     @if($errors->any() || $hasFlashedProductErrors || $rejectedProductForm)
         <div class="p08-error p10-product-error" role="alert" aria-live="assertive">
@@ -53,10 +54,10 @@
         <section class="p07-detail-summary" aria-labelledby="p07-product-name">
             <span class="p07-eyebrow">{{ $category->name }}</span>
             <h1 id="p07-product-name">{{ $product->name }}</h1>
-            <div class="p07-detail-price" id="p07-selected-price">{{ $product->has_variants ? 'From ' : '' }}৳{{ number_format($catalog->displayPrice($product)) }}</div>
+            <div class="p07-detail-price" id="p07-selected-price">{{ $product->has_variants || $isOptionWise ? 'From ' : '' }}৳{{ number_format($catalog->displayPrice($product)) }}</div>
 
 
-            @if($product->has_variants)
+            @if($product->has_variants || $isOptionWise)
                 <div id="p07-variant-picker" data-variant-matrix="{{ json_encode($selection, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_THROW_ON_ERROR) }}" data-p35-managed-product="{{ (int) $product->inventory_version === 1 ? '1' : '0' }}">
                     @foreach($selection['options'] as $option)
                         <fieldset class="p07-choice-group p61-choice-group" data-choice-group="{{ $option['id'] }}">
@@ -65,7 +66,7 @@
                                 @foreach($option['values'] as $value)
                                     @php $swatch = isset($value['swatch']) && preg_match('/\A#[0-9a-fA-F]{6}\z/D', (string) $value['swatch']) ? $value['swatch'] : null; @endphp
                                     <label class="p61-choice-label {{ empty($value['configured']) ? 'p61-choice-unconfigured' : '' }}"
-                                           title="{{ empty($value['configured']) ? 'This product has no SKU or price for this value yet' : $value['label'] }}">
+                                           title="{{ empty($value['configured']) ? 'This option is unavailable' : $value['label'] }}">
                                         <input type="radio" name="option_{{ $option['id'] }}" data-option-id="{{ $option['id'] }}"
                                             value="{{ $value['id'] }}" aria-label="{{ $value['label'] }}{{ empty($value['configured']) ? ' (not configured for this product)' : '' }}"
                                             @disabled(empty($value['configured']))>
@@ -78,9 +79,9 @@
                             </div>
                         </fieldset>
                     @endforeach
-                    <p class="small text-muted p07-choice-help">Choose any available color, size, weight or pack. If needed, other selections will adjust to a real SKU; its exact price and stock appear below.</p>
+                    <p class="small text-muted p07-choice-help">Choose any available Color, Size and Weight. Only Piece Count changes the price; all choices use shared product stock.</p>
                     <p class="p07-variant-status" id="p07-variant-status" role="status" aria-live="polite">Checking available options…</p>
-                    <p class="p07-sku" id="p07-variant-sku"></p>
+                    <p class="p07-sku" id="p07-variant-sku" hidden></p>
                 </div>
             @else
                 @php
@@ -98,11 +99,11 @@
             @if($cartVersion !== null)
                 @php
                     // Cart is variant-owned. Legacy displayed stock is NOT sufficient for a safe order.
-                    $simpleDefault = !$product->has_variants && (int) $product->inventory_version === 1
+                    $simpleDefault = (!$product->has_variants || $isOptionWise) && (int) $product->inventory_version === 1
                         ? $product->variants()->where('is_default', true)->where('is_active', true)
                             ->where('option_signature', 'default')->where('stock', '>', 0)->first()
                         : null;
-                    $canSelectSku = (int) $product->inventory_version === 1 && ($product->has_variants
+                    $canSelectSku = (int) $product->inventory_version === 1 && ($product->has_variants && !$isOptionWise
                         ? $catalog->eligibleVariants($product)->contains(static fn ($v) => \App\Services\Inventory\StorefrontDeferredStock::availableForVariant((int) $v->id, (int) $v->stock) > 0)
                         : ($simpleDefault !== null && \App\Services\Inventory\StorefrontDeferredStock::availableForVariant(
                             (int) $simpleDefault->id, (int) $simpleDefault->stock) > 0));
@@ -113,12 +114,12 @@
                     @csrf
                     <input type="hidden" name="storefront_product_origin" value="{{ $product->slug }}">
                     <input type="hidden" name="cart_version" value="{{ $cartVersion }}">
-                    @if($product->has_variants)
-                        {{-- SKU is derived strictly from the checked option chips in the matrix. --}}
+                    @if($product->has_variants && !$isOptionWise)
+                        {{-- Legacy inventory selection stays server validated. --}}
                         <input type="hidden" name="product_variant_id" id="p08-variant-id"
                             value="{{ old('product_variant_id', request()->query('variant', '')) }}">
                     @else
-                        <input type="hidden" name="product_variant_id" value="{{ $simpleDefault?->id }}">
+                        <input type="hidden" name="product_variant_id" id="p08-variant-id" value="{{ $simpleDefault?->id }}">
                     @endif
                     <div class="p35-quantity-field">
                         <label for="p08-product-quantity">Quantity</label>
@@ -132,13 +133,13 @@
                     </div>
                     <div class="p08-product-actions p35-product-actions" id="p19-primary-buy-actions">
                         <button type="submit" name="intent" value="cart" class="p08-action-cart"
-                            @if($product->has_variants) data-p35-variant-required @endif
+                            @if($product->has_variants || $isOptionWise) data-p35-variant-required @endif
                             @disabled(!$canSelectSku)>
                             @include('storefront.partials.icon', ['name'=>'cart-plus']) <span>Add to Cart</span>
                         </button>
                         @if($canCheckoutNow)
                             <button type="submit" name="intent" value="checkout" class="p08-action-buy"
-                                @if($product->has_variants) data-p35-variant-required @endif
+                                @if($product->has_variants || $isOptionWise) data-p35-variant-required @endif
                                 @disabled(!$canSelectSku)>Buy Now @include('storefront.partials.icon', ['name'=>'arrow-right'])</button>
                         @else
                             <button type="button" class="p08-action-buy" disabled aria-describedby="p35-checkout-availability"
@@ -161,11 +162,11 @@
                     <div class="p19-sticky-product">
                         <img src="{{ $catalog->productImage($product) }}" alt="" loading="lazy" width="46" height="46">
                         <span><strong>{{ \Illuminate\Support\Str::limit($product->name, 28) }}</strong>
-                            <small data-p35-sticky-price>{{ $product->has_variants ? 'From ' : '' }}৳{{ number_format($catalog->displayPrice($product)) }}</small></span>
+                            <small data-p35-sticky-price>{{ ($product->has_variants || $isOptionWise) ? 'From ' : '' }}৳{{ number_format($catalog->displayPrice($product)) }}</small></span>
                     </div>
                     @if($canCheckoutNow)
                         <button form="p08-product-order-form" type="submit" name="intent" value="checkout"
-                            @if($product->has_variants) data-p35-variant-required @endif
+                            @if($product->has_variants || $isOptionWise) data-p35-variant-required @endif
                             @disabled(!$canSelectSku)>Buy Now @include('storefront.partials.icon', ['name'=>'arrow-right'])</button>
                     @else
                         <button type="button" disabled title="Checkout is temporarily unavailable">Buy Now</button>

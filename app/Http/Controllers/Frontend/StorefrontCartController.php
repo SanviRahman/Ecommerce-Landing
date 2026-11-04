@@ -55,13 +55,15 @@ final class StorefrontCartController extends Controller
         $cart->assertEnabled();
         $data = $request->validate([
             'product_variant_id' => ['required', 'integer', 'min:1'],
+            'selected_options' => ['nullable', 'array:color,size,weight,piece_count'],
+            'selected_options.*' => ['integer', 'min:1'],
             'quantity' => ['required', 'integer', 'min:1', 'max:1000'],
             'cart_version' => ['required', 'integer', 'min:0'],
             'intent' => ['nullable', 'in:cart,checkout'],
         ]);
         $ownerHash = $owner->hash($request);
         $cart->add($ownerHash, (int) $data['product_variant_id'],
-            (int) $data['quantity'], (int) $data['cart_version']);
+            (int) $data['quantity'], (int) $data['cart_version'], (array)($data['selected_options'] ?? []));
         $state = $cart->show($ownerHash);
         $addedLine = collect($state['lines'])->first(
             static fn (array $line) => (int) $line['variant_id'] === (int) $data['product_variant_id']
@@ -134,8 +136,13 @@ final class StorefrontCartController extends Controller
                 : 'Please review current product availability, prices or quantity before checkout.';
             return redirect()->route('storefront.cart')->with('status', $message);
         }
+        $areas = ShippingCharge::resolvedForCampaign(null);
+        $shippingFallback = $areas->isEmpty()
+            && request()->attributes->get('p32_local_commerce') === true;
+
         return $this->noStore(response()->view('storefront.pages.checkout', [
-            'cart' => $summary, 'areas' => ShippingCharge::resolvedForCampaign(null),
+            'cart' => $summary, 'areas' => $areas,
+            'shippingFallback' => $shippingFallback,
             'checkoutKey' => (string) Str::uuid(),
             'navigation' => $catalog->navigationCategories(),
         ]));
@@ -150,7 +157,7 @@ final class StorefrontCartController extends Controller
             'phone' => ['required', 'string', 'regex:/^01[0-9]{9}$/'],
             'address' => ['required', 'string', 'min:8', 'max:2000'],
             'customer_note' => ['nullable', 'string', 'max:1000'],
-            'shipping_area_id' => ['required', 'integer', 'min:1'],
+            'shipping_area_id' => ['required', 'integer', 'min:0'],
             'cart_version' => ['required', 'integer', 'min:1'],
             'checkout_key' => ['required', 'uuid'],
         ]);

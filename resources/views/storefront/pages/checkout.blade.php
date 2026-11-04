@@ -31,7 +31,8 @@
     <div class="p08-checkout-grid p19-checkout-grid">
         <form id="p08-checkout-form" method="POST" action="{{ route('storefront.checkout.place') }}"
             class="p08-checkout-form p19-checkout-form" data-checkout-stepper
-            data-free-delivery="{{ $orderHasFreeDelivery ? '1' : '0' }}">
+            data-free-delivery="{{ $orderHasFreeDelivery ? '1' : '0' }}"
+            data-shipping-fallback="{{ !empty($shippingFallback) ? '1' : '0' }}">
             @csrf
             <input type="hidden" name="checkout_key" value="{{ old('checkout_key', $checkoutKey) }}">
             <input type="hidden" name="cart_version" value="{{ $cart['version'] }}">
@@ -48,25 +49,36 @@
                 <label for="p08-address">Complete Delivery Address <span>*</span></label>
                 <textarea id="p08-address" name="address" rows="3" minlength="8" maxlength="2000"
                     autocomplete="street-address" required>{{ old('address', $shopper?->address) }}</textarea>
-                <fieldset class="p61-shipping-areas" aria-describedby="p61-shipping-hint">
-                    <legend>Delivery Area <span aria-hidden="true">*</span></legend>
-                    <p id="p61-shipping-hint">{{ $orderHasFreeDelivery ? 'Free Delivery applies to all products in this cart. Select your delivery area for address confirmation.' : 'Select one delivery location to calculate the charge.' }}</p>
-                    <div class="p61-area-grid" id="p08-area">
-                        @foreach($areas as $area)
-                            <label class="p61-area-option">
-                                <input type="radio" name="shipping_area_id" value="{{ $area->id }}"
-                                    data-shipping-area data-shipping-cost="{{ $area->delivery_charge }}"
-                                    @checked((string)old('shipping_area_id')===(string)$area->id) required>
-                                <span><strong>{{ $area->area_name }}</strong><small>৳{{ number_format($area->delivery_charge) }}</small></span>
-                            </label>
-                        @endforeach
-                    </div>
-                </fieldset>
+                @if(!empty($shippingFallback))
+                    <fieldset class="p61-shipping-areas" aria-describedby="p61-shipping-hint">
+                        <legend>Delivery Area</legend>
+                        <p id="p61-shipping-hint" class="p08-help">
+                            Delivery area and charge will be confirmed by our team after you place the COD order.
+                            @if($orderHasFreeDelivery) This order is marked for free delivery. @else No delivery charge is added to the estimate yet. @endif
+                        </p>
+                        <input type="hidden" name="shipping_area_id" value="0">
+                    </fieldset>
+                @else
+                    <fieldset class="p61-shipping-areas" aria-describedby="p61-shipping-hint">
+                        <legend>Delivery Area <span aria-hidden="true">*</span></legend>
+                        <p id="p61-shipping-hint">{{ $orderHasFreeDelivery ? 'Free Delivery applies to all products in this cart. Select your delivery area for address confirmation.' : 'Select one delivery location to calculate the charge.' }}</p>
+                        <div class="p61-area-grid" id="p08-area">
+                            @foreach($areas as $area)
+                                <label class="p61-area-option">
+                                    <input type="radio" name="shipping_area_id" value="{{ $area->id }}"
+                                        data-shipping-area data-shipping-cost="{{ $area->delivery_charge }}"
+                                        @checked((string)old('shipping_area_id')===(string)$area->id) required>
+                                    <span><strong>{{ $area->area_name }}</strong><small>৳{{ number_format($area->delivery_charge) }}</small></span>
+                                </label>
+                            @endforeach
+                        </div>
+                    </fieldset>
+                @endif
                 <label for="p08-note">Order note (optional)</label>
                 <textarea id="p08-note" name="customer_note" rows="2" maxlength="1000">{{ old('customer_note') }}</textarea>
                 <p class="p08-help">The final price, stock and shipping charge are recalculated by the server before placing your order.</p>
-                <button type="button" class="p08-primary p19-next-btn" data-step-next="2" @disabled($areas->isEmpty())>Continue to Payment →</button>
-                @if($areas->isEmpty())<p class="p08-error">Delivery areas are not configured; checkout is unavailable.</p>@endif
+                <button type="button" class="p08-primary p19-next-btn" data-step-next="2" @disabled($areas->isEmpty() && empty($shippingFallback))>Continue to Payment →</button>
+                @if($areas->isEmpty() && empty($shippingFallback))<p class="p08-error">Delivery areas are not configured; checkout is unavailable.</p>@endif
             </fieldset>
             <fieldset class="p19-step-panel" data-checkout-step="2"><legend><span class="p50-step-legend-inner"><span class="p50-step-legend-icon">@include('storefront.partials.icon', ['name'=>'shield'])</span>Payment Method</span></legend>
                 <p class="p19-step-subtitle">Choose a payment method available at this store.</p>
@@ -81,7 +93,9 @@
                 <div class="p19-review-shipping" data-review-shipping></div>
                 <div class="p19-review-lines">
                     @foreach($cart['lines'] as $line)
-                        <p>{{ $line['name'] }} × {{ $line['quantity'] }} <strong>৳{{ $line['line_total'] }}</strong></p>
+                        <p>{{ $line['name'] }} × {{ $line['quantity'] }}
+                            @if($line['option_label'])<small class="d-block">{{ $line['option_label'] }}</small>@endif
+                            <strong>৳{{ $line['line_total'] }}</strong></p>
                     @endforeach
                 </div>
                 <div class="p19-review-totals"><p>Subtotal <strong>৳{{ $cart['subtotal'] }}</strong></p>
@@ -89,16 +103,18 @@
                     <p class="p54-review-total">Estimated Total <strong data-checkout-total-preview>Choose delivery area</strong></p></div>
                 <p class="p08-help">By placing your order, you confirm that the information is correct. Inventory and price are checked again.</p>
                 <div class="p19-form-actions"><button type="button" data-step-back="2">← Payment</button>
-                    <button class="p08-primary p08-submit" type="submit" @disabled($areas->isEmpty())>Place COD Order</button>
+                    <button class="p08-primary p08-submit" type="submit" @disabled($areas->isEmpty() && empty($shippingFallback))>Place COD Order</button>
                 </div>
             </fieldset>
             <noscript><p class="p19-noscript">JavaScript is disabled. The secure server form is fully usable; click Place COD Order below.</p>
-                <button class="p08-primary p08-submit" type="submit" @disabled($areas->isEmpty())>Place COD Order</button></noscript>
+                <button class="p08-primary p08-submit" type="submit" @disabled($areas->isEmpty() && empty($shippingFallback))>Place COD Order</button></noscript>
         </form>
         <aside class="p08-summary p08-checkout-summary p19-order-summary" aria-label="Order summary" data-reveal>
             <h2>Order Summary <small>{{ count($cart['lines']) }} items</small></h2>
             @foreach($cart['lines'] as $line)
-                <div class="p19-summary-product"><span>{{ $line['name'] }}<small>Qty: {{ $line['quantity'] }}</small></span><strong>৳{{ $line['line_total'] }}</strong></div>
+                <div class="p19-summary-product"><span>{{ $line['name'] }}<small>Qty: {{ $line['quantity'] }}</small>
+                    @if($line['option_label'])<small>{{ $line['option_label'] }}</small>@endif
+                </span><strong>৳{{ $line['line_total'] }}</strong></div>
             @endforeach
             <hr><p>Subtotal <strong>৳{{ $cart['subtotal'] }}</strong></p>
             @if($orderHasFreeDelivery)<p class="p64-free-delivery-label">Free Delivery on the whole order</p>@endif

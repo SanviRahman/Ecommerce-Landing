@@ -25,6 +25,8 @@ use App\Http\Controllers\Admin\OrderPurgeAuditLogController;
 use App\Http\Controllers\Admin\ProductController;
 use App\Http\Controllers\Admin\ProductOptionController;
 use App\Http\Controllers\Admin\ProductVariantController;
+use App\Http\Controllers\Admin\OptionWisePriceController;
+use App\Http\Controllers\Admin\StockManagementController;
 use App\Http\Controllers\Admin\ProfileController;
 use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\Admin\ReviewController;
@@ -299,6 +301,15 @@ Route::middleware(['auth', 'role:admin,employee'])->group(function () {
             Route::get('/{order}', [OrderController::class, 'show'])->name('show');
         });
 
+    // Separate audited Stock Management. No ad-hoc stock counters.
+    Route::prefix('stock')->as('stock.')->middleware('role:admin')->group(function (): void {
+        Route::get('/', [StockManagementController::class, 'index'])->name('index');
+        Route::post('/variants/{variant}/purchase', [StockManagementController::class, 'purchase'])->name('purchase');
+        Route::patch('/variants/{variant}/exact', [StockManagementController::class, 'setExact'])->name('exact');
+        Route::post('/purchases/{movement}/reverse', [StockManagementController::class, 'reversePurchase'])
+            ->whereNumber('movement')->name('purchase.reverse');
+    });
+
     /*
     |--------------------------------------------------------------------------
     | Products: Admin full access, Employee view only
@@ -317,12 +328,15 @@ Route::middleware(['auth', 'role:admin,employee'])->group(function () {
                 Route::patch('/options/{option}/values/{value}', [ProductOptionController::class, 'updateValue'])->name('options.values.update');
                 Route::delete('/options/{option}/values/{value}', [ProductOptionController::class, 'destroyValue'])->name('options.values.destroy');
                 // Audited SKU editor: admins can add priced combinations without rewriting existing orders.
+                Route::post('/{product}/enable-online-ordering', [ProductController::class, 'enableOnlineOrdering'])
+                    ->name('enable_online_ordering');
                 Route::get('/{product}/variants', [ProductVariantController::class, 'index'])->name('variants.index');
                 Route::post('/{product}/variants/prepare', [ProductVariantController::class, 'prepare'])->name('variants.prepare');
                 Route::post('/{product}/variants/convert', [ProductVariantController::class, 'convert'])->name('variants.convert');
                 Route::post('/{product}/variants/activate', [ProductVariantController::class, 'activate'])->name('variants.activate');
                 Route::post('/{product}/variants/pause', [ProductVariantController::class, 'pause'])->name('variants.pause');
                 Route::post('/{product}/variants/bulk', [ProductVariantController::class, 'bulkStore'])->name('variants.bulk');
+                Route::post('/{product}/variants/option-prices', [OptionWisePriceController::class, 'save'])->name('variants.option_prices');
                 Route::post('/{product}/variants', [ProductVariantController::class, 'store'])->name('variants.store');
                 Route::patch('/{product}/variants/{variant}', [ProductVariantController::class, 'update'])->name('variants.update');
                 Route::post('/{product}/variants/{variant}/stock', [ProductVariantController::class, 'stock'])->name('variants.stock');

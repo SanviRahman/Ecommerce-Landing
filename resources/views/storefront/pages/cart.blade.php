@@ -9,7 +9,6 @@
             <div>
                 <h2>{{ $line['name'] }}</h2>
                 @if($line['option_label'])<p>{{ $line['option_label'] }}</p>@endif
-                <p>SKU: {{ $line['sku'] ?? 'Unavailable' }}</p>
                 <p>Quoted: ৳{{ $line['unit_price'] }} each · Line total: ৳{{ $line['line_total'] }}</p>
                 @if($line['is_free_delivery'])<p class="p64-free-delivery-label">Free Delivery</p>@endif
                 @unless($line['available'])<p class="p08-error">This product is unavailable. Remove it to continue.</p>@endunless

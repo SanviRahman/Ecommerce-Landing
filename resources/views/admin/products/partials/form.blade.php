@@ -23,95 +23,32 @@
         $requestedStockSku = old('stock_variant_id', $managedSkuChoices->first()?->id);
         $selectedStockSku = $managedSkuChoices->firstWhere('id', (int) $requestedStockSku)
             ?? $managedSkuChoices->first();
-        $editingVariation = $isEdit && ($initialVariationEnabled ?? false)
-            && ($product->has_variants ?? false) && $selectedStockSku !== null;
+        $editingVariation = false; // The former per-SKU combination editor is retired from Product Edit.
         $selectedVariantOptions = $editingVariation
             ? $selectedStockSku->optionValues->keyBy(fn ($value) => $value->option?->code)
             : collect();
     @endphp
 
     <div class="alert alert-light border mb-3" role="note">
-        <strong>Category and variant setup:</strong> Select an existing parent/sub-category below.
+        <strong>Product option setup:</strong> Select an existing parent/sub-category below.
         <a href="{{ route('admin.categories.index') }}" target="_blank" rel="noopener">Manage sub-categories</a> ·
         <a href="{{ route('admin.products.options.index') }}" target="_blank" rel="noopener">Color / Size / Weight / Piece Count values</a>.
         @if($isEdit)
-            <span class="small d-block mt-1">For variable products, choose a SKU and edit its Color, Size, Weight or Piece Count here. Stock and price stay on the selected SKU; the Active switch controls storefront availability.</span>
+            <span class="small d-block mt-1">Set Color, Size, Weight and Piece Count from Option-wise Pricing. Stock is shared for this product, not divided by choice.</span>
         @else
-            <span class="small d-block mt-1">Choose one value per dimension (including any active Piece Count value). Set one New Price and one Stock quantity below. The Active switch saves your chosen status if the product passes the safety checks.</span>
+            <span class="small d-block mt-1">For an Option-wise product, check “Set up Option-wise Pricing” below. You can enter opening Stock now or add it later from Stock Management. Color, Size and Weight are optional on the next screen; Piece Count and its price are required. Other products remain simple.</span>
         @endif
     </div>
     @if(!$isEdit && ($initialVariationEnabled ?? false))
-        <section class="card border-success mb-3" aria-labelledby="initial-variation-heading">
+        <div class="card border-success mb-3">
             <div class="card-body">
-                <h2 class="h6 font-weight-bold text-success" id="initial-variation-heading">Product Variations (optional)</h2>
-                <p class="small text-muted">Active values from Variant Options appear automatically. Each new product has one selected combination, one price and one Stock quantity.</p>
-                <div class="row">
-                    @foreach(['color' => 'Color', 'size' => 'Size', 'weight' => 'Weight', 'piece_count' => 'Piece Count'] as $optionCode => $optionLabel)
-                        <div class="col-sm-6 col-lg-3 form-group">
-                            <label for="initial-option-{{ $optionCode }}">{{ $optionLabel }}</label>
-                            <select id="initial-option-{{ $optionCode }}"
-                                name="initial_variation[{{ $optionCode }}]"
-                                class="form-control @error('initial_variation.'.$optionCode) is-invalid @enderror">
-                                <option value="">Not selected</option>
-                                @foreach(($initialVariationOptions[$optionCode]->values ?? []) as $value)
-                                    <option value="{{ $value->id }}" @selected((string) old('initial_variation.'.$optionCode) === (string) $value->id)>{{ $value->label }}</option>
-                                @endforeach
-                            </select>
-                            @error('initial_variation.'.$optionCode)
-                                <span class="invalid-feedback">{{ $message }}</span>
-                            @enderror
-                        </div>
-                    @endforeach
-                </div>
-                <small class="text-muted">For example, selecting <strong>2 Pieces</strong> means the Stock field below counts 2-piece packs, not individual pieces. No stock fields exist inside the dropdowns.</small>
+                <label class="d-flex align-items-center font-weight-bold" for="create-for-options" style="gap:.6rem">
+                    <input type="checkbox" name="create_for_options" value="1" id="create-for-options" @checked(old('create_for_options', false))>
+                    Set up Option-wise Pricing for this product
+                </label>
+                <p class="small text-muted mb-0">Enter opening Stock below (0 is also allowed), or add more later in Stock Management. After saving, choose any optional Color, Size and Weight values and set a required price for each offered Piece Count. Opening stock is audited. After valid Piece Count prices are saved, the product can automatically become Active (this is checked by default on the pricing screen).</p>
             </div>
-        </section>
-    @endif
-    @if($editingVariation)
-        <section class="card border-success mb-3" aria-labelledby="edit-variation-heading" id="edit-variant-options">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center flex-wrap mb-2" style="gap:.75rem">
-                    <h2 class="h6 font-weight-bold text-success mb-0" id="edit-variation-heading">Product Variations (Edit)</h2>
-                    @if($isManagedInventory && ($initialVariationEnabled ?? false) && auth()->user()?->isAdmin())
-                        <a class="btn btn-success btn-sm" href="{{ route('admin.products.variants.index', $product->id) }}#add-variation"
-                           aria-label="Add a new variation to {{ $product->name }}">
-                            <i class="fas fa-plus-circle mr-1" aria-hidden="true"></i> Add New Variation
-                        </a>
-                    @endif
-                </div>
-                <p class="small text-muted mb-2">Choose the SKU under <strong>Stock applies to</strong> to edit its existing combination. To create 2 Pieces / 3 Pieces with separate prices, use <strong>Add New Variation</strong> instead. Save other product edits before opening that page.</p>
-                <input type="hidden" name="expected_variation_signature" id="expected-variation-signature"
-                    value="{{ old('expected_variation_signature', $selectedStockSku->option_signature) }}">
-                <div class="row">
-                    @foreach(['color' => 'Color', 'size' => 'Size', 'weight' => 'Weight', 'piece_count' => 'Piece Count'] as $optionCode => $optionLabel)
-                        @php
-                            $savedOptionId = $selectedVariantOptions->get($optionCode)?->id;
-                            $currentOptionId = old('edit_variation.'.$optionCode, $savedOptionId);
-                            $activeValueIds = collect($initialVariationOptions[$optionCode]->values ?? [])->pluck('id')->all();
-                        @endphp
-                        <div class="col-sm-6 col-lg-3 form-group">
-                            <label for="edit-option-{{ $optionCode }}">{{ $optionLabel }}</label>
-                            <select id="edit-option-{{ $optionCode }}" name="edit_variation[{{ $optionCode }}]"
-                                data-edit-variant-option="{{ $optionCode }}"
-                                class="form-control @error('edit_variation.'.$optionCode) is-invalid @enderror">
-                                <option value="">Not selected</option>
-                                @foreach(($initialVariationOptions[$optionCode]->values ?? []) as $value)
-                                    <option value="{{ $value->id }}" @selected((string) $currentOptionId === (string) $value->id)>{{ $value->label }}</option>
-                                @endforeach
-                                @foreach(($referencedVariationValues[$optionCode] ?? collect()) as $value)
-                                    @if(!in_array($value->id, $activeValueIds, true))
-                                        <option value="{{ $value->id }}" @selected((string) $currentOptionId === (string) $value->id)>{{ $value->label }} (inactive)</option>
-                                    @endif
-                                @endforeach
-                            </select>
-                            @error('edit_variation.'.$optionCode)<span class="invalid-feedback">{{ $message }}</span>@enderror
-                        </div>
-                    @endforeach
-                </div>
-                @error('edit_variation')<div class="text-danger small">{{ $message }}</div>@enderror
-                <small class="text-muted">For ordered SKUs, option identity is locked to protect previous orders. Changing a value never automatically multiplies stock or price.</small>
-            </div>
-        </section>
+        </div>
     @endif
     <div class="row">
         <div class="col-md-6">
@@ -231,8 +168,8 @@
         <div class="col-md-4">
             <div class="form-group">
                 @if($isManagedInventory && $selectedStockSku)
-                    <label for="managed-stock-sku">Stock applies to</label>
-                    <select name="stock_variant_id" id="managed-stock-sku" class="form-control mb-2">
+                    <label for="managed-stock-sku" class="sr-only">Internal product inventory reference</label>
+                    <select name="stock_variant_id" id="managed-stock-sku" class="form-control mb-2" hidden>
                         @foreach($managedSkuChoices as $stockSku)
                             @php
                                 $stockSkuLabel = $stockSku->optionValues->map(fn ($value) => ($value->option?->name ?? 'Option').': '.$value->label)->implode(' / ');
@@ -243,14 +180,14 @@
                                     data-option-{{ $optionCode }}="{{ $stockSku->optionValues->first(fn ($value) => $value->option?->code === $optionCode)?->id ?? '' }}"
                                 @endforeach
                                 @selected((int) $selectedStockSku->id === (int) $stockSku->id)>
-                                {{ $stockSkuLabel ?: $stockSku->sku }} ({{ $stockSku->sku }})
+                                Shared product stock
                             </option>
                         @endforeach
                     </select>
                     <input type="hidden" name="expected_variant_stock" id="expected-variant-stock"
                         value="{{ old('expected_variant_stock', $selectedStockSku->stock) }}">
                 @endif
-                <label for="base-product-stock">Stock {{ $isManagedInventory ? '(selected SKU)' : '' }}</label>
+                <label for="base-product-stock">Stock {{ $isManagedInventory ? '(product total)' : (! $isEdit ? '(opening quantity)' : '') }}</label>
                 <input type="number" name="stock" id="base-product-stock"
                     value="{{ old('stock', $isManagedInventory ? ($selectedStockSku?->stock ?? $product->stock) : ($product->stock ?? 0)) }}"
                     class="form-control @error('stock') is-invalid @enderror"
@@ -260,9 +197,9 @@
                     <span class="invalid-feedback">{{ $message }}</span>
                 @enderror
                 @if($isManagedInventory)
-                    <small class="text-muted d-block">Total stock: {{ $product->stock }} across existing SKUs. Edit one SKU at a time; the existing audit ledger updates the total.</small>
+                    <small class="text-muted d-block">Total product stock: {{ $product->stock }}. Adjustments are recorded in the existing inventory ledger.</small>
                 @else
-                    <small class="text-muted d-block">Enter the exact quantity for this product or selected variation. The number is not automatically multiplied.</small>
+                    <small class="text-muted d-block">Enter the exact opening quantity (0 or more). Option-wise products record this stock in the inventory ledger; you can add or adjust it later in Stock Management.</small>
                 @endif
             </div>
         </div>
@@ -447,38 +384,18 @@
         </div>
     </div>
 
-    @if($isEdit && ($managedVariants ?? collect())->isNotEmpty())
-    <section class="card border-success mb-3" aria-labelledby="managed-sku-heading">
-        <div class="card-header bg-light"><h2 class="h6 mb-0 font-weight-bold" id="managed-sku-heading">Existing Variant Prices</h2></div>
-        <div class="card-body">
-            <p class="small text-muted">Existing variants keep their own verified prices and stock history. This section changes prices only. To edit stock, choose the SKU in the single Stock field above.</p>
-            @foreach($managedVariants as $variant)
-                @php
-                    $skuLabel = $variant->optionValues->map(fn ($value) => ($value->option?->name ?? 'Option').': '.$value->label)->implode(' · ');
-                    $effectivePrice = $variant->price_override ?? $product->new_price;
-                @endphp
-                <div class="row border rounded p-2 mb-2 align-items-end">
-                    <div class="col-md-4 mb-2">
-                        <strong class="small d-block">{{ $skuLabel ?: ($variant->is_default ? 'Default SKU' : $variant->sku) }}</strong>
-                        <span class="small text-muted">{{ $variant->sku }} · {{ $variant->is_active ? 'Active' : 'Inactive' }}</span>
-                    </div>
-                    <div class="col-md-4 mb-2">
-                        @if(!$variant->is_default && $variant->option_signature !== 'default')
-                        <label for="sku-price-{{ $variant->id }}" class="small">Price (BDT)</label>
-                        <input type="number" id="sku-price-{{ $variant->id }}" name="variant_prices[{{ $variant->id }}]" min="1" max="4294967295" step="1" required class="form-control form-control-sm" value="{{ old('variant_prices.'.$variant->id, $effectivePrice) }}">
-                        @else
-                        <small class="text-muted">Price follows base New Price above</small>
-                        @endif
-                        <input type="hidden" name="expected_variant_prices[{{ $variant->id }}]" value="{{ $effectivePrice }}">
-                    </div>
-                    <div class="col-md-4 mb-2">
-                        <label class="small d-block">Current SKU Stock</label>
-                        <span class="badge badge-light border p-2">{{ $variant->stock }}</span>
-                    </div>
-                </div>
-            @endforeach
-        </div>
-    </section>
+    @if($isEdit && ($initialVariationEnabled ?? false) && ! ($product->has_variants ?? false))
+        <p class="alert alert-light border" role="note">
+            @if($isManagedInventory)
+                To change Piece Count prices, open
+                <a href="{{ route('admin.products.variants.index', $product->id) }}#option-wise-pricing">Option-wise Pricing</a>.
+                Shared physical stock can be updated here or in Stock Management.
+            @else
+                Want to offer Color, Size, Weight or differently priced Piece Counts later?
+                <a href="{{ route('admin.products.variants.index', $product->id) }}#option-wise-pricing">Add Option-wise Pricing</a>
+                after saving this edit. The current stock will be kept; there is no need to create another product.
+            @endif
+        </p>
     @endif
 
     <div class="border-top pt-3">

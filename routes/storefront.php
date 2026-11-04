@@ -32,7 +32,8 @@ Route::prefix('storefront')->name('storefront.')->middleware([P26IsolatedCommerc
             ->middleware('throttle:40,1')->name('wishlist.toggle');
 
         // P32 local main-DB commerce is guarded independently from P26 QA.
-        // Checkout still depends on stock/shipping/homepage readiness.
+        // Local checkout needs the reviewed schema; each cart/order validates its
+        // own product, price and stock. P58 production keeps its release review.
         Route::prefix('account')->name('account.')->group(function (): void {
             Route::get('/login', [StorefrontAccountController::class, 'loginForm'])->name('login');
             Route::post('/login', [StorefrontAccountController::class, 'login'])

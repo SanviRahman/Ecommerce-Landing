@@ -30,6 +30,7 @@ final class PublicCatalog
             'homepage_section_items', 'homepage_section_products',
             'homepage_section_categories', 'categories', 'products',
             'product_variants', 'product_variant_values', 'product_option_assignments',
+            'product_option_choices', 'product_piece_prices',
         ] as $table) {
             abort_unless(\Illuminate\Support\Facades\Schema::hasTable($table), 503,
                 'The storefront database schema is not ready.');
@@ -94,7 +95,9 @@ final class PublicCatalog
 
     public function priceExpression(): string
     {
-        return 'CASE WHEN products.has_variants = 1 THEN '
+        return 'CASE WHEN EXISTS (SELECT 1 FROM product_piece_prices op WHERE op.product_id = products.id) THEN '
+            . '(SELECT MIN(op.price) FROM product_piece_prices op WHERE op.product_id = products.id) '
+            . 'WHEN products.has_variants = 1 THEN '
             . '(SELECT MIN(COALESCE(v.price_override, products.new_price)) FROM product_variants v '
             . 'WHERE v.product_id = products.id AND v.is_active = 1 AND v.deleted_at IS NULL) '
             . 'ELSE products.new_price END';
@@ -204,6 +207,10 @@ final class PublicCatalog
     /** Currency values are existing integer BDT values; no guest price input is accepted. */
     public function displayPrice(Product $product): int
     {
+        if (app(\App\Services\Catalog\OptionWiseSelections::class)->configured($product)) {
+            return (int) \Illuminate\Support\Facades\DB::table('product_piece_prices')
+                ->where('product_id', $product->id)->min('price');
+        }
         if (! $product->has_variants) {
             return (int) $product->new_price;
         }
@@ -253,6 +260,8 @@ final class PublicCatalog
     /** Trusted, code-owned option matrix for read-only product-page selection. */
     public function selectionData(Product $product): array
     {
+        $optionWise = app(\App\Services\Catalog\OptionWiseSelections::class);
+        if ($optionWise->configured($product)) return $optionWise->matrix($product);
         $variants = $this->eligibleVariants($product);
         $options = [];
         $rows = [];
@@ -284,32 +293,9 @@ final class PublicCatalog
                 'selected' => $selected,
             ];
         }
-        // Option Values is the shared admin vocabulary, not a priced SKU table.
-        // Display all currently active values of each dimension that belongs to
-        // this product, while keeping the purchasable variant rows authoritative.
-        // A newly added value is visible, but it will not invent stock or price.
-        if ($options !== []) {
-            $assigned = ProductOption::query()->whereIn('id', array_keys($options))
-                ->where('is_active', true)
-                ->with(['values' => static fn ($query) => $query->where('is_active', true)])
-                ->get();
-            foreach ($assigned as $option) {
-                $values = [];
-                foreach ($option->values as $value) {
-                    $values[(int) $value->id] = [
-                        'id' => (int) $value->id,
-                        'label' => $value->label,
-                        'swatch' => $value->swatch_hex,
-                        'sort_order' => (int) $value->sort_order,
-                        'configured' => collect($rows)->contains(
-                            static fn (array $row): bool =>
-                                ($row['selected'][(int) $option->id] ?? null) === (int) $value->id
-                        ),
-                    ];
-                }
-                $options[(int) $option->id]['values'] = $values;
-            }
-        }
+        // Public selection uses ONLY values belonging to this product's genuine,
+        // active configurations. An unrelated global catalog value must never
+        // appear as a disabled/unpurchasable customer option.
         uasort($options, static fn ($a, $b) => [$a['sort_order'], $a['id']] <=> [$b['sort_order'], $b['id']]);
         foreach ($options as &$option) {
             uasort($option['values'], static fn ($a, $b) => [$a['sort_order'], $a['id']] <=> [$b['sort_order'], $b['id']]);

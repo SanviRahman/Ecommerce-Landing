@@ -1148,6 +1148,16 @@
             $productImage = $imageOf($product);
             $campaignPrice = (int) optional($product->pivot)->campaign_price;
             $productPrice = $campaignPrice > 0 ? $campaignPrice : (int) $product->new_price;
+            if (($campaignVariantMatrices[$product->id]['mode'] ?? '') === 'option_wise') {
+                $optionPrices = $campaignVariantMatrices[$product->id]['prices'] ?? [];
+                if ($optionPrices !== []) $productPrice = (int) min($optionPrices);
+            }
+            if ($product->has_variants) {
+                $buyablePrices = collect($campaignVariantMatrices[$product->id]['variants'] ?? [])
+                    ->filter(fn ($row) => (int) $row['stock'] > 0 && (int) $row['price'] > 0)
+                    ->pluck('price');
+                $productPrice = $buyablePrices->isNotEmpty() ? (int) $buyablePrices->min() : $productPrice;
+            }
             $productOldPrice = $product->old_price ? (int) $product->old_price : null;
             $productWeight = $product->weight_size ?: ($product->weight ?? ($product->size ?? ''));
             @endphp
@@ -1170,7 +1180,7 @@
                         </div>
 
                         <div class="product-price" data-campaign-price-for="{{ $product->id }}">
-                            ৳{{ number_format($productPrice) }}
+                            @if($product->has_variants || (($campaignVariantMatrices[$product->id]['mode'] ?? '') === 'option_wise'))From @endif৳{{ number_format($productPrice) }}
 
                             @if($productOldPrice && $productOldPrice > $productPrice)
                             <del>৳{{ number_format($productOldPrice) }}</del>
@@ -1178,16 +1188,12 @@
                         </div>
 
 
-                        @if($isOrderSectionActive && $product->has_variants)
-                            <a class="btn btn-success btn-block" data-campaign-variant-link-for="{{ $product->id }}" href="{{ route('storefront.product', $product->slug) }}#p07-variant-picker">
-                                Select variation &amp; order from Storefront
-                            </a>
-                        @elseif($isOrderSectionActive)
+                        @if($isOrderSectionActive)
                             <button type="button"
                                 class="btn btn-success btn-block add-order-btn add-product-to-order {{ $product->is_free_delivery ? 'free-delivery-btn' : '' }}"
                                 data-product-id="{{ $product->id }}">
                                 <i class="fas fa-cart-plus mr-1"></i>
-                                {{ $product->is_free_delivery ? 'ফ্রি ডেলিভারিতে অর্ডার করুন' : 'অর্ডারে যোগ করুন' }}
+                                {{ ($product->has_variants || (($campaignVariantMatrices[$product->id]['mode'] ?? '') === 'option_wise')) ? 'অপশন বেছে অর্ডার করুন' : ($product->is_free_delivery ? 'ফ্রি ডেলিভারিতে অর্ডার করুন' : 'অর্ডারে যোগ করুন') }}
                             </button>
                         @endif
                     </div>
@@ -1467,13 +1473,24 @@
                         $productImage = $imageOf($product);
                         $campaignPrice = (int) optional($product->pivot)->campaign_price;
                         $unitPrice = $campaignPrice > 0 ? $campaignPrice : (int) $product->new_price;
+                        if (($campaignVariantMatrices[$product->id]['mode'] ?? '') === 'option_wise') {
+                            $unitPrice = (int) min($campaignVariantMatrices[$product->id]['prices']);
+                        }
+                        if ($product->has_variants) {
+                            $buyablePrices = collect($campaignVariantMatrices[$product->id]['variants'] ?? [])
+                                ->filter(fn ($row) => (int) $row['stock'] > 0 && (int) $row['price'] > 0)
+                                ->pluck('price');
+                            $unitPrice = $buyablePrices->isNotEmpty() ? (int) $buyablePrices->min() : $unitPrice;
+                        }
                         $weight = $product->weight_size ?: ($product->weight ?? ($product->size ?? ''));
                         @endphp
 
-                        <div class="order-product-card" @if($product->has_variants) data-variant-preview-only="1" @else role="button" tabindex="0" aria-pressed="false" @endif
-                            aria-label="{{ $product->has_variants ? 'Preview variations for' : 'Select' }} {{ $product->name }}"
+                        <div class="order-product-card" role="button" tabindex="0" aria-pressed="false"
+                            aria-label="{{ $product->name }} অর্ডারে যোগ করুন"
                             data-id="{{ $product->id }}" data-name="{{ $product->name }}"
                             data-price="{{ $unitPrice }}" data-weight="{{ $weight }}" data-image="{{ $productImage }}"
+                            data-variant-matrix='@json($campaignVariantMatrices[$product->id] ?? [])'
+                            data-has-variants="{{ $product->has_variants || (($campaignVariantMatrices[$product->id]['mode'] ?? '') === 'option_wise') ? 1 : 0 }}"
                             data-free-delivery="{{ $product->is_free_delivery ? 1 : 0 }}">
                             <img src="{{ $productImage }}" alt="{{ $product->name }}"
                                 data-image-fallback="{{ $noImage }}">
@@ -1482,7 +1499,7 @@
                                 <h5>{{ $product->name }}</h5>
 
                                 <p class="order-product-meta-line">
-    <span class="order-product-price" data-campaign-price-for="{{ $product->id }}">৳ {{ number_format($unitPrice) }}</span>
+    <span class="order-product-price" data-campaign-price-for="{{ $product->id }}">@if($product->has_variants || (($campaignVariantMatrices[$product->id]['mode'] ?? '') === 'option_wise'))From @endif৳ {{ number_format($unitPrice) }}</span>
 
     @if($weight)
         <span class="order-product-weight">{{ $weight }}</span>
@@ -1492,10 +1509,8 @@
 @if($product->is_free_delivery)
     <span class="badge badge-success order-free-delivery-badge mt-1">ফ্রি ডেলিভারি</span>
 @endif
-@if($product->has_variants)
-    <a class="btn btn-outline-success btn-sm mt-2" data-campaign-variant-link-for="{{ $product->id }}" href="{{ route('storefront.product', $product->slug) }}#p07-variant-picker">
-        Choose variation on Product Details
-    </a>
+@if($product->has_variants || (($campaignVariantMatrices[$product->id]['mode'] ?? '') === 'option_wise'))
+    <small class="d-block text-success mt-2">কালার, সাইজ, ওজন ও পিস নির্বাচন করুন; দাম বদলাবে শুধু পিস অনুযায়ী</small>
 @endif
                             </div>
 
@@ -1589,7 +1604,7 @@
                     <div class="order-summary-card">
                         <h3 class="order-summary-title">অর্ডার সামারি</h3>
 
-                        <div id="selectedProductsBox"></div>
+                        <div id="selectedProductsBox" aria-live="polite"></div>
                         <div id="hiddenProductInputs"></div>
 
                         <div class="summary-line">
@@ -1725,6 +1740,7 @@
     ];
 @endphp
 <div id="sfaHomeConfig" hidden data-config="{{ json_encode($sfaHomeClientConfig, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) }}"></div>
-<script src="{{ asset('frontend/js/home.js') }}?v=20261103-variations" defer></script>
+<script src="{{ asset('frontend/js/storefront-variant-matcher.js') }}?v=20261104-campaign" defer></script>
+<script src="{{ asset('frontend/js/home.js') }}?v=20261104-campaign-order" defer></script>
 @endpush
 @endif

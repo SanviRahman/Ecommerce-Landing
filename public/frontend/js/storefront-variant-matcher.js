@@ -38,9 +38,18 @@
     )[0].row;
   }
 
+  // Leatherket-style independent choices: NEVER silently change another chosen
+  // dimension. A complete, real SKU must exist for this exact selection.
+  function forChangeExact(rows, optionIds, previous, changedOptionId, newValueId) {
+    if (!Array.isArray(rows)) return null;
+    return rows.find((row) => optionIds.every((id) =>
+      same(row.selected?.[id], id === changedOptionId ? newValueId : previous?.[id])
+    )) || null;
+  }
+
   function selectionOf(row, optionIds) {
     return Object.fromEntries(optionIds.map((id) => [id, row?.selected?.[id] ?? null]));
   }
 
-  return { initial, forChange, selectionOf, purchasable, matches };
+  return { initial, forChange, forChangeExact, selectionOf, purchasable, matches };
 });

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Campaign;
+use App\Services\CampaignVariantCatalog;
 use App\Models\Faq;
 use App\Models\Review;
 use App\Models\ShippingCharge;
@@ -96,6 +97,7 @@ class CampaignPageController extends Controller
                 'brands' => $brands,
                 'products' => $products,
                 'orderProducts' => $orderProducts,
+                'campaignVariantMatrices' => app(CampaignVariantCatalog::class)->forProducts($orderProducts),
                 'reviews' => $reviews,
                 'faqs' => $faqs,
                 'socialMedias' => $socialMedias,

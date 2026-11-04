@@ -7,6 +7,7 @@ namespace App\Services\Cart;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Services\Storefront\PublicCatalog;
+use App\Services\Catalog\OptionWiseSelections;
 use App\Services\Inventory\StorefrontDeferredStock;
 use App\Support\ExactBdt;
 use App\Support\P02MigrationSafety;
@@ -51,28 +52,41 @@ final class GuestCartService
         $lines = [];
         $subtotal = 0;
         $checkoutReady = $items->isNotEmpty();
+        $cartNeeded = [];
+        foreach ($items as $item) {
+            $vId = (int)$item->product_variant_id;
+            $cartNeeded[$vId] = ($cartNeeded[$vId] ?? 0) + (int)$item->quantity;
+        }
         foreach ($items as $item) {
             $variant = ProductVariant::with(['product.category', 'optionValues.option'])->find($item->product_variant_id);
             $product = $variant?->product;
             $valid = $variant !== null && $product !== null && $this->isPurchasable($product, $variant);
+            $choice = json_decode((string)($item->selected_options ?? '{}'), true) ?: [];
+            $choiceQuote = null;
+            if ($valid && app(OptionWiseSelections::class)->configured($product)) {
+                try { $choiceQuote = app(OptionWiseSelections::class)->quote($product, $choice); }
+                catch (ValidationException) { $valid = false; }
+            }
             $stock = $valid ? StorefrontDeferredStock::availableForVariant(
                 (int) $variant->id, (int) $variant->stock) : 0;
-            $current = $valid ? $this->price($product, $variant) : null;
+            $current = $valid ? ($choiceQuote['price'] ?? $this->price($product, $variant)) : null;
             $quoted = ExactBdt::fromDecimal((string) $item->quoted_unit_price);
             $priceChanged = $current !== null && $current !== $quoted;
-            $enough = $valid && (int) $item->quantity <= $stock;
+            $enough = $valid && (int) ($cartNeeded[(int)$variant->id] ?? 0) <= $stock;
             $checkoutReady = $checkoutReady && $enough && ! $priceChanged && $current > 0;
             $lineTotal = ExactBdt::multiply($quoted, (int) $item->quantity);
             $subtotal = ExactBdt::add($subtotal, $lineTotal);
-            $labels = $variant?->optionValues?->map(
+            $labels = $choiceQuote ? $choiceQuote['labels'] : ($variant?->optionValues?->map(
                 static fn ($value) => ($value->option?->name ?? 'Option') . ': ' . $value->label
-            )->implode(', ') ?? '';
+            )->implode(', ') ?? '');
             $lines[] = [
                 'id' => (int) $item->id, 'product_id' => (int) $item->product_id,
                 'variant_id' => (int) $item->product_variant_id,
+                'selection_key' => (string)($item->selection_key ?? 'default'),
+                'selected_options' => $choice,
                 'name' => $product?->name ?? 'Unavailable product',
                 'slug' => $product?->slug, 'option_label' => $labels,
-                'sku' => $variant?->sku, 'quantity' => (int) $item->quantity,
+                'quantity' => (int) $item->quantity,
                 'stock' => $stock, 'available' => $valid, 'sufficient' => $enough,
                 'unit_price' => ExactBdt::toDecimal($quoted),
                 'current_price' => $current === null ? null : ExactBdt::toDecimal($current),
@@ -89,7 +103,8 @@ final class GuestCartService
     }
 
     /** A fresh cart accepts version 0; existing carts require an exact optimistic version. */
-    public function add(string $ownerHash, int $variantId, int $quantity, int $expectedVersion): void
+    public function add(string $ownerHash, int $variantId, int $quantity, int $expectedVersion,
+        array $selectedOptions = []): void
     {
         $this->assertEnabled();
         $this->validateOwner($ownerHash);
@@ -97,22 +112,41 @@ final class GuestCartService
         if ($variantId < 1 || $expectedVersion < 0) {
             throw ValidationException::withMessages(['cart' => 'Invalid cart selection or version.']);
         }
-        DB::transaction(function () use ($ownerHash, $variantId, $quantity, $expectedVersion): void {
+        DB::transaction(function () use ($ownerHash, $variantId, $quantity, $expectedVersion, $selectedOptions): void {
             $cart = $this->lockedCart($ownerHash, $expectedVersion, true);
             $variant = ProductVariant::with(['product.category', 'optionValues.option'])->find($variantId);
             $product = $variant?->product;
             if (! $product || ! $this->isPurchasable($product, $variant)) {
                 throw ValidationException::withMessages(['product_variant_id' => 'This selection is not available.']);
             }
-            $price = $this->price($product, $variant);
+            $optionWise = app(OptionWiseSelections::class);
+            if ($optionWise->configured($product)) {
+                $quote = $optionWise->quote($product, $selectedOptions);
+                if (!$variant->is_default || $variant->option_signature !== 'default') {
+                    throw ValidationException::withMessages(['product' => 'Product inventory is unavailable.']);
+                }
+                $selectionKey = $quote['signature'];
+                $snapshot = json_encode($selectedOptions, JSON_THROW_ON_ERROR);
+                $price = (int)$quote['price'];
+            } else {
+                if ($selectedOptions !== []) throw ValidationException::withMessages(['options'=>'This product has no configurable options.']);
+                $selectionKey = hash('sha256', 'default');
+                $snapshot = null;
+                $price = $this->price($product, $variant);
+            }
             if ($price < 1) {
                 throw ValidationException::withMessages(['product_variant_id' => 'This selection has no valid price.']);
             }
             $existing = DB::table('cart_items')->where('cart_id', $cart->id)
-                ->where('product_variant_id', $variantId)->lockForUpdate()->first();
+                ->where('product_variant_id', $variantId)->where('selection_key', $selectionKey)
+                ->lockForUpdate()->first();
             $newQuantity = $quantity + (int) ($existing->quantity ?? 0);
             $this->validateQuantity($newQuantity);
-            if ($newQuantity > StorefrontDeferredStock::availableForVariant(
+            $otherQuantity = (int) DB::table('cart_items')->where('cart_id', $cart->id)
+                ->where('product_variant_id', $variantId)
+                ->when($existing, static fn ($q) => $q->where('id', '!=', $existing->id))
+                ->sum('quantity');
+            if ($newQuantity + $otherQuantity > StorefrontDeferredStock::availableForVariant(
                 (int) $variant->id, (int) $variant->stock)) {
                 throw ValidationException::withMessages(['quantity' => 'Not enough stock is available.']);
             }
@@ -127,6 +161,7 @@ final class GuestCartService
                 DB::table('cart_items')->insert([
                     'cart_id' => $cart->id, 'product_id' => $product->id,
                     'product_variant_id' => $variantId, 'quantity' => $newQuantity,
+                    'selection_key' => $selectionKey, 'selected_options' => $snapshot,
                     'quoted_unit_price' => ExactBdt::toDecimal($price),
                     'created_at' => now(), 'updated_at' => now(),
                 ]);
@@ -155,12 +190,16 @@ final class GuestCartService
             } else {
                 $variant = ProductVariant::with(['product.category', 'optionValues.option'])->find($item->product_variant_id);
                 $product = $variant?->product;
+                $otherQty = (int) DB::table('cart_items')->where('cart_id', $cart->id)
+                    ->where('product_variant_id', $item->product_variant_id)
+                    ->where('id', '!=', $item->id)->sum('quantity');
                 if (! $product || ! $this->isPurchasable($product, $variant) || StorefrontDeferredStock::availableForVariant(
-                    (int) $variant->id, (int) $variant->stock) < $quantity) {
+                    (int) $variant->id, (int) $variant->stock) < ($quantity + $otherQty)) {
                     throw ValidationException::withMessages(['quantity' => 'Product is unavailable or has insufficient stock.']);
                 }
                 DB::table('cart_items')->where('id', $itemId)->where('cart_id', $cart->id)->update([
-                    'quantity' => $quantity, 'quoted_unit_price' => ExactBdt::toDecimal($this->price($product, $variant)),
+                    'quantity' => $quantity, 'quoted_unit_price' => ExactBdt::toDecimal(
+                        $this->price($product, $variant, json_decode((string)($item->selected_options ?? '{}'), true) ?: [])),
                     'updated_at' => now(),
                 ]);
             }
@@ -176,8 +215,10 @@ final class GuestCartService
         return $this->lockedCart($ownerHash, $expectedVersion, false);
     }
 
-    public function price(Product $product, ProductVariant $variant): int
+    public function price(Product $product, ProductVariant $variant, array $selection = []): int
     {
+        $choices = app(OptionWiseSelections::class);
+        if ($choices->configured($product)) return (int)$choices->quote($product, $selection)['price'];
         return ExactBdt::fromDecimal((string) ($variant->price_override ?? $product->new_price));
     }
 
@@ -189,6 +230,9 @@ final class GuestCartService
         }
         if (! $this->catalog->eligibleProducts()->where('products.id', $product->id)->exists()) {
             return false;
+        }
+        if (app(OptionWiseSelections::class)->configured($product)) {
+            return $variant->is_default && $variant->option_signature === 'default';
         }
         if ($product->has_variants) {
             return $this->catalog->eligibleVariants($product)->contains('id', $variant->id);

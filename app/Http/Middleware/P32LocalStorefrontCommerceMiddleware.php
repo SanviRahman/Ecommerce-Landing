@@ -19,11 +19,14 @@ final class P32LocalStorefrontCommerceMiddleware
             return $next($request);
         }
 
-        $checkoutReady = app(P32LocalStorefrontAccess::class)->checkoutReady();
+        // Local customers do not need a global shipping/homepage/catalog readiness
+        // review before buying. The schema must exist; each product, price and stock
+        // is revalidated by the cart/checkout transaction itself.
+        $checkoutSchemaReady = app(P32LocalStorefrontAccess::class)->checkoutReady();
         $keys = [
             'storefront.p08_cart_test_enabled' => true,
-            'storefront.p08_checkout_test_enabled' => $checkoutReady,
-            'storefront.p03_core_test_enabled' => $checkoutReady,
+            'storefront.p08_checkout_test_enabled' => $checkoutSchemaReady,
+            'storefront.p03_core_test_enabled' => $checkoutSchemaReady,
         ];
         $old = [];
         foreach ($keys as $key => $value) {
@@ -31,7 +34,7 @@ final class P32LocalStorefrontCommerceMiddleware
             config()->set($key, $value);
         }
         $request->attributes->set('p32_local_commerce', true);
-        $request->attributes->set('p32_local_checkout', $checkoutReady);
+        $request->attributes->set('p32_local_checkout', $checkoutSchemaReady);
         try {
             $response = $next($request);
             $response->headers->set('Cache-Control', 'private, no-store, max-age=0');

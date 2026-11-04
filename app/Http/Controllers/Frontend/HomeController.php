@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Frontend;
 
 use App\Http\Controllers\Controller;
 use App\Models\Campaign;
+use App\Services\CampaignVariantCatalog;
 use App\Models\Faq;
 use App\Models\Order;
 use App\Models\Review;
@@ -55,6 +56,7 @@ class HomeController extends Controller
                 'brands'                    => collect(),
                 'products'                  => collect(),
                 'orderProducts'             => collect(),
+                'campaignVariantMatrices' => [],
                 'reviews'                   => collect(),
                 'faqs'                      => collect(),
                 'socialMedias'              => collect(),
@@ -110,6 +112,7 @@ class HomeController extends Controller
             'brands'                    => $brands,
             'products'                  => $products,
             'orderProducts'             => $orderProducts,
+            'campaignVariantMatrices' => app(CampaignVariantCatalog::class)->forProducts($orderProducts),
             'reviews'                   => $reviews,
             'faqs'                      => $faqs,
             'socialMedias'              => $socialMedias,

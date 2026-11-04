@@ -22,6 +22,16 @@
 
 @section('content')
 
+@if(session('success'))
+    <div class="alert alert-success" role="status">{{ session('success') }}</div>
+@endif
+@if($errors->any())
+    <div class="alert alert-danger" role="alert">
+        <strong>Please review the following product details.</strong>
+        <ul class="mb-0">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
+    </div>
+@endif
+
 @if(auth()->user()->isEmployee())
     <div class="alert alert-info">
         <i class="fas fa-info-circle mr-1"></i>
@@ -203,7 +213,6 @@
 @section('plugins.Sweetalert2', true)
 
 @section('js')
-<script src="{{ asset('frontend/js/product-variation-edit.js') }}" defer></script>
 <script>
 $(document).ready(function () {
     let currentView = "{{ isset($isTrash) && $isTrash ? 'trash' : 'active' }}";
@@ -429,6 +438,10 @@ $(document).ready(function () {
             },
             success: function (res) {
                 if (res.status) {
+                    if (res.option_pricing_url) {
+                        window.location.assign(res.option_pricing_url);
+                        return;
+                    }
                     $('#ajaxModal').modal('hide');
                     reloadTable();
                     showToast('success', res.message || 'Product saved successfully.');

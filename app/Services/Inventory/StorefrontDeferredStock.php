@@ -9,6 +9,7 @@ use App\Support\P32LocalStorefrontAccess;
 use App\Support\P58ProductionStorefrontAccess;
 use DomainException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use LogicException;
@@ -16,7 +17,8 @@ use LogicException;
 /**
  * Approved production and local-main-DB storefront checkouts reserve sellable
  * quantities WITHOUT physically deducting stock. Only admin confirmation
- * allocates them. P26 isolated QA and legacy/campaign orders are unchanged.
+ * allocates them. The same reservation contract also supports approved,
+ * inventory-managed campaign orders; existing legacy orders are unchanged.
  */
 final class StorefrontDeferredStock
 {
@@ -33,8 +35,10 @@ final class StorefrontDeferredStock
 
     public static function availableForVariant(int $variantId, int $physicalStock): int
     {
-        if (request()->attributes->get('p58_production_commerce') !== true
-            && request()->attributes->get('p32_local_checkout') !== true) {
+        // Campaign and storefront compete for the SAME sellable SKU stock.
+        // A pending campaign hold must reduce advertised available quantity on
+        // both channels, even while physical stock remains unchanged.
+        if (! Schema::hasColumn('orders', 'storefront_stock_state')) {
             return max(0, $physicalStock);
         }
         return max(0, $physicalStock - (int) DB::table('order_items as i')
@@ -102,10 +106,10 @@ final class StorefrontDeferredStock
         $this->assertTransaction();
         $order = DB::table('orders')->where('id', $orderId)->lockForUpdate()->first();
         if (! $order || $order->deleted_at !== null || (int) $order->storefront_stock_state !== self::RESERVED
-            || (int) $order->inventory_version !== 0 || $order->campaign_id !== null
+            || (int) $order->inventory_version !== 0
             || $order->created_via !== 'frontend'
             || $order->order_status !== 'confirmed') {
-            throw new DomainException('This order does not have a pending storefront stock reservation.');
+            throw new DomainException('This order does not have a pending managed stock reservation.');
         }
         $items = DB::table('order_items')->where('order_id', $orderId)->whereNull('deleted_at')
             ->orderBy('id')->get();
@@ -172,8 +176,10 @@ final class StorefrontDeferredStock
                 'operation_key' => 'allocate:v1:item:' . $item->id,
                 'kind' => 'allocation', 'quantity_delta' => -$quantity,
                 'stock_before' => $before, 'stock_after' => $after,
-                'actor_id' => auth()->id(), 'reason' => 'P64 admin-confirmed storefront allocation',
-                'metadata' => json_encode(['order_id' => $orderId, 'confirmed_by_admin' => true], JSON_THROW_ON_ERROR),
+                'actor_id' => auth()->id(), 'reason' => $order->campaign_id === null
+                    ? 'Admin-confirmed storefront allocation' : 'Admin-confirmed campaign allocation',
+                'metadata' => json_encode(['order_id' => $orderId, 'campaign_id' => $order->campaign_id,
+                    'confirmed_by_admin' => true], JSON_THROW_ON_ERROR),
                 'created_at' => now(),
             ]);
             DB::table('order_items')->where('id', $item->id)->update([
