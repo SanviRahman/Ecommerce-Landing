@@ -48,7 +48,7 @@
     {{-- P62: desktop-only header restore and correctly stacked, non-blurring mini-cart. --}}
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p62.css') }}?v=p63">
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-merchandising.css') }}?v=1">
-    <link rel="stylesheet" href="{{ asset('frontend/css/storefront-card-sizing.css') }}?v=2">
+    <link rel="stylesheet" href="{{ asset('frontend/css/storefront-card-sizing.css') }}?v=3">
     {{-- P60 header-only safety rules: protect against a stale external CSS copy in the cPanel document root. --}}
     <style>
         @media (max-width: 760px) {

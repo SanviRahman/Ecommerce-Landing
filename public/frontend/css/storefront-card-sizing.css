@@ -1,24 +1,31 @@
 /* Homepage and storefront cards only. Campaign landing/admin CSS is untouched. */
-/* Height increases with card width; no hard-coded pixels or distortion. */
+/* Preserve the complete source image on desktop and mobile; never crop product/category media. */
 body.p34-storefront .sf-grid-categories .sf-square,
 body.p34-storefront .sf-grid-categories .p33-category-tile .sf-square {
     aspect-ratio: 5 / 6;
     width: 100%;
     overflow: hidden;
+    background: #f7faf7;
 }
 body.p34-storefront .sf-product-image,
 body.p34-storefront .p07-card-link {
     aspect-ratio: 4 / 5;
     display: block;
     overflow: hidden;
+    background: #f7faf7;
 }
-body.p34-storefront :is(.sf-grid-categories .sf-square, .sf-product-image, .p07-card-link) img {
+body.p34-storefront :is(.sf-grid-categories .sf-square img, .sf-product-image img, .p07-card-link img) {
     width: 100%;
     height: 100%;
     display: block;
-    object-fit: cover;
+    object-fit: contain;
+    object-position: center;
+    background: #f7faf7;
+    /* Earlier premium styles zoom images on hover, which clips their edges. */
+    transform: none !important;
 }
-/* Titles stay readable: one line, ellipsis for genuinely long names. */
+
+/* Titles stay readable on wider cards: one line with ellipsis for genuinely long names. */
 body.p34-storefront :is(.sf-grid-categories .sf-tile > h3, .sf-product-copy h3, .p07-card-body h3) {
     display: block;
     min-width: 0;
@@ -43,4 +50,118 @@ body.p34-storefront :is(.sf-grid-categories .sf-tile > h3, .sf-product-copy h3, 
 }
 body.p34-storefront :is(.sf-grid-categories .sf-tile, .sf-product-copy, .p07-card-body) {
     min-width: 0;
+}
+
+/* Mobile: keep two complete cards per row, add a little image height, and let all copy wrap. */
+@media (max-width: 760px) {
+    body.p34-storefront .sf-grid-categories,
+    body.p34-storefront .sf-grid-products:not(.p33-products-carousel) {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        align-items: stretch;
+    }
+
+    body.p34-storefront .sf-grid-categories .sf-square {
+        aspect-ratio: 4 / 5;
+    }
+
+    body.p34-storefront .sf-product-image,
+    body.p34-storefront .p07-card-link {
+        /* 3:4 is slightly taller than the desktop 4:5 image window. */
+        aspect-ratio: 3 / 4;
+    }
+
+    body.p34-storefront .sf-product {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        min-width: 0;
+    }
+
+    body.p34-storefront .sf-product-copy {
+        display: flex;
+        flex: 1 1 auto;
+        flex-direction: column;
+        min-width: 0;
+    }
+
+    body.p34-storefront .sf-product-copy h3,
+    body.p34-storefront .sf-product-copy h3 > a,
+    body.p34-storefront .sf-grid-categories .sf-tile > h3,
+    body.p34-storefront .sf-grid-categories .sf-tile > h3 > a,
+    body.p34-storefront .p07-card-body h3,
+    body.p34-storefront .p07-card-body h3 > a {
+        min-height: 0 !important;
+        height: auto !important;
+        white-space: normal !important;
+        overflow: visible !important;
+        text-overflow: clip !important;
+        overflow-wrap: anywhere !important;
+        word-break: normal;
+        line-height: 1.4;
+    }
+
+    body.p34-storefront .p07-card {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        min-width: 0;
+    }
+
+    body.p34-storefront .p07-card-body {
+        display: flex;
+        flex: 1 1 auto;
+        flex-direction: column;
+        min-width: 0;
+    }
+
+    body.p34-storefront .p07-card-prices {
+        margin: auto 0 12px;
+    }
+
+    body.p34-storefront .p19-card-actions {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 3fr);
+        align-items: stretch;
+        gap: 6px;
+        width: 100%;
+        margin-top: auto;
+    }
+
+    body.p34-storefront .p19-card-actions .p19-quickform {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 3fr);
+    }
+
+    body.p34-storefront .p19-card-actions :is(.p19-cart-action, .p07-card-action) {
+        min-width: 0;
+        min-height: 44px;
+        padding: 8px 4px;
+        font-size: clamp(10px, 2.8vw, 12px);
+        line-height: 1.2;
+        white-space: normal;
+        overflow-wrap: anywhere;
+    }
+
+    body.p34-storefront .sf-price {
+        margin: auto 0 12px;
+        line-height: 1.35;
+        overflow-wrap: anywhere;
+    }
+
+    body.p34-storefront .sf-product-actions {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 3fr);
+        align-items: stretch;
+        gap: 6px;
+        width: 100%;
+        margin-top: auto;
+    }
+
+    body.p34-storefront .sf-product-actions :is(.sf-secondary, .sf-cta) {
+        width: 100%;
+        min-width: 0;
+        min-height: 44px;
+        padding: 8px 4px;
+        font-size: clamp(10px, 2.8vw, 12px);
+        line-height: 1.2;
+        white-space: normal;
+        overflow-wrap: anywhere;
+    }
 }

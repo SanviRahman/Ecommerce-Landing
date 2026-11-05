@@ -48,7 +48,7 @@
     {{-- P63: public homepage shares the same drawer stacking and desktop header rules as the catalog/checkout. --}}
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-p62.css') }}?v=p63">
     <link rel="stylesheet" href="{{ asset('frontend/css/storefront-merchandising.css') }}?v=1">
-    <link rel="stylesheet" href="{{ asset('frontend/css/storefront-card-sizing.css') }}?v=2">
+    <link rel="stylesheet" href="{{ asset('frontend/css/storefront-card-sizing.css') }}?v=3">
     <script src="{{ asset('frontend/js/storefront-p51-loader.js') }}?v=p52"></script>
 </head>
 <body class="p34-storefront">
